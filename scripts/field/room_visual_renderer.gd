@@ -3441,12 +3441,18 @@ func draw_wall_mounted_cable_tap(object_data: Dictionary, visual_center: Vector2
 func _is_wall_cable_run_match(candidate_data: Dictionary, base_data: Dictionary) -> bool:
 	if not is_wall_cable_object(candidate_data):
 		return false
+
 	if get_cable_wall_side(candidate_data) != get_cable_wall_side(base_data):
 		return false
+
 	if get_cable_wall_routing_mode(candidate_data) != get_cable_wall_routing_mode(base_data):
 		return false
-	return CableTopologyServiceRef.get_cable_circuit_id(candidate_data) == CableTopologyServiceRef.get_cable_circuit_id(base_data)
 
+	var candidate_circuit_id: String = CableTopologyServiceRef.get_cable_circuit_id(candidate_data)
+	var base_circuit_id: String = CableTopologyServiceRef.get_cable_circuit_id(base_data)
+
+	return _is_wall_cable_anchor_circuit_compatible(base_circuit_id, candidate_circuit_id)
+	
 func _find_wall_cable_run_object_at_cell(cell: Vector2i, base_data: Dictionary, world_objects: Array) -> Dictionary:
 	for object_variant in world_objects:
 		if not (object_variant is Dictionary):
@@ -3505,12 +3511,44 @@ func _get_wall_cable_object_id(object_data: Dictionary, cell: Vector2i) -> Strin
 	if object_id.is_empty():
 		object_id = "%s@%d,%d" % [str(object_data.get("object_type", object_data.get("type", "object"))), cell.x, cell.y]
 	return object_id
-
-func _is_wall_cable_anchor_circuit_compatible(base_circuit_id: String, candidate_circuit_id: String) -> bool:
-	if base_circuit_id.is_empty() or candidate_circuit_id.is_empty():
+func _is_generated_or_local_cable_circuit_id(circuit_id: String) -> bool:
+	var normalized_id: String = circuit_id.strip_edges().to_lower()
+	if normalized_id.is_empty():
 		return true
-	return base_circuit_id == candidate_circuit_id
 
+	var generated_markers: Array[String] = [
+		"mapedit",
+		"runtime",
+		"object",
+		"power_cable",
+		"cable_reel",
+		"cable",
+		"@"
+	]
+
+	for marker in generated_markers:
+		if normalized_id.contains(marker):
+			return true
+
+	return false
+	
+func _is_wall_cable_anchor_circuit_compatible(base_circuit_id: String, candidate_circuit_id: String) -> bool:
+	var base_id: String = base_circuit_id.strip_edges()
+	var candidate_id: String = candidate_circuit_id.strip_edges()
+
+	if base_id.is_empty() or candidate_id.is_empty():
+		return true
+
+	if base_id == candidate_id:
+		return true
+
+	# Map Constructor often creates independent cable pieces with generated ids.
+	# For visual wall runs, generated/local ids must not prevent adjacent wall cables from joining.
+	if _is_generated_or_local_cable_circuit_id(base_id) or _is_generated_or_local_cable_circuit_id(candidate_id):
+		return true
+
+	return false
+	
 func _build_wall_cable_face_anchor(object_data: Dictionary, cell: Vector2i, base_wall_side: String, base_routing_mode: String) -> Dictionary:
 	var is_cable: bool = is_wall_cable_object(object_data)
 	var should_draw_tap: bool = _should_draw_wall_mounted_cable_tap(object_data)
@@ -3548,31 +3586,48 @@ func _collect_wall_cable_face_run_anchors(base_data: Dictionary, base_cell: Vect
 	var base_circuit_id: String = CableTopologyServiceRef.get_cable_circuit_id(base_data)
 	var base_run_key: String = _get_wall_cable_face_run_key(base_data, base_cell)
 	var seen_ids: Dictionary = {}
+
 	var world_objects: Array[Dictionary] = _get_runtime_world_objects_for_iso_render(true)
 	world_objects.append(base_data)
+
 	for object_variant in world_objects:
 		if not (object_variant is Dictionary):
 			continue
+
 		var candidate_data: Dictionary = Dictionary(object_variant)
 		var candidate_cell: Vector2i = _get_cable_object_cell(candidate_data)
+
 		if candidate_cell.x < 0 or candidate_cell.y < 0:
 			continue
+
+		if not is_wall_cable_object(candidate_data) and not _should_draw_wall_mounted_cable_tap(candidate_data):
+			continue
+
+		if get_cable_wall_routing_mode(candidate_data) != base_routing_mode:
+			continue
+
 		var candidate_circuit_id: String = CableTopologyServiceRef.get_cable_circuit_id(candidate_data)
-		if is_wall_cable_object(candidate_data) and base_circuit_id != candidate_circuit_id:
+		if not _is_wall_cable_anchor_circuit_compatible(base_circuit_id, candidate_circuit_id):
 			continue
-		if not is_wall_cable_object(candidate_data) and not _is_wall_cable_anchor_circuit_compatible(base_circuit_id, candidate_circuit_id):
-			continue
+
 		var candidate_run_key: String = _get_wall_cable_face_run_key(candidate_data, candidate_cell)
 		if candidate_run_key != base_run_key:
 			continue
+
 		var anchor: Dictionary = _build_wall_cable_face_anchor(candidate_data, candidate_cell, base_wall_side, base_routing_mode)
 		if anchor.is_empty():
 			continue
-		var object_id: String = str(anchor.get("object_id", ""))
+
+		var object_id: String = str(anchor.get("object_id", "")).strip_edges()
+		if object_id.is_empty():
+			continue
+
 		if seen_ids.has(object_id):
 			continue
+
 		seen_ids[object_id] = true
 		_insert_sorted_wall_cable_anchor(anchors, anchor)
+
 	return anchors	
 
 func _collect_wall_cable_circuit_anchors_any_side(base_data: Dictionary, base_cell: Vector2i) -> Array[Dictionary]:
@@ -3580,36 +3635,48 @@ func _collect_wall_cable_circuit_anchors_any_side(base_data: Dictionary, base_ce
 	var base_routing_mode: String = get_cable_wall_routing_mode(base_data)
 	var base_circuit_id: String = CableTopologyServiceRef.get_cable_circuit_id(base_data)
 	var seen_ids: Dictionary = {}
+
 	var world_objects: Array[Dictionary] = _get_runtime_world_objects_for_iso_render(true)
 	world_objects.append(base_data)
+
 	for object_variant in world_objects:
 		if not (object_variant is Dictionary):
 			continue
+
 		var candidate_data: Dictionary = Dictionary(object_variant)
 		var candidate_cell: Vector2i = _get_cable_object_cell(candidate_data)
+
 		if candidate_cell.x < 0 or candidate_cell.y < 0:
 			continue
+
 		if not is_wall_cable_object(candidate_data) and not _should_draw_wall_mounted_cable_tap(candidate_data):
 			continue
+
 		if get_cable_wall_routing_mode(candidate_data) != base_routing_mode:
 			continue
+
 		var candidate_circuit_id: String = CableTopologyServiceRef.get_cable_circuit_id(candidate_data)
-		if is_wall_cable_object(candidate_data):
-			if candidate_circuit_id != base_circuit_id:
-				continue
-		elif not _is_wall_cable_anchor_circuit_compatible(base_circuit_id, candidate_circuit_id):
+		if not _is_wall_cable_anchor_circuit_compatible(base_circuit_id, candidate_circuit_id):
 			continue
+
 		var candidate_wall_side: String = get_cable_wall_side(candidate_data)
 		if candidate_wall_side not in ["sw", "se"]:
 			continue
+
 		var anchor: Dictionary = _build_wall_cable_face_anchor(candidate_data, candidate_cell, candidate_wall_side, base_routing_mode)
 		if anchor.is_empty():
 			continue
-		var object_id: String = str(anchor.get("object_id", ""))
+
+		var object_id: String = str(anchor.get("object_id", "")).strip_edges()
+		if object_id.is_empty():
+			continue
+
 		if seen_ids.has(object_id):
 			continue
+
 		seen_ids[object_id] = true
 		anchors.append(anchor)
+
 	return anchors
 
 func _partition_wall_cable_anchors_by_side(anchors: Array) -> Dictionary:
@@ -3717,10 +3784,16 @@ func _draw_sorted_wall_cable_anchor_span(sorted_anchors: Array, profile: Diction
 		profile
 	)
 func _is_wall_cable_same_side_visible_span(anchor_a: Dictionary, anchor_b: Dictionary) -> bool:
-	var side_a: String = str(anchor_a.get("wall_side", ""))
-	var side_b: String = str(anchor_b.get("wall_side", ""))
+	var side_a: String = str(anchor_a.get("wall_side", "")).strip_edges().to_lower()
+	var side_b: String = str(anchor_b.get("wall_side", "")).strip_edges().to_lower()
 
 	if side_a.is_empty() or side_b.is_empty() or side_a != side_b:
+		return false
+
+	var routing_a: String = str(anchor_a.get("routing_mode", "outer")).strip_edges().to_lower()
+	var routing_b: String = str(anchor_b.get("routing_mode", "outer")).strip_edges().to_lower()
+
+	if routing_a != routing_b:
 		return false
 
 	var cell_a: Vector2i = Vector2i(anchor_a.get("cell", Vector2i(-1, -1)))
@@ -3730,21 +3803,20 @@ func _is_wall_cable_same_side_visible_span(anchor_a: Dictionary, anchor_b: Dicti
 		return false
 
 	var delta: Vector2i = cell_b - cell_a
+	var manhattan_distance: int = absi(delta.x) + absi(delta.y)
 
-	# Запрещаем диагональные соединения.
-	# Диагональ визуально проходит через угол / скрытую стену.
-	if delta.x != 0 and delta.y != 0:
+	if manhattan_distance == 0:
+		return true
+
+	# Only connect direct neighbor wall cells.
+	# This prevents drawing long cable spans through a wall mass that should occlude the cable.
+	if manhattan_distance != 1:
 		return false
 
-	# Для se-грани кабель идёт только west/east.
-	if side_a == "se":
-		return delta.y == 0 and absi(delta.x) <= 2
+	var circuit_a: String = str(anchor_a.get("circuit_id", "")).strip_edges()
+	var circuit_b: String = str(anchor_b.get("circuit_id", "")).strip_edges()
 
-	# Для sw-грани кабель идёт только north/south.
-	if side_a == "sw":
-		return delta.x == 0 and absi(delta.y) <= 2
-
-	return false
+	return _is_wall_cable_anchor_circuit_compatible(circuit_a, circuit_b)
 	
 func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circuit_anchors: Array, profile: Dictionary) -> void:
 	if side_anchors.is_empty():
@@ -3763,56 +3835,100 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 		_draw_wall_cable_local_anchor_segment(Dictionary(cable_anchors[0]), profile)
 		return
 
+	var drawn_local_ids: Dictionary = {}
+	var has_drawn_span: bool = false
+
 	for index in range(cable_anchors.size() - 1):
 		var current_anchor: Dictionary = Dictionary(cable_anchors[index])
 		var next_anchor: Dictionary = Dictionary(cable_anchors[index + 1])
 
-		if not _is_wall_cable_same_side_visible_span(current_anchor, next_anchor):
-			_draw_wall_cable_local_anchor_segment(current_anchor, profile)
-			_draw_wall_cable_local_anchor_segment(next_anchor, profile)
+		if _is_wall_cable_same_side_visible_span(current_anchor, next_anchor):
+			draw_iso_cable_wall_segment(
+				Vector2(current_anchor.get("rail_anchor", Vector2.ZERO)),
+				Vector2(next_anchor.get("rail_anchor", Vector2.ZERO)),
+				profile
+			)
+			has_drawn_span = true
 			continue
 
-		draw_iso_cable_wall_segment(
-			Vector2(current_anchor.get("rail_anchor", Vector2.ZERO)),
-			Vector2(next_anchor.get("rail_anchor", Vector2.ZERO)),
-			profile
-		)
+		var current_id: String = _get_wall_cable_anchor_id(current_anchor)
+		if not drawn_local_ids.has(current_id):
+			_draw_wall_cable_local_anchor_segment(current_anchor, profile)
+			drawn_local_ids[current_id] = true
+
+		var next_id: String = _get_wall_cable_anchor_id(next_anchor)
+		if not drawn_local_ids.has(next_id):
+			_draw_wall_cable_local_anchor_segment(next_anchor, profile)
+			drawn_local_ids[next_id] = true
+
+	if not has_drawn_span:
+		for anchor_variant in cable_anchors:
+			var anchor: Dictionary = Dictionary(anchor_variant)
+			var anchor_id: String = _get_wall_cable_anchor_id(anchor)
+			if drawn_local_ids.has(anchor_id):
+				continue
+			_draw_wall_cable_local_anchor_segment(anchor, profile)
+			drawn_local_ids[anchor_id] = true
 			
 func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Dictionary) -> Dictionary:
-	var wall_side_a: String = str(anchor_a.get("wall_side", ""))
-	var wall_side_b: String = str(anchor_b.get("wall_side", ""))
-	if wall_side_a.is_empty() or wall_side_b.is_empty() or wall_side_a == wall_side_b:
+	var wall_side_a: String = str(anchor_a.get("wall_side", "")).strip_edges().to_lower()
+	var wall_side_b: String = str(anchor_b.get("wall_side", "")).strip_edges().to_lower()
+
+	if wall_side_a.is_empty() or wall_side_b.is_empty():
 		return {}
+
+	if wall_side_a == wall_side_b:
+		return {}
+
 	if not bool(anchor_a.get("is_cable", false)) or not bool(anchor_b.get("is_cable", false)):
 		return {}
-	var routing_mode_a: String = str(anchor_a.get("routing_mode", ""))
-	var routing_mode_b: String = str(anchor_b.get("routing_mode", ""))
-	if routing_mode_a.is_empty() or routing_mode_b.is_empty() or routing_mode_a != routing_mode_b:
+
+	var routing_mode_a: String = str(anchor_a.get("routing_mode", "outer")).strip_edges().to_lower()
+	var routing_mode_b: String = str(anchor_b.get("routing_mode", "outer")).strip_edges().to_lower()
+
+	if routing_mode_a != routing_mode_b:
 		return {}
-	var circuit_id_a: String = str(anchor_a.get("circuit_id", ""))
-	var circuit_id_b: String = str(anchor_b.get("circuit_id", ""))
-	if circuit_id_a.is_empty() or circuit_id_b.is_empty() or circuit_id_a != circuit_id_b:
+
+	var circuit_id_a: String = str(anchor_a.get("circuit_id", "")).strip_edges()
+	var circuit_id_b: String = str(anchor_b.get("circuit_id", "")).strip_edges()
+
+	if not _is_wall_cable_anchor_circuit_compatible(circuit_id_a, circuit_id_b):
 		return {}
+
 	var cell_a: Vector2i = Vector2i(anchor_a.get("cell", Vector2i(-1, -1)))
 	var cell_b: Vector2i = Vector2i(anchor_b.get("cell", Vector2i(-1, -1)))
+
 	if cell_a.x < 0 or cell_a.y < 0 or cell_b.x < 0 or cell_b.y < 0:
 		return {}
+
 	var cell_delta: Vector2i = cell_a - cell_b
 	var same_cell: bool = cell_a == cell_b
 	var orthogonally_adjacent: bool = (absi(cell_delta.x) == 1 and cell_delta.y == 0) or (absi(cell_delta.y) == 1 and cell_delta.x == 0)
-	if not same_cell and not orthogonally_adjacent:
+	var diagonally_adjacent: bool = absi(cell_delta.x) == 1 and absi(cell_delta.y) == 1
+
+	if not same_cell and not orthogonally_adjacent and not diagonally_adjacent:
 		return {}
+
 	var rail_a: Vector2 = Vector2(anchor_a.get("rail_anchor", Vector2.ZERO))
 	var rail_b: Vector2 = Vector2(anchor_b.get("rail_anchor", Vector2.ZERO))
 	var joint: Vector2 = Vector2.ZERO
+	var relation_rank: int = 0
+
 	if same_cell:
 		joint = grid_to_iso(cell_a) + Vector2(0.0, -_get_wall_cable_rail_height_px())
-	else:
+		relation_rank = 0
+	elif orthogonally_adjacent:
 		var shared_center: Vector2 = grid_to_iso(cell_a).lerp(grid_to_iso(cell_b), 0.5)
 		joint = shared_center + Vector2(0.0, -_get_wall_cable_rail_height_px())
+		relation_rank = 1
+	else:
+		var diagonal_center: Vector2 = grid_to_iso(cell_a).lerp(grid_to_iso(cell_b), 0.5)
+		joint = diagonal_center + Vector2(0.0, -_get_wall_cable_rail_height_px())
+		relation_rank = 2
+
 	return {
 		"joint": joint,
-		"relation_rank": 0 if same_cell else 1,
+		"relation_rank": relation_rank,
 		"rail_distance": rail_a.distance_squared_to(rail_b)
 	}
 
@@ -3841,38 +3957,55 @@ func _find_nearest_wall_cable_corner_anchor(anchor: Dictionary, candidates: Arra
 
 func _draw_wall_cable_corner_bridges(circuit_anchors: Array, profile: Dictionary) -> void:
 	var groups: Dictionary = _partition_wall_cable_anchors_by_side(circuit_anchors)
+
 	var sw_anchors: Array[Dictionary] = []
 	for anchor_variant in Array(groups.get("sw", [])):
 		var anchor: Dictionary = Dictionary(anchor_variant)
 		if bool(anchor.get("is_cable", false)):
 			sw_anchors.append(anchor)
+
 	var se_anchors: Array[Dictionary] = []
 	for anchor_variant in Array(groups.get("se", [])):
 		var anchor: Dictionary = Dictionary(anchor_variant)
 		if bool(anchor.get("is_cable", false)):
 			se_anchors.append(anchor)
+
 	var drawn_pairs: Dictionary = {}
+
 	for sw_anchor_variant in sw_anchors:
 		var sw_anchor: Dictionary = Dictionary(sw_anchor_variant)
 		var se_anchor: Dictionary = _find_nearest_wall_cable_corner_anchor(sw_anchor, se_anchors)
+
 		if se_anchor.is_empty():
 			continue
+
 		var mutual_sw_anchor: Dictionary = _find_nearest_wall_cable_corner_anchor(se_anchor, sw_anchors)
-		if mutual_sw_anchor.is_empty() or str(mutual_sw_anchor.get("object_id", "")) != str(sw_anchor.get("object_id", "")):
+		if mutual_sw_anchor.is_empty():
 			continue
-		var pair_key: String = "%s|%s" % [str(sw_anchor.get("object_id", "")), str(se_anchor.get("object_id", ""))]
+
+		if _get_wall_cable_anchor_id(mutual_sw_anchor) != _get_wall_cable_anchor_id(sw_anchor):
+			continue
+
+		var sw_id: String = _get_wall_cable_anchor_id(sw_anchor)
+		var se_id: String = _get_wall_cable_anchor_id(se_anchor)
+		var pair_key: String = "%s|%s" % [sw_id, se_id]
+
 		if drawn_pairs.has(pair_key):
 			continue
+
 		var joint_info: Dictionary = _get_wall_cable_corner_bridge_joint_info(sw_anchor, se_anchor)
 		if joint_info.is_empty():
 			continue
+
 		drawn_pairs[pair_key] = true
+
 		var sw_rail: Vector2 = Vector2(sw_anchor.get("rail_anchor", Vector2.ZERO))
 		var se_rail: Vector2 = Vector2(se_anchor.get("rail_anchor", Vector2.ZERO))
 		var joint: Vector2 = Vector2(joint_info.get("joint", Vector2.ZERO))
+
 		draw_iso_cable_wall_segment(sw_rail, joint, profile)
 		draw_iso_cable_wall_segment(joint, se_rail, profile)
-
+		
 func _get_first_wall_cable_anchor(anchors: Array[Dictionary]) -> Dictionary:
 	for anchor_variant in anchors:
 		var anchor: Dictionary = Dictionary(anchor_variant)
