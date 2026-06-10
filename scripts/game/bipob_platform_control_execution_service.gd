@@ -400,7 +400,7 @@ static func _is_external_power_available(platform_object: Dictionary) -> bool:
 	return power_state in ["powered", "active", "on", "ok"]
 
 
-static func _apply_platform_level_updates(controller: Variant, mechanism: Dictionary, members: Array[Dictionary], target_level: int, current_level: int, _action: String) -> int:
+static func _apply_platform_level_updates(controller: Variant, _mechanism: Dictionary, members: Array[Dictionary], target_level: int, current_level: int, _action: String) -> int:
 	var updated_count: int = 0
 	for member in members:
 		var member_id: String = str(member.get("id", "")).strip_edges()
