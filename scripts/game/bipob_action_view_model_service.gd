@@ -56,10 +56,7 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 	var available_action_ids: Array[String] = []
 	var target_id: String = str(normalized_target.get("id", ""))
 	var target_type: String = str(normalized_target.get("object_type", group))
-	if group == "platform" and action_ids.is_empty():
-		var platform_disabled_descriptor: Dictionary = _build_disabled_platform_action_descriptor(controller, normalized_target, target_position, target_id, target_type)
-		if not platform_disabled_descriptor.is_empty():
-			descriptors.append(platform_disabled_descriptor)
+	
 	for action_id in action_ids:
 		var module: Dictionary = controller.get_world_action_module(action_id, normalized_target)
 		var gate: Dictionary = InteractionSystemRef.can_apply_action(actor, module, normalized_target, action_id)
