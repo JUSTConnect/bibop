@@ -7685,7 +7685,7 @@ func get_platform_control_action_payload(platform_object: Dictionary, target_pos
 	payload["message"] = "Platform control available."
 	return payload
 	
-func _is_actor_standing_on_platform_target(platform_object: Dictionary, _target_position: Vector2i) -> bool:
+func _is_actor_standing_on_platform_target(platform_object: Dictionary, target_position: Vector2i) -> bool:
 	if platform_object.is_empty():
 		return false
 
@@ -7710,6 +7710,9 @@ func _is_actor_standing_on_platform_target(platform_object: Dictionary, _target_
 		return false
 
 	var actor_cell: Vector2i = Vector2i(grid_position)
+
+	if actor_cell == target_position:
+		return true
 
 	for cell_variant in Array(platform_object.get("platform_cells", [])):
 		var platform_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
