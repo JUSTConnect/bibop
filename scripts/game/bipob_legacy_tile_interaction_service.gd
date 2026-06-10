@@ -4,7 +4,7 @@ class_name BipobLegacyTileInteractionService
 
 static func handle_pre_world_object_tile_interaction(
 	controller: Variant,
-	target_position: Vector2i,
+	_target_position: Vector2i,
 	target_tile: int
 ) -> Dictionary:
 	# Legacy interact must not process digital devices before the modern
