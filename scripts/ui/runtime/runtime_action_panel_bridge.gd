@@ -100,7 +100,7 @@ func process_feedback(delta: float) -> void:
 	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
 	var action_view_model: Dictionary = get_action_view_model()
 	var actions: Array = Array(target_data.get("actions", []))
-	var physical_actions: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(actions)
+	var physical_actions: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(actions, target_object)
 	var heavy_claw_descriptor: Dictionary = RuntimeInteractionPanelRef.get_heavy_claw_descriptor(target_data)
 
 	var is_heavy_claw_movable_target: bool = RuntimeInteractionPanelRef.is_heavy_claw_movable_target(target_object)
