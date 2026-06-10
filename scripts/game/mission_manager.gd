@@ -25,7 +25,6 @@ const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
-const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
 
 const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
@@ -3738,10 +3737,10 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 				if not existing_variant is Dictionary:
 					continue
 
-				var existing_object: Dictionary = Dictionary(existing_variant)
-				var existing_type: String = str(existing_object.get("map_constructor_prefab_id", existing_object.get("object_type", ""))).strip_edges().to_lower()
+				var existing_wall_object: Dictionary = Dictionary(existing_variant)
+				var existing_wall_type: String = str(existing_wall_object.get("map_constructor_prefab_id", existing_wall_object.get("object_type", ""))).strip_edges().to_lower()
 
-				if not _is_map_constructor_wall_stackable_prefab(existing_type):
+				if not _is_map_constructor_wall_stackable_prefab(existing_wall_type):
 					has_non_stackable_existing = true
 					break
 
@@ -4387,7 +4386,6 @@ func get_breachable_wall_action_target_at_cell(cell: Vector2i) -> Dictionary:
 	var allowed_heights: Array = Array(material.get("allowed_wall_heights", ["mid", "halfmid", "tall"]))
 	if not allowed_heights.has(height):
 		return {}
-	var material_id: String = normalize_map_constructor_wall_material_id(str(material.get("id", "")))
 	var breach_side: String = BreachableWallServiceRef.normalize_breach_side(material.get("breach_side", "sw"))
 	return BreachableWallServiceRef.build_runtime_wall_target(cell, material, height, breach_side)
 
