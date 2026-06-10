@@ -7619,8 +7619,29 @@ func get_platform_control_action_payload(platform_object: Dictionary, target_pos
 	var normalized_platform: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(platform_object)
 	if normalized_platform.is_empty():
 		return {}
-	if str(normalized_platform.get("object_group", "")).strip_edges().to_lower() != "platform":
+
+	var object_group: String = str(normalized_platform.get("object_group", normalized_platform.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(normalized_platform.get("object_type", normalized_platform.get("type", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(normalized_platform.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(normalized_platform.get("platform_type", "")).strip_edges().to_lower()
+
+	var is_platform: bool = false
+	if object_group == "platform":
+		is_platform = true
+	if object_type == "platform":
+		is_platform = true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		is_platform = true
+	if not platform_mode.is_empty():
+		is_platform = true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		is_platform = true
+
+	if not is_platform:
 		return {}
+
+	var actor_standing_on_platform: bool = _is_actor_standing_on_platform_target(normalized_platform, target_position)
+	var runtime_block_message: String = _get_platform_runtime_block_message(normalized_platform)
 
 	var platform_ids: Array[String] = []
 	var mechanism_id: String = str(normalized_platform.get("mechanism_id", normalized_platform.get("platform_mechanism_id", ""))).strip_edges()
@@ -7640,35 +7661,31 @@ func get_platform_control_action_payload(platform_object: Dictionary, target_pos
 			platform_ids.append(single_platform_id)
 
 	var mechanism: Dictionary = PlatformMechanismRulesServiceRef.build_mechanism_from_platform(normalized_platform, platform_ids)
-	var actor_standing_on_platform: bool = _is_actor_standing_on_platform_target(normalized_platform, target_position)
-	var runtime_block_message: String = _get_platform_runtime_block_message(normalized_platform)
 
 	var payload: Dictionary = {}
 	payload["mechanism"] = mechanism
 	payload["target_position"] = target_position
 	payload["platform_id"] = str(normalized_platform.get("platform_id", normalized_platform.get("id", "")))
-	payload["runtime_self_platform_control"] = actor_standing_on_platform
+	payload["standing_on_platform"] = actor_standing_on_platform
 
-	# Runtime platform-control rule:
-	# if Bipob stands on this platform footprint, the platform is controllable.
-	if actor_standing_on_platform:
-		if runtime_block_message.is_empty():
-			payload["show_action"] = true
-			payload["enabled"] = true
-			payload["message"] = "Platform control available."
-		else:
-			payload["show_action"] = false
-			payload["enabled"] = false
-			payload["message"] = runtime_block_message
+	if not actor_standing_on_platform:
+		payload["show_action"] = false
+		payload["enabled"] = false
+		payload["message"] = ""
 		return payload
 
-	# Not standing on this platform: no self-control action.
-	payload["show_action"] = false
-	payload["enabled"] = false
-	payload["message"] = "Stand on platform to control it."
+	if not runtime_block_message.is_empty():
+		payload["show_action"] = false
+		payload["enabled"] = false
+		payload["message"] = runtime_block_message
+		return payload
+
+	payload["show_action"] = true
+	payload["enabled"] = true
+	payload["message"] = "Platform control available."
 	return payload
 	
-func _is_actor_standing_on_platform_target(platform_object: Dictionary, target_position: Vector2i) -> bool:
+func _is_actor_standing_on_platform_target(platform_object: Dictionary, _target_position: Vector2i) -> bool:
 	if platform_object.is_empty():
 		return false
 
@@ -7694,26 +7711,31 @@ func _is_actor_standing_on_platform_target(platform_object: Dictionary, target_p
 
 	var actor_cell: Vector2i = Vector2i(grid_position)
 
-	# Direct target fallback. This covers the simple case where targeting already
-	# resolved the platform under Bipob.
-	if actor_cell == target_position:
-		return true
-
-	# Platform footprint check. This is the important part for multi-cell mechanisms.
 	for cell_variant in Array(platform_object.get("platform_cells", [])):
+		var platform_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+		if platform_cell == actor_cell:
+			return true
+
+	for cell_variant in Array(platform_object.get("cells", [])):
 		var cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
 		if cell == actor_cell:
 			return true
 
-	# Single-cell platform fallback.
-	var platform_position: Vector2i = WorldObjectCatalogRef.to_world_cell(
-		platform_object.get("position", platform_object.get("cell", Vector2i(-1, -1))),
+	var position_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
+		platform_object.get("position", platform_object.get("pos", platform_object.get("cell", Vector2i(-1, -1)))),
 		Vector2i(-1, -1)
 	)
-	if platform_position == actor_cell:
+	if position_cell == actor_cell:
 		return true
 
+	var x_value: int = int(platform_object.get("x", platform_object.get("cell_x", -1)))
+	var y_value: int = int(platform_object.get("y", platform_object.get("cell_y", -1)))
+	if x_value >= 0 and y_value >= 0:
+		if Vector2i(x_value, y_value) == actor_cell:
+			return true
+
 	return false
+	
 	
 func _is_platform_external_power_available(platform_object: Dictionary) -> bool:
 	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
