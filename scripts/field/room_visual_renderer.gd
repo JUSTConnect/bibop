@@ -3813,17 +3813,20 @@ func _is_wall_cable_same_side_visible_span(anchor_a: Dictionary, anchor_b: Dicti
 	if not _is_wall_cable_anchor_circuit_compatible(circuit_a, circuit_b):
 		return false
 
-	var cell_a: Vector2i = Vector2i(anchor_a.get("cell", Vector2i(-1, -1)))
-	var cell_b: Vector2i = Vector2i(anchor_b.get("cell", Vector2i(-1, -1)))
+	var rail_a: Vector2 = _get_wall_cable_anchor_rail(anchor_a)
+	var rail_b: Vector2 = _get_wall_cable_anchor_rail(anchor_b)
+	var rail_distance: float = rail_a.distance_to(rail_b)
 
-	if cell_a.x < 0 or cell_a.y < 0 or cell_b.x < 0 or cell_b.y < 0:
+	var half_size: Vector2 = get_iso_tile_half_size()
+	var max_visible_neighbor_distance: float = maxf(half_size.x * 1.45, 72.0)
+
+	# Соединяем только реальные ближайшие соседние anchors на одной видимой линии.
+	# Это лучше, чем проверять только Vector2i cell delta, потому что wall-mounted
+	# кабель может быть привязан к wall cell / attached wall cell не так, как floor grid.
+	if rail_distance <= 0.25:
 		return false
 
-	var delta: Vector2i = cell_b - cell_a
-	var manhattan_distance: int = absi(delta.x) + absi(delta.y)
-
-	# Соединяем только соседние клетки на той же стороне стены.
-	return manhattan_distance == 1
+	return rail_distance <= max_visible_neighbor_distance
 	
 func _get_wall_cable_anchor_side(anchor: Dictionary) -> String:
 	return str(anchor.get("wall_side", "sw")).strip_edges().to_lower()
@@ -3841,7 +3844,8 @@ func _is_wall_cable_segment_front_occluded(anchor_a: Dictionary, anchor_b: Dicti
 	var side_a: String = _get_wall_cable_anchor_side(anchor_a)
 	var side_b: String = _get_wall_cable_anchor_side(anchor_b)
 
-	# Прямые участки на одной и той же стороне стены должны быть видимы.
+	# Same-side соединения не режем здесь.
+	# Их длина уже ограничена через _is_wall_cable_same_side_visible_span().
 	if side_a == side_b:
 		return false
 
@@ -3854,10 +3858,8 @@ func _is_wall_cable_segment_front_occluded(anchor_a: Dictionary, anchor_b: Dicti
 	var delta: Vector2i = cell_b - cell_a
 	var manhattan_distance: int = absi(delta.x) + absi(delta.y)
 
-	# SW <-> SE переход разрешаем только для очень близких соседей.
-	# Если bridge слишком длинный, он визуально проходит сквозь стену.
-	return manhattan_distance > 1
-	
+	# SW<->SE bridge разрешаем только рядом с углом.
+	return manhattan_distance > 1	
 
 
 func _draw_visible_wall_cable_span_between_anchors(anchor_a: Dictionary, anchor_b: Dictionary, profile: Dictionary) -> void:
@@ -3885,45 +3887,52 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 	for anchor_variant in side_anchors:
 		var anchor: Dictionary = Dictionary(anchor_variant)
 		if bool(anchor.get("is_cable", false)):
-			cable_anchors.append(anchor)
+			_insert_sorted_wall_cable_anchor(cable_anchors, anchor)
 
 	if cable_anchors.is_empty():
 		return
 
-	# Важно:
-	# Каждый кабель на стене всегда должен иметь свой локальный видимый кусок.
-	# Иначе, если topology span не построился, кабель полностью пропадает.
-	for anchor_variant in cable_anchors:
-		var local_anchor: Dictionary = Dictionary(anchor_variant)
-		_draw_wall_cable_local_anchor_segment(local_anchor, profile)
-
 	if cable_anchors.size() == 1:
+		_draw_wall_cable_local_anchor_segment(Dictionary(cable_anchors[0]), profile)
 		return
 
+	var connected_anchor_ids: Dictionary = {}
 	var drawn_pair_keys: Dictionary = {}
 
-	for i in range(cable_anchors.size()):
-		var anchor_a: Dictionary = Dictionary(cable_anchors[i])
-		var id_a: String = _get_wall_cable_anchor_id(anchor_a)
+	for index in range(cable_anchors.size() - 1):
+		var current_anchor: Dictionary = Dictionary(cable_anchors[index])
+		var next_anchor: Dictionary = Dictionary(cable_anchors[index + 1])
 
-		for j in range(i + 1, cable_anchors.size()):
-			var anchor_b: Dictionary = Dictionary(cable_anchors[j])
-			var id_b: String = _get_wall_cable_anchor_id(anchor_b)
+		if not _is_wall_cable_same_side_visible_span(current_anchor, next_anchor):
+			continue
 
-			if not _is_wall_cable_same_side_visible_span(anchor_a, anchor_b):
-				continue
+		var current_id: String = _get_wall_cable_anchor_id(current_anchor)
+		var next_id: String = _get_wall_cable_anchor_id(next_anchor)
 
-			var pair_ids: Array[String] = [id_a, id_b]
-			pair_ids.sort()
+		var pair_ids: Array[String] = [current_id, next_id]
+		pair_ids.sort()
 
-			var pair_key: String = "%s|%s" % [pair_ids[0], pair_ids[1]]
-			if drawn_pair_keys.has(pair_key):
-				continue
+		var pair_key: String = "%s|%s" % [pair_ids[0], pair_ids[1]]
+		if drawn_pair_keys.has(pair_key):
+			continue
 
-			drawn_pair_keys[pair_key] = true
+		drawn_pair_keys[pair_key] = true
+		connected_anchor_ids[current_id] = true
+		connected_anchor_ids[next_id] = true
 
-			_draw_visible_wall_cable_span_between_anchors(anchor_a, anchor_b, profile)
-								
+		_draw_visible_wall_cable_span_between_anchors(current_anchor, next_anchor, profile)
+
+	# Локальный короткий кусок рисуем только для полностью одиноких anchors.
+	# Для связанных anchors локальный кусок НЕ рисуем, иначе получаются двойные/ломаные отрезки.
+	for anchor_variant in cable_anchors:
+		var anchor: Dictionary = Dictionary(anchor_variant)
+		var anchor_id: String = _get_wall_cable_anchor_id(anchor)
+
+		if connected_anchor_ids.has(anchor_id):
+			continue
+
+		_draw_wall_cable_local_anchor_segment(anchor, profile)
+										
 func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Dictionary) -> Dictionary:
 	var wall_side_a: String = _get_wall_cable_anchor_side(anchor_a)
 	var wall_side_b: String = _get_wall_cable_anchor_side(anchor_b)
