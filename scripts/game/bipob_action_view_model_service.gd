@@ -258,7 +258,7 @@ static func _get_breachable_wall_disabled_reason(action_payload: Dictionary) -> 
 	return "action_unavailable"
 
 
-static func _runtime_action_requires_free_manipulator(action_id: String, target_object: Dictionary) -> bool:
+static func _runtime_action_requires_free_manipulator(_action_id: String, _target_object: Dictionary) -> bool:
 	return false
 
 
