@@ -114,6 +114,13 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
 	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
 	var action_ids: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(ui._safe_ui_array(target_data.get("actions", [])), target_object)
+	
+	if action_ids.is_empty():
+		ui.runtime_interaction_mode_active = false
+		ui.runtime_world_actions_panel.visible = false
+		_clear_runtime_world_actions_list(ui)
+		return
+		
 	var selected_action: String = str(payload.get("selected_action", ui.last_world_action_selected if not ui.last_world_action_selected.is_empty() else ""))
 	var fallback_name: String = str(target_object.get("display_name", target_object.get("name", target_object.get("label", ""))))
 	var target_id: String = ui._get_runtime_world_action_target_id(target_object, fallback_name)
@@ -176,7 +183,7 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 		var action_enabled: bool = bool(descriptor.get("enabled", false))
 		var action_reason: String = str(descriptor.get("reason", ""))
 		var button: Button = ui._create_runtime_control_button(button_label, Callable(ui, "_on_world_action_button_pressed").bind(action_id), "primary" if action_enabled else "disabled")
-		button.disabled = false
+		button.disabled = not action_enabled
 		button.tooltip_text = "" if action_enabled or action_reason.is_empty() else action_reason
 		button.custom_minimum_size = Vector2(0, 28)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
