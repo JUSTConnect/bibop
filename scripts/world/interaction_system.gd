@@ -5,7 +5,7 @@ const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 
-const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","apply_digital_key","access_code_0","access_code_1","access_code_2","access_code_3","access_code_4","access_code_5","access_code_6","access_code_7","access_code_8","access_code_9","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","remove_fuse","repair","plug_in","plug_out","take_end_1","take_end_2","connect_wire_end","connect_wire_1","connect_wire_2","disconnect_power_wire","disconnect_wire_1","disconnect_wire_2","circuit_1","circuit_2","circuit_3","open_door","close_door","unlock_door","push","pull","breach","break_breachable_wall","switch","disable","enable","attack","stun","repair_ally"]
+const SUPPORTED_ACTIONS := ["open","close","unlock","input_password","apply_digital_key","access_code_0","access_code_1","access_code_2","access_code_3","access_code_4","access_code_5","access_code_6","access_code_7","access_code_8","access_code_9","cut","impact","force_open","connect","scan","hack","download","drain_energy","pickup","use_item","insert_fuse","remove_fuse","repair","plug_in","plug_out","take_end_1","take_end_2","connect_wire_end","connect_wire_1","connect_wire_2","disconnect_power_wire","disconnect_wire_1","disconnect_wire_2","circuit_1","circuit_2","circuit_3","open_door","close_door","unlock_door","activate_platform","raise_platform","lower_platform","rotate_platform_left","rotate_platform_right","push","pull","breach","break_breachable_wall","switch","disable","enable","attack","stun","repair_ally"]
 
 static func normalize_action_id(action_type: String) -> String:
 	match action_type.strip_edges().to_lower():
@@ -60,6 +60,11 @@ static func _is_heavy_claw_movable_action(action_type: String, target_object: Di
 		return false
 	return WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object)
 
+static func _is_platform_control_action(action_type: String, target_object: Dictionary) -> bool:
+	if action_type not in ["activate_platform", "raise_platform", "lower_platform", "rotate_platform_left", "rotate_platform_right"]:
+		return false
+	return str(target_object.get("object_group", "")).strip_edges().to_lower() == "platform"
+
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	action_type = normalize_action_id(action_type)
 	if action_type not in SUPPORTED_ACTIONS:
@@ -67,6 +72,10 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 	if target_object.is_empty():
 		return _result(false, "No target object.", [], "target_missing")
 	var module_id: String = str(module.get("id", "")).strip_edges()
+	if _is_platform_control_action(action_type, target_object):
+		if module_id != "platform_control":
+			return _result(false, "Platform control module required.", [], "platform_control_required")
+		return _result(true, "Platform Action possible.")
 	if BreachableWallRulesServiceRef.is_breachable_wall(target_object) and not BreachableWallRulesServiceRef.is_destroyed(target_object) and action_type != "break_breachable_wall":
 		return _result(false, "Use Heavy Claw from the cracked side.", [], "heavy_claw_breach_only")
 	var target_placement_mode: String = str(target_object.get("placement_mode", target_object.get("placement", ""))).strip_edges().to_lower()

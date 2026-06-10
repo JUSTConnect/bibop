@@ -6,6 +6,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 const BipobActionViewModelServiceRef = preload("res://scripts/game/bipob_action_view_model_service.gd")
 const BipobHeavyClawExecutionServiceRef = preload("res://scripts/game/bipob_heavy_claw_execution_service.gd")
 const BipobItemPickupExecutionServiceRef = preload("res://scripts/game/bipob_item_pickup_execution_service.gd")
+const BipobPlatformControlExecutionServiceRef = preload("res://scripts/game/bipob_platform_control_execution_service.gd")
 const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
 const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_service.gd")
 const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipob_terminal_control_execution_service.gd")
@@ -138,16 +139,18 @@ static func get_world_object_action_for_context(controller: Variant, world_objec
 	var view_model: Dictionary = build_runtime_action_view_model(controller, world_object, target_position)
 	var actions: Array = Array(view_model.get("raw_action_ids", []))
 	if not controller.selected_world_action.is_empty() and actions.has(controller.selected_world_action):
-		if not _is_connector_workflow_action(controller.selected_world_action) or bool(controller.allow_connector_workflow_action_once):
+		if not _is_connector_workflow_action(controller.selected_world_action, world_object) or bool(controller.allow_connector_workflow_action_once):
 			return controller.selected_world_action
 	for action_variant in actions:
 		var action_id: String = str(action_variant)
-		if not _is_connector_workflow_action(action_id):
+		if not _is_connector_workflow_action(action_id, world_object):
 			return action_id
 	return ""
 
 
-static func _is_connector_workflow_action(action_id: String) -> bool:
+static func _is_connector_workflow_action(action_id: String, world_object: Dictionary = {}) -> bool:
+	if action_id == "activate_platform" and str(world_object.get("object_group", "")) == "platform":
+		return false
 	return action_id in ["connect", "scan", "hack", "download", "activate_platform", "open_door", "close_door", "unlock_door", "apply_digital_key", "input_password"] or action_id.begins_with("access_code_")
 
 
@@ -161,13 +164,20 @@ static func handle_runtime_action_interact(controller: Variant, target_position:
 	if controller.mission_manager == null:
 		return false
 	var active_manipulator: Variant = controller.get_best_manipulator_for_interaction(target_position)
-	var pickup_execution: Dictionary = BipobItemPickupExecutionServiceRef.try_pickup_adjacent_or_current_item(controller, target_position, active_manipulator)
-	if bool(pickup_execution.get("handled", false)):
-		_apply_pickup_execution(controller, pickup_execution, target_position)
-		return true
+	var action_target_context: Dictionary = BipobTargetingServiceRef.build_action_target_context(controller)
+	var context_target_object: Dictionary = Dictionary(action_target_context.get("target_object", {}))
+	var context_target_position: Vector2i = Vector2i(action_target_context.get("target_position", target_position))
+	var using_platform_context: bool = str(context_target_object.get("object_group", "")) == "platform" and Array(action_target_context.get("available_action_ids", [])).has("activate_platform")
+	if using_platform_context:
+		target_position = context_target_position
+	if not using_platform_context:
+		var pickup_execution: Dictionary = BipobItemPickupExecutionServiceRef.try_pickup_adjacent_or_current_item(controller, target_position, active_manipulator)
+		if bool(pickup_execution.get("handled", false)):
+			_apply_pickup_execution(controller, pickup_execution, target_position)
+			return true
 
-	var initial_world_object: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
-	var world_object: Dictionary = BipobTargetingServiceRef.resolve_runtime_action_target_for_cell(controller, target_position, initial_world_object)
+	var initial_world_object: Dictionary = context_target_object if using_platform_context else Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
+	var world_object: Dictionary = context_target_object if using_platform_context else BipobTargetingServiceRef.resolve_runtime_action_target_for_cell(controller, target_position, initial_world_object)
 	_trace_world_action_path("target_lookup", {"target_position": target_position, "actor_cell": controller.grid_position, "initial_object_id": str(initial_world_object.get("id", "")), "resolved_object_id": str(world_object.get("id", "")), "object_group": str(world_object.get("object_group", "")), "object_type": str(world_object.get("object_type", "")), "placement_mode": str(world_object.get("placement_mode", world_object.get("placement", ""))), "is_wall_mounted": bool(world_object.get("is_wall_mounted", false))})
 	if world_object.is_empty():
 		return false
@@ -235,6 +245,9 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 				controller.hint_requested.emit(str(preflight.get("message", "Action unavailable.")))
 				controller.status_changed.emit()
 				return
+	if str(world_object.get("object_group", "")) == "platform" and action_id in ["activate_platform", "raise_platform", "lower_platform", "rotate_platform_left", "rotate_platform_right"]:
+		_apply_platform_control_execution(controller, world_object, target_position, actor, module, action_id)
+		return
 	if str(world_object.get("object_group", "")) == "terminal" and _is_terminal_control_action(action_id):
 		_apply_terminal_control_execution(controller, world_object, target_position, action_id)
 		return
@@ -263,6 +276,16 @@ static func _apply_terminal_control_execution(controller: Variant, world_object:
 		refresh_world_action_panel(controller)
 	if bool(terminal_execution.get("emit_status", true)):
 		controller.status_changed.emit()
+
+
+static func _apply_platform_control_execution(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> void:
+	var platform_execution: Dictionary = BipobPlatformControlExecutionServiceRef.execute_platform_control_action(controller, world_object, target_position, action_id)
+	if bool(platform_execution.get("success", false)) and bool(platform_execution.get("pending_paid_action", false)):
+		InteractionActionCostServiceRef.commit_gameplay_action(controller, platform_execution)
+	controller.hint_requested.emit(str(platform_execution.get("message", "Platform control unavailable.")))
+	if bool(platform_execution.get("clear_selected_action", false)):
+		controller.selected_world_action = ""
+	_apply_action_execution_refresh(controller, platform_execution)
 
 
 static func _apply_breachable_wall_execution(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> void:

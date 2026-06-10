@@ -58,6 +58,35 @@ static func get_facing_item(controller: Variant) -> Dictionary:
 	return Dictionary(items[0]) if not items.is_empty() else {}
 
 
+static func _get_platform_action_target_under_actor(controller: Variant) -> Dictionary:
+	if controller == null or controller.mission_manager == null:
+		return {}
+	var actor_cell: Vector2i = Vector2i(controller.grid_position)
+	var platform_candidate: Dictionary = {}
+	if controller.mission_manager.has_method("get_platform_for_cell"):
+		var platform_variant: Variant = controller.mission_manager.call("get_platform_for_cell", actor_cell)
+		if platform_variant is Dictionary:
+			platform_candidate = Dictionary(platform_variant)
+	if platform_candidate.is_empty() and controller.mission_manager.has_method("get_world_object_at_cell"):
+		var world_object_variant: Variant = controller.mission_manager.call("get_world_object_at_cell", actor_cell)
+		if world_object_variant is Dictionary:
+			platform_candidate = Dictionary(world_object_variant)
+	if _is_platform_action_target_candidate(platform_candidate):
+		return platform_candidate
+	return {}
+
+
+static func _is_platform_action_target_candidate(candidate: Dictionary) -> bool:
+	if candidate.is_empty():
+		return false
+	var object_group: String = str(candidate.get("object_group", candidate.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(candidate.get("object_type", candidate.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(candidate.get("archetype_id", candidate.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(candidate.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(candidate.get("platform_type", "")).strip_edges().to_lower()
+	return object_group == "platform" or object_type == "platform" or object_type in ["lifting_platform", "rotating_platform"] or archetype_id == "platform" or not platform_mode.is_empty() or platform_type in ["lifting", "rotating"]
+
+
 static func build_action_target_context(controller: Variant) -> Dictionary:
 	var target_position: Vector2i = get_facing_cell(controller)
 	var raw_world_object: Dictionary = {}
@@ -68,6 +97,13 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 	if controller.mission_manager != null and controller.mission_manager.has_method("get_breachable_wall_action_target_at_cell"):
 		breachable_wall_candidate = Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", target_position))
 	var target_object: Dictionary = resolve_runtime_action_target_for_cell(controller, target_position, raw_world_object)
+	var view_model: Dictionary = controller.build_runtime_action_view_model(target_object, target_position)
+	if (target_object.is_empty() or not bool(view_model.get("has_available_action", false))) and controller.mission_manager != null:
+		var platform_under_actor: Dictionary = _get_platform_action_target_under_actor(controller)
+		if not platform_under_actor.is_empty():
+			target_position = Vector2i(controller.grid_position)
+			target_object = platform_under_actor
+			view_model = controller.build_runtime_action_view_model(target_object, target_position)
 	if target_object.is_empty() and controller.mission_manager != null:
 		var items: Array = controller.mission_manager.get_items_at_cell(target_position)
 		if items.is_empty() and target_position != controller.grid_position:
@@ -76,7 +112,7 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 				target_position = controller.grid_position
 		if not items.is_empty():
 			target_object = Dictionary(items[0])
-	var view_model: Dictionary = controller.build_runtime_action_view_model(target_object, target_position)
+			view_model = controller.build_runtime_action_view_model(target_object, target_position)
 	var resolved_target: Dictionary = Dictionary(view_model.get("target", target_object))
 	var direction_text: String = ""
 	if controller.has_method("get_direction"):

@@ -15,7 +15,7 @@ static func refresh(ui) -> void:
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
 	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
 	var actions: Array = ui._safe_ui_array(target_data.get("actions", []))
-	var physical_actions: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(actions)
+	var physical_actions: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(actions, target_object)
 	var connect_descriptor: Dictionary = RuntimeInteractionPanelRef.get_connect_descriptor(target_data)
 	var heavy_claw_descriptor: Dictionary = RuntimeInteractionPanelRef.get_heavy_claw_descriptor(target_data)
 
@@ -113,7 +113,7 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	var target_data: Dictionary = RuntimeInteractionPanelRef.get_target_data(ui)
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
 	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
-	var action_ids: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(ui._safe_ui_array(target_data.get("actions", [])))
+	var action_ids: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(ui._safe_ui_array(target_data.get("actions", [])), target_object)
 	var selected_action: String = str(payload.get("selected_action", ui.last_world_action_selected if not ui.last_world_action_selected.is_empty() else ""))
 	var fallback_name: String = str(target_object.get("display_name", target_object.get("name", target_object.get("label", ""))))
 	var target_id: String = ui._get_runtime_world_action_target_id(target_object, fallback_name)
