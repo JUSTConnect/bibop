@@ -6,6 +6,7 @@ signal hint_requested(message: String)
 signal mission_completed
 signal mission_failed
 signal returned_to_box
+@warning_ignore("unused_signal")
 signal world_action_panel_requested(target_object: Dictionary, actions: Array, selected_action: String)
 
 const TERMINAL_MODE_NONE := ""
@@ -7819,11 +7820,20 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	var actions: Array[String] = []
 	var normalized_world_object: Dictionary = WorldObjectCatalog.normalize_world_object_contract(world_object)
 	world_object = normalized_world_object
+	
 	if str(world_object.get("object_group", "")) == "door":
 		world_object = WorldObjectCatalog.normalize_door_state_fields(world_object)
+	
 	var group: String = str(world_object.get("object_group", ""))
 	var state: String = str(world_object.get("state", ""))
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
+	
+	if _is_platform_object_data(world_object):
+			var platform_payload: Dictionary = get_platform_control_action_payload(world_object, target_position)
+			if bool(platform_payload.get("show_action", false)):
+				actions.append("activate_platform")
+			return actions
+			
 	if group == "door":
 		var access_type: String = WorldObjectCatalog.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", "")))
 		var is_digital_door: bool = access_type in [WorldObjectCatalog.ACCESS_TYPE_DIGITAL_KEY, WorldObjectCatalog.ACCESS_TYPE_ACCESS_CODE] or bool(world_object.get("is_digital_device", false))
@@ -7893,11 +7903,6 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 					actions.append("unlock_door")
 				if str(terminal_door.get("control_type", terminal_door.get("control_mode", "internal"))) == "external":
 					actions.append("close_door" if str(terminal_door.get("state", "")) == "open" else "open_door")
-	elif group == "platform":
-		var platform_payload: Dictionary = get_platform_control_action_payload(world_object, target_position)
-		if bool(platform_payload.get("show_action", false)):
-			actions.append("activate_platform")
-		return actions
 	elif group == "wall":
 		if BreachableWallRulesServiceRef.is_breachable_wall(world_object) and not BreachableWallRulesServiceRef.is_destroyed(world_object):
 			var breach_rules_wall: Dictionary = world_object.duplicate(true)
