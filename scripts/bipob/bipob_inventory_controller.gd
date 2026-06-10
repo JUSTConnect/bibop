@@ -433,7 +433,6 @@ static func move_or_swap_pocket_slot_with_manipulator(controller: Variant, pocke
 				controller.call("_trace_runtime_inventory_state", "pocket_to_manipulator")
 
 			controller.status_changed.emit()
-			var after_inventory: Dictionary = Dictionary(controller.mission_manager.call("get_inventory_state"))
 
 			return {
 				"ok": true,
