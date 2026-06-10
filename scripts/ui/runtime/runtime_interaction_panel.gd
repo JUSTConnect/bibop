@@ -24,10 +24,27 @@ static func is_heavy_claw_action(action_id: String) -> bool:
 
 static func get_physical_actions(actions: Array, target_object: Dictionary = {}) -> Array[String]:
 	var physical_actions: Array[String] = []
+
 	for action_variant in actions:
-		var action_id: String = str(action_variant)
-		if not action_id.is_empty() and not is_connector_action(action_id, target_object) and not is_heavy_claw_action(action_id):
-			physical_actions.append(action_id)
+		if typeof(action_variant) != TYPE_DICTIONARY:
+			continue
+
+		var action_data: Dictionary = Dictionary(action_variant)
+		var action_id: String = str(action_data.get("id", "")).strip_edges().to_lower()
+		if action_id.is_empty():
+			continue
+
+		if not bool(action_data.get("enabled", false)):
+			continue
+
+		if is_connector_action(action_id, target_object):
+			continue
+
+		if is_heavy_claw_action(action_id):
+			continue
+
+		physical_actions.append(action_id)
+
 	return physical_actions
 
 
