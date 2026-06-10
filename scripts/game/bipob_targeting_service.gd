@@ -65,35 +65,31 @@ static func _get_platform_action_target_under_actor(controller: Variant) -> Dict
 
 	var actor_cell: Vector2i = Vector2i(controller.grid_position)
 
-	# 1. Fast path: existing runtime helper.
 	if controller.mission_manager.has_method("get_platform_for_cell"):
 		var platform_variant: Variant = controller.mission_manager.call("get_platform_for_cell", actor_cell)
 		if platform_variant is Dictionary:
 			var platform_candidate: Dictionary = Dictionary(platform_variant)
 			if _is_platform_action_target_candidate(platform_candidate):
-				return platform_candidate
+				return _normalize_platform_action_target(platform_candidate, actor_cell)
 
-	# 2. Fallback: direct world object at actor cell.
 	if controller.mission_manager.has_method("get_world_object_at_cell"):
 		var world_object_variant: Variant = controller.mission_manager.call("get_world_object_at_cell", actor_cell)
 		if world_object_variant is Dictionary:
 			var world_object_candidate: Dictionary = Dictionary(world_object_variant)
 			if _is_platform_action_target_candidate(world_object_candidate):
-				return world_object_candidate
+				return _normalize_platform_action_target(world_object_candidate, actor_cell)
 
-	# 3. Important fallback: scan map-constructor/world rows and match platform_cells.
-	# Platform may cover this cell even if get_world_object_at_cell(actor_cell) returns floor/empty.
 	var scanned_platform: Dictionary = _find_platform_by_footprint_cell(controller, actor_cell)
 	if not scanned_platform.is_empty():
-		return scanned_platform
+		return _normalize_platform_action_target(scanned_platform, actor_cell)
 
 	return {}
+	
 
 static func _find_platform_by_footprint_cell(controller: Variant, actor_cell: Vector2i) -> Dictionary:
 	if controller == null or controller.mission_manager == null:
 		return {}
 
-	# Map Constructor rows path.
 	if controller.mission_manager.has_method("get_map_constructor_placed_object_rows"):
 		var rows: Array = Array(controller.mission_manager.call("get_map_constructor_placed_object_rows"))
 
@@ -112,20 +108,16 @@ static func _find_platform_by_footprint_cell(controller: Variant, actor_cell: Ve
 					candidate["id"] = object_id
 
 			if _is_platform_action_target_candidate(candidate) and _platform_contains_cell(candidate, actor_cell):
-				return candidate
+				return _normalize_platform_action_target(candidate, actor_cell)
 
-	# Runtime mission_world_objects path.
-	# This is needed for TASK TEST/runtime objects that are not returned by get_world_object_at_cell.
-	if controller.mission_manager.get("mission_world_objects") != null:
-		var world_objects: Array = Array(controller.mission_manager.get("mission_world_objects"))
-
-		for object_variant in world_objects:
+	if "mission_world_objects" in controller.mission_manager:
+		for object_variant in Array(controller.mission_manager.mission_world_objects):
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 
 			var object_data: Dictionary = Dictionary(object_variant)
 			if _is_platform_action_target_candidate(object_data) and _platform_contains_cell(object_data, actor_cell):
-				return object_data
+				return _normalize_platform_action_target(object_data, actor_cell)
 
 	return {}
 	
@@ -161,15 +153,6 @@ static func _platform_contains_cell(platform_data: Dictionary, actor_cell: Vecto
 
 	return false
 	
-static func _is_local_platform_action_available(controller: Variant, platform_object: Dictionary, platform_cell: Vector2i) -> bool:
-	if controller == null or platform_object.is_empty():
-		return false
-	if not controller.has_method("get_available_world_actions"):
-		return false
-
-	var actions: Array = Array(controller.call("get_available_world_actions", platform_object, platform_cell))
-	return actions.has("activate_platform")	
-		
 static func _is_platform_action_target_candidate(candidate: Dictionary) -> bool:
 	if candidate.is_empty():
 		return false
@@ -194,15 +177,40 @@ static func _is_platform_action_target_candidate(candidate: Dictionary) -> bool:
 		return true
 
 	return false
+static func _normalize_platform_action_target(candidate: Dictionary, actor_cell: Vector2i) -> Dictionary:
+	if candidate.is_empty():
+		return {}
 
+	var normalized: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(candidate).duplicate(true)
+
+	# Runtime rule:
+	# any object accepted as a platform target must be exposed to the rest of
+	# interaction pipeline as object_group == "platform".
+	normalized["object_group"] = "platform"
+
+	var object_type: String = str(normalized.get("object_type", normalized.get("type", ""))).strip_edges().to_lower()
+	if object_type.is_empty() or object_type == "floor":
+		normalized["object_type"] = "platform"
+
+	if not normalized.has("position"):
+		normalized["position"] = actor_cell
+
+	if not normalized.has("platform_cells") or Array(normalized.get("platform_cells", [])).is_empty():
+		normalized["platform_cells"] = [actor_cell]
+
+	return normalized
+	
 static func build_action_target_context(controller: Variant) -> Dictionary:
 	var actor_cell: Vector2i = Vector2i(controller.grid_position)
 	var facing_cell: Vector2i = get_facing_cell(controller)
 
 	# 1. Platform rule:
 	# Platform interaction is checked from Bipob current cell, not facing cell.
+	# Important: selecting platform target must NOT depend on action availability.
+	# First select platform-under-Bipob as target, then ViewModel/Controller decides
+	# whether activate_platform is available.
 	var platform_under_actor: Dictionary = _get_platform_action_target_under_actor(controller)
-	if not platform_under_actor.is_empty() and _is_local_platform_action_available(controller, platform_under_actor, actor_cell):
+	if not platform_under_actor.is_empty():
 		var platform_view_model: Dictionary = controller.build_runtime_action_view_model(platform_under_actor, actor_cell)
 		return {
 			"target_position": actor_cell,
