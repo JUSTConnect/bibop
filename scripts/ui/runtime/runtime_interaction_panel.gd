@@ -54,12 +54,16 @@ static func get_physical_actions(actions: Array, target_object: Dictionary = {})
 
 		if action_id.is_empty():
 			continue
+
 		if not action_enabled:
 			continue
+
 		if is_connector_action(action_id, target_object):
 			continue
+
 		if is_heavy_claw_action(action_id):
 			continue
+
 		if not physical_actions.has(action_id):
 			physical_actions.append(action_id)
 
