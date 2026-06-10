@@ -82,7 +82,7 @@ static func execute_platform_control_action(controller: Variant, platform_object
 		return _execute_rotation_action(controller, normalized_platform, target_position, mechanism, members, normalized_requested_action)
 
 	return _build_result(false, "No platform operation configured.", normalized_platform, target_position, "operation_unavailable")
-static func _is_actor_standing_on_platform_target(controller: Variant, platform_object: Dictionary, _target_position: Vector2i) -> bool:
+static func _is_actor_standing_on_platform_target(controller: Variant, platform_object: Dictionary, target_position: Vector2i) -> bool:
 	if controller == null:
 		return false
 
@@ -110,6 +110,9 @@ static func _is_actor_standing_on_platform_target(controller: Variant, platform_
 		return false
 
 	var actor_cell: Vector2i = Vector2i(controller.grid_position)
+
+	if actor_cell == target_position:
+		return true
 
 	for cell_variant in Array(platform_object.get("platform_cells", [])):
 		var platform_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
