@@ -41,6 +41,9 @@ static func _platform_contains_actor_cell(controller: Variant, platform_object: 
 
 	var actor_cell: Vector2i = Vector2i(controller.grid_position)
 
+	if actor_cell == target_position:
+		return true
+
 	for cell_variant in Array(platform_object.get("platform_cells", [])):
 		var platform_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
 		if platform_cell == actor_cell:
@@ -52,8 +55,8 @@ static func _platform_contains_actor_cell(controller: Variant, platform_object: 
 			return true
 
 	var position_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
-		platform_object.get("position", platform_object.get("pos", platform_object.get("cell", target_position))),
-		target_position
+		platform_object.get("position", platform_object.get("pos", platform_object.get("cell", Vector2i(-1, -1)))),
+		Vector2i(-1, -1)
 	)
 	if position_cell == actor_cell:
 		return true
