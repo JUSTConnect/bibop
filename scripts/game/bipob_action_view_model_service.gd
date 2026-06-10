@@ -95,9 +95,7 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 	if _is_platform_target(normalized_target) and not _platform_contains_actor_cell(controller, normalized_target, target_position):
 		return _empty_platform_view_model(normalized_target)
 
-	var wall_mount_gate: Dictionary = _build_wall_mounted_interaction_payload(controller, normalized_target, target_position)
-	if not wall_mount_gate.is_empty() and not bool(wall_mount_gate.get("can_interact", false)):
-		return {"target":normalized_target, "actions":[], "raw_action_ids":[], "available_action_ids":[], "primary_action_id":"", "primary_action_label":ObjectFacingServiceRef.FRONT_SIDE_HINT, "has_available_action":false, "has_interaction_target":true, "disabled_reason":"wrong_wall_side", "wall_mounted_interaction":wall_mount_gate}
+	var wall_mount_gate: Dictionary = {}
 	var raw_action_ids: Array = []
 	if not normalized_target.is_empty():
 		raw_action_ids = controller.get_available_world_actions(normalized_target, target_position)
@@ -165,38 +163,6 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 	_trace_breachable_wall_runtime_view_model(controller, target_position, normalized_target, raw_action_ids, view_model)
 	_trace_runtime_action_view_model(controller, target_position, normalized_target, raw_action_ids, available_action_ids, view_model)
 	return view_model
-
-
-static func _build_disabled_platform_action_descriptor(controller: Variant, target_object: Dictionary, target_position: Vector2i, target_id: String, target_type: String) -> Dictionary:
-	if controller == null or not controller.has_method("get_platform_control_action_payload"):
-		return {}
-	var payload_variant: Variant = controller.call("get_platform_control_action_payload", target_object, target_position)
-	if not (payload_variant is Dictionary):
-		return {}
-	var payload: Dictionary = Dictionary(payload_variant)
-	if payload.is_empty() or bool(payload.get("show_action", false)):
-		return {}
-	var reason: String = _platform_disabled_reason_from_payload(payload)
-	var module: Dictionary = controller.get_world_action_module("activate_platform", target_object)
-	var label: String = _runtime_action_disabled_label(controller, "activate_platform", reason, target_object)
-	var message: String = str(payload.get("message", label))
-	return {"id":"activate_platform", "label":label, "enabled":false, "reason":reason, "target_id":target_id, "target_type":target_type, "target_cell":target_position, "source":"world_object", "priority":100, "requires_free_manipulator":false, "module_id":str(module.get("id", "")), "module":module, "gate":{"success":false, "reason":reason, "message":message}}
-
-
-static func _platform_disabled_reason_from_payload(payload: Dictionary) -> String:
-	var message: String = str(payload.get("message", "")).strip_edges().to_lower()
-	if message.find("external") >= 0:
-		return "external_control"
-	if message.find("no control cell") >= 0:
-		return "no_control_cell"
-	if message.find("not standing") >= 0:
-		return "not_on_control_cell"
-	if message.find("no power") >= 0 or message.find("unpowered") >= 0:
-		return "platform_unpowered"
-	if message.find("disabled") >= 0:
-		return "platform_disabled"
-	return "platform_unavailable"
-
 
 static func _trace_wall_mounted_interaction(payload: Dictionary) -> void:
 	if not DEBUG_WALL_MOUNTED_INTERACTION_TRACE:
