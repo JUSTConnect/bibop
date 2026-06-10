@@ -3493,17 +3493,24 @@ func _get_wall_cable_face_run_key(object_data: Dictionary, cell: Vector2i) -> St
 	var plane_key: String = _get_wall_cable_face_run_span_key(face_cell, wall_side)
 	return "%s|%s|%s" % [wall_side, routing_mode, plane_key]
 
+func _get_wall_cable_visual_axis_for_side(wall_side: String) -> Vector2:
+	var side: String = wall_side.strip_edges().to_lower()
+
+	# В screen-space SW-линия идет примерно вверх-вправо.
+	if side == "sw":
+		return Vector2(1.0, -0.5).normalized()
+
+	# В screen-space SE-линия идет примерно вниз-вправо.
+	if side == "se":
+		return Vector2(1.0, 0.5).normalized()
+
+	return Vector2.RIGHT
+	
 func _get_wall_cable_anchor_sort_coordinate(anchor: Dictionary) -> float:
-	var wall_side: String = str(anchor.get("wall_side", "sw"))
+	var wall_side: String = str(anchor.get("wall_side", "sw")).strip_edges().to_lower()
 	var rail_anchor: Vector2 = Vector2(anchor.get("rail_anchor", Vector2.ZERO))
-	if wall_side == "se":
-		return rail_anchor.x
-	var cell: Vector2i = Vector2i(anchor.get("cell", Vector2i.ZERO))
-	var current_anchor: Vector2 = _get_wall_cable_rail_anchor(cell, wall_side)
-	var next_anchor: Vector2 = _get_wall_cable_rail_anchor(cell + Vector2i(0, 1), wall_side)
-	var axis: Vector2 = (next_anchor - current_anchor).normalized()
-	if axis == Vector2.ZERO:
-		return rail_anchor.y
+	var axis: Vector2 = _get_wall_cable_visual_axis_for_side(wall_side)
+
 	return rail_anchor.dot(axis)
 
 func _insert_sorted_wall_cable_anchor(anchors: Array[Dictionary], anchor: Dictionary) -> void:
@@ -3745,17 +3752,24 @@ func _draw_wall_cable_local_anchor_segment(anchor: Dictionary, profile: Dictiona
 		profile
 	)
 func _get_wall_cable_anchor_face_run_key(anchor: Dictionary) -> String:
-	var object_data: Dictionary = Dictionary(anchor.get("object_data", {}))
-	var cell: Vector2i = Vector2i(anchor.get("cell", Vector2i(-1, -1)))
-	var wall_side: String = str(anchor.get("wall_side", ""))
-	var routing_mode: String = str(anchor.get("routing_mode", ""))
+	var wall_side: String = str(anchor.get("wall_side", "")).strip_edges().to_lower()
+	var routing_mode: String = str(anchor.get("routing_mode", "outer")).strip_edges().to_lower()
+	var rail_anchor: Vector2 = Vector2(anchor.get("rail_anchor", Vector2.ZERO))
 
-	if object_data.is_empty() or cell.x < 0 or cell.y < 0 or wall_side.is_empty():
+	if wall_side.is_empty():
 		return "invalid"
 
-	var plane_key: String = _get_wall_cable_face_run_span_key(cell, wall_side)
-	return "%s|%s|%s" % [wall_side, routing_mode, plane_key]
+	var axis: Vector2 = _get_wall_cable_visual_axis_for_side(wall_side)
+	var normal: Vector2 = Vector2(-axis.y, axis.x).normalized()
 
+	# Группируем не по wall-cell span, а по экранной линии кабеля.
+	# Это убирает зависимость от _cell_has_wall_for_iso_cable(),
+	# из-за которой кабели на одной видимой стене попадали в разные группы.
+	var line_bucket_size: float = 16.0
+	var line_bucket: int = int(round(rail_anchor.dot(normal) / line_bucket_size))
+
+	return "%s|%s|line_%d" % [wall_side, routing_mode, line_bucket]
+	
 
 func _partition_wall_cable_anchors_by_face_run(anchors: Array) -> Dictionary:
 	var groups: Dictionary = {}
@@ -3852,19 +3866,35 @@ func _is_wall_cable_same_side_visible_span(anchor_a: Dictionary, anchor_b: Dicti
 
 	var rail_a: Vector2 = _get_wall_cable_anchor_rail(anchor_a)
 	var rail_b: Vector2 = _get_wall_cable_anchor_rail(anchor_b)
-	var rail_distance: float = rail_a.distance_to(rail_b)
+	var delta: Vector2 = rail_b - rail_a
 
-	var half_size: Vector2 = get_iso_tile_half_size()
-	var max_visible_neighbor_distance: float = maxf(half_size.x * 1.45, 72.0)
-
-	# Соединяем только реальные ближайшие соседние anchors на одной видимой линии.
-	# Это лучше, чем проверять только Vector2i cell delta, потому что wall-mounted
-	# кабель может быть привязан к wall cell / attached wall cell не так, как floor grid.
-	if rail_distance <= 0.25:
+	if delta.length_squared() <= 0.25:
 		return false
 
-	return rail_distance <= max_visible_neighbor_distance
-	
+	var axis: Vector2 = _get_wall_cable_visual_axis_for_side(side_a)
+	var normal: Vector2 = Vector2(-axis.y, axis.x).normalized()
+
+	var axis_distance: float = absf(delta.dot(axis))
+	var normal_distance: float = absf(delta.dot(normal))
+
+	var half_size: Vector2 = get_iso_tile_half_size()
+
+	# Соседи на одной видимой плоскости стены могут немного плавать по normal
+	# из-за wall-mounted center / attached_wall_cell, но не должны быть на другой линии.
+	var max_normal_error: float = maxf(half_size.y * 0.95, 24.0)
+
+	# Это расстояние до ближайшей следующей ячейки вдоль стены.
+	# Оно не "растягивает линию", а только отсекает слишком дальние разрывы.
+	var max_axis_step: float = maxf(half_size.x * 2.35, 120.0)
+
+	if normal_distance > max_normal_error:
+		return false
+
+	if axis_distance > max_axis_step:
+		return false
+
+	return true
+			
 func _get_wall_cable_anchor_side(anchor: Dictionary) -> String:
 	return str(anchor.get("wall_side", "sw")).strip_edges().to_lower()
 
@@ -3924,7 +3954,7 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 	for anchor_variant in side_anchors:
 		var anchor: Dictionary = Dictionary(anchor_variant)
 		if bool(anchor.get("is_cable", false)):
-			_insert_sorted_wall_cable_anchor(cable_anchors, anchor)
+			cable_anchors.append(anchor)
 
 	if cable_anchors.is_empty():
 		return
@@ -3936,17 +3966,43 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 	var connected_anchor_ids: Dictionary = {}
 	var drawn_pair_keys: Dictionary = {}
 
-	for index in range(cable_anchors.size() - 1):
-		var current_anchor: Dictionary = Dictionary(cable_anchors[index])
-		var next_anchor: Dictionary = Dictionary(cable_anchors[index + 1])
+	for anchor_variant in cable_anchors:
+		var anchor_a: Dictionary = Dictionary(anchor_variant)
+		var id_a: String = _get_wall_cable_anchor_id(anchor_a)
+		var side_a: String = _get_wall_cable_anchor_side(anchor_a)
+		var rail_a: Vector2 = _get_wall_cable_anchor_rail(anchor_a)
+		var axis: Vector2 = _get_wall_cable_visual_axis_for_side(side_a)
 
-		if not _is_wall_cable_same_side_visible_span(current_anchor, next_anchor):
+		var best_anchor: Dictionary = {}
+		var best_axis_distance: float = INF
+
+		for candidate_variant in cable_anchors:
+			var anchor_b: Dictionary = Dictionary(candidate_variant)
+			var id_b: String = _get_wall_cable_anchor_id(anchor_b)
+
+			if id_a == id_b:
+				continue
+
+			if not _is_wall_cable_same_side_visible_span(anchor_a, anchor_b):
+				continue
+
+			var rail_b: Vector2 = _get_wall_cable_anchor_rail(anchor_b)
+			var axis_distance: float = (rail_b - rail_a).dot(axis)
+
+			# Ищем только следующего соседа вперед по линии стены.
+			# Обратное направление нарисует предыдущий anchor.
+			if axis_distance <= 0.25:
+				continue
+
+			if axis_distance < best_axis_distance:
+				best_axis_distance = axis_distance
+				best_anchor = anchor_b
+
+		if best_anchor.is_empty():
 			continue
 
-		var current_id: String = _get_wall_cable_anchor_id(current_anchor)
-		var next_id: String = _get_wall_cable_anchor_id(next_anchor)
-
-		var pair_ids: Array[String] = [current_id, next_id]
+		var id_b_final: String = _get_wall_cable_anchor_id(best_anchor)
+		var pair_ids: Array[String] = [id_a, id_b_final]
 		pair_ids.sort()
 
 		var pair_key: String = "%s|%s" % [pair_ids[0], pair_ids[1]]
@@ -3954,13 +4010,11 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 			continue
 
 		drawn_pair_keys[pair_key] = true
-		connected_anchor_ids[current_id] = true
-		connected_anchor_ids[next_id] = true
+		connected_anchor_ids[id_a] = true
+		connected_anchor_ids[id_b_final] = true
 
-		_draw_visible_wall_cable_span_between_anchors(current_anchor, next_anchor, profile)
+		_draw_visible_wall_cable_span_between_anchors(anchor_a, best_anchor, profile)
 
-	# Локальный короткий кусок рисуем только для полностью одиноких anchors.
-	# Для связанных anchors локальный кусок НЕ рисуем, иначе получаются двойные/ломаные отрезки.
 	for anchor_variant in cable_anchors:
 		var anchor: Dictionary = Dictionary(anchor_variant)
 		var anchor_id: String = _get_wall_cable_anchor_id(anchor)
@@ -4170,19 +4224,23 @@ func _draw_wall_cable_run_graphics(run_cells: Array[Vector2i], object_data: Dict
 	if anchors.is_empty():
 		anchors = _collect_wall_cable_circuit_anchors_any_side(object_data, head_cell)
 
-	# Главное исправление:
-	# нельзя рисовать все SW anchors одной пачкой и все SE anchors одной пачкой.
-	# Нужно сначала разделить anchors по конкретному face-run стены.
-	# Иначе anchors с разных видимых участков стены сортируются вместе,
-	# и часть нормальных сегментов не соединяется.
-	var face_run_groups: Dictionary = _partition_wall_cable_anchors_by_face_run(anchors)
+	# Основной draw path должен работать по сторонам стены, а не по face_run_groups.
+	# face_run_groups зависит от wall span key / line bucket и дробит нормальную цепь.
+	var side_groups: Dictionary = _partition_wall_cable_anchors_by_side(anchors)
 
-	for group_key_variant in face_run_groups.keys():
-		var group_key: String = str(group_key_variant)
-		var group_anchors: Array = Array(face_run_groups.get(group_key, []))
-		_draw_sorted_wall_cable_anchor_span(group_anchors, profile)
+	_draw_wall_cable_side_anchor_segments_clipped(
+		Array(side_groups.get("sw", [])),
+		anchors,
+		profile
+	)
 
-	# SW <-> SE угловые переходы рисуем отдельно после прямых face-run линий.
+	_draw_wall_cable_side_anchor_segments_clipped(
+		Array(side_groups.get("se", [])),
+		anchors,
+		profile
+	)
+
+	# SW <-> SE угловые переходы рисуем отдельно после прямых линий.
 	_draw_wall_cable_corner_bridges(anchors, profile)
 
 	var world_objects: Array[Dictionary] = _get_runtime_world_objects_for_iso_render(true)
@@ -4229,7 +4287,7 @@ func _draw_wall_cable_run_graphics(run_cells: Array[Vector2i], object_data: Dict
 		var run_health_state: String = get_cable_health_state(run_object)
 		if run_health_state in ["damaged", "broken", "cut"]:
 			draw_iso_cable_damage_marker(rail_anchor, run_health_state, profile)
-			
+				
 func draw_wall_cable_visual_path(cell: Vector2i, object_data: Dictionary, visual_center: Vector2, profile: Dictionary, topology: Dictionary = {}) -> bool:
 	if get_cable_install_mode(object_data) != "wall" or not _cell_has_wall_for_iso_cable(cell):
 		return false
