@@ -294,7 +294,7 @@ static func _apply_terminal_control_execution(controller: Variant, world_object:
 		controller.status_changed.emit()
 
 
-static func _apply_platform_control_execution(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> void:
+static func _apply_platform_control_execution(controller: Variant, world_object: Dictionary, target_position: Vector2i, _actor: Dictionary, _module: Dictionary, action_id: String) -> void:
 	var platform_execution: Dictionary = BipobPlatformControlExecutionServiceRef.execute_platform_control_action(controller, world_object, target_position, action_id)
 	if bool(platform_execution.get("success", false)) and bool(platform_execution.get("pending_paid_action", false)):
 		InteractionActionCostServiceRef.commit_gameplay_action(controller, platform_execution)
