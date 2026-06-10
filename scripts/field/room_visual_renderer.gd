@@ -3404,12 +3404,12 @@ func _get_wall_cable_face_occluder_delta(face: String) -> Vector2i:
 	# SW face is the left/south-west visual face.
 	# If another wall cell exists outside this face, this face is hidden.
 	if normalized_face == "sw":
-		return Vector2i(-1, 0)
+		return Vector2i(0,1)
 
 	# SE face is the right/south-east visual face.
 	# If another wall cell exists outside this face, this face is hidden.
 	if normalized_face == "se":
-		return Vector2i(0, -1)
+		return Vector2i(1, 0)
 
 	return Vector2i.ZERO
 
@@ -3428,45 +3428,49 @@ func _is_wall_cable_face_visible(cell: Vector2i, face: String) -> bool:
 
 	var occluder_cell: Vector2i = cell + occluder_delta
 
-	# If there is another wall in front of this face, this face is not visible.
+	# Грань видима только если снаружи этой грани нет другой wall-cell.
 	return not _cell_has_wall_for_iso_cable(occluder_cell)
-
 
 func _get_wall_cable_face_line_segment(cell: Vector2i, face: String) -> Dictionary:
 	var normalized_face: String = face.strip_edges().to_lower()
 	var visual_center: Vector2 = grid_to_iso(cell)
+	var half_size: Vector2 = get_iso_tile_half_size()
 
-	var face_data: Dictionary = {
-		"wall_side": normalized_face,
-		"interaction_side": normalized_face,
-		"facing_side": normalized_face,
-		"facing_dir": normalized_face,
-		"object_type": "power_cable",
-		"cable_install_mode": "wall",
-		"install_mode": "wall",
-		"mount": "wall",
-		"route_surface": "wall"
-	}
+	# Высота кабеля над bottom соответствующей грани стены.
+	var cable_height_px: float = 50.0
+	var vertical_offset: Vector2 = Vector2(0.0, -cable_height_px)
 
-	var segment: Dictionary = get_wall_route_segment_points(
-		visual_center,
-		face_data,
-		50.0
-	)
+	var bottom_start: Vector2
+	var bottom_end: Vector2
 
-	var start_edge: Vector2 = Vector2(segment.get("start", visual_center))
-	var end_edge: Vector2 = Vector2(segment.get("end", visual_center))
+	# Важно:
+	# Мы больше НЕ используем get_wall_route_segment_points(...)
+	# потому что он даёт укороченный / смещённый сегмент.
+	#
+	# Здесь строим полный отрезок по всей ширине грани:
+	# от одного ребра грани до другого ребра грани.
+	#
+	# SW грань: от левого нижнего ребра к центральному нижнему ребру
+	# SE грань: от центрального нижнего ребра к правому нижнему ребру
+	match normalized_face:
+		"sw":
+			bottom_start = visual_center + Vector2(-half_size.x, 0.0)
+			bottom_end = visual_center + Vector2(0.0, half_size.y)
+		"se":
+			bottom_start = visual_center + Vector2(0.0, half_size.y)
+			bottom_end = visual_center + Vector2(half_size.x, 0.0)
+		_:
+			bottom_start = visual_center + Vector2(-half_size.x, 0.0)
+			bottom_end = visual_center + Vector2(0.0, half_size.y)
+
+	var start_edge: Vector2 = bottom_start + vertical_offset
+	var end_edge: Vector2 = bottom_end + vertical_offset
 	var mid_point: Vector2 = start_edge.lerp(end_edge, 0.5)
-	var normal: Vector2 = Vector2(segment.get("normal", Vector2.ZERO))
 
-	if normal.length() <= 0.001:
-		var axis: Vector2 = end_edge - start_edge
-		if axis.length() <= 0.001:
-			normal = Vector2.UP
-		else:
-			normal = Vector2(-axis.y, axis.x).normalized()
-	else:
-		normal = normal.normalized()
+	var axis: Vector2 = end_edge - start_edge
+	var normal: Vector2 = Vector2.UP
+	if axis.length() > 0.001:
+		normal = Vector2(-axis.y, axis.x).normalized()
 
 	return {
 		"face": normalized_face,
@@ -3512,7 +3516,6 @@ func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: S
 
 	return true
 
-
 func _draw_wall_cable_faces_for_cell(cell: Vector2i, object_data: Dictionary, profile: Dictionary) -> bool:
 	if cell.x < 0 or cell.y < 0:
 		return false
@@ -3520,7 +3523,14 @@ func _draw_wall_cable_faces_for_cell(cell: Vector2i, object_data: Dictionary, pr
 	if not _cell_has_wall_for_iso_cable(cell):
 		return false
 
-	var routing_mode: String = get_cable_wall_routing_mode(object_data)
+	var routing_mode: String = get_cable_wall_routing_mode(object_data).strip_edges().to_lower()
+
+	# Важно:
+	# inner = кабель внутри стены.
+	# Он НЕ должен падать в PNG/SVG fallback, поэтому возвращаем true,
+	# но внешний красный кабель не рисуем.
+	if routing_mode == "inner":
+		return true
 
 	var drew_any: bool = false
 
@@ -3530,7 +3540,11 @@ func _draw_wall_cable_faces_for_cell(cell: Vector2i, object_data: Dictionary, pr
 	if _is_wall_cable_face_visible(cell, "se"):
 		drew_any = _draw_wall_cable_face_segment(cell, "se", routing_mode, profile) or drew_any
 
-	return drew_any
+	# Критично:
+	# Даже если обе грани перекрыты, это всё равно обработанный wall cable.
+	# Возвращаем true, чтобы не появился белый placeholder.
+	return true
+	
 func draw_wall_mounted_cable_tap(_object_data: Dictionary, _visual_center: Vector2, _profile: Dictionary, _has_terminal_visual: bool = false) -> bool:
 	# Wall cable taps belonged to the old anchor/topology renderer.
 	# The new wall cable renderer is face-based, so taps are intentionally disabled here.
@@ -3543,12 +3557,13 @@ func draw_wall_cable_visual_path(cell: Vector2i, object_data: Dictionary, _visua
 	if not _cell_has_wall_for_iso_cable(cell):
 		return false
 
-	# New model:
-	# Wall cable has no selected SW/SE side.
-	# It is drawn on every visible wall face of the wall cell.
-	# Visibility is determined by wall occlusion, not by object settings.
-	return _draw_wall_cable_faces_for_cell(cell, object_data, profile)
-
+	# Wall cable больше не использует выбранную сторону SW/SE.
+	# Он рисуется на всех видимых гранях своей wall-cell.
+	# Если граней нет или routing inner — функция всё равно вернёт true,
+	# чтобы объект не ушёл в PNG/SVG fallback.
+	_draw_wall_cable_faces_for_cell(cell, object_data, profile)
+	return true
+	
 func _get_cable_object_cell(object_data: Dictionary) -> Vector2i:
 	return _try_parse_cell_variant(object_data.get("position", object_data.get("cell", Vector2i(-1, -1))), Vector2i(-1, -1))
 
@@ -3699,11 +3714,13 @@ func draw_wall_procedural_routed_object(cell: Vector2i, object_data: Dictionary,
 		return false
 
 	var family: String = _get_wall_routed_object_family(object_data)
-	var routing_mode: String = get_wall_routing_mode(object_data)
 
 	if family == "cable":
+		# Кабель обрабатывается новым face-based renderer.
+		# Не даём ему падать в object PNG/SVG fallback.
 		return draw_wall_topology_cable(cell, object_data, visual_center, get_iso_object_profile("cable"))
 
+	var routing_mode: String = get_wall_routing_mode(object_data)
 	var source_height_px: float = get_wall_routed_height_source_px(object_data)
 	var segment: Dictionary = get_wall_route_segment_points(visual_center, object_data, source_height_px)
 
@@ -3714,7 +3731,7 @@ func draw_wall_procedural_routed_object(cell: Vector2i, object_data: Dictionary,
 			return draw_wall_procedural_water_pipe(segment, routing_mode)
 
 	return false
-
+	
 func draw_wall_routed_procedural_visual(object_data: Dictionary, profile: Dictionary, fallback_cell: Vector2i) -> bool:
 	var visual_center: Vector2 = get_wall_mounted_visual_center(object_data, fallback_cell)
 	return draw_wall_procedural_routed_object(fallback_cell, object_data, visual_center)
