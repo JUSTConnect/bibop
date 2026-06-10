@@ -13,10 +13,25 @@ static func is_heavy_claw_movable_target(target_object: Dictionary) -> bool:
 	return WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object)
 
 static func is_connector_action(action_id: String, target_object: Dictionary = {}) -> bool:
-	if action_id == "activate_platform" and str(target_object.get("object_group", "")) == "platform":
-		return false
-	return action_id in ["connect", "scan", "hack", "download", "activate_platform", "open_door", "close_door", "unlock_door", "apply_digital_key", "input_password"] or action_id.begins_with("access_code_")
+	var normalized_action_id: String = action_id.strip_edges().to_lower()
+	var target_group: String = str(target_object.get("object_group", target_object.get("group", ""))).strip_edges().to_lower()
 
+	if normalized_action_id == "activate_platform" and target_group == "platform":
+		return false
+
+	return normalized_action_id in [
+		"connect",
+		"scan",
+		"hack",
+		"download",
+		"activate_platform",
+		"open_door",
+		"close_door",
+		"unlock_door",
+		"apply_digital_key",
+		"input_password"
+	] or normalized_action_id.begins_with("access_code_")
+	
 
 static func is_heavy_claw_action(action_id: String) -> bool:
 	return action_id in ["push", "break_breachable_wall"]
@@ -26,27 +41,29 @@ static func get_physical_actions(actions: Array, target_object: Dictionary = {})
 	var physical_actions: Array[String] = []
 
 	for action_variant in actions:
-		if typeof(action_variant) != TYPE_DICTIONARY:
-			continue
+		var action_id: String = ""
+		var action_enabled: bool = true
 
-		var action_data: Dictionary = Dictionary(action_variant)
-		var action_id: String = str(action_data.get("id", "")).strip_edges().to_lower()
+		if typeof(action_variant) == TYPE_DICTIONARY:
+			var action_data: Dictionary = Dictionary(action_variant)
+			action_id = str(action_data.get("id", "")).strip_edges().to_lower()
+			action_enabled = bool(action_data.get("enabled", false))
+		else:
+			action_id = str(action_variant).strip_edges().to_lower()
+			action_enabled = true
+
 		if action_id.is_empty():
 			continue
-
-		if not bool(action_data.get("enabled", false)):
+		if not action_enabled:
 			continue
-
 		if is_connector_action(action_id, target_object):
 			continue
-
 		if is_heavy_claw_action(action_id):
 			continue
-
-		physical_actions.append(action_id)
+		if not physical_actions.has(action_id):
+			physical_actions.append(action_id)
 
 	return physical_actions
-
 
 static func get_action_descriptor(target_data: Dictionary, action_id: String) -> Dictionary:
 	var view_model: Dictionary = Dictionary(target_data.get("action_view_model", {}))
@@ -78,9 +95,19 @@ static func is_manipulator_blocked(ui, target_object: Dictionary, actions: Array
 		return false
 	if bool(ui.bipob.call("can_use_physical_hand")):
 		return false
+
 	for action_variant in actions:
-		if action_requires_manipulator(str(action_variant), target_object):
+		var action_id: String = ""
+		if typeof(action_variant) == TYPE_DICTIONARY:
+			action_id = str(Dictionary(action_variant).get("id", "")).strip_edges().to_lower()
+			if not bool(Dictionary(action_variant).get("enabled", false)):
+				continue
+		else:
+			action_id = str(action_variant).strip_edges().to_lower()
+
+		if action_requires_manipulator(action_id, target_object):
 			return true
+
 	return false
 
 
@@ -135,13 +162,13 @@ static func press_interact(ui) -> void:
 
 	var target_data: Dictionary = get_target_data(ui)
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
+	var actions: Array = ui._safe_ui_array(target_data.get("actions", []))
+	var physical_actions: Array[String] = get_physical_actions(actions, target_object)
 
 	if is_heavy_claw_movable_target(target_object):
 		ui.runtime_interaction_mode_active = false
-
 		if ui.runtime_world_actions_panel != null and is_instance_valid(ui.runtime_world_actions_panel):
 			ui.runtime_world_actions_panel.visible = false
-
 		refresh_controls(ui)
 		ui.update_status()
 		return
@@ -157,28 +184,20 @@ static func press_interact(ui) -> void:
 		ui.update_status()
 		return
 
-	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
-	if not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false)):
-		enter_mode(ui)
+	if physical_actions.is_empty():
+		ui.runtime_interaction_mode_active = false
+		if ui.runtime_world_actions_panel != null and is_instance_valid(ui.runtime_world_actions_panel):
+			ui.runtime_world_actions_panel.visible = false
 		ui.show_hint("")
-		ui.update_status()
-		return
-
-	if not target_object.is_empty():
-		var unavailable_label: String = str(action_view_model.get("primary_action_label", ""))
-		if unavailable_label.is_empty() or unavailable_label == "Action":
-			unavailable_label = str(action_view_model.get("disabled_reason", ""))
-		if unavailable_label.is_empty():
-			unavailable_label = "No physical action available."
-		ui.show_hint(unavailable_label)
 		refresh_controls(ui)
 		ui.update_status()
 		return
 
-	ui.show_hint("No physical action available. Face an interactable object first.")
-	refresh_controls(ui)
+	enter_mode(ui)
+	ui.show_hint("")
 	ui.update_status()
-
+	
+	
 static func press_connect(ui) -> void:
 	if ui.map_constructor_state.map_constructor_mode_active or ui.bipob == null:
 		return
