@@ -8,7 +8,73 @@ const PlatformMechanismRulesServiceRef = preload("res://scripts/game/platform/pl
 const PlatformMotionServiceRef = preload("res://scripts/game/platform/platform_motion_service.gd")
 const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform_rotation_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
+static func _is_platform_self_controlled(platform_object: Dictionary) -> bool:
+	var control_mode: String = str(platform_object.get("control_mode", platform_object.get("control_type", "internal"))).strip_edges().to_lower()
 
+	if control_mode.is_empty():
+		return true
+
+	return control_mode in ["internal", "self", "cell", "local", "direct"]
+
+
+static func _is_platform_external_controlled(platform_object: Dictionary) -> bool:
+	var control_mode: String = str(platform_object.get("control_mode", platform_object.get("control_type", "internal"))).strip_edges().to_lower()
+
+	if control_mode in ["external", "external_control", "terminal", "remote", "device"]:
+		return true
+
+	if bool(platform_object.get("requires_external_control", false)):
+		return true
+
+	if not str(platform_object.get("linked_terminal_id", "")).strip_edges().is_empty():
+		return true
+
+	if not str(platform_object.get("control_source_id", "")).strip_edges().is_empty():
+		return true
+
+	return false
+
+
+static func _is_platform_powered(platform_object: Dictionary) -> bool:
+	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
+	if state_text == "unpowered":
+		return false
+
+	var power_mode: String = str(platform_object.get("power_mode", platform_object.get("power_type", "internal"))).strip_edges().to_lower()
+
+	if power_mode in ["internal", "internal_power", "self", "self_powered", ""]:
+		return true
+
+	if power_mode in ["external", "external_power", "external power"]:
+		if platform_object.has("is_powered"):
+			return bool(platform_object.get("is_powered", false))
+
+		var power_state: String = str(platform_object.get("power_state", "")).strip_edges().to_lower()
+		return power_state in ["powered", "active", "on", "ok"]
+
+	if platform_object.has("is_powered"):
+		return bool(platform_object.get("is_powered", true))
+
+	return true
+
+
+static func _get_runtime_block_message(platform_object: Dictionary) -> String:
+	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
+
+	if state_text in ["disabled", "damaged", "broken", "destroyed"]:
+		return "Platform mechanism is disabled."
+
+	if _is_platform_external_controlled(platform_object):
+		return "Platform is controlled externally."
+
+	if not _is_platform_self_controlled(platform_object):
+		return "Platform cannot be controlled locally."
+
+	if not _is_platform_powered(platform_object):
+		return "Platform mechanism has no power."
+
+	return ""
+	
 static func execute_platform_control_action(controller: Variant, platform_object: Dictionary, target_position: Vector2i, action_id: String) -> Dictionary:
 	if controller == null:
 		return _build_result(false, "Platform control unavailable.", platform_object, target_position, "missing_controller")
@@ -23,48 +89,21 @@ static func execute_platform_control_action(controller: Variant, platform_object
 	if str(normalized_platform.get("object_group", "")).strip_edges().to_lower() != "platform":
 		return _build_result(false, "Platform control unavailable.", platform_object, target_position, "not_platform")
 
-	var mechanism: Dictionary = _build_platform_mechanism(controller, normalized_platform)
-	if mechanism.is_empty():
-		return _build_result(false, "Platform mechanism unavailable.", normalized_platform, target_position, "missing_mechanism")
-
 	var actor_standing_on_platform: bool = _is_actor_standing_on_platform_target(controller, normalized_platform, target_position)
-	
 	if not actor_standing_on_platform:
 		return _build_result(false, "Stand on platform to control it.", normalized_platform, target_position, "not_on_platform")
-	# Runtime platform-control rule:
-	# every platform cell occupied by Bipob is directly controllable.
-	# We pass Bipob cell as control_cell only to reuse PlatformMechanismRulesService.
-	# This is not a map-authored control_cell requirement.
-	if actor_standing_on_platform:
-		mechanism["control_mode"] = PlatformMechanismRulesServiceRef.CONTROL_MODE_CELL
-		mechanism["control_cell"] = Vector2i(controller.grid_position)
-
-	var requested_action: String = _resolve_requested_action(normalized_platform, mechanism, action_id)
-	if requested_action.is_empty():
-		return _build_result(false, "No platform operation configured.", normalized_platform, target_position, "missing_operation")
 
 	var runtime_block_message: String = _get_runtime_block_message(normalized_platform)
 	if not runtime_block_message.is_empty():
 		return _build_result(false, runtime_block_message, normalized_platform, target_position, "platform_unavailable")
 
-	var control_cell: Vector2i = Vector2i(controller.grid_position)
-	var external_power_available: bool = _is_external_power_available(normalized_platform)
-	var availability: Dictionary = PlatformMechanismRulesServiceRef.can_use_action_from_cell(mechanism, control_cell, external_power_available)
+	var mechanism: Dictionary = _build_platform_mechanism(controller, normalized_platform)
+	if mechanism.is_empty():
+		return _build_result(false, "Platform mechanism unavailable.", normalized_platform, target_position, "missing_mechanism")
 
-	if not bool(availability.get("ok", false)):
-		if actor_standing_on_platform:
-			var blocked_reason: String = str(availability.get("reason", "")).strip_edges().to_lower()
-			if blocked_reason in ["not_on_control_cell", "no_control_cell", "external_control", "control_unavailable"]:
-				availability["ok"] = true
-
-	if not bool(availability.get("ok", false)):
-		return _build_result(
-			false,
-			str(availability.get("message", "Platform control unavailable.")),
-			normalized_platform,
-			target_position,
-			str(availability.get("reason", "platform_unavailable"))
-		)
+	var requested_action: String = _resolve_requested_action(normalized_platform, mechanism, action_id)
+	if requested_action.is_empty():
+		return _build_result(false, "No platform operation configured.", normalized_platform, target_position, "missing_operation")
 
 	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
 		return _build_result(false, "Not enough action/energy.", normalized_platform, target_position, "insufficient_resources")
@@ -73,15 +112,14 @@ static func execute_platform_control_action(controller: Variant, platform_object
 	if members.is_empty():
 		members = [normalized_platform.duplicate(true)]
 
-	var normalized_requested_action: String = requested_action
+	if requested_action in [PlatformTypesRef.ACTION_RAISE, PlatformTypesRef.ACTION_LOWER]:
+		return _execute_elevator_action(controller, normalized_platform, target_position, mechanism, members, requested_action)
 
-	if normalized_requested_action in [PlatformTypesRef.ACTION_RAISE, PlatformTypesRef.ACTION_LOWER]:
-		return _execute_elevator_action(controller, normalized_platform, target_position, mechanism, members, normalized_requested_action)
-
-	if normalized_requested_action in [PlatformTypesRef.ACTION_ROTATE_LEFT, PlatformTypesRef.ACTION_ROTATE_RIGHT]:
-		return _execute_rotation_action(controller, normalized_platform, target_position, mechanism, members, normalized_requested_action)
+	if requested_action in [PlatformTypesRef.ACTION_ROTATE_LEFT, PlatformTypesRef.ACTION_ROTATE_RIGHT]:
+		return _execute_rotation_action(controller, normalized_platform, target_position, mechanism, members, requested_action)
 
 	return _build_result(false, "No platform operation configured.", normalized_platform, target_position, "operation_unavailable")
+	
 static func _is_actor_standing_on_platform_target(controller: Variant, platform_object: Dictionary, target_position: Vector2i) -> bool:
 	if controller == null:
 		return false
@@ -362,16 +400,7 @@ static func _is_external_power_available(platform_object: Dictionary) -> bool:
 	return power_state in ["powered", "active", "on", "ok"]
 
 
-static func _get_runtime_block_message(platform_object: Dictionary) -> String:
-	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
-	if state_text in ["disabled", "damaged", "broken", "destroyed"]:
-		return "Platform mechanism is disabled."
-	if state_text == "unpowered" or not bool(platform_object.get("is_powered", true)):
-		return "Platform mechanism has no power."
-	return ""
-
-
-static func _apply_platform_level_updates(controller: Variant, mechanism: Dictionary, members: Array[Dictionary], target_level: int, current_level: int, action: String) -> int:
+static func _apply_platform_level_updates(controller: Variant, mechanism: Dictionary, members: Array[Dictionary], target_level: int, current_level: int, _action: String) -> int:
 	var updated_count: int = 0
 	for member in members:
 		var member_id: String = str(member.get("id", "")).strip_edges()
@@ -390,7 +419,7 @@ static func _apply_platform_level_updates(controller: Variant, mechanism: Dictio
 	return updated_count
 
 
-static func _apply_platform_rotation_updates(controller: Variant, mechanism: Dictionary, members: Array[Dictionary], action: String, rotation_plan: Dictionary) -> int:
+static func _apply_platform_rotation_updates(controller: Variant, _mechanism: Dictionary, members: Array[Dictionary], action: String, _rotation_plan: Dictionary) -> int:
 	var updated_count: int = 0
 	var rotation_state: String = PlatformTypesRef.MOTION_ROTATING_LEFT if action == PlatformTypesRef.ACTION_ROTATE_LEFT else PlatformTypesRef.MOTION_ROTATING_RIGHT
 	for member in members:
