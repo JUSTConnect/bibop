@@ -169,24 +169,6 @@ static func _trace_wall_mounted_interaction(payload: Dictionary) -> void:
 		return
 	print("[WallMountedInteraction] %s" % JSON.stringify(payload))
 
-static func _build_wall_mounted_interaction_payload(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> Dictionary:
-	if target_object.is_empty():
-		return {}
-	var placement_mode: String = str(target_object.get("placement_mode", target_object.get("placement", ""))).strip_edges().to_lower()
-	if placement_mode != "wall_mounted" and not bool(target_object.get("is_wall_mounted", false)):
-		return {}
-	var actor_cell: Vector2i = Vector2i(-1, -1)
-	if controller != null:
-		actor_cell = Vector2i(controller.grid_position)
-	var wall_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(target_object.get("attached_wall_cell", target_object.get("position", target_position)), target_position)
-	var approach_direction: Vector2i = actor_cell - wall_cell
-	var payload: Dictionary = WallMountedPlacementRulesServiceRef.build_interaction_payload(target_object, approach_direction)
-	payload["actor_cell"] = actor_cell
-	payload["wall_cell"] = wall_cell
-	payload["approach_direction"] = approach_direction
-	_trace_wall_mounted_interaction({"target_position": target_position, "object_id": str(target_object.get("id", "")), "object_type": str(target_object.get("object_type", "")), "actor_cell": actor_cell, "wall_cell": wall_cell, "approach_direction": approach_direction, "wall_side": str(payload.get("wall_side", "")), "interaction_side": str(payload.get("interaction_side", "")), "can_interact": bool(payload.get("can_interact", false))})
-	return payload
-
 static func _trace_breachable_wall_runtime_view_model(controller: Variant, target_position: Vector2i, target_object: Dictionary, raw_action_ids: Array, view_model: Dictionary) -> void:
 	if not DEBUG_BREACHABLE_WALL_RUNTIME_TRACE or not BreachableWallServiceRef.is_breachable_wall_data(target_object):
 		return
