@@ -4235,37 +4235,152 @@ func _draw_wall_cable_run_graphics(run_cells: Array[Vector2i], object_data: Dict
 		var run_health_state: String = get_cable_health_state(run_object)
 		if run_health_state in ["damaged", "broken", "cut"]:
 			draw_iso_cable_damage_marker(rail_anchor, run_health_state, profile)
-				
-func draw_wall_cable_visual_path(cell: Vector2i, object_data: Dictionary, visual_center: Vector2, profile: Dictionary, topology: Dictionary = {}) -> bool:
-	if get_cable_install_mode(object_data) != "wall" or not _cell_has_wall_for_iso_cable(cell):
+func _get_wall_cable_face_occluder_delta(face: String) -> Vector2i:
+	var normalized_face: String = face.strip_edges().to_lower()
+
+	# SW face is the left/south-west visual face.
+	# If another wall cell exists outside this face, this face is hidden.
+	if normalized_face == "sw":
+		return Vector2i(-1, 0)
+
+	# SE face is the right/south-east visual face.
+	# If another wall cell exists outside this face, this face is hidden.
+	if normalized_face == "se":
+		return Vector2i(0, -1)
+
+	return Vector2i.ZERO
+
+
+func _is_wall_cable_face_visible(cell: Vector2i, face: String) -> bool:
+	if cell.x < 0 or cell.y < 0:
 		return false
 
-	var anchors: Array[Dictionary] = _collect_wall_cable_circuit_anchors_any_side(object_data, cell)
-
-	# Fallback: old strict wall-face grouping.
-	if anchors.size() < 2:
-		anchors = _collect_wall_cable_face_run_anchors(object_data, cell)
-
-	var first_cable_anchor: Dictionary = _get_first_wall_cable_anchor(anchors)
-	if first_cable_anchor.is_empty():
+	var normalized_face: String = face.strip_edges().to_lower()
+	if normalized_face not in ["sw", "se"]:
 		return false
 
-	var current_object_id: String = _get_wall_cable_object_id(object_data, cell)
-	if str(first_cable_anchor.get("object_id", "")) != current_object_id:
+	var occluder_delta: Vector2i = _get_wall_cable_face_occluder_delta(normalized_face)
+	if occluder_delta == Vector2i.ZERO:
 		return true
 
-	var run_cells: Array[Vector2i] = []
-	for anchor_variant in anchors:
-		var anchor: Dictionary = Dictionary(anchor_variant)
-		if bool(anchor.get("is_cable", false)):
-			run_cells.append(Vector2i(anchor.get("cell", cell)))
+	var occluder_cell: Vector2i = cell + occluder_delta
 
-	if run_cells.is_empty():
+	# If there is another wall in front of this face, this face is not visible.
+	return not _cell_has_wall_for_iso_cable(occluder_cell)
+
+
+func _get_wall_cable_face_line_segment(cell: Vector2i, face: String) -> Dictionary:
+	var normalized_face: String = face.strip_edges().to_lower()
+	var visual_center: Vector2 = grid_to_iso(cell)
+
+	var face_data: Dictionary = {
+		"wall_side": normalized_face,
+		"interaction_side": normalized_face,
+		"facing_side": normalized_face,
+		"facing_dir": normalized_face,
+		"object_type": "power_cable",
+		"cable_install_mode": "wall",
+		"install_mode": "wall",
+		"mount": "wall",
+		"route_surface": "wall"
+	}
+
+	var segment: Dictionary = get_wall_route_segment_points(
+		visual_center,
+		face_data,
+		50.0
+	)
+
+	var start_edge: Vector2 = Vector2(segment.get("start", visual_center))
+	var end_edge: Vector2 = Vector2(segment.get("end", visual_center))
+	var mid_point: Vector2 = start_edge.lerp(end_edge, 0.5)
+	var normal: Vector2 = Vector2(segment.get("normal", Vector2.ZERO))
+
+	if normal.length() <= 0.001:
+		var axis: Vector2 = end_edge - start_edge
+		if axis.length() <= 0.001:
+			normal = Vector2.UP
+		else:
+			normal = Vector2(-axis.y, axis.x).normalized()
+	else:
+		normal = normal.normalized()
+
+	return {
+		"face": normalized_face,
+		"start_edge": start_edge,
+		"mid": mid_point,
+		"end_edge": end_edge,
+		"normal": normal
+	}
+
+
+func _draw_wall_cable_face_half_segment(start: Vector2, end: Vector2, normal: Vector2, routing_mode: String, profile: Dictionary) -> void:
+	if start.distance_squared_to(end) <= 0.25:
+		return
+
+	var normalized_routing_mode: String = routing_mode.strip_edges().to_lower()
+
+	if normalized_routing_mode == "inner":
+		# Inner cable is hidden/embedded. Keep only a subtle editor-visible groove.
+		draw_line(start + normal * 1.0, end + normal * 1.0, Color(0.01, 0.012, 0.016, 0.30), 5.0, true)
+		_draw_wall_routed_dashed_line(start, end, 8.0, 5.0, Color(0.05, 0.055, 0.065, 0.42), 2.3)
+		return
+
+	# Reuse the same visual style as normal cable wall segment.
+	draw_iso_cable_wall_segment(start, end, profile)
+
+
+func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: String, profile: Dictionary) -> bool:
+	if not _is_wall_cable_face_visible(cell, face):
 		return false
 
-	var head_cell: Vector2i = Vector2i(first_cable_anchor.get("cell", run_cells[0]))
-	_draw_wall_cable_run_graphics(run_cells, object_data, profile, topology, head_cell, anchors)
+	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
+
+	var start_edge: Vector2 = Vector2(segment.get("start_edge", Vector2.ZERO))
+	var mid_point: Vector2 = Vector2(segment.get("mid", Vector2.ZERO))
+	var end_edge: Vector2 = Vector2(segment.get("end_edge", Vector2.ZERO))
+	var normal: Vector2 = Vector2(segment.get("normal", Vector2.UP)).normalized()
+
+	# Important:
+	# Draw the cable on each face as two independent half-segments.
+	# Later cable breaks can hide/shorten left or right half without rewriting geometry.
+	_draw_wall_cable_face_half_segment(start_edge, mid_point, normal, routing_mode, profile)
+	_draw_wall_cable_face_half_segment(mid_point, end_edge, normal, routing_mode, profile)
+
 	return true
+
+
+func _draw_wall_cable_faces_for_cell(cell: Vector2i, object_data: Dictionary, profile: Dictionary) -> bool:
+	if cell.x < 0 or cell.y < 0:
+		return false
+
+	if not _cell_has_wall_for_iso_cable(cell):
+		return false
+
+	var routing_mode: String = get_cable_wall_routing_mode(object_data)
+
+	var drew_any: bool = false
+
+	if _is_wall_cable_face_visible(cell, "sw"):
+		drew_any = _draw_wall_cable_face_segment(cell, "sw", routing_mode, profile) or drew_any
+
+	if _is_wall_cable_face_visible(cell, "se"):
+		drew_any = _draw_wall_cable_face_segment(cell, "se", routing_mode, profile) or drew_any
+
+	return drew_any
+					
+func draw_wall_cable_visual_path(cell: Vector2i, object_data: Dictionary, _visual_center: Vector2, profile: Dictionary, _topology: Dictionary = {}) -> bool:
+	if get_cable_install_mode(object_data) != "wall":
+		return false
+
+	if not _cell_has_wall_for_iso_cable(cell):
+		return false
+
+	# New model:
+	# Wall cable has no selected SW/SE side.
+	# It is drawn on every visible wall face of the wall cell.
+	# Visibility is determined by wall occlusion, not by object settings.
+	return _draw_wall_cable_faces_for_cell(cell, object_data, profile)
 
 func _get_cable_object_cell(object_data: Dictionary) -> Vector2i:
 	return _try_parse_cell_variant(object_data.get("position", object_data.get("cell", Vector2i(-1, -1))), Vector2i(-1, -1))
@@ -4496,9 +4611,11 @@ func _draw_wall_cable_transition(cell: Vector2i, visual_center: Vector2, object_
 func draw_wall_topology_cable(cell: Vector2i, object_data: Dictionary, visual_center: Vector2, profile: Dictionary) -> bool:
 	if not is_wall_cable_object(object_data):
 		return false
-	var topology: Dictionary = classify_wall_cable_topology(cell, object_data)
-	return draw_wall_cable_visual_path(cell, object_data, visual_center, profile, topology)
 
+	# Old anchor/corner topology is intentionally bypassed.
+	# Wall cable is now rendered per visible wall face.
+	return draw_wall_cable_visual_path(cell, object_data, visual_center, profile, {})
+	
 func draw_wall_procedural_cable(segment: Dictionary, routing_mode: String) -> bool:
 	var start: Vector2 = Vector2(segment.get("start", Vector2.ZERO))
 	var end: Vector2 = Vector2(segment.get("end", Vector2.ZERO))
@@ -4555,18 +4672,22 @@ func draw_wall_procedural_water_pipe(segment: Dictionary, routing_mode: String) 
 func draw_wall_procedural_routed_object(cell: Vector2i, object_data: Dictionary, visual_center: Vector2) -> bool:
 	if not is_wall_procedural_routed_object(object_data):
 		return false
+
+	var family: String = _get_wall_routed_object_family(object_data)
+	var routing_mode: String = get_wall_routing_mode(object_data)
+
+	if family == "cable":
+		return draw_wall_topology_cable(cell, object_data, visual_center, get_iso_object_profile("cable"))
+
 	var source_height_px: float = get_wall_routed_height_source_px(object_data)
 	var segment: Dictionary = get_wall_route_segment_points(visual_center, object_data, source_height_px)
-	var routing_mode: String = get_wall_routing_mode(object_data)
-	match _get_wall_routed_object_family(object_data):
-		"cable":
-			if draw_wall_topology_cable(cell, object_data, visual_center, get_iso_object_profile("cable")):
-				return true
-			return draw_wall_procedural_cable(segment, routing_mode)
+
+	match family:
 		"air_duct":
 			return draw_wall_procedural_air_duct(segment, routing_mode)
 		"water_pipe":
 			return draw_wall_procedural_water_pipe(segment, routing_mode)
+
 	return false
 
 func draw_wall_routed_procedural_visual(object_data: Dictionary, profile: Dictionary, fallback_cell: Vector2i) -> bool:
