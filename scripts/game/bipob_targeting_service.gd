@@ -2,6 +2,7 @@ extends RefCounted
 class_name BipobTargetingService
 
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const DEBUG_RUNTIME_ACTION_TARGET_TRACE := false
 
 
@@ -61,21 +62,105 @@ static func get_facing_item(controller: Variant) -> Dictionary:
 static func _get_platform_action_target_under_actor(controller: Variant) -> Dictionary:
 	if controller == null or controller.mission_manager == null:
 		return {}
+
 	var actor_cell: Vector2i = Vector2i(controller.grid_position)
-	var platform_candidate: Dictionary = {}
+
+	# 1. Fast path: existing runtime helper.
 	if controller.mission_manager.has_method("get_platform_for_cell"):
 		var platform_variant: Variant = controller.mission_manager.call("get_platform_for_cell", actor_cell)
 		if platform_variant is Dictionary:
-			platform_candidate = Dictionary(platform_variant)
-	if platform_candidate.is_empty() and controller.mission_manager.has_method("get_world_object_at_cell"):
+			var platform_candidate: Dictionary = Dictionary(platform_variant)
+			if _is_platform_action_target_candidate(platform_candidate):
+				return platform_candidate
+
+	# 2. Fallback: direct world object at actor cell.
+	if controller.mission_manager.has_method("get_world_object_at_cell"):
 		var world_object_variant: Variant = controller.mission_manager.call("get_world_object_at_cell", actor_cell)
 		if world_object_variant is Dictionary:
-			platform_candidate = Dictionary(world_object_variant)
-	if _is_platform_action_target_candidate(platform_candidate):
-		return platform_candidate
+			var world_object_candidate: Dictionary = Dictionary(world_object_variant)
+			if _is_platform_action_target_candidate(world_object_candidate):
+				return world_object_candidate
+
+	# 3. Important fallback: scan map-constructor/world rows and match platform_cells.
+	# Platform may cover this cell even if get_world_object_at_cell(actor_cell) returns floor/empty.
+	var scanned_platform: Dictionary = _find_platform_by_footprint_cell(controller, actor_cell)
+	if not scanned_platform.is_empty():
+		return scanned_platform
+
 	return {}
 
+static func _find_platform_by_footprint_cell(controller: Variant, actor_cell: Vector2i) -> Dictionary:
+	if controller == null or controller.mission_manager == null:
+		return {}
 
+	# Map Constructor rows path.
+	if controller.mission_manager.has_method("get_map_constructor_placed_object_rows"):
+		var rows: Array = Array(controller.mission_manager.call("get_map_constructor_placed_object_rows"))
+
+		for row_variant in rows:
+			if typeof(row_variant) != TYPE_DICTIONARY:
+				continue
+
+			var row: Dictionary = Dictionary(row_variant)
+			var object_id: String = str(row.get("id", "")).strip_edges()
+			var candidate: Dictionary = row.duplicate(true)
+
+			if not object_id.is_empty() and controller.mission_manager.has_method("get_map_constructor_entity_by_id"):
+				var entity: Dictionary = Dictionary(controller.mission_manager.call("get_map_constructor_entity_by_id", "world_object", object_id))
+				if bool(entity.get("ok", false)):
+					candidate = Dictionary(entity.get("data", {}))
+					candidate["id"] = object_id
+
+			if _is_platform_action_target_candidate(candidate) and _platform_contains_cell(candidate, actor_cell):
+				return candidate
+
+	# Runtime mission_world_objects path.
+	# This is needed for TASK TEST/runtime objects that are not returned by get_world_object_at_cell.
+	if controller.mission_manager.get("mission_world_objects") != null:
+		var world_objects: Array = Array(controller.mission_manager.get("mission_world_objects"))
+
+		for object_variant in world_objects:
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+
+			var object_data: Dictionary = Dictionary(object_variant)
+			if _is_platform_action_target_candidate(object_data) and _platform_contains_cell(object_data, actor_cell):
+				return object_data
+
+	return {}
+	
+static func _platform_contains_cell(platform_data: Dictionary, actor_cell: Vector2i) -> bool:
+	if platform_data.is_empty():
+		return false
+
+	# Multi-cell or explicit footprint.
+	for cell_variant in Array(platform_data.get("platform_cells", [])):
+		var platform_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+		if platform_cell == actor_cell:
+			return true
+
+	# Some data can use cells instead of platform_cells.
+	for cell_variant in Array(platform_data.get("cells", [])):
+		var cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+		if cell == actor_cell:
+			return true
+
+	# Single-cell platform fallback.
+	var position_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
+		platform_data.get("position", platform_data.get("pos", platform_data.get("cell", Vector2i(-1, -1)))),
+		Vector2i(-1, -1)
+	)
+	if position_cell == actor_cell:
+		return true
+
+	var x_value: int = int(platform_data.get("x", platform_data.get("cell_x", -1)))
+	var y_value: int = int(platform_data.get("y", platform_data.get("cell_y", -1)))
+	if x_value >= 0 and y_value >= 0:
+		if Vector2i(x_value, y_value) == actor_cell:
+			return true
+
+	return false
+		
 static func _is_platform_action_target_candidate(candidate: Dictionary) -> bool:
 	if candidate.is_empty():
 		return false
@@ -90,33 +175,50 @@ static func _is_platform_action_target_candidate(candidate: Dictionary) -> bool:
 static func build_action_target_context(controller: Variant) -> Dictionary:
 	var target_position: Vector2i = get_facing_cell(controller)
 	var raw_world_object: Dictionary = {}
+
 	if controller.mission_manager != null:
 		raw_world_object = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
+
 	var wall_mounted_candidate: Dictionary = _get_wall_mounted_object_candidate(controller, target_position)
+
 	var breachable_wall_candidate: Dictionary = {}
 	if controller.mission_manager != null and controller.mission_manager.has_method("get_breachable_wall_action_target_at_cell"):
 		breachable_wall_candidate = Dictionary(controller.mission_manager.call("get_breachable_wall_action_target_at_cell", target_position))
+
 	var target_object: Dictionary = resolve_runtime_action_target_for_cell(controller, target_position, raw_world_object)
 	var view_model: Dictionary = controller.build_runtime_action_view_model(target_object, target_position)
-	if (target_object.is_empty() or not bool(view_model.get("has_available_action", false))) and controller.mission_manager != null:
-		var platform_under_actor: Dictionary = _get_platform_action_target_under_actor(controller)
-		if not platform_under_actor.is_empty():
-			target_position = Vector2i(controller.grid_position)
+
+	# Platform-under-Bipob priority:
+	# if Bipob stands on a platform footprint, Action should target that platform.
+	var platform_under_actor: Dictionary = _get_platform_action_target_under_actor(controller)
+	if not platform_under_actor.is_empty():
+		var platform_target_position: Vector2i = Vector2i(controller.grid_position)
+		var platform_view_model: Dictionary = controller.build_runtime_action_view_model(platform_under_actor, platform_target_position)
+		var platform_actions: Array = Array(platform_view_model.get("raw_action_ids", []))
+
+		if platform_actions.has("activate_platform") or bool(platform_view_model.get("has_available_action", false)):
+			target_position = platform_target_position
 			target_object = platform_under_actor
-			view_model = controller.build_runtime_action_view_model(target_object, target_position)
+			view_model = platform_view_model
+
 	if target_object.is_empty() and controller.mission_manager != null:
 		var items: Array = controller.mission_manager.get_items_at_cell(target_position)
+
 		if items.is_empty() and target_position != controller.grid_position:
 			items = controller.mission_manager.get_items_at_cell(controller.grid_position)
 			if not items.is_empty():
 				target_position = controller.grid_position
+
 		if not items.is_empty():
 			target_object = Dictionary(items[0])
 			view_model = controller.build_runtime_action_view_model(target_object, target_position)
+
 	var resolved_target: Dictionary = Dictionary(view_model.get("target", target_object))
+
 	var direction_text: String = ""
 	if controller.has_method("get_direction"):
 		direction_text = str(controller.get_direction())
+
 	_trace_runtime_action_target({
 		"bipob_cell": str(controller.grid_position),
 		"facing_cell": str(target_position),
@@ -147,13 +249,17 @@ static func build_action_target_context(controller: Variant) -> Dictionary:
 			"object_type": str(breachable_wall_candidate.get("object_type", "")),
 			"object_group": str(breachable_wall_candidate.get("object_group", "")),
 			"placement_mode": str(breachable_wall_candidate.get("placement_mode", breachable_wall_candidate.get("placement", "")))
-		},
-		"actions_returned_by_get_available_world_actions": Array(view_model.get("raw_action_ids", [])),
-		"actions_after_filtering": Array(view_model.get("available_action_ids", [])),
-		"action_descriptors": Array(view_model.get("actions", []))
+		}
 	})
-	return {"target_position": target_position, "target_object": view_model.get("target", {}), "actions": view_model.get("raw_action_ids", []), "available_action_ids": view_model.get("available_action_ids", []), "action_view_model": view_model}
 
+	return {
+		"target_position": target_position,
+		"target_object": target_object,
+		"action_view_model": view_model,
+		"actions": Array(view_model.get("actions", [])),
+		"available_action_ids": Array(view_model.get("available_action_ids", [])),
+		"raw_action_ids": Array(view_model.get("raw_action_ids", []))
+	}
 
 static func build_connector_target_context(controller: Variant) -> Dictionary:
 	return _build_action_context_for_id(build_action_target_context(controller), "connect")
