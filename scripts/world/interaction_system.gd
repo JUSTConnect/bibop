@@ -60,11 +60,34 @@ static func _is_heavy_claw_movable_action(action_type: String, target_object: Di
 		return false
 	return WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object)
 
+static func _is_platform_target_object(target_object: Dictionary) -> bool:
+	if target_object.is_empty():
+		return false
+
+	var object_group: String = str(target_object.get("object_group", target_object.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(target_object.get("object_type", target_object.get("type", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(target_object.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(target_object.get("platform_type", "")).strip_edges().to_lower()
+
+	if object_group == "platform":
+		return true
+	if object_type == "platform":
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		return true
+	if not platform_mode.is_empty():
+		return true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		return true
+
+	return false
+	
 static func _is_platform_control_action(action_type: String, target_object: Dictionary) -> bool:
 	if action_type not in ["activate_platform", "raise_platform", "lower_platform", "rotate_platform_left", "rotate_platform_right"]:
 		return false
-	return str(target_object.get("object_group", "")).strip_edges().to_lower() == "platform"
 
+	return _is_platform_target_object(target_object)
+	
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	action_type = normalize_action_id(action_type)
 	if action_type not in SUPPORTED_ACTIONS:
