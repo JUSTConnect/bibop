@@ -12,14 +12,86 @@ const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_ser
 const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
 const DEBUG_WALL_MOUNTED_INTERACTION_TRACE := false
 
+static func _is_platform_target(target_object: Dictionary) -> bool:
+	if target_object.is_empty():
+		return false
 
+	var object_group: String = str(target_object.get("object_group", target_object.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(target_object.get("object_type", target_object.get("type", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(target_object.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(target_object.get("platform_type", "")).strip_edges().to_lower()
+
+	if object_group == "platform":
+		return true
+	if object_type == "platform":
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		return true
+	if not platform_mode.is_empty():
+		return true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		return true
+
+	return false
+
+
+static func _platform_contains_actor_cell(controller: Variant, platform_object: Dictionary, target_position: Vector2i) -> bool:
+	if controller == null:
+		return false
+
+	var actor_cell: Vector2i = Vector2i(controller.grid_position)
+
+	for cell_variant in Array(platform_object.get("platform_cells", [])):
+		var platform_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+		if platform_cell == actor_cell:
+			return true
+
+	for cell_variant in Array(platform_object.get("cells", [])):
+		var cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+		if cell == actor_cell:
+			return true
+
+	var position_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
+		platform_object.get("position", platform_object.get("pos", platform_object.get("cell", target_position))),
+		target_position
+	)
+	if position_cell == actor_cell:
+		return true
+
+	var x_value: int = int(platform_object.get("x", platform_object.get("cell_x", -1)))
+	var y_value: int = int(platform_object.get("y", platform_object.get("cell_y", -1)))
+	if x_value >= 0 and y_value >= 0 and Vector2i(x_value, y_value) == actor_cell:
+		return true
+
+	return false
+
+
+static func _empty_platform_view_model(target_object: Dictionary) -> Dictionary:
+	return {
+		"target": target_object,
+		"actions": [],
+		"raw_action_ids": [],
+		"available_action_ids": [],
+		"primary_action_id": "",
+		"primary_action_label": "Action",
+		"has_available_action": false,
+		"has_interaction_target": false,
+		"disabled_reason": "not_on_platform"
+	}
+	
 static func build_runtime_action_view_model(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	var normalized_target: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(target_object)
+
 	if BreachableWallServiceRef.is_breachable_wall_data(normalized_target):
 		normalized_target = BreachableWallServiceRef.normalize_runtime_breachable_wall_data(normalized_target)
+
 	if str(normalized_target.get("object_group", "")) == "door":
 		normalized_target = WorldObjectCatalogRef.normalize_door_contract(normalized_target)
 		normalized_target = WorldObjectCatalogRef.normalize_door_state_fields(normalized_target)
+
+	if _is_platform_target(normalized_target) and not _platform_contains_actor_cell(controller, normalized_target, target_position):
+		return _empty_platform_view_model(normalized_target)
+
 	var wall_mount_gate: Dictionary = _build_wall_mounted_interaction_payload(controller, normalized_target, target_position)
 	if not wall_mount_gate.is_empty() and not bool(wall_mount_gate.get("can_interact", false)):
 		return {"target":normalized_target, "actions":[], "raw_action_ids":[], "available_action_ids":[], "primary_action_id":"", "primary_action_label":ObjectFacingServiceRef.FRONT_SIDE_HINT, "has_available_action":false, "has_interaction_target":true, "disabled_reason":"wrong_wall_side", "wall_mounted_interaction":wall_mount_gate}
