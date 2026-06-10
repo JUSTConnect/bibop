@@ -29,40 +29,53 @@ static func refresh(ui) -> void:
 			ui.runtime_world_actions_panel.visible = false
 
 	var has_actions_left: bool = ui.bipob != null and int(ui.bipob.actions_left) > 0
-
+	var active_channel: String = str(ui.runtime_interaction_active_channel).strip_edges().to_lower()
+	
 	if ui.runtime_action_button != null:
-		ui.runtime_action_button.text = "Action"
-		ui.runtime_action_button.disabled = not has_physical_interactable
-		ui.runtime_action_button.tooltip_text = "" if has_physical_interactable else ""
-		ui._apply_action_button_style(ui.runtime_action_button, "primary" if has_physical_interactable else "disabled", has_physical_interactable)
+		var action_channel_active: bool = ui.runtime_interaction_mode_active and active_channel == "action"
+		ui.runtime_action_button.text = "Cancel" if action_channel_active else "Action"
+		ui.runtime_action_button.disabled = not (has_physical_interactable or action_channel_active)
+		ui.runtime_action_button.tooltip_text = "" if has_physical_interactable or action_channel_active else ""
+		ui._apply_action_button_style(
+			ui.runtime_action_button,
+			"danger" if action_channel_active else ("primary" if has_physical_interactable else "disabled"),
+			has_physical_interactable or action_channel_active
+		)
 
 		if has_physical_interactable and not ui.runtime_interaction_mode_active:
 			ui._apply_selected_pulse(ui.runtime_action_button)
 		else:
 			ui._clear_selected_pulse(ui.runtime_action_button)
-
 	if ui.runtime_connect_button != null:
 		var terminal_connected: bool = ui.bipob != null and ui.bipob.has_method("is_connected_to_terminal") and bool(ui.bipob.call("is_connected_to_terminal"))
 		var terminal_reopen_enabled: bool = not target_object.is_empty() and str(target_object.get("object_group", "")) == "terminal" and bool(target_object.get("connected", false))
+		var connect_channel_active: bool = ui.runtime_interaction_mode_active and active_channel == "connect"
 		var connect_enabled: bool = false
 
 		if not is_heavy_claw_movable_target:
-			connect_enabled = terminal_connected or terminal_reopen_enabled or (not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)) and has_actions_left)
+			connect_enabled = terminal_connected or terminal_reopen_enabled or connect_channel_active or (not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)) and has_actions_left)
 
-		ui.runtime_connect_button.text = "Cancel" if terminal_connected else "Connect"
+		ui.runtime_connect_button.text = "Cancel" if terminal_connected or connect_channel_active else "Connect"
 		ui.runtime_connect_button.disabled = not connect_enabled
 		ui.runtime_connect_button.tooltip_text = "" if connect_enabled else str(connect_descriptor.get("label", "Connector jack unavailable."))
-		ui._apply_action_button_style(ui.runtime_connect_button, "danger" if terminal_connected else ("primary" if connect_enabled else "disabled"), connect_enabled)
-
+		ui._apply_action_button_style(
+			ui.runtime_connect_button,
+			"danger" if terminal_connected or connect_channel_active else ("primary" if connect_enabled else "disabled"),
+			connect_enabled
+		)
 	if ui.runtime_heavy_claw_button != null:
 		var heavy_claw_drag_active: bool = ui.bipob != null and ui.bipob.has_method("is_heavy_claw_drag_active") and bool(ui.bipob.call("is_heavy_claw_drag_active"))
-		var heavy_claw_enabled: bool = heavy_claw_drag_active or (not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left)
+		var heavy_claw_channel_active: bool = ui.runtime_interaction_mode_active and active_channel == "heavy_claw"
+		var heavy_claw_enabled: bool = heavy_claw_drag_active or heavy_claw_channel_active or (not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left)
 
-		ui.runtime_heavy_claw_button.text = "Cancel" if heavy_claw_drag_active else "Heavy Claw"
+		ui.runtime_heavy_claw_button.text = "Cancel" if heavy_claw_drag_active or heavy_claw_channel_active else "Heavy Claw"
 		ui.runtime_heavy_claw_button.disabled = not heavy_claw_enabled
 		ui.runtime_heavy_claw_button.tooltip_text = "" if heavy_claw_enabled else str(heavy_claw_descriptor.get("label", ""))
-		ui._apply_action_button_style(ui.runtime_heavy_claw_button, "danger" if heavy_claw_drag_active else ("primary" if heavy_claw_enabled else "disabled"), heavy_claw_enabled)
-
+		ui._apply_action_button_style(
+			ui.runtime_heavy_claw_button,
+			"danger" if heavy_claw_drag_active or heavy_claw_channel_active else ("primary" if heavy_claw_enabled else "disabled"),
+			heavy_claw_enabled
+		)
 	if ui.runtime_end_turn_button != null:
 		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
 
@@ -117,6 +130,7 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	
 	if action_ids.is_empty():
 		ui.runtime_interaction_mode_active = false
+		ui.runtime_interaction_active_channel = ""
 		ui.runtime_world_actions_panel.visible = false
 		_clear_runtime_world_actions_list(ui)
 		return
