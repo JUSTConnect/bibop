@@ -170,7 +170,24 @@ static func _normalize_wall_routing_mode_for_inspector(data: Dictionary) -> Stri
 static func _normalize_wall_routing_mode_value(data: Dictionary) -> String:
 	return _normalize_wall_routing_mode_for_inspector(data)
 
+static func _is_wall_cable_constructor_object(data: Dictionary) -> bool:
+	var tokens: Array[String] = [
+		MapConstructorUiSafe.safe_string(data.get("object_type", data.get("type", ""))),
+		MapConstructorUiSafe.safe_string(data.get("object_group", data.get("group", ""))),
+		MapConstructorUiSafe.safe_string(data.get("map_constructor_prefab_id", "")),
+		MapConstructorUiSafe.safe_string(data.get("prefab_id", "")),
+		MapConstructorUiSafe.safe_string(data.get("id", ""))
+	]
 
+	for raw_token in tokens:
+		var token: String = raw_token.strip_edges().to_lower()
+		if token.is_empty():
+			continue
+		if token == "cable" or token.contains("power_cable") or token.contains("cable_reel"):
+			return true
+
+	return false
+	
 static func _is_wall_routed_constructor_object(data: Dictionary) -> bool:
 	var tokens: Array[String] = [
 		MapConstructorUiSafe.safe_string(data.get("object_type", data.get("type", ""))),
@@ -179,23 +196,29 @@ static func _is_wall_routed_constructor_object(data: Dictionary) -> bool:
 		MapConstructorUiSafe.safe_string(data.get("prefab_id", "")),
 		MapConstructorUiSafe.safe_string(data.get("id", ""))
 	]
-	var is_cable: bool = false
+
 	var is_wall_routed_utility: bool = false
+
 	for raw_token in tokens:
 		var token: String = raw_token.strip_edges().to_lower()
 		if token.is_empty():
 			continue
+
+		# Cable no longer uses Wall side.
+		# Cable has its own face-based wall renderer and only needs Wall routing.
 		if token == "cable" or token.contains("power_cable") or token.contains("cable_reel"):
-			is_cable = true
-		elif token.contains("external_air_duct") or token.contains("air_duct") or token.contains("external_water_pipe") or token.contains("water_pipe"):
+			return false
+
+		if token.contains("external_air_duct") or token.contains("air_duct") or token.contains("external_water_pipe") or token.contains("water_pipe"):
 			is_wall_routed_utility = true
-	if is_cable:
-		return _get_cable_install_type(data) == "wall"
+
 	if is_wall_routed_utility:
 		var placement_mode: String = MapConstructorUiSafe.safe_string(data.get("placement_mode", data.get("placement", ""))).strip_edges().to_lower()
 		var mount_mode: String = MapConstructorUiSafe.safe_string(data.get("mount", data.get("install_mode", ""))).strip_edges().to_lower()
 		return bool(data.get("is_wall_mounted", false)) or placement_mode in ["wall", "wall_mounted"] or mount_mode == "wall"
+
 	return false
+	
 
 
 static func _add_wall_side_selector(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
@@ -612,7 +635,9 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"cable_health_state":"normal"}}, {"label":"Damaged", "value":"damaged", "updates":{"cable_health_state":"damaged"}}, {"label":"Broken", "value":"broken", "updates":{"cable_health_state":"broken"}}, {"label":"Cut", "value":"cut", "updates":{"cable_health_state":"cut"}}])
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Power state", entity_kind, entity_id, "powered" if bool(data.get("is_powered", false)) else "unpowered", [{"label":"Powered", "value":"powered", "updates":{"is_powered":true}}, {"label":"Unpowered", "value":"unpowered", "updates":{"is_powered":false}}])
 		
-	if entity_kind == "world_object" and _is_wall_routed_constructor_object(data):
+	if entity_kind == "world_object" and _is_wall_cable_constructor_object(data) and _get_cable_install_type(data) == "wall":
+		_add_wall_routing_selector(ui, configurable, entity_kind, entity_id, data)
+	elif entity_kind == "world_object" and _is_wall_routed_constructor_object(data):
 		_add_wall_side_selector(ui, configurable, entity_kind, entity_id, data)
 		_add_wall_routing_selector(ui, configurable, entity_kind, entity_id, data)
 	elif type_group == "lighting" or normalized_object_type == "light":
