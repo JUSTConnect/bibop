@@ -119,6 +119,7 @@ var runtime_selected_mission_bipob_index: int = 0
 var runtime_mission_bipob_cards: Array[Button] = []
 
 var runtime_interaction_mode_active: bool = false
+var runtime_interaction_active_channel: String = ""
 var runtime_interaction_actions_row: HBoxContainer = null
 var runtime_base_controls_grid: GridContainer = null
 var runtime_move_forward_button: Button = null
