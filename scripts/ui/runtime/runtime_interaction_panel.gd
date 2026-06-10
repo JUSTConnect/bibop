@@ -12,11 +12,32 @@ static func is_heavy_claw_movable_target(target_object: Dictionary) -> bool:
 		return false
 	return WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object)
 
+static func _is_platform_target(target_object: Dictionary) -> bool:
+	if target_object.is_empty():
+		return false
+
+	var object_group: String = str(target_object.get("object_group", target_object.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(target_object.get("object_type", target_object.get("type", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(target_object.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(target_object.get("platform_type", "")).strip_edges().to_lower()
+
+	if object_group == "platform":
+		return true
+	if object_type == "platform":
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		return true
+	if not platform_mode.is_empty():
+		return true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		return true
+
+	return false
+	
 static func is_connector_action(action_id: String, target_object: Dictionary = {}) -> bool:
 	var normalized_action_id: String = action_id.strip_edges().to_lower()
-	var target_group: String = str(target_object.get("object_group", target_object.get("group", ""))).strip_edges().to_lower()
 
-	if normalized_action_id == "activate_platform" and target_group == "platform":
+	if normalized_action_id == "activate_platform" and _is_platform_target(target_object):
 		return false
 
 	return normalized_action_id in [
@@ -31,7 +52,6 @@ static func is_connector_action(action_id: String, target_object: Dictionary = {
 		"apply_digital_key",
 		"input_password"
 	] or normalized_action_id.begins_with("access_code_")
-	
 
 static func is_heavy_claw_action(action_id: String) -> bool:
 	return action_id in ["push", "break_breachable_wall"]
@@ -119,13 +139,15 @@ static func refresh_controls(ui) -> void:
 	if ui != null and ui.has_method("_refresh_runtime_interaction_controls"):
 		ui._refresh_runtime_interaction_controls()
 
-static func enter_mode(ui) -> void:
+static func enter_mode(ui, channel: String = "action") -> void:
 	ui.runtime_interaction_mode_active = true
+	ui.runtime_interaction_active_channel = channel
 	refresh_controls(ui)
 
 
 static func exit_mode(ui) -> void:
 	ui.runtime_interaction_mode_active = false
+	ui.runtime_interaction_active_channel = ""
 	refresh_controls(ui)
 
 
@@ -147,7 +169,7 @@ static func press_action(ui, action_id: String) -> void:
 
 	if not ui.runtime_interaction_mode_active:
 		print("[PRESS_ACTION_ENTER_MODE]")
-		enter_mode(ui)
+		enter_mode(ui, "action")
 
 	get_target_data(ui)
 
@@ -197,7 +219,7 @@ static func press_interact(ui) -> void:
 		ui.update_status()
 		return
 
-	enter_mode(ui)
+	enter_mode(ui, "action")
 	ui.show_hint("")
 	ui.update_status()
 	
@@ -232,6 +254,8 @@ static func press_connect(ui) -> void:
 		ui.show_hint(str(descriptor.get("label", "Connector jack unavailable.")))
 		refresh_controls(ui)
 		return
+	enter_mode(ui, "connect")
+		
 	if is_terminal_target and ui.bipob.has_method("open_terminal_connection_mode"):
 		var connect_result: Dictionary = Dictionary(ui.bipob.call("open_terminal_connection_mode", target_position))
 		ui.show_hint(str(connect_result.get("message", "Terminal connection unavailable.")))
@@ -260,6 +284,8 @@ static func press_heavy_claw(ui) -> void:
 		ui.show_hint(str(descriptor.get("label", "No heavy object in front.")))
 		refresh_controls(ui)
 		return
+		
+	enter_mode(ui, "heavy_claw")	
 	press_action(ui, str(descriptor.get("id", "push")))
 
 
@@ -272,7 +298,7 @@ static func use_selected_world_action(ui) -> void:
 		ui.update_status()
 		return
 	if not ui.runtime_interaction_mode_active:
-		enter_mode(ui)
+		enter_mode(ui, "action")
 	ui.bipob.call("interact")
 	refresh_controls(ui)
 	ui.update_status()
