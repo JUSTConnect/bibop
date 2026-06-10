@@ -3817,12 +3817,68 @@ func _is_wall_cable_same_side_visible_span(anchor_a: Dictionary, anchor_b: Dicti
 	var circuit_b: String = str(anchor_b.get("circuit_id", "")).strip_edges()
 
 	return _is_wall_cable_anchor_circuit_compatible(circuit_a, circuit_b)
-	
+func _get_wall_cable_anchor_side(anchor: Dictionary) -> String:
+	return str(anchor.get("wall_side", "sw")).strip_edges().to_lower()
+
+
+func _get_wall_cable_anchor_cell(anchor: Dictionary) -> Vector2i:
+	return Vector2i(anchor.get("cell", Vector2i(-1, -1)))
+
+
+func _get_wall_cable_anchor_rail(anchor: Dictionary) -> Vector2:
+	return Vector2(anchor.get("rail_anchor", Vector2.ZERO))
+
+
+func _is_wall_cable_segment_front_occluded(anchor_a: Dictionary, anchor_b: Dictionary) -> bool:
+	var side_a: String = _get_wall_cable_anchor_side(anchor_a)
+	var side_b: String = _get_wall_cable_anchor_side(anchor_b)
+
+	if side_a != side_b:
+		return false
+
+	var cell_a: Vector2i = _get_wall_cable_anchor_cell(anchor_a)
+	var cell_b: Vector2i = _get_wall_cable_anchor_cell(anchor_b)
+
+	if cell_a.x < 0 or cell_a.y < 0 or cell_b.x < 0 or cell_b.y < 0:
+		return false
+
+	var delta: Vector2i = cell_b - cell_a
+
+	# Кабель на SW должен идти только по видимой SW-плоскости стены.
+	# Если он соединяет клетки по другой оси, визуально он проходит за/через переднюю стену.
+	if side_a == "sw":
+		return delta.x != 0
+
+	# Кабель на SE должен идти только по видимой SE-плоскости стены.
+	# Если он соединяет клетки по другой оси, визуально он проходит за/через переднюю стену.
+	if side_a == "se":
+		return delta.y != 0
+
+	return false
+
+
+func _draw_visible_wall_cable_span_between_anchors(anchor_a: Dictionary, anchor_b: Dictionary, profile: Dictionary) -> void:
+	var rail_a: Vector2 = _get_wall_cable_anchor_rail(anchor_a)
+	var rail_b: Vector2 = _get_wall_cable_anchor_rail(anchor_b)
+
+	if rail_a.distance_squared_to(rail_b) <= 0.25:
+		return
+
+	if _is_wall_cable_segment_front_occluded(anchor_a, anchor_b):
+		# Не рисуем скрытую часть за передней стеной.
+		# Локальные маленькие сегменты на самих видимых гранях остаются.
+		_draw_wall_cable_local_anchor_segment(anchor_a, profile)
+		_draw_wall_cable_local_anchor_segment(anchor_b, profile)
+		return
+
+	draw_iso_cable_wall_segment(rail_a, rail_b, profile)
+		
 func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circuit_anchors: Array, profile: Dictionary) -> void:
 	if side_anchors.is_empty():
 		return
 
 	var cable_anchors: Array[Dictionary] = []
+
 	for anchor_variant in side_anchors:
 		var anchor: Dictionary = Dictionary(anchor_variant)
 		if bool(anchor.get("is_cable", false)):
@@ -3836,39 +3892,35 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 		return
 
 	var drawn_local_ids: Dictionary = {}
-	var has_drawn_span: bool = false
+	var connected_ids: Dictionary = {}
 
 	for index in range(cable_anchors.size() - 1):
 		var current_anchor: Dictionary = Dictionary(cable_anchors[index])
 		var next_anchor: Dictionary = Dictionary(cable_anchors[index + 1])
 
-		if _is_wall_cable_same_side_visible_span(current_anchor, next_anchor):
-			draw_iso_cable_wall_segment(
-				Vector2(current_anchor.get("rail_anchor", Vector2.ZERO)),
-				Vector2(next_anchor.get("rail_anchor", Vector2.ZERO)),
-				profile
-			)
-			has_drawn_span = true
+		if not _is_wall_cable_same_side_visible_span(current_anchor, next_anchor):
 			continue
 
 		var current_id: String = _get_wall_cable_anchor_id(current_anchor)
-		if not drawn_local_ids.has(current_id):
-			_draw_wall_cable_local_anchor_segment(current_anchor, profile)
-			drawn_local_ids[current_id] = true
-
 		var next_id: String = _get_wall_cable_anchor_id(next_anchor)
-		if not drawn_local_ids.has(next_id):
-			_draw_wall_cable_local_anchor_segment(next_anchor, profile)
-			drawn_local_ids[next_id] = true
 
-	if not has_drawn_span:
-		for anchor_variant in cable_anchors:
-			var anchor: Dictionary = Dictionary(anchor_variant)
-			var anchor_id: String = _get_wall_cable_anchor_id(anchor)
-			if drawn_local_ids.has(anchor_id):
-				continue
-			_draw_wall_cable_local_anchor_segment(anchor, profile)
-			drawn_local_ids[anchor_id] = true
+		_draw_visible_wall_cable_span_between_anchors(current_anchor, next_anchor, profile)
+
+		connected_ids[current_id] = true
+		connected_ids[next_id] = true
+
+	for anchor_variant in cable_anchors:
+		var anchor: Dictionary = Dictionary(anchor_variant)
+		var anchor_id: String = _get_wall_cable_anchor_id(anchor)
+
+		if connected_ids.has(anchor_id):
+			continue
+
+		if drawn_local_ids.has(anchor_id):
+			continue
+
+		_draw_wall_cable_local_anchor_segment(anchor, profile)
+		drawn_local_ids[anchor_id] = true
 			
 func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Dictionary) -> Dictionary:
 	var wall_side_a: String = str(anchor_a.get("wall_side", "")).strip_edges().to_lower()
@@ -3999,12 +4051,20 @@ func _draw_wall_cable_corner_bridges(circuit_anchors: Array, profile: Dictionary
 
 		drawn_pairs[pair_key] = true
 
-		var sw_rail: Vector2 = Vector2(sw_anchor.get("rail_anchor", Vector2.ZERO))
-		var se_rail: Vector2 = Vector2(se_anchor.get("rail_anchor", Vector2.ZERO))
+		var sw_rail: Vector2 = _get_wall_cable_anchor_rail(sw_anchor)
+		var se_rail: Vector2 = _get_wall_cable_anchor_rail(se_anchor)
 		var joint: Vector2 = Vector2(joint_info.get("joint", Vector2.ZERO))
 
+		# SW часть: до угла.
 		draw_iso_cable_wall_segment(sw_rail, joint, profile)
-		draw_iso_cable_wall_segment(joint, se_rail, profile)
+
+		# SE часть: от угла по видимой SE плоскости.
+		# Если часть уходит за переднюю стену — режем через тот же visible helper.
+		var bridge_a: Dictionary = sw_anchor.duplicate(true)
+		var bridge_b: Dictionary = se_anchor.duplicate(true)
+		bridge_a["rail_anchor"] = joint
+
+		_draw_visible_wall_cable_span_between_anchors(bridge_a, bridge_b, profile)
 		
 func _get_first_wall_cable_anchor(anchors: Array[Dictionary]) -> Dictionary:
 	for anchor_variant in anchors:
