@@ -74,17 +74,28 @@ static func validate_runtime_action_view_model(view_model: Dictionary) -> Array[
 		warnings.append("Primary action is absent from actions.")
 	return warnings
 
+static func _get_available_action_ids_from_target_data(target_data: Dictionary) -> Array[String]:
+	var available_action_ids: Array[String] = []
 
+	for action_id_variant in Array(target_data.get("available_action_ids", [])):
+		var action_id: String = str(action_id_variant).strip_edges().to_lower()
+		if not action_id.is_empty() and not available_action_ids.has(action_id):
+			available_action_ids.append(action_id)
+
+	return available_action_ids
+	
 static func set_selected_world_action(controller: Variant, action_id: String) -> void:
 	action_id = normalize_world_action_id(action_id)
 	var target_data: Dictionary = get_facing_world_action_target(controller)
-	var actions: Array[String] = target_data.get("actions", [])
-	if action_id.is_empty() or actions.is_empty() or not actions.has(action_id):
+	var available_action_ids: Array[String] = _get_available_action_ids_from_target_data(target_data)
+
+	if action_id.is_empty() or available_action_ids.is_empty() or not available_action_ids.has(action_id):
 		controller.selected_world_action = ""
 		if not action_id.is_empty():
 			controller.hint_requested.emit("Selected action is not available for this target.")
 	else:
 		controller.selected_world_action = action_id
+
 	controller.emit_facing_world_object_hint()
 	refresh_world_action_panel(controller)
 	controller.status_changed.emit()
@@ -93,20 +104,24 @@ static func set_selected_world_action(controller: Variant, action_id: String) ->
 static func refresh_world_action_panel(controller: Variant) -> void:
 	var target_data: Dictionary = get_facing_world_action_target(controller)
 	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
-	var actions: Array = Array(target_data.get("actions", []))
+	var action_descriptors: Array = Array(target_data.get("actions", []))
+	var available_action_ids: Array[String] = _get_available_action_ids_from_target_data(target_data)
+
 	if target_object.is_empty():
 		controller.selected_world_action = ""
 		controller.world_action_panel_requested.emit({}, [], "")
 		return
-	if actions.is_empty() or not actions.has(controller.selected_world_action):
+
+	if controller.selected_world_action.is_empty() or not available_action_ids.has(controller.selected_world_action):
 		controller.selected_world_action = ""
-	controller.world_action_panel_requested.emit(target_object, actions, controller.selected_world_action)
 
-
+	controller.world_action_panel_requested.emit(target_object, action_descriptors, controller.selected_world_action)
+	
 static func cycle_selected_world_action(controller: Variant) -> void:
 	var target_data: Dictionary = get_facing_world_action_target(controller)
-	var actions: Array[String] = target_data.get("actions", [])
-	if actions.is_empty():
+	var available_action_ids: Array[String] = _get_available_action_ids_from_target_data(target_data)
+
+	if available_action_ids.is_empty():
 		controller.selected_world_action = ""
 		var view_model: Dictionary = Dictionary(target_data.get("action_view_model", {}))
 		var unavailable_label: String = str(view_model.get("primary_action_label", ""))
@@ -114,15 +129,16 @@ static func cycle_selected_world_action(controller: Variant) -> void:
 		refresh_world_action_panel(controller)
 		controller.status_changed.emit()
 		return
-	if controller.selected_world_action.is_empty() or not actions.has(controller.selected_world_action):
-		controller.selected_world_action = actions[0]
+
+	if controller.selected_world_action.is_empty() or not available_action_ids.has(controller.selected_world_action):
+		controller.selected_world_action = available_action_ids[0]
 	else:
-		var selected_action_index: int = actions.find(controller.selected_world_action)
-		controller.selected_world_action = actions[(selected_action_index + 1) % actions.size()]
+		var selected_action_index: int = available_action_ids.find(controller.selected_world_action)
+		controller.selected_world_action = available_action_ids[(selected_action_index + 1) % available_action_ids.size()]
+
 	controller.emit_facing_world_object_hint()
 	refresh_world_action_panel(controller)
 	controller.status_changed.emit()
-
 
 static func clear_selected_world_action_if_invalid(controller: Variant, target_object: Dictionary, target_position: Vector2i) -> void:
 	if target_object.is_empty():
