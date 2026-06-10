@@ -78,28 +78,12 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		return _result(true, "Platform Action possible.")
 	if BreachableWallRulesServiceRef.is_breachable_wall(target_object) and not BreachableWallRulesServiceRef.is_destroyed(target_object) and action_type != "break_breachable_wall":
 		return _result(false, "Use Heavy Claw from the cracked side.", [], "heavy_claw_breach_only")
-	var target_placement_mode: String = str(target_object.get("placement_mode", target_object.get("placement", ""))).strip_edges().to_lower()
-	var is_wall_mounted_target: bool = target_placement_mode == "wall_mounted" or bool(target_object.get("is_wall_mounted", false))
-	if is_wall_mounted_target:
-		var actor_position_for_wall_mount: Vector2i = WorldObjectCatalogRef.to_world_cell(actor.get("actor_position", Vector2i(-1, -1)), Vector2i(-1, -1))
-		var wall_position_for_mount: Vector2i = WorldObjectCatalogRef.to_world_cell(target_object.get("attached_wall_cell", target_object.get("position", actor.get("target_position", Vector2i(-1, -1)))), Vector2i(-1, -1))
-		var wall_mount_gate: Dictionary = WallMountedPlacementRulesServiceRef.build_interaction_payload(target_object, actor_position_for_wall_mount - wall_position_for_mount)
-		if not bool(wall_mount_gate.get("can_interact", false)):
-			return _result(false, str(wall_mount_gate.get("message", "Object can be used only from its mounted side.")), [], "wrong_wall_side")
 	if _is_heavy_claw_movable_action(action_type, target_object):
 		var object_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(target_object.get("position", actor.get("target_position", Vector2i(-1, -1))), Vector2i(-1, -1))
 		var actor_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(actor.get("actor_position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		var facing_direction: Vector2i = Vector2i(actor.get("facing_direction", Vector2i.ZERO))
 		if object_cell != actor_cell + facing_direction:
 			return _result(false, "Face the object to attach Heavy Claw.", [], "face_object_to_attach_heavy_claw")
-	elif not is_wall_mounted_target:
-		var front_side_gate: Dictionary = ObjectFacingServiceRef.build_interaction_gate(
-			target_object,
-			WorldObjectCatalogRef.to_world_cell(target_object.get("position", actor.get("target_position", Vector2i(-1, -1))), Vector2i(-1, -1)),
-			WorldObjectCatalogRef.to_world_cell(actor.get("actor_position", Vector2i(-1, -1)), Vector2i(-1, -1))
-		)
-		if not bool(front_side_gate.get("success", true)):
-			return _result(false, str(front_side_gate.get("message", ObjectFacingServiceRef.FRONT_SIDE_HINT)), [], str(front_side_gate.get("reason", ObjectFacingServiceRef.FRONT_SIDE_REQUIRED_REASON)))
 	if _is_door_object(target_object):
 		target_object = _normalize_runtime_door_data(target_object)
 		if action_type in ["open", "close"]:
