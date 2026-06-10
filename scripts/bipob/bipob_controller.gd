@@ -7614,30 +7614,112 @@ func _object_supports_external_power_input(world_object: Dictionary) -> bool:
 		return true
 	var object_type: String = str(world_object.get("object_type", "")).strip_edges().to_lower()
 	return object_type in ["power_socket", "outlet"]
+func _is_platform_object_data(world_object: Dictionary) -> bool:
+	if world_object.is_empty():
+		return false
 
+	var object_group: String = str(world_object.get("object_group", world_object.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(world_object.get("object_type", world_object.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(world_object.get("archetype_id", world_object.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(world_object.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(world_object.get("platform_type", "")).strip_edges().to_lower()
+
+	if object_group == "platform":
+		return true
+	if object_type == "platform":
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		return true
+	if archetype_id == "platform":
+		return true
+	if not platform_mode.is_empty():
+		return true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		return true
+
+	return false
+
+
+func _get_platform_control_mode(platform_object: Dictionary) -> String:
+	return str(platform_object.get("control_mode", platform_object.get("control_type", "internal"))).strip_edges().to_lower()
+
+
+func _is_platform_self_controlled(platform_object: Dictionary) -> bool:
+	var control_mode: String = _get_platform_control_mode(platform_object)
+
+	if control_mode.is_empty():
+		return true
+
+	if control_mode in ["internal", "self", "cell", "local", "direct"]:
+		return true
+
+	return false
+
+
+func _is_platform_external_controlled(platform_object: Dictionary) -> bool:
+	var control_mode: String = _get_platform_control_mode(platform_object)
+
+	if control_mode in ["external", "external_control", "terminal", "remote", "device"]:
+		return true
+
+	if bool(platform_object.get("requires_external_control", false)):
+		return true
+
+	if not str(platform_object.get("linked_terminal_id", "")).strip_edges().is_empty():
+		return true
+
+	if not str(platform_object.get("control_source_id", "")).strip_edges().is_empty():
+		return true
+
+	return false
+
+
+func _is_platform_powered(platform_object: Dictionary) -> bool:
+	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
+	if state_text == "unpowered":
+		return false
+
+	var power_mode: String = str(platform_object.get("power_mode", platform_object.get("power_type", "internal"))).strip_edges().to_lower()
+
+	if power_mode in ["internal", "internal_power", "self", "self_powered", ""]:
+		return true
+
+	if power_mode in ["external", "external_power", "external power"]:
+		if platform_object.has("is_powered"):
+			return bool(platform_object.get("is_powered", false))
+
+		var power_state: String = str(platform_object.get("power_state", "")).strip_edges().to_lower()
+		return power_state in ["powered", "active", "on", "ok"]
+
+	if platform_object.has("is_powered"):
+		return bool(platform_object.get("is_powered", true))
+
+	return true
+
+
+func _get_platform_runtime_block_message(platform_object: Dictionary) -> String:
+	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
+
+	if state_text in ["disabled", "damaged", "broken", "destroyed"]:
+		return "Platform mechanism is disabled."
+
+	if _is_platform_external_controlled(platform_object):
+		return "Platform is controlled externally."
+
+	if not _is_platform_self_controlled(platform_object):
+		return "Platform cannot be controlled locally."
+
+	if not _is_platform_powered(platform_object):
+		return "Platform mechanism has no power."
+
+	return ""
+	
 func get_platform_control_action_payload(platform_object: Dictionary, target_position: Vector2i) -> Dictionary:
 	var normalized_platform: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(platform_object)
 	if normalized_platform.is_empty():
 		return {}
 
-	var object_group: String = str(normalized_platform.get("object_group", normalized_platform.get("group", ""))).strip_edges().to_lower()
-	var object_type: String = str(normalized_platform.get("object_type", normalized_platform.get("type", ""))).strip_edges().to_lower()
-	var platform_mode: String = str(normalized_platform.get("platform_mode", "")).strip_edges().to_lower()
-	var platform_type: String = str(normalized_platform.get("platform_type", "")).strip_edges().to_lower()
-
-	var is_platform: bool = false
-	if object_group == "platform":
-		is_platform = true
-	if object_type == "platform":
-		is_platform = true
-	if object_type in ["lifting_platform", "rotating_platform"]:
-		is_platform = true
-	if not platform_mode.is_empty():
-		is_platform = true
-	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
-		is_platform = true
-
-	if not is_platform:
+	if not _is_platform_object_data(normalized_platform):
 		return {}
 
 	var actor_standing_on_platform: bool = _is_actor_standing_on_platform_target(normalized_platform, target_position)
@@ -7662,21 +7744,20 @@ func get_platform_control_action_payload(platform_object: Dictionary, target_pos
 
 	var mechanism: Dictionary = PlatformMechanismRulesServiceRef.build_mechanism_from_platform(normalized_platform, platform_ids)
 
-	var payload: Dictionary = {}
-	payload["mechanism"] = mechanism
-	payload["target_position"] = target_position
-	payload["platform_id"] = str(normalized_platform.get("platform_id", normalized_platform.get("id", "")))
-	payload["standing_on_platform"] = actor_standing_on_platform
+	var payload: Dictionary = {
+		"mechanism": mechanism,
+		"target_position": target_position,
+		"platform_id": str(normalized_platform.get("platform_id", normalized_platform.get("id", ""))),
+		"standing_on_platform": actor_standing_on_platform,
+		"show_action": false,
+		"enabled": false,
+		"message": ""
+	}
 
 	if not actor_standing_on_platform:
-		payload["show_action"] = false
-		payload["enabled"] = false
-		payload["message"] = ""
 		return payload
 
 	if not runtime_block_message.is_empty():
-		payload["show_action"] = false
-		payload["enabled"] = false
 		payload["message"] = runtime_block_message
 		return payload
 
@@ -7689,24 +7770,7 @@ func _is_actor_standing_on_platform_target(platform_object: Dictionary, target_p
 	if platform_object.is_empty():
 		return false
 
-	var object_group: String = str(platform_object.get("object_group", platform_object.get("group", ""))).strip_edges().to_lower()
-	var object_type: String = str(platform_object.get("object_type", platform_object.get("type", ""))).strip_edges().to_lower()
-	var platform_mode: String = str(platform_object.get("platform_mode", "")).strip_edges().to_lower()
-	var platform_type: String = str(platform_object.get("platform_type", "")).strip_edges().to_lower()
-
-	var is_platform: bool = false
-	if object_group == "platform":
-		is_platform = true
-	if object_type == "platform":
-		is_platform = true
-	if object_type in ["lifting_platform", "rotating_platform"]:
-		is_platform = true
-	if not platform_mode.is_empty():
-		is_platform = true
-	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
-		is_platform = true
-
-	if not is_platform:
+	if not _is_platform_object_data(platform_object):
 		return false
 
 	var actor_cell: Vector2i = Vector2i(grid_position)
@@ -7733,9 +7797,8 @@ func _is_actor_standing_on_platform_target(platform_object: Dictionary, target_p
 
 	var x_value: int = int(platform_object.get("x", platform_object.get("cell_x", -1)))
 	var y_value: int = int(platform_object.get("y", platform_object.get("cell_y", -1)))
-	if x_value >= 0 and y_value >= 0:
-		if Vector2i(x_value, y_value) == actor_cell:
-			return true
+	if x_value >= 0 and y_value >= 0 and Vector2i(x_value, y_value) == actor_cell:
+		return true
 
 	return false
 	
@@ -7751,14 +7814,6 @@ func _is_platform_external_power_available(platform_object: Dictionary) -> bool:
 		return true
 	var power_state: String = str(platform_object.get("power_state", "")).strip_edges().to_lower()
 	return power_state in ["powered", "active", "on", "ok"]
-
-func _get_platform_runtime_block_message(platform_object: Dictionary) -> String:
-	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
-	if state_text in ["disabled", "damaged", "broken", "destroyed"]:
-		return "Platform mechanism is disabled."
-	if state_text == "unpowered" or not bool(platform_object.get("is_powered", true)):
-		return "Platform mechanism has no power."
-	return ""
 
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
@@ -7838,6 +7893,11 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 					actions.append("unlock_door")
 				if str(terminal_door.get("control_type", terminal_door.get("control_mode", "internal"))) == "external":
 					actions.append("close_door" if str(terminal_door.get("state", "")) == "open" else "open_door")
+	elif group == "platform":
+		var platform_payload: Dictionary = get_platform_control_action_payload(world_object, target_position)
+		if bool(platform_payload.get("show_action", false)):
+			actions.append("activate_platform")
+		return actions
 	elif group == "wall":
 		if BreachableWallRulesServiceRef.is_breachable_wall(world_object) and not BreachableWallRulesServiceRef.is_destroyed(world_object):
 			var breach_rules_wall: Dictionary = world_object.duplicate(true)
@@ -7925,10 +7985,6 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("hack")
 		if has_heavy_claw() and distance <= 1:
 			actions.append("push")
-	elif group == "platform":
-		var platform_payload: Dictionary = get_platform_control_action_payload(world_object, target_position)
-		if bool(platform_payload.get("show_action", false)):
-			actions.append("activate_platform")
 	elif group == "item":
 		actions.append("pickup")
 	return actions
