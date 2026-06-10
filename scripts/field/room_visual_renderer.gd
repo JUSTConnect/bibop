@@ -3391,8 +3391,17 @@ func _get_wall_cable_rail_height_px() -> float:
 	return maxf(iso_wall_height * WALL_CABLE_RAIL_Y_RATIO, 1.0)
 
 func _get_wall_cable_rail_anchor(cell: Vector2i, side: String) -> Vector2:
-	return _get_wall_cable_face_center(cell, side) + Vector2(0.0, -_get_wall_cable_rail_height_px())
+	var normalized_side: String = side.strip_edges().to_lower()
+	var anchor: Vector2 = _get_wall_cable_face_center(cell, normalized_side) + Vector2(0.0, -_get_wall_cable_rail_height_px())
 
+	# SE wall face is visually drawn deeper/lower than the raw shared corner rail.
+	# Lower only the SE wall cable line so SW and SE appear on their visible faces,
+	# not on the top edge / roof line.
+	if normalized_side == "se":
+		anchor += Vector2(0.0, get_iso_tile_half_size().y * 0.55)
+
+	return anchor
+	
 func _get_wall_cable_rail_segment(cell: Vector2i, side: String) -> Dictionary:
 	var center: Vector2 = _get_wall_cable_rail_anchor(cell, side)
 	var half_width: float = maxf(get_iso_tile_half_size().x * WALL_CABLE_RAIL_HALF_WIDTH_RATIO, 12.0)
@@ -3833,7 +3842,9 @@ func _is_wall_cable_segment_front_occluded(anchor_a: Dictionary, anchor_b: Dicti
 	var side_a: String = _get_wall_cable_anchor_side(anchor_a)
 	var side_b: String = _get_wall_cable_anchor_side(anchor_b)
 
-	if side_a != side_b:
+	# Same-side direct wall cable spans must remain visible.
+	# The previous version clipped SW spans by grid axis and broke continuous SW lines.
+	if side_a == side_b:
 		return false
 
 	var cell_a: Vector2i = _get_wall_cable_anchor_cell(anchor_a)
@@ -3843,16 +3854,12 @@ func _is_wall_cable_segment_front_occluded(anchor_a: Dictionary, anchor_b: Dicti
 		return false
 
 	var delta: Vector2i = cell_b - cell_a
+	var manhattan_distance: int = absi(delta.x) + absi(delta.y)
 
-	# Кабель на SW должен идти только по видимой SW-плоскости стены.
-	# Если он соединяет клетки по другой оси, визуально он проходит за/через переднюю стену.
-	if side_a == "sw":
-		return delta.x != 0
-
-	# Кабель на SE должен идти только по видимой SE-плоскости стены.
-	# Если он соединяет клетки по другой оси, визуально он проходит за/через переднюю стену.
-	if side_a == "se":
-		return delta.y != 0
+	# Opposite-side bridge too far away would visually pass through wall mass.
+	# Direct same-cell / neighbor corner bridge is allowed.
+	if manhattan_distance > 1:
+		return true
 
 	return false
 
@@ -3923,8 +3930,8 @@ func _draw_wall_cable_side_anchor_segments_clipped(side_anchors: Array, all_circ
 		drawn_local_ids[anchor_id] = true
 			
 func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Dictionary) -> Dictionary:
-	var wall_side_a: String = str(anchor_a.get("wall_side", "")).strip_edges().to_lower()
-	var wall_side_b: String = str(anchor_b.get("wall_side", "")).strip_edges().to_lower()
+	var wall_side_a: String = _get_wall_cable_anchor_side(anchor_a)
+	var wall_side_b: String = _get_wall_cable_anchor_side(anchor_b)
 
 	if wall_side_a.is_empty() or wall_side_b.is_empty():
 		return {}
@@ -3947,8 +3954,8 @@ func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Di
 	if not _is_wall_cable_anchor_circuit_compatible(circuit_id_a, circuit_id_b):
 		return {}
 
-	var cell_a: Vector2i = Vector2i(anchor_a.get("cell", Vector2i(-1, -1)))
-	var cell_b: Vector2i = Vector2i(anchor_b.get("cell", Vector2i(-1, -1)))
+	var cell_a: Vector2i = _get_wall_cable_anchor_cell(anchor_a)
+	var cell_b: Vector2i = _get_wall_cable_anchor_cell(anchor_b)
 
 	if cell_a.x < 0 or cell_a.y < 0 or cell_b.x < 0 or cell_b.y < 0:
 		return {}
@@ -3961,22 +3968,22 @@ func _get_wall_cable_corner_bridge_match_info(anchor_a: Dictionary, anchor_b: Di
 	if not same_cell and not orthogonally_adjacent and not diagonally_adjacent:
 		return {}
 
-	var rail_a: Vector2 = Vector2(anchor_a.get("rail_anchor", Vector2.ZERO))
-	var rail_b: Vector2 = Vector2(anchor_b.get("rail_anchor", Vector2.ZERO))
-	var joint: Vector2 = Vector2.ZERO
-	var relation_rank: int = 0
+	var rail_a: Vector2 = _get_wall_cable_anchor_rail(anchor_a)
+	var rail_b: Vector2 = _get_wall_cable_anchor_rail(anchor_b)
 
+	var relation_rank: int = 0
 	if same_cell:
-		joint = grid_to_iso(cell_a) + Vector2(0.0, -_get_wall_cable_rail_height_px())
 		relation_rank = 0
 	elif orthogonally_adjacent:
-		var shared_center: Vector2 = grid_to_iso(cell_a).lerp(grid_to_iso(cell_b), 0.5)
-		joint = shared_center + Vector2(0.0, -_get_wall_cable_rail_height_px())
 		relation_rank = 1
 	else:
-		var diagonal_center: Vector2 = grid_to_iso(cell_a).lerp(grid_to_iso(cell_b), 0.5)
-		joint = diagonal_center + Vector2(0.0, -_get_wall_cable_rail_height_px())
 		relation_rank = 2
+
+	# Corner joint must sit at cable height, not at top wall edge.
+	# Use the lower of the two rails so SE side does not climb onto the roof line.
+	var joint_y: float = maxf(rail_a.y, rail_b.y)
+	var joint_x: float = (rail_a.x + rail_b.x) * 0.5
+	var joint: Vector2 = Vector2(joint_x, joint_y)
 
 	return {
 		"joint": joint,
