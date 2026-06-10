@@ -9,40 +9,123 @@ const PlatformMotionServiceRef = preload("res://scripts/game/platform/platform_m
 const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform_rotation_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 
-
 static func execute_platform_control_action(controller: Variant, platform_object: Dictionary, target_position: Vector2i, action_id: String) -> Dictionary:
-	if controller == null or controller.mission_manager == null:
+	if controller == null:
+		return _build_result(false, "Platform control unavailable.", platform_object, target_position, "missing_controller")
+
+	if controller.mission_manager == null:
 		return _build_result(false, "Platform control unavailable.", platform_object, target_position, "missing_mission_manager")
+
 	var normalized_platform: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(platform_object)
-	if normalized_platform.is_empty() or str(normalized_platform.get("object_group", "")) != "platform":
+	if normalized_platform.is_empty():
 		return _build_result(false, "Platform control unavailable.", platform_object, target_position, "not_platform")
+
+	if str(normalized_platform.get("object_group", "")).strip_edges().to_lower() != "platform":
+		return _build_result(false, "Platform control unavailable.", platform_object, target_position, "not_platform")
+
 	var mechanism: Dictionary = _build_platform_mechanism(controller, normalized_platform)
 	if mechanism.is_empty():
 		return _build_result(false, "Platform mechanism unavailable.", normalized_platform, target_position, "missing_mechanism")
+
+	var actor_standing_on_platform: bool = _is_actor_standing_on_platform_target(controller, normalized_platform, target_position)
+
+	# Runtime platform-control rule:
+	# every platform cell occupied by Bipob is directly controllable.
+	# We pass Bipob cell as control_cell only to reuse PlatformMechanismRulesService.
+	# This is not a map-authored control_cell requirement.
+	if actor_standing_on_platform:
+		mechanism["control_mode"] = PlatformMechanismRulesServiceRef.CONTROL_MODE_CELL
+		mechanism["control_cell"] = Vector2i(controller.grid_position)
+
 	var requested_action: String = _resolve_requested_action(normalized_platform, mechanism, action_id)
 	if requested_action.is_empty():
 		return _build_result(false, "No platform operation configured.", normalized_platform, target_position, "missing_operation")
+
 	var runtime_block_message: String = _get_runtime_block_message(normalized_platform)
 	if not runtime_block_message.is_empty():
 		return _build_result(false, runtime_block_message, normalized_platform, target_position, "platform_unavailable")
+
 	var control_cell: Vector2i = Vector2i(controller.grid_position)
 	var external_power_available: bool = _is_external_power_available(normalized_platform)
 	var availability: Dictionary = PlatformMechanismRulesServiceRef.can_use_action_from_cell(mechanism, control_cell, external_power_available)
+
 	if not bool(availability.get("ok", false)):
-		return _build_result(false, str(availability.get("message", "Platform control unavailable.")), normalized_platform, target_position, str(availability.get("reason", "platform_unavailable")))
+		if actor_standing_on_platform:
+			var blocked_reason: String = str(availability.get("reason", "")).strip_edges().to_lower()
+			if blocked_reason in ["not_on_control_cell", "no_control_cell", "external_control", "control_unavailable"]:
+				availability["ok"] = true
+
+	if not bool(availability.get("ok", false)):
+		return _build_result(
+			false,
+			str(availability.get("message", "Platform control unavailable.")),
+			normalized_platform,
+			target_position,
+			str(availability.get("reason", "platform_unavailable"))
+		)
+
 	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
 		return _build_result(false, "Not enough action/energy.", normalized_platform, target_position, "insufficient_resources")
+
 	var members: Array[Dictionary] = _collect_mechanism_members(controller, mechanism, normalized_platform)
 	if members.is_empty():
 		members = [normalized_platform.duplicate(true)]
+
 	var normalized_requested_action: String = requested_action
+
 	if normalized_requested_action in [PlatformTypesRef.ACTION_RAISE, PlatformTypesRef.ACTION_LOWER]:
 		return _execute_elevator_action(controller, normalized_platform, target_position, mechanism, members, normalized_requested_action)
+
 	if normalized_requested_action in [PlatformTypesRef.ACTION_ROTATE_LEFT, PlatformTypesRef.ACTION_ROTATE_RIGHT]:
 		return _execute_rotation_action(controller, normalized_platform, target_position, mechanism, members, normalized_requested_action)
+
 	return _build_result(false, "No platform operation configured.", normalized_platform, target_position, "operation_unavailable")
+static func _is_actor_standing_on_platform_target(controller: Variant, platform_object: Dictionary, target_position: Vector2i) -> bool:
+	if controller == null:
+		return false
 
+	if platform_object.is_empty():
+		return false
 
+	var object_group: String = str(platform_object.get("object_group", platform_object.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(platform_object.get("object_type", platform_object.get("type", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(platform_object.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(platform_object.get("platform_type", "")).strip_edges().to_lower()
+
+	var is_platform: bool = false
+	if object_group == "platform":
+		is_platform = true
+	if object_type == "platform":
+		is_platform = true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		is_platform = true
+	if not platform_mode.is_empty():
+		is_platform = true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		is_platform = true
+
+	if not is_platform:
+		return false
+
+	var actor_cell: Vector2i = Vector2i(controller.grid_position)
+
+	if actor_cell == target_position:
+		return true
+
+	for cell_variant in Array(platform_object.get("platform_cells", [])):
+		var cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+		if cell == actor_cell:
+			return true
+
+	var platform_position: Vector2i = WorldObjectCatalogRef.to_world_cell(
+		platform_object.get("position", platform_object.get("cell", Vector2i(-1, -1))),
+		Vector2i(-1, -1)
+	)
+	if platform_position == actor_cell:
+		return true
+
+	return false
+	
 static func _execute_elevator_action(controller: Variant, platform_object: Dictionary, target_position: Vector2i, mechanism: Dictionary, members: Array[Dictionary], action: String) -> Dictionary:
 	var current_level: int = int(platform_object.get("platform_level", platform_object.get("current_level", platform_object.get("height_level", 0))))
 	var max_level: int = maxi(int(platform_object.get("max_level", platform_object.get("max_height_level", 1))), 0)
@@ -140,22 +223,119 @@ static func _build_platform_mechanism(controller: Variant, platform_object: Dict
 
 static func _collect_mechanism_members(controller: Variant, mechanism: Dictionary, platform_object: Dictionary) -> Array[Dictionary]:
 	var members: Array[Dictionary] = []
-	if controller.mission_manager == null:
-		return [platform_object.duplicate(true)]
-	for platform_id_variant in Array(mechanism.get("platform_ids", [])):
-		var platform_id: String = str(platform_id_variant).strip_edges()
-		if platform_id.is_empty():
-			continue
-		var member: Dictionary = Dictionary(controller.mission_manager.get_platform_by_id(platform_id))
-		if member.is_empty() and platform_id == str(platform_object.get("platform_id", platform_object.get("id", ""))):
-			member = platform_object.duplicate(true)
-		if not member.is_empty() and not members.has(member):
-			members.append(member)
+
+	if controller == null or controller.mission_manager == null:
+		members.append(platform_object.duplicate(true))
+		return members
+
+	var current_platform_id: String = str(platform_object.get("platform_id", platform_object.get("id", ""))).strip_edges()
+	var mechanism_id: String = str(platform_object.get("mechanism_id", platform_object.get("platform_mechanism_id", mechanism.get("mechanism_id", mechanism.get("platform_mechanism_id", ""))))).strip_edges()
+
+	# Single platform: no mechanism_id means this platform is its own independent mechanism.
+	if mechanism_id.is_empty():
+		members.append(platform_object.duplicate(true))
+		return members
+
+	# Mechanism platform: collect all platforms with the same mechanism_id.
+	if controller.mission_manager.has_method("get_platform_by_id"):
+		for platform_id_variant in Array(mechanism.get("platform_ids", [])):
+			var platform_id: String = str(platform_id_variant).strip_edges()
+			if platform_id.is_empty():
+				continue
+
+			var member: Dictionary = Dictionary(controller.mission_manager.call("get_platform_by_id", platform_id))
+			if member.is_empty() and platform_id == current_platform_id:
+				member = platform_object.duplicate(true)
+
+			if not member.is_empty() and _is_platform_member_data(member):
+				_append_unique_platform_member(members, member)
+
+	if controller.mission_manager.has_method("get_map_constructor_placed_object_rows"):
+		var rows: Array = Array(controller.mission_manager.call("get_map_constructor_placed_object_rows"))
+		for row_variant in rows:
+			if typeof(row_variant) != TYPE_DICTIONARY:
+				continue
+
+			var row: Dictionary = Dictionary(row_variant)
+			var object_id: String = str(row.get("id", "")).strip_edges()
+			if object_id.is_empty():
+				continue
+
+			var candidate: Dictionary = row.duplicate(true)
+
+			if controller.mission_manager.has_method("get_map_constructor_entity_by_id"):
+				var entity: Dictionary = Dictionary(controller.mission_manager.call("get_map_constructor_entity_by_id", "world_object", object_id))
+				if bool(entity.get("ok", false)):
+					candidate = Dictionary(entity.get("data", {}))
+					candidate["id"] = object_id
+
+			if not _is_platform_member_data(candidate):
+				continue
+
+			var candidate_mechanism_id: String = str(candidate.get("mechanism_id", candidate.get("platform_mechanism_id", ""))).strip_edges()
+			if candidate_mechanism_id == mechanism_id:
+				_append_unique_platform_member(members, candidate)
+
+	elif "mission_world_objects" in controller.mission_manager:
+		for object_variant in Array(controller.mission_manager.mission_world_objects):
+			if typeof(object_variant) != TYPE_DICTIONARY:
+				continue
+
+			var candidate_object: Dictionary = Dictionary(object_variant)
+			if not _is_platform_member_data(candidate_object):
+				continue
+
+			var candidate_mechanism_id_direct: String = str(candidate_object.get("mechanism_id", candidate_object.get("platform_mechanism_id", ""))).strip_edges()
+			if candidate_mechanism_id_direct == mechanism_id:
+				_append_unique_platform_member(members, candidate_object)
+
 	if members.is_empty():
 		members.append(platform_object.duplicate(true))
+
 	return members
 
+static func _is_platform_member_data(data: Dictionary) -> bool:
+	if data.is_empty():
+		return false
 
+	var object_group: String = str(data.get("object_group", data.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(data.get("object_type", data.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(data.get("archetype_id", data.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(data.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(data.get("platform_type", "")).strip_edges().to_lower()
+
+	if object_group == "platform":
+		return true
+	if object_type == "platform":
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		return true
+	if archetype_id == "platform":
+		return true
+	if not platform_mode.is_empty():
+		return true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		return true
+
+	return false
+static func _append_unique_platform_member(members: Array[Dictionary], member: Dictionary) -> void:
+	if member.is_empty():
+		return
+
+	var member_id: String = str(member.get("id", member.get("platform_id", ""))).strip_edges()
+	var member_platform_id: String = str(member.get("platform_id", member.get("id", ""))).strip_edges()
+
+	for existing in members:
+		var existing_id: String = str(existing.get("id", existing.get("platform_id", ""))).strip_edges()
+		var existing_platform_id: String = str(existing.get("platform_id", existing.get("id", ""))).strip_edges()
+
+		if not member_id.is_empty() and member_id == existing_id:
+			return
+		if not member_platform_id.is_empty() and member_platform_id == existing_platform_id:
+			return
+
+	members.append(member.duplicate(true))
+	
 static func _is_external_power_available(platform_object: Dictionary) -> bool:
 	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
 	if state_text in ["unpowered", "disabled", "damaged", "broken", "destroyed"]:
