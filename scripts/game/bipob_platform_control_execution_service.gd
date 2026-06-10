@@ -28,7 +28,9 @@ static func execute_platform_control_action(controller: Variant, platform_object
 		return _build_result(false, "Platform mechanism unavailable.", normalized_platform, target_position, "missing_mechanism")
 
 	var actor_standing_on_platform: bool = _is_actor_standing_on_platform_target(controller, normalized_platform, target_position)
-
+	
+	if not actor_standing_on_platform:
+		return _build_result(false, "Stand on platform to control it.", normalized_platform, target_position, "not_on_platform")
 	# Runtime platform-control rule:
 	# every platform cell occupied by Bipob is directly controllable.
 	# We pass Bipob cell as control_cell only to reuse PlatformMechanismRulesService.
@@ -80,7 +82,7 @@ static func execute_platform_control_action(controller: Variant, platform_object
 		return _execute_rotation_action(controller, normalized_platform, target_position, mechanism, members, normalized_requested_action)
 
 	return _build_result(false, "No platform operation configured.", normalized_platform, target_position, "operation_unavailable")
-static func _is_actor_standing_on_platform_target(controller: Variant, platform_object: Dictionary, target_position: Vector2i) -> bool:
+static func _is_actor_standing_on_platform_target(controller: Variant, platform_object: Dictionary, _target_position: Vector2i) -> bool:
 	if controller == null:
 		return false
 
@@ -109,20 +111,28 @@ static func _is_actor_standing_on_platform_target(controller: Variant, platform_
 
 	var actor_cell: Vector2i = Vector2i(controller.grid_position)
 
-	if actor_cell == target_position:
-		return true
-
 	for cell_variant in Array(platform_object.get("platform_cells", [])):
+		var platform_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+		if platform_cell == actor_cell:
+			return true
+
+	for cell_variant in Array(platform_object.get("cells", [])):
 		var cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
 		if cell == actor_cell:
 			return true
 
-	var platform_position: Vector2i = WorldObjectCatalogRef.to_world_cell(
-		platform_object.get("position", platform_object.get("cell", Vector2i(-1, -1))),
+	var position_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
+		platform_object.get("position", platform_object.get("pos", platform_object.get("cell", Vector2i(-1, -1)))),
 		Vector2i(-1, -1)
 	)
-	if platform_position == actor_cell:
+	if position_cell == actor_cell:
 		return true
+
+	var x_value: int = int(platform_object.get("x", platform_object.get("cell_x", -1)))
+	var y_value: int = int(platform_object.get("y", platform_object.get("cell_y", -1)))
+	if x_value >= 0 and y_value >= 0:
+		if Vector2i(x_value, y_value) == actor_cell:
+			return true
 
 	return false
 	
