@@ -3398,7 +3398,7 @@ func _get_wall_cable_rail_anchor(cell: Vector2i, side: String) -> Vector2:
 	# Lower only the SE wall cable line so SW and SE appear on their visible faces,
 	# not on the top edge / roof line.
 	if normalized_side == "se":
-		anchor += Vector2(0.0, get_iso_tile_half_size().y * 0.55)
+		anchor += Vector2(0.0, get_iso_tile_half_size().y * 0.95)
 
 	return anchor
 	
