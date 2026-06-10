@@ -12,7 +12,9 @@ static func is_heavy_claw_movable_target(target_object: Dictionary) -> bool:
 		return false
 	return WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object)
 
-static func is_connector_action(action_id: String) -> bool:
+static func is_connector_action(action_id: String, target_object: Dictionary = {}) -> bool:
+	if action_id == "activate_platform" and str(target_object.get("object_group", "")) == "platform":
+		return false
 	return action_id in ["connect", "scan", "hack", "download", "activate_platform", "open_door", "close_door", "unlock_door", "apply_digital_key", "input_password"] or action_id.begins_with("access_code_")
 
 
@@ -20,11 +22,11 @@ static func is_heavy_claw_action(action_id: String) -> bool:
 	return action_id in ["push", "break_breachable_wall"]
 
 
-static func get_physical_actions(actions: Array) -> Array[String]:
+static func get_physical_actions(actions: Array, target_object: Dictionary = {}) -> Array[String]:
 	var physical_actions: Array[String] = []
 	for action_variant in actions:
 		var action_id: String = str(action_variant)
-		if not action_id.is_empty() and not is_connector_action(action_id) and not is_heavy_claw_action(action_id):
+		if not action_id.is_empty() and not is_connector_action(action_id, target_object) and not is_heavy_claw_action(action_id):
 			physical_actions.append(action_id)
 	return physical_actions
 

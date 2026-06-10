@@ -60,6 +60,7 @@ const HeavyClawDragServiceRef = preload("res://scripts/game/heavy_claw/heavy_cla
 const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
 const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const PlatformMechanismRulesServiceRef = preload("res://scripts/game/platform/platform_mechanism_rules_service.gd")
 const DEBUG_RUNTIME_INVENTORY_TRACE := false
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
@@ -7030,6 +7031,17 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"remove_fuse": return "Remove Fuse"
 		"plug_in": return "Plug In"
 		"plug_out": return "Plug Out"
+		"activate_platform":
+			var platform_operation: String = str(object_data.get("mechanism_operation", object_data.get("operation", object_data.get("platform_action", "")))).strip_edges().to_lower()
+			match platform_operation:
+				"raise": return "Raise Platform"
+				"lower": return "Lower Platform"
+				"rotate", "rotate_left", "rotate_right": return "Rotate Platform"
+			return "Activate Platform"
+		"raise_platform", "raise": return "Raise Platform"
+		"lower_platform", "lower": return "Lower Platform"
+		"rotate_platform_left", "rotate_left": return "Rotate Platform Left"
+		"rotate_platform_right", "rotate_right": return "Rotate Platform Right"
 		"take_end_1": return "Take End 1"
 		"take_end_2": return "Take End 2"
 		"connect_wire_end": return "Connect Wire End"
@@ -7603,6 +7615,56 @@ func _object_supports_external_power_input(world_object: Dictionary) -> bool:
 	var object_type: String = str(world_object.get("object_type", "")).strip_edges().to_lower()
 	return object_type in ["power_socket", "outlet"]
 
+func get_platform_control_action_payload(platform_object: Dictionary, target_position: Vector2i) -> Dictionary:
+	var normalized_platform: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(platform_object)
+	if normalized_platform.is_empty() or str(normalized_platform.get("object_group", "")) != "platform":
+		return {}
+	var platform_ids: Array[String] = []
+	var mechanism_id: String = str(normalized_platform.get("mechanism_id", normalized_platform.get("platform_mechanism_id", ""))).strip_edges()
+	if mission_manager != null and not mechanism_id.is_empty() and mission_manager.has_method("get_platform_mechanism_summary"):
+		var summary_variant: Variant = mission_manager.call("get_platform_mechanism_summary", mechanism_id)
+		if summary_variant is Dictionary:
+			for platform_id_variant in Array(Dictionary(summary_variant).get("platform_ids", [])):
+				var platform_id_text: String = str(platform_id_variant).strip_edges()
+				if not platform_id_text.is_empty() and not platform_ids.has(platform_id_text):
+					platform_ids.append(platform_id_text)
+	if platform_ids.is_empty():
+		var single_platform_id: String = str(normalized_platform.get("platform_id", normalized_platform.get("id", ""))).strip_edges()
+		if not single_platform_id.is_empty():
+			platform_ids.append(single_platform_id)
+	var mechanism: Dictionary = PlatformMechanismRulesServiceRef.build_mechanism_from_platform(normalized_platform, platform_ids)
+	var external_power_available: bool = _is_platform_external_power_available(normalized_platform)
+	var bipob_cell: Vector2i = Vector2i(grid_position)
+	var payload: Dictionary = PlatformMechanismRulesServiceRef.build_action_payload(mechanism, bipob_cell, external_power_available)
+	var runtime_block_message: String = _get_platform_runtime_block_message(normalized_platform)
+	if not runtime_block_message.is_empty():
+		payload["show_action"] = false
+		payload["message"] = runtime_block_message
+	payload["mechanism"] = mechanism
+	payload["target_position"] = target_position
+	payload["platform_id"] = str(normalized_platform.get("platform_id", normalized_platform.get("id", "")))
+	return payload
+
+func _is_platform_external_power_available(platform_object: Dictionary) -> bool:
+	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
+	if state_text in ["unpowered", "disabled", "damaged", "broken", "destroyed"]:
+		return false
+	var power_mode: String = str(platform_object.get("power_mode", platform_object.get("power_type", "internal"))).strip_edges().to_lower()
+	if power_mode in ["internal", "internal_power"]:
+		return true
+	if bool(platform_object.get("is_powered", true)):
+		return true
+	var power_state: String = str(platform_object.get("power_state", "")).strip_edges().to_lower()
+	return power_state in ["powered", "active", "on", "ok"]
+
+func _get_platform_runtime_block_message(platform_object: Dictionary) -> String:
+	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
+	if state_text in ["disabled", "damaged", "broken", "destroyed"]:
+		return "Platform mechanism is disabled."
+	if state_text == "unpowered" or not bool(platform_object.get("is_powered", true)):
+		return "Platform mechanism has no power."
+	return ""
+
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var normalized_world_object: Dictionary = WorldObjectCatalog.normalize_world_object_contract(world_object)
@@ -7769,7 +7831,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		if has_heavy_claw() and distance <= 1:
 			actions.append("push")
 	elif group == "platform":
-		if str(world_object.get("control_type", "internal")) == "internal" and get_installed_manipulator_arm_level() >= 1 and mission_manager != null and mission_manager.can_bipob_access_platform_switch(world_object, grid_position, get_direction_id(direction)):
+		var platform_payload: Dictionary = get_platform_control_action_payload(world_object, target_position)
+		if bool(platform_payload.get("show_action", false)):
 			actions.append("activate_platform")
 	elif group == "item":
 		actions.append("pickup")
@@ -7793,7 +7856,16 @@ func _module_dict(module_id: String) -> Dictionary:
 func get_world_action_module(action_id: String, world_object: Dictionary) -> Dictionary:
 	var connection_type := str(world_object.get("connection_type", "wired"))
 	match action_id:
-		"open", "close", "switch", "pickup", "activate_platform":
+		"activate_platform":
+			if str(world_object.get("object_group", "")) == "platform":
+				return {"id":"platform_control", "category":"Platform", "tool_action":"activate_platform"}
+			if str(world_object.get("object_group", "")) == "terminal":
+				var terminal_connector_level := get_installed_connector_level(connection_type)
+				return _module_dict("%s_connector_v%d" % [connection_type, terminal_connector_level] if terminal_connector_level > 0 else "")
+			return _module_dict("")
+		"raise_platform", "lower_platform", "rotate_platform_left", "rotate_platform_right":
+			return {"id":"platform_control", "category":"Platform", "tool_action":action_id}
+		"open", "close", "switch", "pickup":
 			if action_id == "open":
 				var arm_level := get_installed_manipulator_arm_level()
 				return _module_dict("manipulator_arm_v%d" % arm_level if arm_level > 0 else "")
