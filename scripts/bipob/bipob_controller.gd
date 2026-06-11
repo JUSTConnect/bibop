@@ -8056,7 +8056,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 				actions.append("download")
 		if str(world_object.get("terminal_type", "")) == "platform" and get_installed_connector_level(str(world_object.get("connection_type", "wired"))) > 0:
 			actions.append("activate_platform")
-		if has_repair_tool() and state == "damaged":
+		if state in ["damaged", "broken"]:
 			actions.append("repair")
 		var terminal_door_id: String = str(world_object.get("target_door_id", "")).strip_edges()
 		if not terminal_door_id.is_empty() and mission_manager != null:

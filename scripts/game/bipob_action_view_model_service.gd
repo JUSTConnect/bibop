@@ -12,6 +12,29 @@ const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_ser
 const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
 const DEBUG_WALL_MOUNTED_INTERACTION_TRACE := false
 
+
+static func _is_cable_like_target(target_object: Dictionary) -> bool:
+	for field_name in ["object_type", "type", "archetype_id", "map_constructor_prefab_id", "prefab_id"]:
+		var id_value: String = str(target_object.get(field_name, "")).strip_edges().to_lower()
+		if id_value in ["power_cable", "cable", "cable_reel", "power_cable_reel"]:
+			return true
+	return false
+
+
+static func should_hide_action_from_generic_menu(controller: Variant, world_object: Dictionary, action_id: String) -> bool:
+	var normalized_action_id: String = action_id.strip_edges().to_lower()
+	if normalized_action_id == "cut":
+		var has_direct_plasma_cutter: bool = controller != null and controller.has_method("has_module_id") and bool(controller.call("has_module_id", "plasma_cutter_v1"))
+		if has_direct_plasma_cutter and _is_cable_like_target(world_object):
+			return true
+	if normalized_action_id == "repair":
+		# Repair remains in the generic Action flow and is gated by a held repair_kit.
+		# Never hide it merely because the kit exists, and never make repair_v1 a
+		# runtime direct-tool/action-menu capability.
+		return false
+	return false
+
+
 static func _is_platform_target(target_object: Dictionary) -> bool:
 	if target_object.is_empty():
 		return false
@@ -109,6 +132,8 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 				action_id = BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL
 			if action_id != BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL:
 				continue
+		if should_hide_action_from_generic_menu(controller, normalized_target, action_id):
+			continue
 		if not action_ids.has(action_id):
 			action_ids.append(action_id)
 	if BreachableWallServiceRef.is_active_breachable_wall_data(normalized_target) and not action_ids.has(BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL):
@@ -157,7 +182,7 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		primary = descriptors[0]
 	var disabled_reason: String = str(primary.get("reason", "target_missing" if normalized_target.is_empty() else "no_available_action"))
 	var has_interaction_target: bool = not normalized_target.is_empty() and (not descriptors.is_empty() or not wall_mount_gate.is_empty())
-	var view_model: Dictionary = {"target":normalized_target, "actions":descriptors, "raw_action_ids":raw_action_ids, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "has_interaction_target":has_interaction_target, "disabled_reason":disabled_reason}
+	var view_model: Dictionary = {"target":normalized_target, "actions":descriptors, "raw_action_ids":action_ids, "unfiltered_action_ids":raw_action_ids, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "has_interaction_target":has_interaction_target, "disabled_reason":disabled_reason}
 	if not wall_mount_gate.is_empty():
 		_trace_wall_mounted_interaction({"target_position": target_position, "object_id": target_id, "object_type": target_type, "actor_cell": wall_mount_gate.get("actor_cell", Vector2i(-1, -1)), "wall_cell": wall_mount_gate.get("wall_cell", Vector2i(-1, -1)), "approach_direction": wall_mount_gate.get("approach_direction", Vector2i.ZERO), "wall_side": str(wall_mount_gate.get("wall_side", "")), "interaction_side": str(wall_mount_gate.get("interaction_side", "")), "available_actions": available_action_ids})
 	_trace_breachable_wall_runtime_view_model(controller, target_position, normalized_target, raw_action_ids, view_model)
