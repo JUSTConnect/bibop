@@ -205,8 +205,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		return can
 	if _is_door_object(target_object):
 		target_object = _normalize_runtime_door_data(target_object)
-	var group: String = str(target_object.get("object_group", ""))
-	var module_id: String = str(module.get("id", ""))
+
 	match action_type:
 		"open":
 			target_object["state"] = "open"
