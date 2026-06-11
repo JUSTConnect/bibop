@@ -145,7 +145,7 @@ static func try_move_to(controller: BipobController, target_position: Vector2i) 
 		if controller.mission_manager.has_method("can_move_between_height_levels"):
 			var can_move_height_variant: Variant = controller.mission_manager.call("can_move_between_height_levels", controller.grid_position, target_position, controller)
 			if not bool(can_move_height_variant):
-				controller.hint_requested.emit("Height mismatch.")
+				controller.hint_requested.emit("Cannot step off platform: height mismatch.")
 				return false
 		var blocking_obj: Dictionary = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
 		if not blocking_obj.is_empty() and bool(blocking_obj.get("blocks_movement", false)) and not controller.is_cell_walkable_for_bipob(target_position):
