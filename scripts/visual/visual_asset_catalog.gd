@@ -80,6 +80,8 @@ const ASSET_PATHS: Dictionary = {
 	"wall_grate_mid": "res://assets/visual/isometric/wall/grate/wall_grate_mid_01.png",
 	"wall_grate_halfmid": "res://assets/visual/isometric/wall/grate/wall_grate_halfmid_01.png",
 	"wall_grate_tall": "res://assets/visual/isometric/wall/grate/wall_grate_tall_01.png",
+	"breach_overlay_concrete_sw": "res://assets/visual/isometric/wall/overlay/wall_breach_overlay_concrete_sw_01.png",
+	"breach_overlay_brick_sw": "res://assets/visual/isometric/wall/overlay/wall_breach_overlay_brick_sw_01.png",
 
 	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
 	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
