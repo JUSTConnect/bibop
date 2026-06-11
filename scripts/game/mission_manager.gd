@@ -2618,7 +2618,144 @@ func get_world_object_at_cell(cell: Vector2i, include_lookup_metadata: bool = fa
 		"data": selected_object.duplicate(true)
 	}
 
+func _surface_height_from_variant(value: Variant, fallback: int = 0) -> int:
+	match typeof(value):
+		TYPE_INT:
+			return maxi(0, int(value))
+		TYPE_FLOAT:
+			return maxi(0, int(value))
+		TYPE_STRING:
+			var text: String = str(value).strip_edges().to_lower()
+			text = text.replace(" ", "_").replace("-", "_")
 
+			if text.is_empty():
+				return fallback
+
+			if text in ["default", "floor", "ground", "ground_level", "floor_level"]:
+				return 0
+
+			if text.is_valid_int():
+				return maxi(0, int(text))
+
+			for prefix in ["level_", "height_", "surface_", "ground_", "floor_", "z_"]:
+				if text.begins_with(prefix):
+					var tail: String = text.substr(prefix.length())
+					if tail.is_valid_int():
+						return maxi(0, int(tail))
+
+			match text:
+				"low":
+					return 0
+				"raised", "high":
+					return 1
+				"upper":
+					return 2
+
+	return fallback
+
+
+func _is_platform_surface_object(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+
+	var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(object_data.get("archetype_id", object_data.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(object_data.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(object_data.get("platform_type", "")).strip_edges().to_lower()
+
+	if object_group == "platform":
+		return true
+	if object_type == "platform":
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		return true
+	if archetype_id == "platform":
+		return true
+	if not platform_mode.is_empty():
+		return true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		return true
+
+	return false
+
+
+func _is_ground_surface_object(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+
+	var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(object_data.get("archetype_id", object_data.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var prefab_id: String = str(object_data.get("map_constructor_prefab_id", object_data.get("prefab_id", ""))).strip_edges().to_lower()
+
+	if object_group in ["ground", "terrain", "raised_ground"]:
+		return true
+
+	if object_type in ["ground", "raised_ground", "elevated_ground", "ground_block", "floor_block"]:
+		return true
+
+	if archetype_id in ["ground", "raised_ground", "elevated_ground", "ground_block", "floor_block"]:
+		return true
+
+	if prefab_id in ["ground", "raised_ground", "elevated_ground", "ground_block", "floor_block"]:
+		return true
+
+	if object_type.contains("raised") and object_type.contains("ground"):
+		return true
+
+	if prefab_id.contains("raised") and prefab_id.contains("ground"):
+		return true
+
+	return false
+
+
+func _is_surface_provider_object(object_data: Dictionary) -> bool:
+	return _is_platform_surface_object(object_data) or _is_ground_surface_object(object_data)
+
+
+func _get_platform_surface_height_level(platform_object: Dictionary) -> int:
+	return maxi(0, int(platform_object.get(
+		"platform_level",
+		platform_object.get(
+			"current_level",
+			platform_object.get("height_level", 0)
+		)
+	)))
+
+
+func _get_ground_surface_height_level(ground_object: Dictionary) -> int:
+	for key in ["surface_height", "ground_height", "floor_height", "height_level", "elevation_level", "z_level"]:
+		if ground_object.has(key):
+			return _surface_height_from_variant(ground_object.get(key), 1)
+
+	# Ground object is a raised top-surface provider by default.
+	# Base map floor remains level 0. A placed ground block creates level 1 top.
+	return 1
+
+
+func get_cell_height_level(cell: Vector2i) -> int:
+	var object_data: Dictionary = get_world_object_at_cell(cell)
+
+	if _is_platform_surface_object(object_data):
+		return _get_platform_surface_height_level(object_data)
+
+	if _is_ground_surface_object(object_data):
+		return _get_ground_surface_height_level(object_data)
+
+	return 0
+
+
+func can_move_between_height_levels(from_cell: Vector2i, to_cell: Vector2i, actor: Variant = null) -> bool:
+	var actor_height: int = get_cell_height_level(from_cell)
+
+	if actor != null and actor.has_method("get_platform_height_level"):
+		actor_height = int(actor.call("get_platform_height_level"))
+
+	var target_height: int = get_cell_height_level(to_cell)
+
+	return actor_height == target_height
+	
 func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
 	var state: Dictionary = {
 		"cell": cell,
@@ -2713,9 +2850,12 @@ func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
 		state["block_reason"] = "wall"
 		return state
 	if bool(state.get("has_object", false)) and bool(state.get("blocks_movement", false)):
-		state["is_passable"] = false
-		state["block_reason"] = "blocked_by_object"
-		return state
+		if _is_surface_provider_object(object_data):
+			state["blocks_movement"] = false
+		else:
+			state["is_passable"] = false
+			state["block_reason"] = "blocked_by_object"
+			return state
 	state["is_passable"] = bool(state.get("static_walkable", false))
 	if not bool(state.get("is_passable", false)):
 		state["block_reason"] = "tile_blocked"
@@ -11218,38 +11358,69 @@ func _is_platform_object_data(object_data: Dictionary) -> bool:
 
 func _get_platform_level_from_object(platform_object: Dictionary) -> int:
 	return maxi(0, int(platform_object.get("platform_level", platform_object.get("current_level", platform_object.get("height_level", 0)))))
+	
+
+func _is_height_platform_object_data(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+
+	var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(object_data.get("archetype_id", object_data.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(object_data.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(object_data.get("platform_type", "")).strip_edges().to_lower()
+
+	if object_group == "platform":
+		return true
+	if object_type == "platform":
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		return true
+	if archetype_id == "platform":
+		return true
+	if not platform_mode.is_empty():
+		return true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		return true
+
+	return false
 
 
-func get_cell_height_level(cell: Vector2i) -> int:
-	var object_data: Dictionary = get_world_object_at_cell(cell)
+func _get_ground_surface_height_from_object(object_data: Dictionary) -> int:
+	if object_data.is_empty():
+		return 0
 
-	if _is_platform_object_data(object_data):
-		return _get_platform_level_from_object(object_data)
+	for key in ["surface_height", "ground_height", "floor_height", "elevation_level", "z_level"]:
+		if object_data.has(key):
+			return _surface_height_from_variant(object_data.get(key), 0)
 
-	# Ground/floor is level 0.
 	return 0
 
 
-func can_move_between_height_levels(from_cell: Vector2i, to_cell: Vector2i, actor: Variant = null) -> bool:
-	var actor_height: int = 0
+func _get_floor_surface_height_level(cell: Vector2i) -> int:
+	if grid_manager == null:
+		return 0
 
-	if actor != null and actor.has_method("get_platform_height_level"):
-		actor_height = int(actor.call("get_platform_height_level"))
-	else:
-		actor_height = get_cell_height_level(from_cell)
+	var floor_state: Dictionary = {}
 
-	var target_height: int = get_cell_height_level(to_cell)
+	if grid_manager.has_method("get_floor_visual_state"):
+		var state_variant: Variant = grid_manager.call("get_floor_visual_state", cell)
+		if state_variant is Dictionary:
+			floor_state = Dictionary(state_variant)
 
-	# Ground level movement is normal.
-	if actor_height <= 0 and target_height <= 0:
-		return true
+	if floor_state.is_empty() and grid_manager.has_method("get_floor_visual_state_for_cell"):
+		var state_variant_2: Variant = grid_manager.call("get_floor_visual_state_for_cell", cell)
+		if state_variant_2 is Dictionary:
+			floor_state = Dictionary(state_variant_2)
 
-	# At height, Bipob can move only to another cell at the same height.
-	# This prevents stepping off a raised platform into ground-level void/floor.
-	if actor_height != target_height:
-		return false
+	if floor_state.is_empty():
+		return 0
 
-	return true
+	for key in ["surface_height", "ground_height", "floor_height", "floor_visual_height", "height_level", "elevation_level", "z_level"]:
+		if floor_state.has(key):
+			return _surface_height_from_variant(floor_state.get(key), 0)
+
+	return 0
 
 func get_platform_occupants(platform_id: String) -> Dictionary:
 	var platform := get_platform_by_id(platform_id)
