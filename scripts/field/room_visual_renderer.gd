@@ -103,84 +103,6 @@ const ISO_CLASSIC_TILE_SIZE: Vector2 = Vector2(128.0, 64.0)
 const WALL_CABLE_RAIL_Y_RATIO: float = 0.44
 const WALL_CABLE_RAIL_HALF_WIDTH_RATIO: float = 0.30
 
-# Dev-only placeholder preset: loads BIP-Visual-011 SVG placeholders as visual fallback textures.
-# Explicit exported Texture2D hooks always take priority when assigned.
-# Missing/unsupported placeholder resources safely fall back to procedural rendering.
-# Visual-only behavior; no gameplay state is changed.
-const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
-	"floor_concrete": "res://assets/visual/isometric/floor/floor_concrete_01.png",
-	"floor_steel": "res://assets/visual/isometric/floor/floor_steel_01.png",
-	"floor_titan": "res://assets/visual/isometric/floor/floor_titan_01.png",
-	"platform_floor": "res://assets/visual/isometric/floor/floor_platform_01.png",
-	"floor_default": "res://assets/visual/isometric/floor/floor_concrete_01.png",
-	"floor_stepped": "res://assets/visual/isometric/placeholders/iso_floor_stepped.svg",
-	"floor_clean_lab": "res://assets/visual/isometric/placeholders/iso_floor_clean_lab.svg",
-	"floor_dark_service": "res://assets/visual/isometric/placeholders/iso_floor_dark_service.svg",
-	"floor_hazard": "res://assets/visual/isometric/placeholders/iso_floor_hazard.svg",
-	"floor_power": "res://assets/visual/isometric/placeholders/iso_floor_power.svg",
-	"floor_damaged": "res://assets/visual/isometric/placeholders/iso_floor_damaged.svg",
-	"floor_reinforced": "res://assets/visual/isometric/placeholders/iso_floor_reinforced.svg",
-	"floor_diagnostic": "res://assets/visual/isometric/placeholders/iso_floor_diagnostic.svg",
-	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
-	"ground_low": "res://assets/visual/isometric/ground/ground_low_01.png",
-	"ground_halflow": "res://assets/visual/isometric/ground/ground_halflow_01.png",
-	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
-	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
-	"object_key": "res://assets/visual/isometric/placeholders/iso_object_key.svg",
-	"object_component": "res://assets/visual/isometric/placeholders/iso_object_component.svg",
-	"object_socket": "res://assets/visual/isometric/placeholders/iso_object_socket.svg",
-	"object_cable": "res://assets/visual/isometric/placeholders/iso_object_cable.svg",
-	"object_generic": "res://assets/visual/isometric/placeholders/iso_object_generic.svg",
-	"object_fuse": "res://assets/visual/isometric/placeholders/iso_object_fuse.svg",
-	"object_repair_kit": "res://assets/visual/isometric/placeholders/iso_object_repair_kit.svg",
-	"object_keycard": "res://assets/visual/isometric/placeholders/iso_object_keycard.svg",
-	"object_access_code": "res://assets/visual/isometric/placeholders/iso_object_access_code.svg",
-	"object_cable_reel": "res://assets/visual/isometric/placeholders/iso_object_cable_reel.svg",
-	"cable_reel_01": "res://assets/visual/isometric/objects/cable_reel_01.png",
-	"cable_reel_02": "res://assets/visual/isometric/objects/cable_reel_02.png",
-	"fuse_box_in_01": "res://assets/visual/isometric/objects/fuse_box_in_01.png",
-	"fuse_box_out_01": "res://assets/visual/isometric/objects/fuse_box_out_01.png",
-	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box_in_wall_01.png",
-	"fuse_box_out_wall_01": "res://assets/visual/isometric/objects/fuse_box_out_wall_01.png",
-	"light_01": "res://assets/visual/isometric/objects/light_01.png",
-	"power_source_01": "res://assets/visual/isometric/objects/power_source_01.png",
-	"power_switcher_off_01": "res://assets/visual/isometric/objects/power_switcher_off_01.png",
-	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_switcher_off_wall_01.png",
-	"power_switcher_on_01": "res://assets/visual/isometric/objects/power_switcher_on_01.png",
-	"power_switcher_on_wall_01": "res://assets/visual/isometric/objects/power_switcher_on_wall_01.png",
-	"radiator_01": "res://assets/visual/isometric/objects/radiator_01.png",
-	"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png",
-	"barrel_01": "res://assets/visual/isometric/moovable/barrel_01.png",
-	"case_01": "res://assets/visual/isometric/objects/case_01.png",
-	"steel_box_01": "res://assets/visual/isometric/moovable/steel_box_01.png",
-	"fire_barrel_01": "res://assets/visual/isometric/moovable/fire_barrel_01.png",
-	"object_button": "res://assets/visual/isometric/placeholders/iso_object_button.svg",
-	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
-}
-
-
-const ISO_OBJECT_ASSET_PACK_DIR: String = "res://assets/visual/isometric/objects/"
-const ISO_MOVABLE_ASSET_PACK_DIR: String = "res://assets/visual/isometric/moovable/"
-const ISO_OBJECT_PNG_ASSET_PATHS: Dictionary = {
-	"cable_reel_01": "res://assets/visual/isometric/objects/cable_reel_01.png",
-	"cable_reel_02": "res://assets/visual/isometric/objects/cable_reel_02.png",
-	"fuse_box_in_01": "res://assets/visual/isometric/objects/fuse_box_in_01.png",
-	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box_in_wall_01.png",
-	"fuse_box_out_01": "res://assets/visual/isometric/objects/fuse_box_out_01.png",
-	"fuse_box_out_wall_01": "res://assets/visual/isometric/objects/fuse_box_out_wall_01.png",
-	"light_01": "res://assets/visual/isometric/objects/light_01.png",
-	"power_source_01": "res://assets/visual/isometric/objects/power_source_01.png",
-	"power_switcher_off_01": "res://assets/visual/isometric/objects/power_switcher_off_01.png",
-	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_switcher_off_wall_01.png",
-	"power_switcher_on_01": "res://assets/visual/isometric/objects/power_switcher_on_01.png",
-	"power_switcher_on_wall_01": "res://assets/visual/isometric/objects/power_switcher_on_wall_01.png",
-	"radiator_01": "res://assets/visual/isometric/objects/radiator_01.png",
-	"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png",
-	"barrel_01": "res://assets/visual/isometric/moovable/barrel_01.png",
-	"case_01": "res://assets/visual/isometric/objects/case_01.png",
-	"steel_box_01": "res://assets/visual/isometric/moovable/steel_box_01.png",
-	"fire_barrel_01": "res://assets/visual/isometric/moovable/fire_barrel_01.png"
-}
 const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
 	"power_source_01", "terminal_01", "radiator_01", "light_01",
 	"cable_reel_01", "cable_reel_02",
@@ -2650,9 +2572,6 @@ func get_iso_object_png_asset_path(asset_key: String) -> String:
 	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0):
 		return catalog_path
 
-	if ISO_OBJECT_PNG_ASSET_PATHS.has(normalized_asset_key):
-		return str(ISO_OBJECT_PNG_ASSET_PATHS.get(normalized_asset_key, ""))
-
 	return ""
 	
 func is_iso_object_png_asset_key(asset_key: String) -> bool:
@@ -2690,9 +2609,6 @@ func get_iso_placeholder_asset_path(asset_key: String) -> String:
 	if catalog_path.find("/placeholders/") >= 0:
 		return catalog_path
 
-	if ISO_PLACEHOLDER_ASSET_PATHS.has(normalized_asset_key):
-		return str(ISO_PLACEHOLDER_ASSET_PATHS.get(normalized_asset_key, ""))
-
 	return ""
 	
 func is_placeholder_object_texture_path(texture_path: String) -> bool:
@@ -2720,12 +2636,20 @@ func should_skip_placeholder_object_texture_path_in_gray_test(texture_path: Stri
 func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
 	if not should_use_iso_placeholder_asset_preset():
 		return null
-	var placeholder_path: String = get_iso_placeholder_asset_path(asset_key)
-	if placeholder_path == "":
+
+	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
+	if normalized_asset_key.is_empty():
 		return null
 
-	if _iso_placeholder_texture_cache.has(asset_key):
-		var cached_value: Variant = _iso_placeholder_texture_cache.get(asset_key)
+	if should_skip_placeholder_object_texture_in_gray_test(normalized_asset_key):
+		return null
+
+	var placeholder_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	if placeholder_path.is_empty() or placeholder_path.find("/placeholders/") < 0:
+		return null
+
+	if _iso_placeholder_texture_cache.has(normalized_asset_key):
+		var cached_value: Variant = _iso_placeholder_texture_cache.get(normalized_asset_key)
 		if cached_value is Texture2D:
 			return cached_value as Texture2D
 		return null
@@ -2733,10 +2657,10 @@ func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var loaded_resource: Resource = ResourceLoader.load(placeholder_path)
 	if loaded_resource is Texture2D:
 		var loaded_texture: Texture2D = loaded_resource as Texture2D
-		_iso_placeholder_texture_cache[asset_key] = loaded_texture
+		_iso_placeholder_texture_cache[normalized_asset_key] = loaded_texture
 		return loaded_texture
 
-	_iso_placeholder_texture_cache[asset_key] = null
+	_iso_placeholder_texture_cache[normalized_asset_key] = null
 	return null
 
 func clear_iso_placeholder_texture_cache() -> void:
@@ -2824,7 +2748,8 @@ func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 		return explicit_texture
 	if should_skip_placeholder_object_texture_in_gray_test(normalized_asset_key):
 		return null
-	if not ISO_PLACEHOLDER_ASSET_PATHS.has(normalized_asset_key):
+	var placeholder_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	if placeholder_path.is_empty() or placeholder_path.find("/placeholders/") < 0:
 		return null
 
 	return get_iso_placeholder_texture_for_asset_key(normalized_asset_key)
@@ -2971,26 +2896,38 @@ func get_iso_asset_alignment_diagnostics() -> Dictionary:
 	var missing_alignment_rules: Array[String] = []
 	var unused_alignment_rules: Array[String] = []
 	var scale_overrides: Dictionary = {}
-	for asset_key_variant in ISO_PLACEHOLDER_ASSET_PATHS.keys():
+
+	var known_object_asset_keys: Dictionary = {}
+	var all_asset_paths: Dictionary = VisualAssetCatalogRef.get_all_asset_paths()
+
+	for asset_key_variant in all_asset_paths.keys():
 		var asset_key: String = str(asset_key_variant)
-		if not ISO_ASSET_ALIGNMENT_RULES.has(asset_key) and not ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
-			missing_alignment_rules.append(asset_key)
+		var asset_path: String = str(all_asset_paths.get(asset_key, ""))
+
+		if asset_path.find("/objects/") >= 0 or asset_path.find("/moovable/") >= 0:
+			known_object_asset_keys[asset_key] = true
+		elif asset_path.find("/placeholders/") >= 0 and asset_key.begins_with("object_"):
+			known_object_asset_keys[asset_key] = true
+
 	for rule_key_variant in ISO_ASSET_ALIGNMENT_RULES.keys():
 		var rule_key: String = str(rule_key_variant)
 		var rule: Dictionary = Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(rule_key, {}))
-		if not ISO_PLACEHOLDER_ASSET_PATHS.has(rule_key):
+
+		if not known_object_asset_keys.has(rule_key):
 			unused_alignment_rules.append(rule_key)
+
 		var scale_value: float = float(rule.get("scale", 1.0))
 		if not is_equal_approx(scale_value, 1.0):
 			scale_overrides[rule_key] = scale_value
-	missing_alignment_rules.sort()
-	unused_alignment_rules.sort()
+
+	for asset_key_variant in known_object_asset_keys.keys():
+		var asset_key: String = str(asset_key_variant)
+		if not ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
+			missing_alignment_rules.append(asset_key)
+
 	return {
-		"ok": missing_alignment_rules.is_empty(),
 		"missing_alignment_rules": missing_alignment_rules,
 		"unused_alignment_rules": unused_alignment_rules,
-		"asset_count": ISO_PLACEHOLDER_ASSET_PATHS.size(),
-		"rule_count": ISO_ASSET_ALIGNMENT_RULES.size(),
 		"scale_overrides": scale_overrides
 	}
 
@@ -3981,17 +3918,30 @@ func draw_wall_routed_procedural_visual(object_data: Dictionary, _profile: Dicti
 	var visual_center: Vector2 = get_wall_mounted_visual_center(object_data, fallback_cell)
 	return draw_wall_procedural_routed_object(fallback_cell, object_data, visual_center)
 
-func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: String, rule: Dictionary) -> float:
-	var rule_scale: float = float(rule.get("scale", 1.0))
-	if not ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
-		return maxf(float(object_data.get("visual_scale", rule_scale)), 0.01)
+func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: String, rule: Dictionary = {}) -> float:
+	var active_rule: Dictionary = rule
+	if active_rule.is_empty():
+		active_rule = get_iso_asset_alignment_rule(asset_key)
+
+	var rule_scale: float = clampf(
+		float(active_rule.get("scale", 1.0)),
+		ISO_OBJECT_PNG_MIN_VISUAL_SCALE,
+		ISO_OBJECT_PNG_MAX_VISUAL_SCALE
+	)
+
+	if not has_iso_object_png_asset_path(asset_key):
+		return rule_scale
 
 	if not bool(object_data.get("allow_custom_visual_scale", false)):
-		return clampf(rule_scale, ISO_OBJECT_PNG_MIN_VISUAL_SCALE, ISO_OBJECT_PNG_MAX_VISUAL_SCALE)
+		return rule_scale
 
 	var custom_scale: float = float(object_data.get("visual_scale", rule_scale))
-	return clampf(custom_scale, ISO_OBJECT_PNG_MIN_VISUAL_SCALE, ISO_OBJECT_PNG_MAX_VISUAL_SCALE)
-
+	return clampf(
+		custom_scale,
+		ISO_OBJECT_PNG_MIN_VISUAL_SCALE,
+		ISO_OBJECT_PNG_MAX_VISUAL_SCALE
+	)
+	
 func build_iso_object_surface_context(object_data: Dictionary, _cell_visual_center: Vector2 = Vector2.INF) -> Dictionary:
 	var surface_level: int = get_iso_object_surface_level(object_data)
 	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("install_mode", object_data.get("mount", "")))).to_lower().strip_edges()
@@ -4077,26 +4027,65 @@ func draw_iso_object_png_texture_with_descriptor(texture: Texture2D, descriptor:
 
 func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	var rule: Dictionary = {}
+
 	if ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
 		rule = Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(asset_key, {}))
 	elif asset_key.begins_with("floor_"):
-		rule = {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": get_iso_tile_size(), "layer_hint": "floor", "notes": "Fallback floor alignment."}
+		rule = {
+			"anchor": "center",
+			"scale": 1.0,
+			"offset": Vector2.ZERO,
+			"expected_size": get_iso_tile_size(),
+			"layer_hint": "floor",
+			"notes": "Fallback floor alignment."
+		}
 	elif asset_key.begins_with("wall_"):
-		rule = {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -get_iso_tile_half_size().y), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Fallback wall alignment against the active 128x71 footprint."}
+		rule = {
+			"anchor": "wall_cell_base",
+			"scale": 1.0,
+			"offset": Vector2(0, -get_iso_tile_half_size().y),
+			"expected_size": Vector2(128, 120),
+			"layer_hint": "wall",
+			"notes": "Fallback wall alignment against the active 128x71 footprint."
+		}
 	elif asset_key == "object_door":
-		rule = {"anchor": "door_insert_center", "scale": 0.9, "offset": Vector2(0, -20), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback door alignment."}
+		rule = {
+			"anchor": "door_insert_center",
+			"scale": 0.9,
+			"offset": Vector2(0, -20),
+			"expected_size": Vector2(96, 96),
+			"layer_hint": "object",
+			"notes": "Fallback door alignment."
+		}
 	elif asset_key.begins_with("object_"):
-		rule = {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fallback object alignment."}
-	elif ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
+		rule = {
+			"anchor": "bottom_center",
+			"scale": 0.75,
+			"offset": Vector2(0, -8),
+			"expected_size": Vector2(96, 96),
+			"layer_hint": "object",
+			"notes": "Fallback object alignment."
+		}
+	elif has_iso_object_png_asset_path(asset_key):
 		rule = get_iso_object_png_visual_rule(asset_key)
 	else:
-		rule = {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": Vector2(96, 96), "layer_hint": "unknown", "notes": "Fallback generic alignment."}
+		rule = {
+			"anchor": "center",
+			"scale": 1.0,
+			"offset": Vector2.ZERO,
+			"expected_size": Vector2(96, 96),
+			"layer_hint": "unknown",
+			"notes": "Fallback generic alignment."
+		}
+
 	if asset_key.begins_with("floor_"):
 		rule["expected_size"] = get_iso_tile_size()
+
 	if str(rule.get("anchor", "")) == "wall_cell_base":
 		var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
 		if is_equal_approx(offset.y, -ISO_CLASSIC_TILE_SIZE.y * 0.5):
 			rule["offset"] = Vector2(offset.x, -get_iso_tile_half_size().y)
+
 	return rule
 
 func get_iso_asset_alignment_scale(asset_key: String) -> float:
@@ -4126,16 +4115,22 @@ func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center
 	var anchor: String = str(rule.get("anchor", "center"))
 	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
 	var destination_size: Vector2 = source_size * scale_value
-	if asset_key.begins_with("floor_") or asset_key.begins_with("object_") or ISO_OBJECT_PNG_ASSET_PATHS.has(asset_key):
+
+	if asset_key.begins_with("floor_") or asset_key.begins_with("object_") or has_iso_object_png_asset_path(asset_key):
 		destination_size = get_iso_asset_alignment_expected_size(asset_key) * scale_value
+
 	var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
 	var anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(anchor, destination_size)
 	var destination_position: Vector2 = center - anchor_offset + offset
+
 	return Rect2(destination_position, destination_size)
-
+	
 func get_iso_texture_draw_rect_for_asset_key(asset_key: String, center: Vector2, texture: Texture2D) -> Rect2:
-	return get_iso_texture_draw_rect_for_asset_key_with_size(asset_key, center, texture.get_size())
+	if texture == null:
+		return get_iso_texture_draw_rect_for_asset_key_with_size(asset_key, center, get_iso_asset_alignment_expected_size(asset_key))
 
+	return get_iso_texture_draw_rect_for_asset_key_with_size(asset_key, center, texture.get_size())
+	
 func get_iso_texture_draw_position_for_asset_key(asset_key: String, center: Vector2, texture: Texture2D) -> Vector2:
 	return get_iso_texture_draw_rect_for_asset_key(asset_key, center, texture).position
 
