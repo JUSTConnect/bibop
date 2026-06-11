@@ -102,7 +102,7 @@ static func normalize_direct_wall_cell_mount_object(object_data: Dictionary, wal
 	result["interaction_side"] = result["wall_side"]
 	return result
 
-static func can_share_wall_side(existing_objects: Array[Dictionary], new_object: Dictionary, wall_side: String, max_objects: int = DEFAULT_MAX_OBJECTS_PER_WALL_SIDE) -> Dictionary:
+static func can_share_wall_side(existing_objects: Array[Dictionary], _new_object: Dictionary, wall_side: String, max_objects: int = DEFAULT_MAX_OBJECTS_PER_WALL_SIDE) -> Dictionary:
 	var normalized_side: String = FacingSideUtilsRef.normalize_wall_side(wall_side)
 	var count_on_side: int = 0
 	for existing in existing_objects:
