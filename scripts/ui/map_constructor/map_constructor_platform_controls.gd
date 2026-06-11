@@ -115,14 +115,14 @@ static func _add_platform_member_checklist(ui: Variant, section: VBoxContainer, 
 		var platform_data: Dictionary = MapConstructorUiSafe.safe_dictionary(row.get("data", {}))
 		var platform_mechanism_id: String = _effective_mechanism_id(platform_id, platform_data)
 		var checked: bool = platform_id == entity_id or platform_mechanism_id == mechanism_id
-		var current_kind: String = PlatformTypesRef.normalize_platform_mode(str(data.get("platform_mode", data.get("platform_type", ""))))
-		var candidate_kind: String = PlatformTypesRef.normalize_platform_mode(str(platform_data.get("platform_mode", platform_data.get("platform_type", ""))))
+		var current_kind: String = str(PlatformTypesRef.normalize_platform_config(data).get("platform_mode", PlatformTypesRef.MODE_ELEVATOR))
+		var candidate_kind: String = str(PlatformTypesRef.normalize_platform_config(platform_data).get("platform_mode", PlatformTypesRef.MODE_ELEVATOR))
 		var compatible_kind: bool = current_kind == candidate_kind
 		var check: CheckBox = CheckBox.new()
 		check.text = "%s at (%d, %d)%s" % [platform_id, platform_cell.x, platform_cell.y, "  ✓ current" if platform_id == entity_id else ""]
 		check.button_pressed = checked and compatible_kind
 		check.disabled = not compatible_kind
-		check.tooltip_text = "Mixed platform types cannot share a runtime mechanism." if not compatible_kind else "Checked platforms share mechanism_id: %s" % mechanism_id
+		check.tooltip_text = "Kind mismatch: %s platform cannot share a runtime mechanism with %s platform." % [candidate_kind, current_kind] if not compatible_kind else "Checked platforms share mechanism_id: %s" % mechanism_id
 		check.toggled.connect(func(enabled: bool) -> void:
 			var next_mechanism_id: String = mechanism_id if enabled else ""
 			if platform_id == entity_id and not enabled:
@@ -134,6 +134,8 @@ static func _add_platform_member_checklist(ui: Variant, section: VBoxContainer, 
 			ui._refresh_map_constructor_panels()
 			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
 				ui.field_runtime.call("request_visual_refresh")
+			if ui.bipob != null and ui.bipob.has_method("refresh_world_action_panel"):
+				ui.bipob.call("refresh_world_action_panel")
 			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
 		)
 		section.add_child(check)
@@ -235,9 +237,15 @@ static func _get_platform_candidate_rows(ui: Variant) -> Array:
 
 static func _format_mechanism_summary(summary: Dictionary) -> String:
 	var ids: Array = Array(summary.get("platform_ids", []))
-	if ids.is_empty():
-		return "Members: 0"
-	return "Members: %d — %s" % [ids.size(), ", ".join(ids)]
+	var parts: Array[String] = []
+	parts.append("Members: 0" if ids.is_empty() else "Members: %d — %s" % [ids.size(), ", ".join(ids)])
+	var errors: Array = Array(summary.get("errors", []))
+	var warnings: Array = Array(summary.get("warnings", []))
+	if not errors.is_empty():
+		parts.append("Errors: %s" % "; ".join(errors))
+	if not warnings.is_empty():
+		parts.append("Warnings: %s" % "; ".join(warnings))
+	return "\n".join(parts)
 
 static func _get_mechanism_summary(ui: Variant, entity_id: String, data: Dictionary) -> Dictionary:
 	var mechanism_id: String = _effective_mechanism_id(entity_id, data)
@@ -247,9 +255,54 @@ static func _get_mechanism_summary(ui: Variant, entity_id: String, data: Diction
 
 static func _validate_mechanism(ui: Variant, entity_id: String, data: Dictionary) -> Dictionary:
 	var mechanism_id: String = _effective_mechanism_id(entity_id, data)
+	var validation: Dictionary = {}
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("validate_platform_mechanism"):
-		return MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("validate_platform_mechanism", mechanism_id))
-	return PlatformMechanismServiceRef.validate_mechanism(mechanism_id, [])
+		validation = MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("validate_platform_mechanism", mechanism_id))
+	else:
+		validation = PlatformMechanismServiceRef.validate_mechanism(mechanism_id, [])
+	var warnings: Array = Array(validation.get("warnings", []))
+	var current_kind: String = str(PlatformTypesRef.normalize_platform_config(data).get("platform_mode", PlatformTypesRef.MODE_ELEVATOR))
+	var requested_ids: Array[String] = [entity_id]
+	for field_name in ["platform_ids", "member_platform_ids", "mechanism_platform_ids", "linked_platform_ids", "members"]:
+		for requested_variant in Array(data.get(field_name, [])):
+			var requested_id: String = PlatformMechanismServiceRef.get_platform_id(Dictionary(requested_variant)) if requested_variant is Dictionary else str(requested_variant).strip_edges()
+			if not requested_id.is_empty() and not requested_ids.has(requested_id):
+				requested_ids.append(requested_id)
+	var rows: Array = _get_platform_candidate_rows(ui)
+	for row_variant in rows:
+		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
+		var platform_id: String = str(row.get("id", "")).strip_edges()
+		var platform_data: Dictionary = MapConstructorUiSafe.safe_dictionary(row.get("data", {}))
+		if platform_id.is_empty():
+			warnings.append("Rejected platform candidate: missing platform id.")
+			continue
+		var candidate_explicitly_linked: bool = requested_ids.has(platform_id)
+		for field_name in ["platform_ids", "member_platform_ids", "mechanism_platform_ids", "linked_platform_ids", "members"]:
+			if candidate_explicitly_linked:
+				break
+			for listed_variant in Array(platform_data.get(field_name, [])):
+				var listed_id: String = PlatformMechanismServiceRef.get_platform_id(Dictionary(listed_variant)) if listed_variant is Dictionary else str(listed_variant).strip_edges()
+				if listed_id == entity_id:
+					candidate_explicitly_linked = true
+					break
+		var candidate_mechanism_id: String = _effective_mechanism_id(platform_id, platform_data)
+		var candidate_kind: String = str(PlatformTypesRef.normalize_platform_config(platform_data).get("platform_mode", PlatformTypesRef.MODE_ELEVATOR))
+		if candidate_mechanism_id != mechanism_id:
+			if candidate_explicitly_linked:
+				warnings.append("Rejected %s: mechanism id mismatch (%s != %s)." % [platform_id, candidate_mechanism_id, mechanism_id])
+			continue
+		if candidate_kind != current_kind:
+			warnings.append("Rejected %s: kind mismatch (%s != %s)." % [platform_id, candidate_kind, current_kind])
+	var cells: Array[Vector2i] = []
+	for cell_variant in Array(validation.get("cells", [])):
+		if cell_variant is Vector2i:
+			cells.append(cell_variant)
+	if current_kind == PlatformTypesRef.MODE_ROTATE and not PlatformMechanismServiceRef.is_square_footprint(cells, true):
+		warnings.append("Rejected rotation plan: invalid/non-square rotator footprint.")
+	if not PlatformMechanismServiceRef.are_cells_orthogonally_connected(cells):
+		warnings.append("Rejected mechanism: members are not orthogonally connected.")
+	validation["warnings"] = warnings
+	return validation
 
 static func _get_actions(ui: Variant, entity_id: String, data: Dictionary) -> Dictionary:
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_platform_control_actions"):

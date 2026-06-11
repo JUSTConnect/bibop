@@ -2671,7 +2671,9 @@ func _is_platform_surface_object(object_data: Dictionary) -> bool:
 		return true
 	if object_type in ["lifting_platform", "rotating_platform"]:
 		return true
-	if archetype_id == "platform":
+	if archetype_id in ["platform", "lifting_platform", "rotating_platform"]:
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
 		return true
 	if not platform_mode.is_empty():
 		return true
@@ -2751,7 +2753,9 @@ func _is_surface_platform_object(object_data: Dictionary) -> bool:
 		return true
 	if object_type in ["lifting_platform", "rotating_platform"]:
 		return true
-	if archetype_id == "platform":
+	if archetype_id in ["platform", "lifting_platform", "rotating_platform"]:
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
 		return true
 	if not platform_mode.is_empty():
 		return true
@@ -11539,7 +11543,9 @@ func _is_platform_object_data(object_data: Dictionary) -> bool:
 		return true
 	if object_type == "platform":
 		return true
-	if archetype_id == "platform":
+	if archetype_id in ["platform", "lifting_platform", "rotating_platform"]:
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
 		return true
 	if not platform_mode.is_empty():
 		return true
@@ -11567,7 +11573,9 @@ func _is_height_platform_object_data(object_data: Dictionary) -> bool:
 		return true
 	if object_type in ["lifting_platform", "rotating_platform"]:
 		return true
-	if archetype_id == "platform":
+	if archetype_id in ["platform", "lifting_platform", "rotating_platform"]:
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
 		return true
 	if not platform_mode.is_empty():
 		return true

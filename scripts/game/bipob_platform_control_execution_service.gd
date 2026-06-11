@@ -317,11 +317,53 @@ static func _execute_elevator_action(controller: Variant, platform_object: Dicti
 
 static func _execute_rotation_action(controller: Variant, platform_object: Dictionary, target_position: Vector2i, mechanism: Dictionary, members: Array[Dictionary], action: String) -> Dictionary:
 	var platform_cells: Array[Vector2i] = PlatformMechanismServiceRef.get_member_cells(members)
+	var platform_cell_lookup: Dictionary = {}
+	for platform_cell in platform_cells:
+		platform_cell_lookup["%d:%d" % [platform_cell.x, platform_cell.y]] = true
+	var platform_member_ids: Dictionary = {}
+	for member in members:
+		var member_id: String = _get_platform_id(member)
+		if not member_id.is_empty():
+			platform_member_ids[member_id] = true
 	var carried_entries: Array[Dictionary] = []
 	if controller.has_method("get_grid_position"):
 		var actor_cell: Vector2i = Vector2i(controller.grid_position)
 		if platform_cells.has(actor_cell):
-			carried_entries.append({"id": "active_bipob", "cell": actor_cell, "direction": str(controller.get_direction() if controller.has_method("get_direction") else "NORTH")})
+			carried_entries.append({"id": "active_bipob", "carried_kind": "active_bipob", "cell": actor_cell, "direction": str(controller.get_direction() if controller.has_method("get_direction") else "NORTH")})
+	var carried_item_ids: Dictionary = {}
+	if controller.mission_manager != null:
+		var cell_items: Dictionary = Dictionary(controller.mission_manager.get("cell_items"))
+		for platform_cell in platform_cells:
+			for item_variant in Array(cell_items.get(platform_cell, [])):
+				if typeof(item_variant) != TYPE_DICTIONARY:
+					continue
+				var item_data: Dictionary = Dictionary(item_variant)
+				var item_id: String = str(item_data.get("id", item_data.get("item_id", ""))).strip_edges()
+				if item_id.is_empty() or carried_item_ids.has(item_id):
+					continue
+				carried_item_ids[item_id] = true
+				carried_entries.append({"id": item_id, "carried_kind": "item", "cell": platform_cell, "direction": str(item_data.get("direction", item_data.get("facing_dir", item_data.get("facing", ""))))})
+		var world_objects_variant: Variant = controller.mission_manager.get("mission_world_objects")
+		if world_objects_variant is Array:
+			for object_variant in Array(world_objects_variant):
+				if typeof(object_variant) != TYPE_DICTIONARY:
+					continue
+				var object_data: Dictionary = Dictionary(object_variant)
+				var object_id: String = str(object_data.get("id", object_data.get("object_id", ""))).strip_edges()
+				if object_id.is_empty() or object_id == str(platform_object.get("id", "")) or platform_member_ids.has(object_id) or carried_item_ids.has(object_id):
+					continue
+				var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
+				if object_group == "item" or _is_platform_member_data(object_data):
+					continue
+				var object_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", object_data.get("cell", object_data.get("pos", Vector2i(-1, -1)))), Vector2i(-1, -1))
+				if not platform_cells.has(object_cell):
+					continue
+				var can_carry: bool = bool(object_data.get("rotate_with_platform", object_data.get("move_with_platform", object_data.get("carried_by_platform", false))))
+				if not can_carry and bool(object_data.get("movable", false)) and bool(object_data.get("heavy_claw_movable", true)):
+					can_carry = true
+				if not can_carry:
+					continue
+				carried_entries.append({"id": object_id, "carried_kind": "world_object", "cell": object_cell, "direction": str(object_data.get("direction", object_data.get("facing_dir", object_data.get("facing", ""))))})
 	var rotation_plan: Dictionary = PlatformRotationServiceRef.build_rotation_plan(members, carried_entries, action, [])
 	if not bool(rotation_plan.get("ok", false)):
 		return _build_result(false, str(Array(rotation_plan.get("errors", ["Platform rotation failed."]))[0]), platform_object, target_position, "rotation_invalid")
@@ -329,13 +371,73 @@ static func _execute_rotation_action(controller: Variant, platform_object: Dicti
 	if updated_count <= 0:
 		return _build_result(false, "Platform update failed.", platform_object, target_position, "update_failed")
 	var carried_plan: Array[Dictionary] = Array(rotation_plan.get("carried_plan", []))
-	if not carried_plan.is_empty() and controller.has_method("set_direction"):
-		var carried_entry: Dictionary = Dictionary(carried_plan[0])
-		var target_cell: Vector2i = Vector2i(carried_entry.get("target_cell", controller.grid_position))
-		controller.grid_position = target_cell
-		controller.call("set_direction", str(carried_entry.get("target_direction", controller.get_direction() if controller.has_method("get_direction") else "NORTH")))
-		if controller.has_method("update_world_position"):
-			controller.call("update_world_position")
+	var moved_world_objects: Array[Dictionary] = []
+	var moved_items: Array[Dictionary] = []
+	for carried_entry_variant in carried_plan:
+		var carried_entry: Dictionary = Dictionary(carried_entry_variant)
+		var target_cell_for_entry: Vector2i = Vector2i(carried_entry.get("target_cell", carried_entry.get("cell", Vector2i(-1, -1))))
+		if not platform_cell_lookup.has("%d:%d" % [target_cell_for_entry.x, target_cell_for_entry.y]):
+			continue
+		var carried_kind: String = str(carried_entry.get("carried_kind", ""))
+		var carried_id: String = str(carried_entry.get("id", "")).strip_edges()
+		if carried_kind == "active_bipob" and controller.has_method("set_direction"):
+			controller.grid_position = target_cell_for_entry
+			controller.call("set_direction", str(carried_entry.get("target_direction", controller.get_direction() if controller.has_method("get_direction") else "NORTH")))
+			if controller.has_method("update_world_position"):
+				controller.call("update_world_position")
+		elif carried_kind == "world_object" and controller.mission_manager != null and not carried_id.is_empty():
+			var moved_object: Dictionary = controller.mission_manager.get_world_object_by_id(carried_id).duplicate(true) if controller.mission_manager.has_method("get_world_object_by_id") else {}
+			if moved_object.is_empty():
+				continue
+			moved_object["position"] = target_cell_for_entry
+			if moved_object.has("direction"):
+				moved_object["direction"] = str(carried_entry.get("target_direction", moved_object.get("direction", "")))
+			if moved_object.has("facing_dir"):
+				moved_object["facing_dir"] = str(carried_entry.get("target_direction", moved_object.get("facing_dir", "")))
+			moved_world_objects.append(moved_object)
+		elif carried_kind == "item" and controller.mission_manager != null and not carried_id.is_empty():
+			moved_items.append({"id": carried_id, "source_cell": Vector2i(carried_entry.get("source_cell", carried_entry.get("cell", Vector2i(-1, -1)))), "target_cell": target_cell_for_entry, "target_direction": str(carried_entry.get("target_direction", ""))})
+	if controller.mission_manager != null:
+		for moved_object in moved_world_objects:
+			controller.mission_manager.update_world_object_by_id(str(moved_object.get("id", "")), moved_object)
+		var cell_items: Dictionary = Dictionary(controller.mission_manager.get("cell_items"))
+		for moved_item in moved_items:
+			var item_id: String = str(moved_item.get("id", "")).strip_edges()
+			var source_cell: Vector2i = Vector2i(moved_item.get("source_cell", Vector2i(-1, -1)))
+			var target_cell_for_item: Vector2i = Vector2i(moved_item.get("target_cell", source_cell))
+			var source_items: Array = Array(cell_items.get(source_cell, []))
+			var target_items: Array = [] if source_cell == target_cell_for_item else Array(cell_items.get(target_cell_for_item, []))
+			var moved_item_data: Dictionary = {}
+			var remaining_source_items: Array[Dictionary] = []
+			for item_variant in source_items:
+				if typeof(item_variant) != TYPE_DICTIONARY:
+					continue
+				var item_data: Dictionary = Dictionary(item_variant)
+				if str(item_data.get("id", item_data.get("item_id", ""))).strip_edges() == item_id:
+					moved_item_data = item_data.duplicate(true)
+				else:
+					remaining_source_items.append(item_data)
+			if moved_item_data.is_empty():
+				continue
+			moved_item_data["position"] = target_cell_for_item
+			if not str(moved_item.get("target_direction", "")).is_empty():
+				if moved_item_data.has("direction"):
+					moved_item_data["direction"] = str(moved_item.get("target_direction", ""))
+				if moved_item_data.has("facing_dir"):
+					moved_item_data["facing_dir"] = str(moved_item.get("target_direction", ""))
+			if source_cell == target_cell_for_item:
+				for remaining_item in remaining_source_items:
+					target_items.append(remaining_item)
+			target_items.append(moved_item_data)
+			if source_cell != target_cell_for_item:
+				if remaining_source_items.is_empty():
+					cell_items.erase(source_cell)
+				else:
+					cell_items[source_cell] = remaining_source_items
+			cell_items[target_cell_for_item] = target_items
+			if controller.mission_manager.has_method("_sync_world_item_record"):
+				controller.mission_manager.call("_sync_world_item_record", moved_item_data)
+		controller.mission_manager.set("cell_items", cell_items)
 	var rotation_label: String = "Platform rotated."
 	return _build_success_result(platform_object, target_position, action, rotation_label, mechanism, {
 		"motion_state": PlatformTypesRef.MOTION_ROTATING_LEFT if action == PlatformTypesRef.ACTION_ROTATE_LEFT else PlatformTypesRef.MOTION_ROTATING_RIGHT,
@@ -380,32 +482,7 @@ static func _get_platform_mechanism_id(platform_data: Dictionary) -> String:
 
 
 static func _get_platform_mechanism_kind(platform_data: Dictionary) -> String:
-	var mode_source: String = str(platform_data.get(
-		"platform_mode",
-		platform_data.get(
-			"mode",
-			platform_data.get("platform_type", "")
-		)
-	)).strip_edges().to_lower()
-
-	mode_source = mode_source.replace(" ", "_")
-	mode_source = mode_source.replace("-", "_")
-
-	var object_type: String = str(platform_data.get("object_type", platform_data.get("type", ""))).strip_edges().to_lower()
-	var archetype_id: String = str(platform_data.get("archetype_id", platform_data.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
-
-	if mode_source.is_empty():
-		if object_type.contains("rotat") or archetype_id.contains("rotat"):
-			return PlatformTypesRef.MODE_ROTATE
-
-		if object_type.contains("lift") or object_type.contains("elevator") or archetype_id.contains("lift") or archetype_id.contains("elevator"):
-			return PlatformTypesRef.MODE_ELEVATOR
-
-	var normalized_mode: String = PlatformTypesRef.normalize_platform_mode(mode_source)
-	if normalized_mode == PlatformTypesRef.MODE_ROTATE:
-		return PlatformTypesRef.MODE_ROTATE
-
-	return PlatformTypesRef.MODE_ELEVATOR
+	return str(PlatformTypesRef.normalize_platform_config(platform_data).get("platform_mode", PlatformTypesRef.MODE_ELEVATOR))
 
 
 static func _is_same_platform_mechanism_kind(a: Dictionary, b: Dictionary) -> bool:
@@ -746,6 +823,8 @@ static func _collect_mechanism_members(controller: Variant, mechanism: Dictionar
 static func _is_platform_member_data(data: Dictionary) -> bool:
 	if data.is_empty():
 		return false
+	if PlatformTypesRef.is_platform_data(data):
+		return true
 
 	var object_group: String = str(data.get("object_group", data.get("group", ""))).strip_edges().to_lower()
 	var object_type: String = str(data.get("object_type", data.get("type", ""))).strip_edges().to_lower()
@@ -759,7 +838,7 @@ static func _is_platform_member_data(data: Dictionary) -> bool:
 		return true
 	if object_type in ["lifting_platform", "rotating_platform"]:
 		return true
-	if archetype_id == "platform":
+	if archetype_id in ["platform", "lifting_platform", "rotating_platform"]:
 		return true
 	if not platform_mode.is_empty():
 		return true
