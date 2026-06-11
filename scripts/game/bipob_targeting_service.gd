@@ -12,6 +12,9 @@ static func _trace_runtime_action_target(payload: Dictionary) -> void:
 	print("[RuntimeActionTarget] %s" % JSON.stringify(payload))
 
 
+static func _debug_platform_target(message: String, payload: Dictionary = {}) -> void:
+	return
+
 static func get_facing_cell(controller: Variant) -> Vector2i:
 	return controller.grid_position + controller.get_direction_vector(controller.direction)
 
@@ -61,7 +64,7 @@ static func get_facing_item(controller: Variant) -> Dictionary:
 
 static func _get_platform_action_target_under_actor(controller: Variant) -> Dictionary:
 	if controller == null or controller.mission_manager == null:
-		
+		_debug_platform_target("ABORT_NO_CONTROLLER_OR_MANAGER")
 		return {}
 
 	var actor_cell: Vector2i = Vector2i(controller.grid_position)
@@ -70,20 +73,57 @@ static func _get_platform_action_target_under_actor(controller: Variant) -> Dict
 		var platform_variant: Variant = controller.mission_manager.call("get_platform_for_cell", actor_cell)
 		if platform_variant is Dictionary:
 			var platform_candidate: Dictionary = Dictionary(platform_variant)
+			_debug_platform_target("CHECK_GET_PLATFORM_FOR_CELL", {
+				"actor_cell": actor_cell,
+				"raw": platform_candidate
+			})
+
 			if _is_platform_action_target_candidate(platform_candidate):
-				return _normalize_platform_action_target(platform_candidate, actor_cell)
+				var normalized_platform: Dictionary = _normalize_platform_action_target(platform_candidate, actor_cell)
+				_debug_platform_target("FOUND_BY_GET_PLATFORM_FOR_CELL", {
+					"actor_cell": actor_cell,
+					"id": str(normalized_platform.get("id", "")),
+					"object_group": str(normalized_platform.get("object_group", "")),
+					"object_type": str(normalized_platform.get("object_type", "")),
+					"position": normalized_platform.get("position", null),
+					"platform_cells": normalized_platform.get("platform_cells", [])
+				})
+				return normalized_platform
 
 	if controller.mission_manager.has_method("get_world_object_at_cell"):
 		var world_object_variant: Variant = controller.mission_manager.call("get_world_object_at_cell", actor_cell)
 		if world_object_variant is Dictionary:
 			var world_object_candidate: Dictionary = Dictionary(world_object_variant)
+			_debug_platform_target("CHECK_WORLD_OBJECT_AT_ACTOR_CELL", {
+				"actor_cell": actor_cell,
+				"raw": world_object_candidate
+			})
+
 			if _is_platform_action_target_candidate(world_object_candidate):
-				return _normalize_platform_action_target(world_object_candidate, actor_cell)
+				var normalized_world_object: Dictionary = _normalize_platform_action_target(world_object_candidate, actor_cell)
+				_debug_platform_target("FOUND_BY_WORLD_OBJECT_AT_ACTOR_CELL", {
+					"actor_cell": actor_cell,
+					"id": str(normalized_world_object.get("id", "")),
+					"object_group": str(normalized_world_object.get("object_group", "")),
+					"object_type": str(normalized_world_object.get("object_type", "")),
+					"position": normalized_world_object.get("position", null),
+					"platform_cells": normalized_world_object.get("platform_cells", [])
+				})
+				return normalized_world_object
 
 	var scanned_platform: Dictionary = _find_platform_by_footprint_cell(controller, actor_cell)
 	if not scanned_platform.is_empty():
-		return _normalize_platform_action_target(scanned_platform, actor_cell)
+		_debug_platform_target("FOUND_BY_FOOTPRINT_SCAN", {
+			"actor_cell": actor_cell,
+			"id": str(scanned_platform.get("id", "")),
+			"object_group": str(scanned_platform.get("object_group", "")),
+			"object_type": str(scanned_platform.get("object_type", "")),
+			"position": scanned_platform.get("position", null),
+			"platform_cells": scanned_platform.get("platform_cells", [])
+		})
+		return scanned_platform
 
+	_debug_platform_target("NOT_FOUND", {"actor_cell": actor_cell})
 	return {}
 	
 
@@ -99,7 +139,8 @@ static func _find_platform_by_footprint_cell(controller: Variant, actor_cell: Ve
 				continue
 
 			var row: Dictionary = Dictionary(row_variant)
-			var object_id: String = str(row.get("id", "")).strip_edges()
+			var row_cell: Vector2i = _extract_row_cell(row)
+			var object_id: String = str(row.get("id", row.get("entity_id", ""))).strip_edges()
 			var candidate: Dictionary = row.duplicate(true)
 
 			if not object_id.is_empty() and controller.mission_manager.has_method("get_map_constructor_entity_by_id"):
@@ -108,20 +149,38 @@ static func _find_platform_by_footprint_cell(controller: Variant, actor_cell: Ve
 					candidate = Dictionary(entity.get("data", {}))
 					candidate["id"] = object_id
 
+					# Preserve actual placement from map row.
+					if row_cell.x >= 0 and row_cell.y >= 0:
+						candidate["position"] = row_cell
+						candidate["platform_cells"] = [row_cell]
+
+			if row_cell.x >= 0 and row_cell.y >= 0 and _is_platform_action_target_candidate(candidate):
+				var normalized_candidate: Dictionary = _normalize_platform_action_target(candidate, actor_cell, row_cell)
+				if _platform_contains_cell(normalized_candidate, actor_cell):
+					return normalized_candidate
+
 			if _is_platform_action_target_candidate(candidate) and _platform_contains_cell(candidate, actor_cell):
 				return _normalize_platform_action_target(candidate, actor_cell)
 
-	# Runtime world objects fallback.
-	# Do not use: `"mission_world_objects" in controller.mission_manager`
-	# because mission_manager is a Node, not a Dictionary.
-	if controller.mission_manager.get("mission_world_objects") != null:
-		for object_variant in Array(controller.mission_manager.get("mission_world_objects")):
+	var world_objects_variant: Variant = controller.mission_manager.get("mission_world_objects")
+	if world_objects_variant is Array:
+		for object_variant in Array(world_objects_variant):
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 
 			var object_data: Dictionary = Dictionary(object_variant)
-			if _is_platform_action_target_candidate(object_data) and _platform_contains_cell(object_data, actor_cell):
-				return _normalize_platform_action_target(object_data, actor_cell)
+			if not _is_platform_action_target_candidate(object_data):
+				continue
+
+			var placement_cell: Vector2i = _to_platform_cell(
+				object_data.get("position", object_data.get("cell", object_data.get("pos", Vector2i(-1, -1)))),
+				Vector2i(-1, -1)
+			)
+
+			var normalized_object: Dictionary = _normalize_platform_action_target(object_data, actor_cell, placement_cell)
+
+			if _platform_contains_cell(normalized_object, actor_cell):
+				return normalized_object
 
 	return {}
 	
@@ -143,7 +202,21 @@ static func _to_platform_cell(value: Variant, fallback: Vector2i = Vector2i(-1, 
 			return Vector2i(int(data.get("x", fallback.x)), int(data.get("y", fallback.y)))
 
 	return WorldObjectCatalogRef.to_world_cell(value, fallback)
-		
+
+static func _extract_row_cell(row: Dictionary) -> Vector2i:
+	for key in ["cell", "position", "grid_position", "world_cell", "target_position"]:
+		if row.has(key):
+			var cell: Vector2i = _to_platform_cell(row.get(key), Vector2i(-1, -1))
+			if cell.x >= 0 and cell.y >= 0:
+				return cell
+
+	var x_value: int = int(row.get("x", row.get("cell_x", -1)))
+	var y_value: int = int(row.get("y", row.get("cell_y", -1)))
+	if x_value >= 0 and y_value >= 0:
+		return Vector2i(x_value, y_value)
+
+	return Vector2i(-1, -1)
+				
 static func _platform_contains_cell(platform_data: Dictionary, actor_cell: Vector2i) -> bool:
 	if platform_data.is_empty():
 		return false
@@ -196,26 +269,45 @@ static func _is_platform_action_target_candidate(candidate: Dictionary) -> bool:
 		return true
 
 	return false
-static func _normalize_platform_action_target(candidate: Dictionary, actor_cell: Vector2i) -> Dictionary:
+	
+static func _normalize_platform_action_target(candidate: Dictionary, actor_cell: Vector2i, placement_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	if candidate.is_empty():
 		return {}
 
 	var normalized: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(candidate).duplicate(true)
 
 	# Runtime rule:
-	# any object accepted as a platform target must be exposed to the rest of
-	# interaction pipeline as object_group == "platform".
+	# platform must always enter interaction pipeline as a platform,
+	# regardless of legacy object_type/group fields.
 	normalized["object_group"] = "platform"
+	normalized["object_type"] = "platform"
+	normalized["archetype_id"] = "platform"
 
-	var object_type: String = str(normalized.get("object_type", normalized.get("type", ""))).strip_edges().to_lower()
-	if object_type.is_empty() or object_type == "floor":
-		normalized["object_type"] = "platform"
+	# The real installed cell has priority over stale authored platform_cells.
+	var resolved_cell: Vector2i = placement_cell
+	if resolved_cell.x < 0 or resolved_cell.y < 0:
+		resolved_cell = _to_platform_cell(
+			normalized.get("position", normalized.get("cell", normalized.get("pos", actor_cell))),
+			actor_cell
+		)
 
-	if not normalized.has("position"):
-		normalized["position"] = actor_cell
+	if resolved_cell.x < 0 or resolved_cell.y < 0:
+		resolved_cell = actor_cell
 
-	if not normalized.has("platform_cells") or Array(normalized.get("platform_cells", [])).is_empty():
-		normalized["platform_cells"] = [actor_cell]
+	normalized["position"] = resolved_cell
+
+	# For a normal one-cell platform, footprint is its installed cell.
+	# Old hardcoded platform_cells must not override placement.
+	var platform_cells: Array = []
+	for cell_variant in Array(normalized.get("platform_cells", [])):
+		var cell: Vector2i = _to_platform_cell(cell_variant, Vector2i(-1, -1))
+		if cell.x >= 0 and cell.y >= 0 and not platform_cells.has(cell):
+			platform_cells.append(cell)
+
+	if not platform_cells.has(resolved_cell):
+		platform_cells.insert(0, resolved_cell)
+
+	normalized["platform_cells"] = platform_cells
 
 	return normalized
 	
