@@ -32,7 +32,7 @@ static func build(ui, bridge = null) -> Control:
 
 	var grid := GridContainer.new()
 	grid.name = "RuntimeBaseControlRow"
-	grid.columns = 6
+	grid.columns = 7
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 4)
@@ -46,17 +46,19 @@ static func build(ui, bridge = null) -> Control:
 	ui.runtime_move_backward_button = ui._create_runtime_control_button("Back", Callable(callback_owner, "on_move_backward_pressed") if bridge != null else Callable(ui, "_on_move_backward_pressed"))
 	ui.runtime_move_backward_button.visible = false
 	grid.add_child(ui.runtime_move_backward_button)
-	ui.runtime_turn_left_button = ui._create_runtime_control_button("Turn Left", Callable(callback_owner, "on_turn_left_pressed") if bridge != null else Callable(ui, "_on_turn_left_pressed"))
+	ui.runtime_turn_left_button = ui._create_runtime_control_button("L", Callable(callback_owner, "on_turn_left_pressed") if bridge != null else Callable(ui, "_on_turn_left_pressed"))
 	grid.add_child(ui.runtime_turn_left_button)
-	ui.runtime_turn_right_button = ui._create_runtime_control_button("Turn Right", Callable(callback_owner, "on_turn_right_pressed") if bridge != null else Callable(ui, "_on_turn_right_pressed"))
+	ui.runtime_turn_right_button = ui._create_runtime_control_button("R", Callable(callback_owner, "on_turn_right_pressed") if bridge != null else Callable(ui, "_on_turn_right_pressed"))
 	grid.add_child(ui.runtime_turn_right_button)
-	ui.runtime_action_button = ui._create_runtime_control_button("Action", Callable(callback_owner, "on_action_pressed") if bridge != null else Callable(ui, "_on_interact_pressed"), "primary")
+	ui.runtime_action_button = ui._create_runtime_control_button("Act", Callable(callback_owner, "on_action_pressed") if bridge != null else Callable(ui, "_on_interact_pressed"), "primary")
 	grid.add_child(ui.runtime_action_button)
 	ui.runtime_connect_button = ui._create_runtime_control_button("Connect", Callable(callback_owner, "on_connect_pressed") if bridge != null else Callable(ui, "_on_connect_pressed"), "primary")
 	grid.add_child(ui.runtime_connect_button)
-	ui.runtime_heavy_claw_button = ui._create_runtime_control_button("Heavy Claw", Callable(callback_owner, "on_heavy_claw_pressed") if bridge != null else Callable(ui, "_on_heavy_claw_pressed"), "primary")
+	ui.runtime_heavy_claw_button = ui._create_runtime_control_button("Claw", Callable(callback_owner, "on_heavy_claw_pressed") if bridge != null else Callable(ui, "_on_heavy_claw_pressed"), "primary")
 	grid.add_child(ui.runtime_heavy_claw_button)
-	ui.runtime_end_turn_button = ui._create_runtime_control_button("End Turn", Callable(callback_owner, "on_end_turn_pressed") if bridge != null else Callable(ui, "_on_end_turn_pressed"), "reference")
+	ui.runtime_repair_button = ui._create_runtime_control_button("Repair", Callable(callback_owner, "on_repair_pressed") if bridge != null else Callable(ui, "_on_runtime_repair_pressed"), "primary")
+	grid.add_child(ui.runtime_repair_button)
+	ui.runtime_end_turn_button = ui._create_runtime_control_button("End", Callable(callback_owner, "on_end_turn_pressed") if bridge != null else Callable(ui, "_on_end_turn_pressed"), "reference")
 	grid.add_child(ui.runtime_end_turn_button)
 	refresh(ui)
 

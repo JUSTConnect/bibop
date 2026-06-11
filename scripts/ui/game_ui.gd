@@ -129,6 +129,7 @@ var runtime_turn_right_button: Button = null
 var runtime_action_button: Button = null
 var runtime_connect_button: Button = null
 var runtime_heavy_claw_button: Button = null
+var runtime_repair_button: Button = null
 var runtime_end_turn_button: Button = null
 var runtime_notification_label: Label = null
 var runtime_notification_panel: PanelContainer = null
@@ -12386,6 +12387,10 @@ func _on_connect_pressed() -> void:
 func _on_heavy_claw_pressed() -> void:
 	_ensure_runtime_action_panel_bridge()
 	runtime_action_panel_bridge.on_heavy_claw_pressed()
+
+func _on_runtime_repair_pressed() -> void:
+	_ensure_runtime_action_panel_bridge()
+	runtime_action_panel_bridge.on_repair_pressed()
 
 func _on_use_selected_world_action_pressed() -> void:
 	_ensure_runtime_action_panel_bridge()

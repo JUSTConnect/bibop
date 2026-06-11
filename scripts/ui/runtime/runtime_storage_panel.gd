@@ -89,19 +89,23 @@ static func refresh(ui) -> void:
 		_refresh_empty_state(ui)
 		return
 	var inventory_state: Dictionary = bipob.get_inventory_state() if bipob.has_method("get_inventory_state") else {}
-	var manipulator_items: Array = bipob.get_manipulator_items()
-	var held_world_item_id: String = _get_inventory_item_id(inventory_state.get("manipulator_hold", ""))
-	var available_manipulator_slots: int = bipob.get_available_manipulator_slots()
+	var channel_slots: Array = _get_runtime_manipulator_tool_channels(ui, bipob, inventory_state)
 	for index in range(ui.runtime_manipulator_slots.size()):
 		var manipulator_slot: Button = ui.runtime_manipulator_slots[index]
-		manipulator_slot.visible = index < available_manipulator_slots
-		if not manipulator_slot.visible:
+		var has_channel: bool = index < channel_slots.size()
+		manipulator_slot.visible = has_channel
+		var drop_button: Variant = manipulator_slot.get_meta("drop_button", null)
+		if drop_button != null and is_instance_valid(drop_button):
+			drop_button.visible = has_channel
+			drop_button.disabled = index != 0
+		if not has_channel:
 			manipulator_slot.text = ""
 			continue
-		var manipulator_item: Variant = manipulator_items[index] if index < manipulator_items.size() else null
-		manipulator_slot.text = _get_module_name(bipob, manipulator_item)
-		if index == 0 and not held_world_item_id.is_empty():
-			manipulator_slot.text = _get_runtime_inventory_item_name(inventory_state, held_world_item_id)
+		var channel: Dictionary = channel_slots[index]
+		var label: String = str(channel.get("label", ""))
+		var content: String = str(channel.get("content", "Empty"))
+		manipulator_slot.text = "%s\n%s" % [label, content]
+		manipulator_slot.tooltip_text = str(channel.get("tooltip", manipulator_slot.text))
 	_refresh_key_mini_hud(ui, bipob)
 
 	var pocket_items: Array = bipob.get_pocket_items()
@@ -130,6 +134,59 @@ static func refresh(ui) -> void:
 	for index in range(ui.runtime_digital_slots.size()):
 		var digital_item: Variant = digital_items[index] if index < digital_items.size() else null
 		ui.runtime_digital_slots[index].text = _get_record_name(digital_item, "Empty")
+
+
+static func _get_runtime_manipulator_tool_channels(ui, bipob, inventory_state: Dictionary) -> Array:
+	var channels: Array[Dictionary] = []
+	var held_world_item_id: String = _get_inventory_item_id(inventory_state.get("manipulator_hold", ""))
+	var hand_content: String = "Empty" if held_world_item_id.is_empty() else _short_label(_get_runtime_inventory_item_name(inventory_state, held_world_item_id))
+	channels.append({"label": "Hand", "content": hand_content, "tooltip": "Hand: %s" % hand_content})
+	if bipob.has_method("has_module_id") and bool(bipob.call("has_module_id", "manipulator_heavy_claw_v1")):
+		var claw_content: String = "Empty"
+		if bipob.has_method("get_heavy_claw_drag_context"):
+			var drag_context: Dictionary = Dictionary(bipob.call("get_heavy_claw_drag_context"))
+			if bool(drag_context.get("active", false)):
+				var object_data: Dictionary = Dictionary(drag_context.get("object", {}))
+				claw_content = _short_label(_get_world_object_short_name(object_data, str(drag_context.get("object_id", "Object"))))
+		channels.append({"label": "Claw", "content": claw_content, "tooltip": "Heavy Claw: %s" % claw_content})
+	var has_repair: bool = bipob.has_method("has_module_id") and bool(bipob.call("has_module_id", "repair_v1"))
+	var has_cutter: bool = bipob.has_method("has_module_id") and bool(bipob.call("has_module_id", "plasma_cutter_v1"))
+	if has_repair or has_cutter:
+		var tool_label: String = "Repair" if has_repair else "Cutter"
+		if has_repair and has_cutter:
+			tool_label = "Repair"
+		var tool_content: String = _get_tool_target_label(ui, bipob, has_repair, has_cutter)
+		channels.append({"label": tool_label, "content": tool_content, "tooltip": "%s: %s" % [tool_label, tool_content]})
+	return channels.slice(0, MANIPULATOR_VISIBLE_SLOTS)
+
+
+static func _get_tool_target_label(ui, bipob, has_repair: bool, has_cutter: bool) -> String:
+	if not bipob.has_method("get_facing_world_action_target"):
+		return "Empty"
+	var target_data: Dictionary = Dictionary(bipob.call("get_facing_world_action_target"))
+	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
+	if target_object.is_empty():
+		return "Empty"
+	var action_ids: Array = Array(target_data.get("available_action_ids", []))
+	var target_available: bool = (has_repair and action_ids.has("repair")) or (has_cutter and action_ids.has("cut"))
+	if not target_available:
+		return "Empty"
+	return _short_label(_get_world_object_short_name(target_object, "Target"))
+
+
+static func _get_world_object_short_name(object_data: Dictionary, fallback: String) -> String:
+	var display_name: String = str(object_data.get("display_name", object_data.get("name", ""))).strip_edges()
+	if not display_name.is_empty():
+		return display_name
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", object_data.get("id", fallback)))).strip_edges()
+	return fallback if object_type.is_empty() else object_type.replace("_", " ").capitalize()
+
+
+static func _short_label(value: String) -> String:
+	var text: String = value.strip_edges()
+	if text.length() <= 10:
+		return text
+	return text.substr(0, 10)
 
 
 static func _refresh_key_mini_hud(ui, bipob) -> void:
@@ -344,6 +401,9 @@ static func _build_flyout(ui, hud_root: Control, margin: float, node_name: Strin
 
 static func _on_manipulator_preview_pressed(ui, manipulator_index: int) -> void:
 	if not _has_valid_bipob(ui):
+		return
+	if manipulator_index != 0:
+		_show_hint(ui, "Tool slots do not store hand items.")
 		return
 	ui.selected_manipulator_slot = manipulator_index
 	if not _is_pocket_flyout_open_for(ui, manipulator_index):
@@ -581,6 +641,9 @@ static func _is_storage_flyout_open(ui) -> bool:
 
 
 static func _on_drop_pressed(ui, manipulator_index: int) -> void:
+	if manipulator_index != 0:
+		_show_hint(ui, "Only the hand slot can drop items.")
+		return
 	ui.selected_manipulator_slot = manipulator_index
 	handle_drop_item(ui)
 	refresh(ui)

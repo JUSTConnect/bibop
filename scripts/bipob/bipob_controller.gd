@@ -4703,6 +4703,8 @@ func ensure_task_test_default_modules() -> void:
 	_install_module_if_missing(create_external_module_by_id("wired_connector_v1"))
 	_install_module_if_missing(create_external_module_by_id("manipulator_v1"))
 	_install_module_if_missing(create_external_module_by_id("manipulator_heavy_claw_v1"))
+	_install_module_if_missing(create_external_module_by_id("repair_v1"))
+	_install_module_if_missing(create_external_module_by_id("plasma_cutter_v1"))
 
 func create_default_modules() -> void:
 	installed_modules.clear()
@@ -8202,6 +8204,10 @@ func interact() -> void:
 		_:
 			print("Nothing to interact with at: ", target_position)
 			hint_requested.emit("Nothing to interact with. Face a key, door, or terminal and press E.")
+
+func try_direct_repair_facing_object() -> bool:
+	return BipobActionControllerRef.try_direct_repair_facing_object(self)
+
 
 func _apply_world_object_effects(effects: Array, world_object: Dictionary, target_position: Vector2i, actor: Dictionary = {}) -> bool:
 	var object_moved := false

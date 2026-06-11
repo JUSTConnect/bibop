@@ -176,7 +176,12 @@ static func has_required_digital_key(controller: Variant, world_object: Dictiona
 
 
 static func get_available_manipulator_slots(controller: Variant) -> int:
-	return clampi(controller.available_manipulator_slots, 0, get_max_manipulator_slots(controller))
+	var runtime_slot_count: int = 1
+	if controller.has_method("has_module_id") and bool(controller.call("has_module_id", "manipulator_heavy_claw_v1")):
+		runtime_slot_count += 1
+	if controller.has_method("has_module_id") and (bool(controller.call("has_module_id", "repair_v1")) or bool(controller.call("has_module_id", "plasma_cutter_v1"))):
+		runtime_slot_count += 1
+	return clampi(runtime_slot_count, 0, get_max_manipulator_slots(controller))
 
 
 static func get_max_manipulator_slots(controller: Variant) -> int:
@@ -189,9 +194,14 @@ static func get_runtime_manipulator_items(controller: Variant) -> Array:
 		var runtime_items_variant: Variant = controller.mission_manager.call("get_manipulator_items")
 		if typeof(runtime_items_variant) == TYPE_ARRAY:
 			runtime_items = runtime_items_variant
+	var available_slots: int = get_available_manipulator_slots(controller)
 	if runtime_items.is_empty():
-		for slot_index in range(get_available_manipulator_slots(controller)):
+		for slot_index in range(available_slots):
 			runtime_items.append(controller.manipulator_items[slot_index])
+	while runtime_items.size() < available_slots:
+		runtime_items.append(null)
+	if runtime_items.size() > available_slots:
+		runtime_items = runtime_items.slice(0, available_slots)
 	return runtime_items
 
 
