@@ -41,6 +41,11 @@ static func _actor_held_item_matches(actor: Dictionary, expected_type: String) -
 			return true
 		if held_type.contains("fuse"):
 			return true
+	if normalized_expected in ["cable_reel", "power_cable_reel"]:
+		if held_id.contains("cable_reel"):
+			return true
+		if held_type.contains("cable_reel"):
+			return true
 
 	for field_name in ["item_type", "object_type", "item_class", "id", "item_id", "display_name"]:
 		var value: String = str(held_data.get(field_name, "")).strip_edges().to_lower()
@@ -53,10 +58,15 @@ static func _actor_held_item_matches(actor: Dictionary, expected_type: String) -
 		if normalized_expected == "fuse" and value.contains("fuse"):
 			return true
 
+		if normalized_expected in ["cable_reel", "power_cable_reel"] and value.contains("cable_reel"):
+			return true
+
 	return false
 
 static func _actor_has_visible_cable_item(actor: Dictionary) -> bool:
-	return _actor_held_item_matches(actor, "cable_end") or _actor_held_item_matches(actor, "wire_end")
+	if _actor_held_item_matches(actor, "cable_end") or _actor_held_item_matches(actor, "wire_end"):
+		return true
+	return _actor_held_item_matches(actor, "cable_reel") or _actor_held_item_matches(actor, "power_cable_reel")
 
 
 static func _actor_has_free_storage_slot(actor: Dictionary) -> bool:
