@@ -6168,8 +6168,22 @@ func is_cell_walkable_for_bipob(cell: Vector2i) -> bool:
 	if grid_manager == null or not grid_manager.is_in_bounds(cell):
 		return false
 
+	# Runtime gameplay movement must select the top surface of the XY column.
+	# If ground/platform is in this cell, resolver decides whether its top is selectable
+	# for the current Bipob surface level.
+	if has_method("resolve_runtime_surface_cell_for_movement"):
+		var surface_result: Dictionary = Dictionary(call("resolve_runtime_surface_cell_for_movement", cell))
+		if bool(surface_result.get("ok", false)):
+			return true
+
+		var surface_reason: String = str(surface_result.get("reason", "")).strip_edges()
+		if surface_reason in ["height_mismatch", "not_passable", "out_of_bounds"]:
+			return false
+
 	if mission_manager != null and mission_manager.has_method("is_runtime_cell_passable"):
-		return _is_runtime_cell_passable(cell)
+		var runtime_passable: bool = _is_runtime_cell_passable(cell)
+		if not runtime_passable:
+			return false
 
 	if grid_manager.is_walkable(cell):
 		var object_data: Dictionary = _get_world_object_at_cell(cell)
@@ -6308,42 +6322,71 @@ func get_selected_cell_info_text(cell: Vector2i) -> String:
 func is_mouse_route_target_cell(cell: Vector2i) -> bool:
 	if is_heavy_claw_drag_active():
 		return false
+
 	if grid_manager == null or not grid_manager.is_in_bounds(cell) or is_cell_under_fog(cell):
 		return false
-	if not is_cell_walkable_for_bipob(cell):
-		return false
-	return true
 
+	return _is_mouse_route_surface_step_allowed(cell)
+	
+func _is_mouse_route_surface_step_allowed(cell: Vector2i) -> bool:
+	if grid_manager == null or not grid_manager.is_in_bounds(cell):
+		return false
+
+	if is_cell_under_fog(cell):
+		return false
+
+	if has_method("resolve_runtime_surface_cell_for_movement"):
+		var surface_result: Dictionary = Dictionary(call("resolve_runtime_surface_cell_for_movement", cell))
+		return bool(surface_result.get("ok", false))
+
+	return is_cell_walkable_for_bipob(cell)
+		
 func build_mouse_route_to_cell(target_cell: Vector2i) -> Array[Vector2i]:
 	var route: Array[Vector2i] = []
+
 	if is_heavy_claw_drag_active():
 		return route
+
 	if grid_manager == null or not grid_manager.is_in_bounds(target_cell):
 		return route
+
+	if not _is_mouse_route_surface_step_allowed(target_cell):
+		return route
+
 	var start_cell: Vector2i = grid_position
 	if start_cell == target_cell:
 		return route
+
 	var queue: Array[Vector2i] = [start_cell]
 	var came_from: Dictionary = {start_cell: start_cell}
 	var offsets: Array[Vector2i] = [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
+
 	while not queue.is_empty():
 		var current: Vector2i = queue.pop_front()
+
 		if current == target_cell:
 			break
+
 		for delta in offsets:
-			var nxt: Vector2i = current + delta
-			if came_from.has(nxt):
+			var next_cell: Vector2i = current + delta
+
+			if came_from.has(next_cell):
 				continue
-			if not grid_manager.is_in_bounds(nxt) or is_cell_under_fog(nxt) or not is_cell_walkable_for_bipob(nxt):
+
+			if not _is_mouse_route_surface_step_allowed(next_cell):
 				continue
-			came_from[nxt] = current
-			queue.append(nxt)
+
+			came_from[next_cell] = current
+			queue.append(next_cell)
+
 	if not came_from.has(target_cell):
 		return []
+
 	var cursor: Vector2i = target_cell
 	while cursor != start_cell:
 		route.push_front(cursor)
 		cursor = came_from[cursor]
+
 	return route
 
 func set_selected_route(target_cell: Vector2i, route_cells: Array) -> void:
@@ -6418,12 +6461,14 @@ func start_selected_mouse_route_execution() -> void:
 func execute_next_mouse_route_step() -> void:
 	if not mouse_route_execution_in_progress:
 		return
+
 	if pending_mouse_route_cells.is_empty():
 		mouse_route_execution_in_progress = false
 		clear_selected_route()
 		refresh_world_action_panel()
 		status_changed.emit()
 		return
+
 	if actions_left <= 0:
 		mouse_route_execution_in_progress = false
 		hint_requested.emit("Movement stopped: no actions remaining.")
@@ -6435,16 +6480,20 @@ func execute_next_mouse_route_step() -> void:
 		return
 
 	var next_cell: Vector2i = pending_mouse_route_cells[0]
-	if not grid_manager.is_in_bounds(next_cell) or is_cell_under_fog(next_cell) or not is_cell_walkable_for_bipob(next_cell):
+
+	if not _is_mouse_route_surface_step_allowed(next_cell):
 		mouse_route_execution_in_progress = false
+
 		var runtime_block_reason: String = _get_runtime_cell_block_reason(next_cell)
 		if runtime_block_reason.is_empty():
-			hint_requested.emit("Movement stopped: route is blocked.")
+			hint_requested.emit("Movement stopped: target surface is not selectable.")
 		else:
 			hint_requested.emit("Movement stopped: %s." % runtime_block_reason)
+
 		selected_route_cells.clear()
 		for route_cell in pending_mouse_route_cells:
 			selected_route_cells.append(route_cell)
+
 		refresh_world_action_panel()
 		status_changed.emit()
 		return
@@ -6458,24 +6507,30 @@ func execute_next_mouse_route_step() -> void:
 		direction = Direction.SOUTH
 	elif delta == Vector2i.LEFT:
 		direction = Direction.WEST
+
 	update_visual_facing()
 
 	if not try_move_to(next_cell):
 		mouse_route_execution_in_progress = false
 		hint_requested.emit("Movement stopped: unable to move to next cell.")
+
 		selected_route_cells.clear()
 		for route_cell in pending_mouse_route_cells:
 			selected_route_cells.append(route_cell)
+
 		refresh_world_action_panel()
 		status_changed.emit()
 		return
 
 	spend_action(1, 0)
 	register_successful_movement_cells(1, get_surface_id_for_position(next_cell), next_cell)
+
 	pending_mouse_route_cells.remove_at(0)
+
 	selected_route_cells.clear()
 	for route_cell in pending_mouse_route_cells:
 		selected_route_cells.append(route_cell)
+
 	update_vision()
 	update_threat_detection_preview()
 	refresh_world_action_panel()
@@ -6652,7 +6707,28 @@ func get_surface_visual_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
 	var base_position: Vector2 = get_visual_world_position_for_grid_cell(cell)
 	var surface_level: int = get_cell_surface_height_level(cell)
 	return base_position + get_surface_visual_offset_for_height_level(surface_level)
-		
+func resolve_runtime_surface_cell_for_movement(cell: Vector2i) -> Dictionary:
+	var actor_level: int = get_platform_height_level()
+
+	if mission_manager != null and mission_manager.has_method("resolve_runtime_surface_cell"):
+		return Dictionary(mission_manager.call("resolve_runtime_surface_cell", cell, actor_level))
+
+	var target_level: int = get_cell_surface_height_level(cell)
+	if target_level != actor_level:
+		return {
+			"ok": false,
+			"cell": cell,
+			"surface_level": target_level,
+			"reason": "height_mismatch"
+		}
+
+	return {
+		"ok": true,
+		"cell": cell,
+		"surface_level": target_level,
+		"reason": ""
+	}
+			
 func get_platform_height_level() -> int:
 	return platform_height_level
 
