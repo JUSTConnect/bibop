@@ -12,7 +12,7 @@ static func _trace_runtime_action_target(payload: Dictionary) -> void:
 	print("[RuntimeActionTarget] %s" % JSON.stringify(payload))
 
 
-static func _debug_platform_target(message: String, payload: Dictionary = {}) -> void:
+static func _debug_platform_target(_message: String, _payload: Dictionary = {}) -> void:
 	return
 
 static func get_facing_cell(controller: Variant) -> Vector2i:
