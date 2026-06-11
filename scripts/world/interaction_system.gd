@@ -14,6 +14,13 @@ static func normalize_action_id(action_type: String) -> String:
 		_:
 			return action_type.strip_edges().to_lower()
 
+static func _is_cable_object(target_object: Dictionary) -> bool:
+	for field_name in ["object_type", "type", "archetype_id", "map_constructor_prefab_id", "prefab_id", "item_type"]:
+		var id_value: String = str(target_object.get(field_name, "")).strip_edges().to_lower()
+		if id_value in ["power_cable", "cable", "cable_reel", "power_cable_reel"]:
+			return true
+	return false
+
 static func _actor_held_item_matches(actor: Dictionary, expected_type: String) -> bool:
 	var normalized_expected: String = expected_type.strip_edges().to_lower()
 	if normalized_expected.is_empty():
@@ -247,6 +254,17 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			current_entry += digit
 			return _result(true, "Digit entered.", [{"type":"set_field","field":"access_code_entry","value":current_entry}])
 		"cut":
+			if _is_cable_object(target_object):
+				target_object["state"] = "broken"
+				target_object["cable_health_state"] = "broken"
+				target_object["health_state"] = "broken"
+				target_object["broken"] = true
+				target_object["is_broken"] = true
+				target_object["damaged"] = true
+				target_object["cut"] = false
+				target_object["connected"] = false
+				target_object["disconnected"] = true
+				return _result(true, "Cable broken.", [{"type":"set_state","state":"broken"},{"type":"set_string","field":"cable_health_state","value":"broken"},{"type":"set_string","field":"health_state","value":"broken"},{"type":"set_bool","field":"broken","value":true},{"type":"set_bool","field":"is_broken","value":true},{"type":"set_bool","field":"damaged","value":true},{"type":"set_bool","field":"cut","value":false},{"type":"set_bool","field":"connected","value":false},{"type":"set_bool","field":"disconnected","value":true},{"type":"power_recalc_needed"}])
 			return _result(true, "Cut applied.", [{"type":"set_state","state":"cut"},{"type":"set_bool","field":"blocks_movement","value":false}])
 		"impact":
 			return _result(true, "Impact applied.", [{"type":"set_state","state":"damaged"}])
@@ -274,6 +292,15 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			target_object["fuse_present"] = false
 			return _result(true, "Fuse removed.", [{"type":"set_state","state":"empty"},{"type":"set_bool","field":"fuse_installed","value":false},{"type":"set_bool","field":"fuse_present","value":false},{"type":"grant_item","item_type":"fuse"},{"type":"power_recalc_needed"}])
 		"repair":
+			if _is_cable_object(target_object):
+				target_object["state"] = "normal"
+				target_object["cable_health_state"] = "normal"
+				target_object["health_state"] = "normal"
+				target_object["broken"] = false
+				target_object["is_broken"] = false
+				target_object["damaged"] = false
+				target_object["cut"] = false
+				return _result(true, "Cable repaired.", [{"type":"set_state","state":"normal"},{"type":"set_string","field":"cable_health_state","value":"normal"},{"type":"set_string","field":"health_state","value":"normal"},{"type":"set_bool","field":"broken","value":false},{"type":"set_bool","field":"is_broken","value":false},{"type":"set_bool","field":"damaged","value":false},{"type":"set_bool","field":"cut","value":false},{"type":"power_recalc_needed"}])
 			return _result(true, "Repaired.", [{"type":"set_state","state":"active"},{"type":"set_bool","field":"damaged","value":false}])
 		"switch":
 			var next_on: bool = not bool(target_object.get("is_on", false))

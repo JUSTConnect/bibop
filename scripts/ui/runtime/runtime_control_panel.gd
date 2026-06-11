@@ -32,7 +32,7 @@ static func build(ui, bridge = null) -> Control:
 
 	var grid := GridContainer.new()
 	grid.name = "RuntimeBaseControlRow"
-	grid.columns = 7
+	grid.columns = 8
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 8)
 	grid.add_theme_constant_override("v_separation", 4)
