@@ -58,6 +58,13 @@ const FLOOR_COVERINGS: Array[String] = ["default", "dirt", "water", "debris", "o
 const FLOOR_VISUAL_STYLES: Array[String] = ["default", "permission"]
 const FLOOR_STATES: Array[String] = ["normal", "damaged"]
 
+const SWITCHER_TYPE_LIGHT := "light_switcher"
+const SWITCHER_TYPE_POWER_BREAKER := "power_breaker"
+const SWITCHER_TYPE_POWER_SWITCHER := "power_switcher"
+const SWITCHER_TYPES: Array[String] = [SWITCHER_TYPE_LIGHT, SWITCHER_TYPE_POWER_BREAKER, SWITCHER_TYPE_POWER_SWITCHER]
+const SWITCHER_LINE_DIRECTIONS: Array[String] = ["", "NORTH", "EAST", "SOUTH", "WEST"]
+const SWITCHER_LINE_COLORS: Array[String] = ["red", "blue", "green", "yellow", "orange", "purple", "white"]
+
 const PREFAB_ALIASES: Dictionary = {
 	"fuse_box_installed": "fuse_box",
 	"fuse_box_empty": "fuse_box",
@@ -87,6 +94,9 @@ const PREFAB_ALIASES: Dictionary = {
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
 
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
+	"light_switch": {"switcher_type":"light_switcher"},
+	"circuit_breaker": {"switcher_type":"power_breaker", "is_on":true, "switch_state":"on", "state":"switch_on"},
+	"power_switch": {"switcher_type":"power_breaker"},
 	"fire_barrel": {"variant":"fire"},
 	"explosive_barrel": {"variant":"fire"},
 	"heavy_crate": {"movable":true, "heavy_claw_movable":true, "weight_class":"heavy", "required_bipob_power_class":"engineer"},
@@ -321,11 +331,27 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"power_switcher": {
 		"archetype_id":"power_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Power Switcher", "facing_side":"SW",
-		"placement_mode":"object", "display_name_template":"Power Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
+		"placement_mode":"object", "display_name_template":"Power Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"power_breaker", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[], "switcher_lines":[], "active_line_id":"",
 		"property_schema":[
 			FACING_SIDE_SCHEMA,
 			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
-			{"field":"switch_state", "type":"enum", "values":["off", "on"], "default":"off", "labels":{"off":"Off", "on":"On"}}
+			{"field":"switcher_type", "type":"enum", "values":["light_switcher", "power_breaker", "power_switcher"], "default":"power_breaker", "labels":{"light_switcher":"Light switcher", "power_breaker":"Power breaker", "power_switcher":"Power switcher"}},
+			{"field":"switch_state", "type":"enum", "values":["off", "on"], "default":"off", "labels":{"off":"Off", "on":"On"}},
+			{"field":"light_group_id", "type":"string", "default":""},
+			{"field":"target_light_ids", "type":"object_ref_array", "target_group":"lighting", "default":[]},
+			{"field":"active_line_id", "type":"string", "default":""},
+			{"field":"line_1_label", "type":"string", "default":"Line A"},
+			{"field":"line_1_direction", "type":"enum", "values":["", "NORTH", "EAST", "SOUTH", "WEST"], "default":""},
+			{"field":"line_1_color_id", "type":"enum", "values":["red", "blue", "green", "yellow", "orange", "purple", "white"], "default":"red"},
+			{"field":"line_1_circuit_id", "type":"string", "default":""},
+			{"field":"line_2_label", "type":"string", "default":"Line B"},
+			{"field":"line_2_direction", "type":"enum", "values":["", "NORTH", "EAST", "SOUTH", "WEST"], "default":""},
+			{"field":"line_2_color_id", "type":"enum", "values":["red", "blue", "green", "yellow", "orange", "purple", "white"], "default":"blue"},
+			{"field":"line_2_circuit_id", "type":"string", "default":""},
+			{"field":"line_3_label", "type":"string", "default":"Line C"},
+			{"field":"line_3_direction", "type":"enum", "values":["", "NORTH", "EAST", "SOUTH", "WEST"], "default":""},
+			{"field":"line_3_color_id", "type":"enum", "values":["red", "blue", "green", "yellow", "orange", "purple", "white"], "default":"green"},
+			{"field":"line_3_circuit_id", "type":"string", "default":""}
 		]
 	},
 	"fuse_box": {
@@ -366,7 +392,11 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"light": {
 		"archetype_id":"light", "object_group":"power", "object_type":"light", "palette_label":"Light",
-		"placement_mode":"wall_mounted", "display_name_template":"Light", "configurable":false, "state":"active", "is_powered":false, "blocks_movement":false, "property_schema":[]
+		"placement_mode":"wall_mounted", "display_name_template":"Light", "configurable":true, "state":"active", "is_powered":false, "is_on":true, "light_enabled":true, "light_group_id":"", "blocks_movement":false,
+		"property_schema":[
+			{"field":"light_group_id", "type":"string", "default":""},
+			{"field":"light_enabled", "type":"bool", "default":true}
+		]
 	},
 	"power_cable_reel": {
 		"archetype_id":"power_cable_reel", "object_group":"power", "object_type":"power_cable_reel", "palette_label":"Cable Reel",
@@ -928,6 +958,70 @@ static func normalize_cable_install_mode(value: Variant) -> String:
 			return "hidden"
 	return "floor"
 
+static func normalize_switcher_type(object_data: Dictionary) -> String:
+	var explicit_type: String = _normalized_contract_token(object_data.get("switcher_type", object_data.get("power_switcher_type", "")))
+	if explicit_type in SWITCHER_TYPES:
+		return explicit_type
+	if object_data.has("switcher_lines") and object_data.get("switcher_lines", []) is Array and not Array(object_data.get("switcher_lines", [])).is_empty():
+		return SWITCHER_TYPE_POWER_SWITCHER
+	for light_field in ["light_group_id", "target_light_id", "linked_light_id", "target_light_ids", "linked_light_ids", "light_targets"]:
+		if object_data.has(light_field):
+			var value: Variant = object_data.get(light_field)
+			if value is Array and not Array(value).is_empty():
+				return SWITCHER_TYPE_LIGHT
+			if not (value is Array) and not str(value).strip_edges().is_empty():
+				return SWITCHER_TYPE_LIGHT
+	return SWITCHER_TYPE_POWER_BREAKER
+
+static func normalize_switcher_lines(object_data: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var suffixes: Array[String] = ["a", "b", "c"]
+	var labels: Array[String] = ["A", "B", "C"]
+	var raw_lines: Variant = object_data.get("switcher_lines", [])
+	if raw_lines is Array:
+		for raw_line in Array(raw_lines):
+			if result.size() >= 3:
+				break
+			if not (raw_line is Dictionary):
+				continue
+			var line: Dictionary = Dictionary(raw_line).duplicate(true)
+			var line_id: String = str(line.get("line_id", "")).strip_edges()
+			if line_id.is_empty():
+				line_id = "line_%s" % suffixes[result.size()]
+			var label: String = str(line.get("label", "")).strip_edges()
+			if label.is_empty():
+				label = "Line %s" % labels[result.size()]
+			var direction: String = str(line.get("direction", line.get("branch_side", ""))).strip_edges().to_upper()
+			if direction not in SWITCHER_LINE_DIRECTIONS:
+				direction = ""
+			var color_id: String = _normalized_contract_token(line.get("color_id", line.get("line_color_id", "")))
+			if color_id.is_empty():
+				color_id = SWITCHER_LINE_COLORS[result.size() % SWITCHER_LINE_COLORS.size()]
+			result.append({"line_id":line_id, "label":label, "direction":direction, "color_id":color_id, "circuit_id":str(line.get("circuit_id", line.get("power_network_id", ""))).strip_edges()})
+	for index in range(1, 4):
+		if result.size() >= 3:
+			break
+		var circuit_id: String = str(object_data.get("line_%d_circuit_id" % index, "")).strip_edges()
+		var direction: String = str(object_data.get("line_%d_direction" % index, "")).strip_edges().to_upper()
+		var has_flat_line: bool = not circuit_id.is_empty() or (direction in SWITCHER_LINE_DIRECTIONS and not direction.is_empty())
+		if not has_flat_line:
+			continue
+		var line_id: String = str(object_data.get("line_%d_id" % index, "line_%s" % suffixes[index - 1])).strip_edges()
+		if line_id.is_empty():
+			line_id = "line_%s" % suffixes[index - 1]
+		var duplicate: bool = false
+		for existing in result:
+			if str(existing.get("line_id", "")) == line_id:
+				duplicate = true
+		if duplicate:
+			continue
+		if direction not in SWITCHER_LINE_DIRECTIONS:
+			direction = ""
+		var label: String = str(object_data.get("line_%d_label" % index, "Line %s" % labels[index - 1])).strip_edges()
+		var color_id: String = _normalized_contract_token(object_data.get("line_%d_color_id" % index, SWITCHER_LINE_COLORS[(index - 1) % SWITCHER_LINE_COLORS.size()]))
+		result.append({"line_id":line_id, "label":label, "direction":direction, "color_id":color_id, "circuit_id":circuit_id})
+	return result
+
 static func normalize_cable_health_state(value: Variant) -> String:
 	var health_state: String = _normalized_contract_token(value)
 	match health_state:
@@ -1467,6 +1561,25 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 			data["supports_embedded_objects"] = false
 			data["supports_cables"] = false
 	if archetype_id == "power_switcher":
+		if not object_data.has("switcher_type") and str(data.get("switcher_type", "")) == SWITCHER_TYPE_POWER_BREAKER:
+			data.erase("switcher_type")
+		data["switcher_type"] = normalize_switcher_type(data)
+		data["switcher_lines"] = normalize_switcher_lines(data)
+		if data["switcher_type"] == SWITCHER_TYPE_POWER_SWITCHER and not Array(data.get("switcher_lines", [])).is_empty():
+			var active_line_id: String = str(data.get("active_line_id", "")).strip_edges()
+			var active_found: bool = false
+			var active_color_id: String = ""
+			for line_variant in Array(data.get("switcher_lines", [])):
+				var line: Dictionary = Dictionary(line_variant)
+				if str(line.get("line_id", "")) == active_line_id:
+					active_found = true
+					active_color_id = str(line.get("color_id", ""))
+			if active_line_id.is_empty() or not active_found:
+				var first_line: Dictionary = Dictionary(Array(data.get("switcher_lines", []))[0])
+				data["active_line_id"] = str(first_line.get("line_id", ""))
+				active_color_id = str(first_line.get("color_id", ""))
+			if not active_color_id.is_empty():
+				data["line_color_id"] = active_color_id
 		data["mount"] = _normalized_contract_token(data.get("mount", data.get("install_mode", "floor")))
 		if data["mount"] == "wall_mounted":
 			data["mount"] = "wall"

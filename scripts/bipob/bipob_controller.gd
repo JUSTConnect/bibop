@@ -7158,14 +7158,27 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"disconnect_power_wire": return "Disconnect Power Wire"
 		"disconnect_wire_1": return "Disconnect Wire 1"
 		"disconnect_wire_2": return "Disconnect Wire 2"
-		"circuit_1": return "Circuit 1"
-		"circuit_2": return "Circuit 2"
-		"circuit_3": return "Circuit 3"
+		"circuit_1", "circuit_2", "circuit_3":
+			var circuit_index_for_label: int = int(action_id.trim_prefix("circuit_"))
+			if str(object_data.get("object_type", "")) == "power_switcher" and WorldObjectCatalog.normalize_switcher_type(object_data) == WorldObjectCatalog.SWITCHER_TYPE_POWER_SWITCHER:
+				var line_index: int = circuit_index_for_label - 1
+				var switcher_lines: Array[Dictionary] = WorldObjectCatalog.normalize_switcher_lines(object_data)
+				if line_index >= 0 and line_index < switcher_lines.size():
+					return str(switcher_lines[line_index].get("label", "Line %s" % ["A", "B", "C"][line_index]))
+				return "Line %d" % circuit_index_for_label
+			return "Circuit %d" % circuit_index_for_label
 		"access_code_0", "access_code_1", "access_code_2", "access_code_3", "access_code_4", "access_code_5", "access_code_6", "access_code_7", "access_code_8", "access_code_9": return action_id.trim_prefix("access_code_")
 		"repair": return "Repair"
 		"push": return "Attach Heavy Claw" if WorldObjectCatalog.can_world_object_be_moved_by_heavy_claw(object_data) else "Push"
 		"pull": return "Pull"
-		"switch": return "Switch"
+		"switch":
+			if str(object_data.get("object_type", "")) == "power_switcher":
+				var switcher_type: String = WorldObjectCatalog.normalize_switcher_type(object_data)
+				if switcher_type == WorldObjectCatalog.SWITCHER_TYPE_LIGHT:
+					return "Toggle light"
+				if switcher_type == WorldObjectCatalog.SWITCHER_TYPE_POWER_BREAKER:
+					return "Open breaker" if bool(object_data.get("is_on", false)) else "Close breaker"
+			return "Switch"
 		"disable": return "Disable"
 		"enable": return "Enable"
 		"attack": return "Attack"
@@ -7990,6 +8003,16 @@ func _is_platform_external_power_available(platform_object: Dictionary) -> bool:
 	var power_state: String = str(platform_object.get("power_state", "")).strip_edges().to_lower()
 	return power_state in ["powered", "active", "on", "ok"]
 
+func _power_switcher_has_light_binding(world_object: Dictionary) -> bool:
+	for field_name in ["light_group_id", "target_light_id", "linked_light_id"]:
+		if not str(world_object.get(field_name, "")).strip_edges().is_empty():
+			return true
+	for field_name in ["target_light_ids", "linked_light_ids", "light_targets"]:
+		var raw_value: Variant = world_object.get(field_name, [])
+		if raw_value is Array and not Array(raw_value).is_empty():
+			return true
+	return false
+
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var normalized_world_object: Dictionary = WorldObjectCatalog.normalize_world_object_contract(world_object)
@@ -8109,7 +8132,16 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		if bool(world_object.get("switchable", world_object.get("can_toggle", true))):
 			actions.append("switch")
 	elif str(world_object.get("object_type", "")) in ["circuit_breaker", "power_breaker", "power_knife_switch", "light_switch", "power_switcher"]:
-		actions.append("switch")
+		var switcher_type: String = WorldObjectCatalog.normalize_switcher_type(world_object) if str(world_object.get("object_type", "")) == "power_switcher" else "power_breaker"
+		if switcher_type == WorldObjectCatalog.SWITCHER_TYPE_POWER_SWITCHER:
+			var switcher_lines: Array[Dictionary] = WorldObjectCatalog.normalize_switcher_lines(world_object)
+			for line_index in range(switcher_lines.size()):
+				actions.append("circuit_%d" % (line_index + 1))
+		elif switcher_type == WorldObjectCatalog.SWITCHER_TYPE_LIGHT:
+			if _power_switcher_has_light_binding(world_object):
+				actions.append("switch")
+		else:
+			actions.append("switch")
 	elif str(world_object.get("object_type", "")).begins_with("fuse_box"):
 		if bool(world_object.get("fuse_installed", state == "installed")):
 			actions.append("remove_fuse")

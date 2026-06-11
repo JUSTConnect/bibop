@@ -5040,7 +5040,7 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int","power_source_class":"int","source_class":"int","outlet_capacity":"int","active_output_index":"int",
 		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
-		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string","mount":"string","switch_state":"string","fuse_present":"bool","variant":"string",
+		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string","mount":"string","switch_state":"string","switcher_type":"string","light_group_id":"string","light_enabled":"bool","target_light_ids":"array_string","linked_light_ids":"array_string","active_line_id":"string","switcher_lines":"array_dictionary","line_1_label":"string","line_1_direction":"string","line_1_color_id":"string","line_1_circuit_id":"string","line_2_label":"string","line_2_direction":"string","line_2_color_id":"string","line_2_circuit_id":"string","line_3_label":"string","line_3_direction":"string","line_3_color_id":"string","line_3_circuit_id":"string","fuse_present":"bool","variant":"string",
 		"platform_mode":"string","platform_level":"int","max_level":"int","mechanism_id":"string","mechanism_role":"string","activation_mode":"string","activation_delay_turns":"int","control_cell_x":"int","control_cell_y":"int"
 	}
 
@@ -6513,7 +6513,25 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		if not data.has("cable_length"):
 			data["cable_length"] = 0
 	if object_type_normalized in ["circuit_breaker", "circuit_switch", "light_switch", "power_switcher"]:
-		var switch_default_state: String = "switch_on" if object_type_normalized == "circuit_breaker" else "switch_off"
+		if object_type_normalized == "power_switcher":
+			data["switcher_type"] = WorldObjectCatalogRef.normalize_switcher_type(data)
+			data["switcher_lines"] = WorldObjectCatalogRef.normalize_switcher_lines(data)
+			if data["switcher_type"] == WorldObjectCatalogRef.SWITCHER_TYPE_POWER_SWITCHER and not Array(data.get("switcher_lines", [])).is_empty():
+				var normalized_active_line_id: String = str(data.get("active_line_id", "")).strip_edges()
+				var active_line_found: bool = false
+				var normalized_active_color_id: String = ""
+				for line_variant in Array(data.get("switcher_lines", [])):
+					var line: Dictionary = Dictionary(line_variant)
+					if str(line.get("line_id", "")) == normalized_active_line_id:
+						active_line_found = true
+						normalized_active_color_id = str(line.get("color_id", ""))
+				if normalized_active_line_id.is_empty() or not active_line_found:
+					var first_line: Dictionary = Dictionary(Array(data.get("switcher_lines", []))[0])
+					data["active_line_id"] = str(first_line.get("line_id", ""))
+					normalized_active_color_id = str(first_line.get("color_id", ""))
+				if not normalized_active_color_id.is_empty():
+					data["line_color_id"] = normalized_active_color_id
+		var switch_default_state: String = "switch_on" if object_type_normalized == "circuit_breaker" or (object_type_normalized == "power_switcher" and str(data.get("switcher_type", "")) == WorldObjectCatalogRef.SWITCHER_TYPE_POWER_BREAKER) else "switch_off"
 		if str(data.get("state", "active")).strip_edges().to_lower() == "active":
 			data["state"] = switch_default_state
 		if not data.has("is_on"):
@@ -6655,10 +6673,11 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 	switch_object["state"] = "switch_on" if switch_is_on else "switch_off"
 	switch_object["is_on"] = switch_is_on
 	var source_id: String = str(switch_object.get("power_source_id", switch_object.get("power_network_id", ""))).strip_edges()
+	var light_group_id: String = str(switch_object.get("light_group_id", switch_object.get("light_group", ""))).strip_edges()
 	var explicit_target_ids: Array[String] = []
 	for field_name in ["target_light_id", "linked_light_id", "target_object_id", "linked_object_id"]:
 		_append_light_switch_target_id(explicit_target_ids, switch_object.get(field_name, ""))
-	for field_name in ["target_light_ids", "linked_light_ids", "controlled_object_ids", "controls"]:
+	for field_name in ["target_light_ids", "linked_light_ids", "light_targets", "controlled_object_ids", "controls"]:
 		var raw_target_ids: Variant = switch_object.get(field_name, [])
 		if raw_target_ids is Array:
 			for raw_target_id in raw_target_ids:
@@ -6680,13 +6699,16 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 			warnings.append("Linked light is damaged: %s." % target_id)
 			continue
 		linked_lights.append(linked_object)
-	if not source_id.is_empty():
+	if not source_id.is_empty() or not light_group_id.is_empty():
 		for object_data in mission_world_objects:
 			if str(object_data.get("object_type", "")).strip_edges().to_lower() != "light":
 				continue
 			var linked_source: String = str(object_data.get("power_source_id", object_data.get("power_network_id", ""))).strip_edges()
+			var linked_group: String = str(object_data.get("light_group_id", object_data.get("light_group", ""))).strip_edges()
 			var object_id: String = str(object_data.get("id", "")).strip_edges()
-			if linked_source != source_id or linked_light_ids.has(object_id):
+			var matches_source: bool = not source_id.is_empty() and linked_source == source_id
+			var matches_group: bool = not light_group_id.is_empty() and linked_group == light_group_id
+			if (not matches_source and not matches_group) or linked_light_ids.has(object_id):
 				continue
 			linked_light_ids.append(object_id)
 			var linked_state: String = str(object_data.get("state", "")).strip_edges().to_lower()
@@ -6696,6 +6718,8 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 			linked_lights.append(object_data)
 	for linked_light in linked_lights:
 		linked_light["light_switch_off"] = not switch_is_on
+		linked_light["light_enabled"] = switch_is_on
+		linked_light["is_on"] = switch_is_on
 		if not switch_is_on:
 			linked_light["is_powered"] = false
 	if not source_id.is_empty():
@@ -6705,8 +6729,9 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 			if not bool(linked_light.get("is_powered", false)):
 				warnings.append("Linked light is unpowered: %s." % str(linked_light.get("id", "")))
 	if linked_lights.is_empty():
-		var reason: String = "source_missing" if source_id.is_empty() else "linked_light_missing"
-		var local_message: String = "Light switch source is missing." if source_id.is_empty() else "Light switch has no linked lights."
+		var has_logical_binding: bool = not explicit_target_ids.is_empty() or not light_group_id.is_empty()
+		var reason: String = "light_binding_missing" if not has_logical_binding else "linked_light_missing"
+		var local_message: String = "Light switch has no linked lights or light group." if not has_logical_binding else "Light switch has no linked lights."
 		if not warnings.is_empty():
 			local_message = " ".join(warnings)
 		return {"success": false, "updated": 0, "reason": reason, "source_id": source_id, "warnings": warnings, "message": local_message}

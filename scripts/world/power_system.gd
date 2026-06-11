@@ -95,12 +95,20 @@ static func _is_segment_blocked(obj: Dictionary) -> bool:
 			return true
 	if object_type in ["fuse_box", "fuse_box_empty", "fuse_block"]:
 		return not (bool(obj.get("fuse_installed", false)) or state in ["installed", "ok", "active"] or object_type == "fuse_box_installed")
+	if object_type == "power_switcher":
+		var switcher_type: String = WorldObjectCatalogRef.normalize_switcher_type(obj)
+		if switcher_type == WorldObjectCatalogRef.SWITCHER_TYPE_LIGHT:
+			return true
+		if switcher_type == WorldObjectCatalogRef.SWITCHER_TYPE_POWER_SWITCHER:
+			return Array(obj.get("switcher_lines", [])).is_empty()
 	if object_type in ["circuit_breaker", "power_breaker", "power_knife_switch", "power_switcher"]:
 		return state in ["off", "switch_off", "open"] or not bool(obj.get("is_on", state in ["on", "switch_on", "active", "ok"]))
 	return false
 
 static func _can_traverse(obj: Dictionary) -> bool:
 	var object_type: String = _normalize_type(obj.get("object_type", ""))
+	if object_type == "power_switcher" and WorldObjectCatalogRef.normalize_switcher_type(obj) == WorldObjectCatalogRef.SWITCHER_TYPE_LIGHT:
+		return false
 	if bool(POWER_TRAVERSAL_TYPES.get(object_type, false)):
 		return not _is_segment_blocked(obj)
 	if _is_power_consumer_object(obj):
@@ -163,6 +171,40 @@ static func _get_circuit_switch_next_cells(switch_obj: Dictionary, switch_cell: 
 	if output_cell.x < 0 or output_cell.y < 0:
 		return next_cells
 	next_cells.append(output_cell)
+	return next_cells
+
+static func _has_power_switcher_routing_metadata(switch_obj: Dictionary) -> bool:
+	return WorldObjectCatalogRef.normalize_switcher_type(switch_obj) == WorldObjectCatalogRef.SWITCHER_TYPE_POWER_SWITCHER and not WorldObjectCatalogRef.normalize_switcher_lines(switch_obj).is_empty()
+
+static func _get_power_switcher_next_cells(switch_obj: Dictionary, switch_cell: Vector2i, entered_from_cell: Vector2i) -> Array[Vector2i]:
+	var next_cells: Array[Vector2i] = []
+	var switcher_lines: Array[Dictionary] = WorldObjectCatalogRef.normalize_switcher_lines(switch_obj)
+	if switcher_lines.is_empty():
+		return next_cells
+	var active_line_id: String = str(switch_obj.get("active_line_id", "")).strip_edges()
+	if active_line_id.is_empty():
+		active_line_id = str(switcher_lines[0].get("line_id", ""))
+	var active_line: Dictionary = {}
+	for line in switcher_lines:
+		if str(line.get("line_id", "")) == active_line_id:
+			active_line = line
+			break
+	if active_line.is_empty():
+		active_line = switcher_lines[0]
+	var active_delta: Vector2i = _direction_to_delta(str(active_line.get("direction", "")))
+	if active_delta == Vector2i.ZERO:
+		return next_cells
+	var active_cell: Vector2i = switch_cell + active_delta
+	var input_delta: Vector2i = _direction_to_delta(str(switch_obj.get("input_direction", "")))
+	if input_delta != Vector2i.ZERO:
+		var input_cell: Vector2i = switch_cell + input_delta
+		if entered_from_cell == input_cell and active_cell != entered_from_cell:
+			next_cells.append(active_cell)
+		elif entered_from_cell == active_cell and input_cell != entered_from_cell:
+			next_cells.append(input_cell)
+		return next_cells
+	if active_cell != entered_from_cell:
+		next_cells.append(active_cell)
 	return next_cells
 
 static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
@@ -281,6 +323,8 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 			var next_cells: Array[Vector2i] = []
 			if current_type == "circuit_switch" and _has_circuit_switch_routing_metadata(current_obj):
 				next_cells = _get_circuit_switch_next_cells(current_obj, current_cell, from_cell, object_by_id)
+			elif current_type == "power_switcher" and _has_power_switcher_routing_metadata(current_obj):
+				next_cells = _get_power_switcher_next_cells(current_obj, current_cell, from_cell)
 			else:
 				for delta in directions:
 					var next_cell: Vector2i = current_cell + delta

@@ -351,6 +351,14 @@ static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer,
 		var field_name: String = MapConstructorUiSafe.safe_string(row.get("field", ""))
 		if field_name == "controlled_target_type" and TerminalVisibilityServiceRef.is_information_terminal(data):
 			continue
+		var switcher_type: String = MapConstructorUiSafe.safe_string(data.get("switcher_type", "power_breaker")).strip_edges().to_lower()
+		if MapConstructorUiSafe.safe_string(data.get("object_type", "")).strip_edges().to_lower() == "power_switcher":
+			if field_name in ["light_group_id", "target_light_ids"] and switcher_type != "light_switcher":
+				continue
+			if field_name.begins_with("line_") and switcher_type != "power_switcher":
+				continue
+			if field_name == "active_line_id" and switcher_type != "power_switcher":
+				continue
 		var field_type: String = MapConstructorUiSafe.safe_string(row.get("type", "string"))
 		var current_value: Variant = data.get(field_name, row.get("default"))
 		if field_type == "enum":
@@ -367,6 +375,8 @@ static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer,
 			add_enum_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, options)
 		elif field_type == "enum_array":
 			add_enum_array_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_array(row.get("values", [])))
+		elif field_type == "object_ref_array":
+			add_text_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		elif field_type == "bool":
 			add_bool_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		elif field_type == "int":

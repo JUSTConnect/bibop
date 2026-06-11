@@ -273,22 +273,30 @@ static func _apply_explicit_power_event(controller: Variant, world_object: Dicti
 	if action_id == "switch":
 		var object_type: String = str(world_object.get("object_type", "")).strip_edges().to_lower()
 		object_type = object_type.replace(" ", "_").replace("-", "_")
+		if object_type == "power_switcher" and WorldObjectCatalogRef.normalize_switcher_type(world_object) == WorldObjectCatalogRef.SWITCHER_TYPE_LIGHT:
+			return
 		if object_type in ["light_switch", "circuit_switch", "circuit_breaker", "power_switcher"]:
 			var reason := "switch_toggled"
-			if object_type == "circuit_breaker":
+			if object_type == "circuit_breaker" or (object_type == "power_switcher" and WorldObjectCatalogRef.normalize_switcher_type(world_object) == WorldObjectCatalogRef.SWITCHER_TYPE_POWER_BREAKER):
 				reason = "circuit_breaker_toggled"
 			var power_filter := ""
 			if controller.mission_manager.has_method("_get_power_event_filter_for_object"):
 				power_filter = str(controller.mission_manager.call("_get_power_event_filter_for_object", world_object))
 			var apply_report: Dictionary = Dictionary(controller.apply_power_network_after_explicit_power_event(reason, power_filter))
 			action_result["power_apply_report"] = apply_report
-	elif action_id in ["insert_fuse", "remove_fuse"]:
-		var power_filter := ""
+	elif action_id in ["circuit_1", "circuit_2", "circuit_3"]:
+		var line_power_filter := ""
 		if controller.mission_manager.has_method("_get_power_event_filter_for_object"):
-			power_filter = str(controller.mission_manager.call("_get_power_event_filter_for_object", world_object))
+			line_power_filter = str(controller.mission_manager.call("_get_power_event_filter_for_object", world_object))
+		var line_apply_report: Dictionary = Dictionary(controller.apply_power_network_after_explicit_power_event("switcher_line_selected", line_power_filter))
+		action_result["power_apply_report"] = line_apply_report
+	elif action_id in ["insert_fuse", "remove_fuse"]:
+		var fuse_power_filter := ""
+		if controller.mission_manager.has_method("_get_power_event_filter_for_object"):
+			fuse_power_filter = str(controller.mission_manager.call("_get_power_event_filter_for_object", world_object))
 		var power_reason: String = "fuse_inserted" if action_id == "insert_fuse" else "fuse_removed"
-		var apply_report: Dictionary = Dictionary(controller.apply_power_network_after_explicit_power_event(power_reason, power_filter))
-		action_result["power_apply_report"] = apply_report
+		var fuse_apply_report: Dictionary = Dictionary(controller.apply_power_network_after_explicit_power_event(power_reason, fuse_power_filter))
+		action_result["power_apply_report"] = fuse_apply_report
 
 
 static func _build_result(success: bool, message: String, world_object: Dictionary, target_position: Vector2i, action_result: Dictionary, reason: String) -> Dictionary:
