@@ -804,8 +804,8 @@ func _normalize_cable_install_mode(value: Variant) -> String:
 func _normalize_cable_health_state(value: Variant) -> String:
 	var raw_state: String = str(value).strip_edges().to_lower()
 	match raw_state:
-		"damaged", "broken", "cut":
-			return raw_state
+		"broken", "damaged", "cut":
+			return "broken"
 		_:
 			return "normal"
 
@@ -845,16 +845,16 @@ func _apply_cable_property_aliases(data: Dictionary, field_name: String, value: 
 	if field_name in ["cable_health_state", "health_state", "state", "damaged", "broken"]:
 		var health_state: String = "normal"
 		if field_name == "damaged" and bool(value):
-			health_state = "damaged"
+			health_state = "broken"
 		elif field_name == "broken" and bool(value):
 			health_state = "broken"
 		else:
 			health_state = _normalize_cable_health_state(value)
 		data["cable_health_state"] = health_state
 		data["health_state"] = health_state
-		data["cut"] = health_state == "cut"
+		data["cut"] = false
 		data["broken"] = health_state == "broken"
-		data["damaged"] = health_state in ["damaged", "broken", "cut"]
+		data["damaged"] = health_state == "broken"
 		if str(data.get("object_type", "")).strip_edges().to_lower() == "power_cable":
 			data["state"] = "ok" if health_state == "normal" else health_state
 	return data
