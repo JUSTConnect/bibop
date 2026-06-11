@@ -10,6 +10,7 @@ const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd"
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 # GridManager remains the gameplay grid source.
 # RoomVisualRenderer is a future visual projection layer.
@@ -2375,6 +2376,11 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 	if blob.contains("radiator"):
 		return "radiator"
 	if blob.contains("power_switcher"):
+		var switcher_type: String = str(object_data.get("switcher_type", "")).strip_edges().to_lower()
+		if switcher_type == "light_switcher":
+			return "light_switcher"
+		if switcher_type == "power_breaker":
+			return "power_breaker"
 		return "power_switcher"
 	if blob.contains("circuit_switch") or blob.contains("light_switch") or blob.contains("breaker") or blob.contains("switch"):
 		return "switch"
@@ -5432,6 +5438,8 @@ func get_iso_object_visual_profiles() -> Dictionary:
 		"fuse_box": {"base": Color(0.2, 0.21, 0.24, 0.97), "accent": Color(0.72, 0.82, 0.92, 0.99), "outline": Color(0.12, 0.13, 0.16, 0.94), "label": "Fuse Box", "shape": "wall_fuse_box"},
 		"light_switch": {"base": Color(0.26, 0.25, 0.23, 0.97), "accent": Color(0.98, 0.94, 0.75, 0.99), "outline": Color(0.14, 0.13, 0.12, 0.94), "label": "Light Switch", "shape": "wall_light_switch"},
 		"power_switcher": {"base": Color(0.26, 0.25, 0.23, 0.97), "accent": Color(0.98, 0.94, 0.75, 0.99), "outline": Color(0.14, 0.13, 0.12, 0.94), "label": "Power Switcher", "shape": "wall_light_switch"},
+		"power_breaker": {"base": Color(0.22, 0.23, 0.24, 0.97), "accent": Color(0.95, 0.72, 0.30, 0.99), "outline": Color(0.13, 0.14, 0.15, 0.94), "label": "Power Breaker", "shape": "wall_breaker_box"},
+		"light_switcher": {"base": Color(0.25, 0.24, 0.18, 0.97), "accent": Color(1.0, 0.96, 0.54, 0.99), "outline": Color(0.14, 0.13, 0.10, 0.94), "label": "Light Switcher", "shape": "wall_light_switch"},
 		"power_socket": {"base": Color(0.21, 0.22, 0.25, 0.97), "accent": Color(0.78, 0.88, 1.0, 0.99), "outline": Color(0.11, 0.12, 0.15, 0.94), "label": "Power Socket", "shape": "wall_socket"},
 		"light": {"base": Color(0.92, 0.86, 0.48, 0.97), "accent": Color(1.0, 0.96, 0.65, 0.99), "outline": Color(0.42, 0.36, 0.14, 0.94), "label": "Light", "shape": "wall_light"},
 		"power_cable_reel": {"base": Color(0.2, 0.2, 0.22, 0.97), "accent": Color(0.89, 0.76, 0.47, 0.99), "outline": Color(0.11, 0.11, 0.12, 0.94), "label": "Power Cable Reel", "shape": "wall_cable_reel"},
@@ -5712,6 +5720,17 @@ func draw_iso_object_line(cell: Vector2i, profile: Dictionary, visual_center_ove
 	if debug_draw_iso_object_outlines:
 		draw_line(line_start, line_end, outline_color, 1.0)
 
+func _get_line_color_from_id(color_id: String, fallback: Color) -> Color:
+	match color_id.strip_edges().to_lower():
+		"red": return Color(1.0, 0.22, 0.18, fallback.a)
+		"blue": return Color(0.22, 0.48, 1.0, fallback.a)
+		"green": return Color(0.24, 0.92, 0.42, fallback.a)
+		"yellow": return Color(1.0, 0.88, 0.2, fallback.a)
+		"orange": return Color(1.0, 0.55, 0.18, fallback.a)
+		"purple": return Color(0.72, 0.38, 1.0, fallback.a)
+		"white": return Color(0.95, 0.95, 0.92, fallback.a)
+	return fallback
+
 func draw_iso_cable_topology_line(cell: Vector2i, profile: Dictionary, object_data: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var visual_center: Vector2 = grid_to_iso(cell)
 	if visual_center_override != Vector2.INF:
@@ -5744,6 +5763,10 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+	var line_color_id: String = str(object_data.get("line_color_id", object_data.get("color_id", ""))).strip_edges()
+	if not line_color_id.is_empty():
+		accent_color = _get_line_color_from_id(line_color_id, accent_color)
+		base_color = _get_line_color_from_id(line_color_id, base_color).darkened(0.35)
 	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
 	if install_mode == "hidden":
 		base_color = Color(base_color.r, base_color.g, base_color.b, 0.72)
@@ -6441,6 +6464,14 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	if has_terminal_visual:
 		profile["base"] = _blend_color(_get_color_from_dict(profile, "base", Color.WHITE), Color(terminal_visual.get("tint", Color.WHITE)), 0.45)
 		profile["accent"] = Color(terminal_visual.get("accent", _get_color_from_dict(profile, "accent", Color.WHITE)))
+	var active_switcher_color_id: String = str(object_data.get("line_color_id", "")).strip_edges()
+	if active_switcher_color_id.is_empty() and str(object_data.get("object_type", "")).strip_edges().to_lower() == "power_switcher":
+		var active_line_id: String = str(object_data.get("active_line_id", "")).strip_edges()
+		for line_variant in Array(object_data.get("switcher_lines", [])):
+			if line_variant is Dictionary and str(Dictionary(line_variant).get("line_id", "")) == active_line_id:
+				active_switcher_color_id = str(Dictionary(line_variant).get("color_id", ""))
+	if not active_switcher_color_id.is_empty():
+		profile["accent"] = _get_line_color_from_id(active_switcher_color_id, _get_color_from_dict(profile, "accent", Color(0.72, 0.78, 0.86, 0.95)))
 	var overlay_accent: Color = _get_color_from_dict(profile, "accent", Color(0.72, 0.78, 0.86, 0.95))
 	if draw_wall_routed_procedural_visual(object_data, profile, cell):
 		return

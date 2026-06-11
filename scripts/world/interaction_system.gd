@@ -219,9 +219,14 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 	if action_type == "remove_fuse":
 		if not module_id.begins_with("manipulator_arm_v"):
 			return _result(false, "Manipulator required.", [], "manipulator_required")
-	if action_type in ["switch", "plug_in", "plug_out"]:
+	if action_type in ["switch", "plug_in", "plug_out", "circuit_1", "circuit_2", "circuit_3"]:
 		if not module_id.begins_with("manipulator_arm_v"):
 			return _result(false, "Manipulator required.", [], "manipulator_required")
+	if action_type in ["circuit_1", "circuit_2", "circuit_3"] and str(target_object.get("object_type", "")) == "power_switcher":
+		var switcher_lines: Array[Dictionary] = WorldObjectCatalogRef.normalize_switcher_lines(target_object)
+		var line_index: int = int(action_type.trim_prefix("circuit_")) - 1
+		if WorldObjectCatalogRef.normalize_switcher_type(target_object) != WorldObjectCatalogRef.SWITCHER_TYPE_POWER_SWITCHER or line_index < 0 or line_index >= switcher_lines.size():
+			return _result(false, "Switcher line unavailable.", [], "switcher_line_unavailable")
 	if action_type == "plug_in":
 		if not _object_supports_external_power_input(target_object):
 			return _result(false, "Target cannot receive external power.", [], "target_not_connectable")
@@ -358,7 +363,12 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"switch":
 			var next_on: bool = not bool(target_object.get("is_on", false))
 			target_object["is_on"] = next_on
-			return _result(true, "Switch toggled.", [{"type":"set_bool","field":"is_on","value":next_on},{"type":"toggle_linked_lights","is_on":next_on},{"type":"power_recalc_needed"}])
+			target_object["switch_state"] = "on" if next_on else "off"
+			target_object["state"] = "switch_on" if next_on else "switch_off"
+			var switcher_type: String = WorldObjectCatalogRef.normalize_switcher_type(target_object) if str(target_object.get("object_type", "")) == "power_switcher" else "power_breaker"
+			if switcher_type == WorldObjectCatalogRef.SWITCHER_TYPE_LIGHT:
+				return _result(true, "Light switch toggled.", [{"type":"set_bool","field":"is_on","value":next_on},{"type":"set_field","field":"switch_state","value":"on" if next_on else "off"},{"type":"set_state","state":"switch_on" if next_on else "switch_off"},{"type":"toggle_linked_lights","is_on":next_on}])
+			return _result(true, "Breaker toggled.", [{"type":"set_bool","field":"is_on","value":next_on},{"type":"set_field","field":"switch_state","value":"on" if next_on else "off"},{"type":"set_state","state":"switch_on" if next_on else "switch_off"},{"type":"power_recalc_needed"}])
 		"plug_in":
 			target_object["plugged"] = true
 			return _result(true, "Cable plugged in.", [{"type":"set_bool","field":"plugged","value":true},{"type":"connect_cable_end_to_target"},{"type":"power_recalc_needed"}])
@@ -394,7 +404,20 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 		"circuit_1", "circuit_2", "circuit_3":
 			var circuit_index: int = int(action_type.trim_prefix("circuit_"))
 			target_object["active_circuit"] = circuit_index
-			return _result(true, "Circuit %d selected." % circuit_index, [{"type":"set_field","field":"active_circuit","value":circuit_index},{"type":"power_recalc_needed"}])
+			target_object["active_output_index"] = circuit_index
+			if str(target_object.get("object_type", "")) == "power_switcher":
+				if WorldObjectCatalogRef.normalize_switcher_type(target_object) != WorldObjectCatalogRef.SWITCHER_TYPE_POWER_SWITCHER:
+					return _result(false, "Switcher line unavailable.", [], "switcher_line_unavailable")
+				var switcher_lines: Array[Dictionary] = WorldObjectCatalogRef.normalize_switcher_lines(target_object)
+				var line_index: int = circuit_index - 1
+				if line_index < 0 or line_index >= switcher_lines.size():
+					return _result(false, "Switcher line unavailable.", [], "switcher_line_unavailable")
+				var selected_line: Dictionary = switcher_lines[line_index]
+				target_object["active_line_id"] = str(selected_line.get("line_id", ""))
+				target_object["active_circuit_id"] = str(selected_line.get("circuit_id", ""))
+				target_object["line_color_id"] = str(selected_line.get("color_id", ""))
+				return _result(true, "%s selected." % str(selected_line.get("label", "Line")), [{"type":"set_field","field":"active_circuit","value":circuit_index},{"type":"set_field","field":"active_output_index","value":circuit_index},{"type":"set_field","field":"active_line_id","value":target_object["active_line_id"]},{"type":"set_field","field":"active_circuit_id","value":target_object["active_circuit_id"]},{"type":"set_field","field":"line_color_id","value":target_object["line_color_id"]},{"type":"power_recalc_needed"}])
+			return _result(true, "Circuit %d selected." % circuit_index, [{"type":"set_field","field":"active_circuit","value":circuit_index},{"type":"set_field","field":"active_output_index","value":circuit_index},{"type":"power_recalc_needed"}])
 		"open_door":
 			return _result(true, "Door opened by terminal.", [{"type":"terminal_open_door"}])
 		"close_door":
