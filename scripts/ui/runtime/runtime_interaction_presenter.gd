@@ -77,25 +77,23 @@ static func refresh(ui) -> void:
 			"danger" if heavy_claw_drag_active or heavy_claw_channel_active else ("primary" if heavy_claw_enabled else "disabled"),
 			heavy_claw_enabled
 		)
-	if ui.runtime_repair_button != null:
-		var repair_installed: bool = ui.bipob != null and ui.bipob.has_method("has_module_id") and bool(ui.bipob.call("has_module_id", "repair_v1"))
-		var repair_context: Dictionary = BipobActionControllerRef.get_direct_repair_target_context(ui.bipob) if ui.bipob != null else {}
-		var repair_target_available: bool = bool(repair_context.get("available", false))
-		var repair_enabled: bool = repair_installed and has_actions_left and repair_target_available
-		ui.runtime_repair_button.visible = repair_installed
-		ui.runtime_repair_button.text = "Repair"
-		ui.runtime_repair_button.disabled = not repair_enabled
-		if not repair_installed:
-			ui.runtime_repair_button.tooltip_text = "Repair Tool required."
+	if ui.runtime_cut_button != null:
+		var cutter_installed: bool = ui.bipob != null and ui.bipob.has_method("has_module_id") and bool(ui.bipob.call("has_module_id", "plasma_cutter_v1"))
+		var cut_context: Dictionary = BipobActionControllerRef.get_direct_cut_target_context(ui.bipob) if ui.bipob != null else {}
+		var cut_target_available: bool = bool(cut_context.get("available", false))
+		var cut_enabled: bool = cutter_installed and has_actions_left and cut_target_available
+		ui.runtime_cut_button.visible = cutter_installed
+		ui.runtime_cut_button.text = "Cut"
+		ui.runtime_cut_button.disabled = not cut_enabled
+		if not cutter_installed:
+			ui.runtime_cut_button.tooltip_text = "Plasma Cutter required."
 		elif not has_actions_left:
-			ui.runtime_repair_button.tooltip_text = "Not enough action/energy."
-		elif not repair_target_available:
-			ui.runtime_repair_button.tooltip_text = str(repair_context.get("reason", "No repair target."))
-		elif str(repair_context.get("target_kind", "")) == "bipob":
-			ui.runtime_repair_button.tooltip_text = "Repair facing Bipob."
+			ui.runtime_cut_button.tooltip_text = "Not enough action/energy."
+		elif not cut_target_available:
+			ui.runtime_cut_button.tooltip_text = str(cut_context.get("reason", "No cut target."))
 		else:
-			ui.runtime_repair_button.tooltip_text = "Repair facing object."
-		ui._apply_action_button_style(ui.runtime_repair_button, "primary" if repair_enabled else "disabled", repair_enabled)
+			ui.runtime_cut_button.tooltip_text = "Cut facing cable."
+		ui._apply_action_button_style(ui.runtime_cut_button, "primary" if cut_enabled else "disabled", cut_enabled)
 	if ui.runtime_end_turn_button != null:
 		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
 

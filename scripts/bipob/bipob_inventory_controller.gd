@@ -179,7 +179,7 @@ static func get_available_manipulator_slots(controller: Variant) -> int:
 	var runtime_slot_count: int = 1
 	if controller.has_method("has_module_id") and bool(controller.call("has_module_id", "manipulator_heavy_claw_v1")):
 		runtime_slot_count += 1
-	if controller.has_method("has_module_id") and (bool(controller.call("has_module_id", "repair_v1")) or bool(controller.call("has_module_id", "plasma_cutter_v1"))):
+	if controller.has_method("has_module_id") and bool(controller.call("has_module_id", "plasma_cutter_v1")):
 		runtime_slot_count += 1
 	return clampi(runtime_slot_count, 0, get_max_manipulator_slots(controller))
 
