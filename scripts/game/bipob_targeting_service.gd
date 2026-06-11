@@ -61,6 +61,7 @@ static func get_facing_item(controller: Variant) -> Dictionary:
 
 static func _get_platform_action_target_under_actor(controller: Variant) -> Dictionary:
 	if controller == null or controller.mission_manager == null:
+		
 		return {}
 
 	var actor_cell: Vector2i = Vector2i(controller.grid_position)
@@ -110,8 +111,11 @@ static func _find_platform_by_footprint_cell(controller: Variant, actor_cell: Ve
 			if _is_platform_action_target_candidate(candidate) and _platform_contains_cell(candidate, actor_cell):
 				return _normalize_platform_action_target(candidate, actor_cell)
 
-	if "mission_world_objects" in controller.mission_manager:
-		for object_variant in Array(controller.mission_manager.mission_world_objects):
+	# Runtime world objects fallback.
+	# Do not use: `"mission_world_objects" in controller.mission_manager`
+	# because mission_manager is a Node, not a Dictionary.
+	if controller.mission_manager.get("mission_world_objects") != null:
+		for object_variant in Array(controller.mission_manager.get("mission_world_objects")):
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 
@@ -121,24 +125,40 @@ static func _find_platform_by_footprint_cell(controller: Variant, actor_cell: Ve
 
 	return {}
 	
+static func _to_platform_cell(value: Variant, fallback: Vector2i = Vector2i(-1, -1)) -> Vector2i:
+	if value is Vector2i:
+		return Vector2i(value)
+
+	if value is Vector2:
+		return Vector2i(int(value.x), int(value.y))
+
+	if value is Array:
+		var values: Array = Array(value)
+		if values.size() >= 2:
+			return Vector2i(int(values[0]), int(values[1]))
+
+	if value is Dictionary:
+		var data: Dictionary = Dictionary(value)
+		if data.has("x") and data.has("y"):
+			return Vector2i(int(data.get("x", fallback.x)), int(data.get("y", fallback.y)))
+
+	return WorldObjectCatalogRef.to_world_cell(value, fallback)
+		
 static func _platform_contains_cell(platform_data: Dictionary, actor_cell: Vector2i) -> bool:
 	if platform_data.is_empty():
 		return false
 
-	# Multi-cell or explicit footprint.
 	for cell_variant in Array(platform_data.get("platform_cells", [])):
-		var platform_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+		var platform_cell: Vector2i = _to_platform_cell(cell_variant, Vector2i(-1, -1))
 		if platform_cell == actor_cell:
 			return true
 
-	# Some data can use cells instead of platform_cells.
 	for cell_variant in Array(platform_data.get("cells", [])):
-		var cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+		var cell: Vector2i = _to_platform_cell(cell_variant, Vector2i(-1, -1))
 		if cell == actor_cell:
 			return true
 
-	# Single-cell platform fallback.
-	var position_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
+	var position_cell: Vector2i = _to_platform_cell(
 		platform_data.get("position", platform_data.get("pos", platform_data.get("cell", Vector2i(-1, -1)))),
 		Vector2i(-1, -1)
 	)
@@ -147,9 +167,8 @@ static func _platform_contains_cell(platform_data: Dictionary, actor_cell: Vecto
 
 	var x_value: int = int(platform_data.get("x", platform_data.get("cell_x", -1)))
 	var y_value: int = int(platform_data.get("y", platform_data.get("cell_y", -1)))
-	if x_value >= 0 and y_value >= 0:
-		if Vector2i(x_value, y_value) == actor_cell:
-			return true
+	if x_value >= 0 and y_value >= 0 and Vector2i(x_value, y_value) == actor_cell:
+		return true
 
 	return false
 	
