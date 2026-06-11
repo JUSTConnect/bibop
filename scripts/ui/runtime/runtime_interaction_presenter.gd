@@ -3,6 +3,7 @@ class_name RuntimeInteractionPresenter
 
 const RuntimeInteractionPanelRef = preload("res://scripts/ui/runtime/runtime_interaction_panel.gd")
 const RuntimeHeavyClawPresenterRef = preload("res://scripts/ui/runtime/runtime_heavy_claw_presenter.gd")
+const BipobActionControllerRef = preload("res://scripts/bipob/bipob_action_controller.gd")
 
 const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
 
@@ -78,11 +79,23 @@ static func refresh(ui) -> void:
 		)
 	if ui.runtime_repair_button != null:
 		var repair_installed: bool = ui.bipob != null and ui.bipob.has_method("has_module_id") and bool(ui.bipob.call("has_module_id", "repair_v1"))
+		var repair_context: Dictionary = BipobActionControllerRef.get_direct_repair_target_context(ui.bipob) if ui.bipob != null else {}
+		var repair_target_available: bool = bool(repair_context.get("available", false))
+		var repair_enabled: bool = repair_installed and has_actions_left and repair_target_available
 		ui.runtime_repair_button.visible = repair_installed
 		ui.runtime_repair_button.text = "Repair"
-		ui.runtime_repair_button.disabled = not (repair_installed and has_actions_left)
-		ui.runtime_repair_button.tooltip_text = "Repair facing broken object." if repair_installed else "Repair Tool required."
-		ui._apply_action_button_style(ui.runtime_repair_button, "primary" if repair_installed and has_actions_left else "disabled", repair_installed and has_actions_left)
+		ui.runtime_repair_button.disabled = not repair_enabled
+		if not repair_installed:
+			ui.runtime_repair_button.tooltip_text = "Repair Tool required."
+		elif not has_actions_left:
+			ui.runtime_repair_button.tooltip_text = "Not enough action/energy."
+		elif not repair_target_available:
+			ui.runtime_repair_button.tooltip_text = str(repair_context.get("reason", "No repair target."))
+		elif str(repair_context.get("target_kind", "")) == "bipob":
+			ui.runtime_repair_button.tooltip_text = "Repair facing Bipob."
+		else:
+			ui.runtime_repair_button.tooltip_text = "Repair facing object."
+		ui._apply_action_button_style(ui.runtime_repair_button, "primary" if repair_enabled else "disabled", repair_enabled)
 	if ui.runtime_end_turn_button != null:
 		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
 
