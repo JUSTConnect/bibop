@@ -27,7 +27,7 @@ const ASSET_PATHS: Dictionary = {
 	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
 	"ground_low": "res://assets/visual/isometric/ground/ground_low_01.png",
 	"ground_halflow": "res://assets/visual/isometric/ground/ground_halflow_01.png",
-	"floor_gray_test": "res://assets/visual/isometric/test/floor_gray_01.png",
+	"floor_gray_test": "res://assets/visual/isometric/test/floor_gray_test_01.png",
 
 	"wall_default": "res://assets/visual/isometric/wall/concrete/wall_concrete_mid_01.png",
 	"wall_outer": "res://assets/visual/isometric/wall/outerwall/wall_outerwall_mid_01.png",
@@ -229,15 +229,22 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"steel_box_01"
 ]
 
+static func normalize_asset_id(asset_id: String) -> String:
+	var normalized_id: String = str(asset_id).strip_edges().to_lower()
+	normalized_id = normalized_id.replace(" ", "_")
+	normalized_id = normalized_id.replace("-", "_")
+	return normalized_id
+
+
 static func get_asset_path(asset_id: String) -> String:
-	var normalized_id: String = str(asset_id).strip_edges()
+	var normalized_id: String = normalize_asset_id(asset_id)
 	return str(ASSET_PATHS.get(normalized_id, ""))
 
 static func has_asset(asset_id: String) -> bool:
 	return not get_asset_path(asset_id).is_empty()
 
 static func resolve_floor_asset_id(raw_id: String) -> String:
-	var normalized_id: String = str(raw_id).strip_edges().to_lower()
+	var normalized_id: String = normalize_asset_id(raw_id)
 	if FLOOR_ASSET_ALIASES.has(normalized_id):
 		return str(FLOOR_ASSET_ALIASES.get(normalized_id, "floor_concrete"))
 	if ASSET_PATHS.has(normalized_id):
@@ -245,7 +252,7 @@ static func resolve_floor_asset_id(raw_id: String) -> String:
 	return "floor_concrete"
 
 static func resolve_wall_asset_id(raw_id: String) -> String:
-	var normalized_id: String = str(raw_id).strip_edges().to_lower()
+	var normalized_id: String = normalize_asset_id(raw_id)
 	if WALL_ASSET_ALIASES.has(normalized_id):
 		return str(WALL_ASSET_ALIASES.get(normalized_id, "wall_default"))
 	if ASSET_PATHS.has(normalized_id):
@@ -253,7 +260,7 @@ static func resolve_wall_asset_id(raw_id: String) -> String:
 	return "wall_default"
 
 static func resolve_object_asset_id(raw_id: String) -> String:
-	var normalized_id: String = str(raw_id).strip_edges().to_lower()
+	var normalized_id: String = normalize_asset_id(raw_id)
 	if OBJECT_ASSET_ALIASES.has(normalized_id):
 		return str(OBJECT_ASSET_ALIASES.get(normalized_id, "object_generic"))
 	if ASSET_PATHS.has(normalized_id):
