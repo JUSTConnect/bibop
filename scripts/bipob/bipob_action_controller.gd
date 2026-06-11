@@ -203,6 +203,189 @@ static func handle_runtime_action_interact(controller: Variant, target_position:
 	return true
 
 
+
+static func _empty_direct_repair_target_context(reason: String = "No repair target.", target_position: Vector2i = Vector2i.ZERO) -> Dictionary:
+	return {
+		"available": false,
+		"reason": reason,
+		"target_kind": "",
+		"target_object": {},
+		"target_node": null,
+		"target_position": target_position
+	}
+
+
+static func _variant_has_property(value: Variant, property_name: String) -> bool:
+	if value is Dictionary:
+		return Dictionary(value).has(property_name)
+	if value is Object:
+		for property_info in Array(value.get_property_list()):
+			if not property_info is Dictionary:
+				continue
+			if str(Dictionary(property_info).get("name", "")) == property_name:
+				return true
+	return false
+
+
+static func _variant_get_property(value: Variant, property_name: String, default_value: Variant = null) -> Variant:
+	if value is Dictionary:
+		return Dictionary(value).get(property_name, default_value)
+	if value is Object and _variant_has_property(value, property_name):
+		return value.get(property_name)
+	return default_value
+
+
+static func _variant_set_property(value: Variant, property_name: String, property_value: Variant) -> void:
+	if value is Dictionary:
+		value[property_name] = property_value
+	elif value is Object and _variant_has_property(value, property_name):
+		value.set(property_name, property_value)
+
+
+static func _variant_has_any_property(value: Variant, property_names: Array[String]) -> bool:
+	for property_name in property_names:
+		if _variant_has_property(value, property_name):
+			return true
+	return false
+
+
+static func _variant_number_below_max(value: Variant, current_property: String, max_property: String) -> bool:
+	if not _variant_has_property(value, current_property) or not _variant_has_property(value, max_property):
+		return false
+	var current_value: Variant = _variant_get_property(value, current_property, 0)
+	var max_value: Variant = _variant_get_property(value, max_property, 0)
+	if typeof(current_value) != TYPE_INT and typeof(current_value) != TYPE_FLOAT:
+		return false
+	if typeof(max_value) != TYPE_INT and typeof(max_value) != TYPE_FLOAT:
+		return false
+	return float(current_value) < float(max_value)
+
+
+static func _is_repairable_target_data(value: Variant) -> bool:
+	if bool(_variant_get_property(value, "broken", false)):
+		return true
+	if bool(_variant_get_property(value, "is_broken", false)):
+		return true
+	if bool(_variant_get_property(value, "damaged", false)):
+		return true
+	if bool(_variant_get_property(value, "cut", false)):
+		return true
+	var state_text: String = str(_variant_get_property(value, "state", "")).strip_edges().to_lower()
+	if state_text in ["broken", "damaged", "destroyed"]:
+		return true
+	var cable_health_text: String = str(_variant_get_property(value, "cable_health_state", "")).strip_edges().to_lower()
+	if cable_health_text in ["broken", "damaged"]:
+		return true
+	var health_text: String = str(_variant_get_property(value, "health_state", "")).strip_edges().to_lower()
+	if health_text in ["broken", "damaged"]:
+		return true
+	if _variant_number_below_max(value, "durability_current", "durability_max"):
+		return true
+	if _variant_number_below_max(value, "health_current", "health_max"):
+		return true
+	if _variant_number_below_max(value, "hp_current", "hp_max"):
+		return true
+	return false
+
+
+static func _has_bipob_repair_state(value: Variant) -> bool:
+	return _variant_has_any_property(value, ["broken", "is_broken", "damaged", "cut", "state", "cable_health_state", "health_state", "durability_current", "durability_max", "health_current", "health_max", "hp_current", "hp_max"])
+
+
+static func _find_bipob_at_cell(controller: Variant, target_position: Vector2i) -> Variant:
+	if controller == null or not controller is Node:
+		return null
+	var tree: SceneTree = controller.get_tree()
+	if tree == null or tree.root == null:
+		return null
+	var pending: Array[Node] = [tree.root]
+	while not pending.is_empty():
+		var node: Node = pending.pop_back()
+		if node != controller:
+			var node_cell: Variant = null
+			if node.has_method("get_grid_position"):
+				node_cell = node.call("get_grid_position")
+			elif _variant_has_property(node, "grid_position"):
+				node_cell = node.get("grid_position")
+			if typeof(node_cell) == TYPE_VECTOR2I and Vector2i(node_cell) == target_position:
+				var node_name: String = str(node.name).strip_edges().to_lower()
+				var script_resource: Variant = node.get_script()
+				var script_path: String = script_resource.resource_path if script_resource is Resource else ""
+				if node is BipobController or node_name.find("bipob") >= 0 or script_path.ends_with("bipob_controller.gd"):
+					return node
+		for child in node.get_children():
+			if child is Node:
+				pending.append(child)
+	return null
+
+
+static func _build_direct_repair_context(target_kind: String, reason: String, target_object: Dictionary, target_node: Variant, target_position: Vector2i, available: bool = true) -> Dictionary:
+	return {
+		"available": available,
+		"reason": reason,
+		"target_kind": target_kind,
+		"target_object": target_object,
+		"target_node": target_node,
+		"target_position": target_position
+	}
+
+
+static func get_direct_repair_target_context(controller: Variant) -> Dictionary:
+	if controller == null or controller.mission_manager == null:
+		return _empty_direct_repair_target_context("No repair target.")
+	var target_context: Dictionary = BipobTargetingServiceRef.build_action_target_context(controller)
+	var target_position: Vector2i = Vector2i(target_context.get("target_position", controller.get_facing_device_position()))
+	var target_object: Dictionary = Dictionary(target_context.get("target_object", {}))
+	if target_object.is_empty():
+		target_object = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
+		target_object = BipobTargetingServiceRef.resolve_runtime_action_target_for_cell(controller, target_position, target_object)
+	if not target_object.is_empty():
+		if _is_repairable_target_data(target_object):
+			return _build_direct_repair_context("world_object", "Repair facing object.", target_object, null, target_position)
+		return _build_direct_repair_context("world_object", "Target does not need repair.", target_object, null, target_position, false)
+	var target_bipob: Variant = _find_bipob_at_cell(controller, target_position)
+	if target_bipob != null:
+		if _is_repairable_target_data(target_bipob):
+			return _build_direct_repair_context("bipob", "Repair facing Bipob.", {}, target_bipob, target_position)
+		if not _has_bipob_repair_state(target_bipob):
+			return _build_direct_repair_context("bipob", "Repair facing Bipob.", {}, target_bipob, target_position)
+		return _build_direct_repair_context("bipob", "Target does not need repair.", {}, target_bipob, target_position, false)
+	return _empty_direct_repair_target_context("No repair target.", target_position)
+
+
+static func _method_accepts_no_arguments(target: Object, method_name: String) -> bool:
+	for method_info in Array(target.get_method_list()):
+		if not method_info is Dictionary:
+			continue
+		var method: Dictionary = method_info
+		if str(method.get("name", "")) != method_name:
+			continue
+		return Array(method.get("args", [])).is_empty()
+	return false
+
+
+static func _repair_bipob_target(target_bipob: Variant) -> void:
+	if target_bipob == null:
+		return
+	if target_bipob is Object:
+		for method_name in ["repair", "repair_damage", "repair_all_damage"]:
+			if target_bipob.has_method(method_name) and _method_accepts_no_arguments(target_bipob, method_name):
+				target_bipob.call(method_name)
+				break
+	_variant_set_property(target_bipob, "damaged", false)
+	_variant_set_property(target_bipob, "broken", false)
+	_variant_set_property(target_bipob, "is_broken", false)
+	_variant_set_property(target_bipob, "health_state", "normal")
+	var state_text: String = str(_variant_get_property(target_bipob, "state", "")).strip_edges().to_lower()
+	if state_text in ["damaged", "broken"]:
+		_variant_set_property(target_bipob, "state", "active")
+	for current_max_pair in [["durability_current", "durability_max"], ["health_current", "health_max"], ["hp_current", "hp_max"]]:
+		var current_property: String = str(current_max_pair[0])
+		var max_property: String = str(current_max_pair[1])
+		if _variant_has_property(target_bipob, current_property) and _variant_has_property(target_bipob, max_property):
+			_variant_set_property(target_bipob, current_property, _variant_get_property(target_bipob, max_property, _variant_get_property(target_bipob, current_property, 0)))
+
+
 static func try_direct_repair_facing_object(controller: Variant) -> bool:
 	if controller == null or controller.mission_manager == null:
 		return false
@@ -210,28 +393,30 @@ static func try_direct_repair_facing_object(controller: Variant) -> bool:
 		controller.hint_requested.emit("Repair Tool required.")
 		controller.status_changed.emit()
 		return false
-	var target_context: Dictionary = BipobTargetingServiceRef.build_action_target_context(controller)
-	var target_object: Dictionary = Dictionary(target_context.get("target_object", {}))
-	var target_position: Vector2i = Vector2i(target_context.get("target_position", controller.get_facing_device_position()))
-	if target_object.is_empty():
-		target_object = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
-		target_object = BipobTargetingServiceRef.resolve_runtime_action_target_for_cell(controller, target_position, target_object)
-	if target_object.is_empty():
-		controller.hint_requested.emit("No repair target.")
-		controller.status_changed.emit()
-		return false
-	var object_type: String = str(target_object.get("object_type", target_object.get("type", ""))).strip_edges().to_lower()
-	var state_text: String = str(target_object.get("state", "")).strip_edges().to_lower()
-	var health_text: String = str(target_object.get("cable_health_state", target_object.get("health_state", ""))).strip_edges().to_lower()
-	var needs_repair: bool = bool(target_object.get("broken", false)) or bool(target_object.get("is_broken", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("cut", false)) or state_text in ["broken", "damaged", "cut", "destroyed"] or health_text in ["broken", "damaged", "cut"]
-	if not needs_repair:
-		controller.hint_requested.emit("Target does not need repair.")
+	var repair_context: Dictionary = get_direct_repair_target_context(controller)
+	if not bool(repair_context.get("available", false)):
+		controller.hint_requested.emit(str(repair_context.get("reason", "No repair target.")))
 		controller.status_changed.emit()
 		return false
 	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
 		controller.hint_requested.emit("Not enough action/energy.")
 		controller.status_changed.emit()
 		return false
+	var target_kind: String = str(repair_context.get("target_kind", ""))
+	var target_position: Vector2i = Vector2i(repair_context.get("target_position", controller.get_facing_device_position()))
+	if target_kind == "bipob":
+		_repair_bipob_target(repair_context.get("target_node", null))
+		InteractionActionCostServiceRef.commit_gameplay_action(controller, {"success": true, "message": "Bipob repaired."})
+		controller.selected_world_action = ""
+		controller.hint_requested.emit("Bipob repaired.")
+		controller.refresh_world_object_overlay()
+		controller.update_threat_detection_preview()
+		controller.emit_facing_world_object_hint()
+		refresh_world_action_panel(controller)
+		controller.status_changed.emit()
+		return true
+	var target_object: Dictionary = Dictionary(repair_context.get("target_object", {}))
+	var object_type: String = str(target_object.get("object_type", target_object.get("type", ""))).strip_edges().to_lower()
 	var updated: Dictionary = target_object.duplicate(true)
 	var object_ids: Array[String] = [
 		object_type,
