@@ -8,8 +8,51 @@ const PlatformMechanismRulesServiceRef = preload("res://scripts/game/platform/pl
 const PlatformMotionServiceRef = preload("res://scripts/game/platform/platform_motion_service.gd")
 const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform_rotation_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
+static func _normalize_platform_rule_token(value: Variant) -> String:
+	var normalized: String = str(value).strip_edges().to_lower()
+	normalized = normalized.replace(" ", "_")
+	normalized = normalized.replace("-", "_")
+
+	match normalized:
+		"internal_control", "internal_power", "self_powered", "self_controlled":
+			return "internal"
+		"external_control", "external_power", "remote_control", "terminal_control":
+			return "external"
+		"no_power", "none_power", "not_required":
+			return "none"
+
+	return normalized
+
+
+static func _get_platform_control_mode(platform_object: Dictionary) -> String:
+	var control_value: String = str(platform_object.get("control_type", "")).strip_edges().to_lower()
+	control_value = control_value.replace(" ", "_").replace("-", "_")
+
+	if control_value.is_empty():
+		control_value = str(platform_object.get("control_mode", "internal")).strip_edges().to_lower()
+		control_value = control_value.replace(" ", "_").replace("-", "_")
+
+	match control_value:
+		"internal_control", "internal_power", "self_powered", "self_controlled":
+			return "internal"
+		"external_control", "remote_control", "terminal_control":
+			return "external"
+
+	return control_value
+
+
+static func _get_platform_power_mode(platform_object: Dictionary) -> String:
+	if platform_object.has("power_type"):
+		return _normalize_platform_rule_token(platform_object.get("power_type", "none"))
+
+	if platform_object.has("power_mode"):
+		return _normalize_platform_rule_token(platform_object.get("power_mode", "none"))
+
+	return "none"
+
+
 static func _is_platform_self_controlled(platform_object: Dictionary) -> bool:
-	var control_mode: String = str(platform_object.get("control_mode", platform_object.get("control_type", "internal"))).strip_edges().to_lower()
+	var control_mode: String = _get_platform_control_mode(platform_object)
 
 	if control_mode.is_empty():
 		return true
@@ -18,9 +61,9 @@ static func _is_platform_self_controlled(platform_object: Dictionary) -> bool:
 
 
 static func _is_platform_external_controlled(platform_object: Dictionary) -> bool:
-	var control_mode: String = str(platform_object.get("control_mode", platform_object.get("control_type", "internal"))).strip_edges().to_lower()
+	var control_mode: String = _get_platform_control_mode(platform_object)
 
-	if control_mode in ["external", "external_control", "terminal", "remote", "device"]:
+	if control_mode in ["external", "terminal", "remote", "device"]:
 		return true
 
 	if bool(platform_object.get("requires_external_control", false)):
@@ -37,23 +80,36 @@ static func _is_platform_external_controlled(platform_object: Dictionary) -> boo
 
 static func _is_platform_powered(platform_object: Dictionary) -> bool:
 	var state_text: String = str(platform_object.get("state", "")).strip_edges().to_lower()
-	if state_text == "unpowered":
+
+	if state_text in ["disabled", "damaged", "broken", "destroyed"]:
 		return false
 
-	var power_mode: String = str(platform_object.get("power_mode", platform_object.get("power_type", "internal"))).strip_edges().to_lower()
+	var power_value: String = str(platform_object.get("power_type", platform_object.get("power_mode", "none"))).strip_edges().to_lower()
+	power_value = power_value.replace(" ", "_").replace("-", "_")
 
-	if power_mode in ["internal", "internal_power", "self", "self_powered", ""]:
+	match power_value:
+		"internal_power", "self_powered":
+			power_value = "internal"
+		"external_power":
+			power_value = "external"
+		"no_power", "none_power", "":
+			power_value = "none"
+
+	if power_value in ["none", "no", "not_required"]:
 		return true
 
-	if power_mode in ["external", "external_power", "external power"]:
+	if power_value in ["internal", "self", "battery"]:
+		return bool(platform_object.get("is_powered", true))
+
+	if power_value in ["external", "network", "power_source"]:
 		if platform_object.has("is_powered"):
 			return bool(platform_object.get("is_powered", false))
 
 		var power_state: String = str(platform_object.get("power_state", "")).strip_edges().to_lower()
 		return power_state in ["powered", "active", "on", "ok"]
 
-	if platform_object.has("is_powered"):
-		return bool(platform_object.get("is_powered", true))
+	if state_text == "unpowered":
+		return false
 
 	return true
 
