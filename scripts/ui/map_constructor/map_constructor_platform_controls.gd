@@ -94,7 +94,7 @@ static func _add_mechanism(ui: Variant, parent: VBoxContainer, entity_kind: Stri
 	section.add_child(validate_button)
 	parent.add_child(section)
 
-static func _add_platform_member_checklist(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, cell: Vector2i, data: Dictionary) -> void:
+static func _add_platform_member_checklist(ui: Variant, section: VBoxContainer, _entity_kind: String, entity_id: String, _cell: Vector2i, data: Dictionary) -> void:
 	var member_title: Label = Label.new()
 	member_title.text = "Members"
 	section.add_child(member_title)
