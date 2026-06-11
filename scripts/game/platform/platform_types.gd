@@ -210,7 +210,17 @@ static func normalize_platform_config(config: Dictionary) -> Dictionary:
 	if mode_source.is_empty():
 		mode_source = str(config.get("platform_type", "")).strip_edges()
 	if mode_source.is_empty():
-		mode_source = str(config.get("object_type", config.get("archetype_id", MODE_ELEVATOR))).strip_edges()
+		mode_source = str(config.get("object_type", "")).strip_edges()
+	if mode_source.is_empty() or mode_source.strip_edges().to_lower() == "platform":
+		var archetype_source: String = str(config.get("archetype_id", "")).strip_edges()
+		if not archetype_source.is_empty() and archetype_source.to_lower() != "platform":
+			mode_source = archetype_source
+	if mode_source.is_empty() or mode_source.strip_edges().to_lower() == "platform":
+		var prefab_source: String = str(config.get("map_constructor_prefab_id", "")).strip_edges()
+		if not prefab_source.is_empty() and prefab_source.to_lower() != "platform":
+			mode_source = prefab_source
+	if mode_source.is_empty():
+		mode_source = MODE_ELEVATOR
 	normalized["platform_mode"] = normalize_platform_mode(mode_source)
 	normalized["control_type"] = normalize_control_type(str(normalized.get("control_type", normalized.get("control_mode", CONTROL_INTERNAL))))
 	normalized["power_type"] = normalize_power_type(str(normalized.get("power_type", normalized.get("power_mode", POWER_NONE))))
@@ -245,4 +255,5 @@ static func is_platform_data(data: Dictionary) -> bool:
 	var archetype_id: String = str(data.get("archetype_id", "")).strip_edges().to_lower()
 	var object_group: String = str(data.get("object_group", "")).strip_edges().to_lower()
 	var object_type: String = str(data.get("object_type", "")).strip_edges().to_lower()
-	return archetype_id == "platform" or object_group == "platform" or object_type == "platform" or data.has("platform_mode")
+	var prefab_id: String = str(data.get("map_constructor_prefab_id", data.get("prefab_id", ""))).strip_edges().to_lower()
+	return archetype_id in ["platform", "lifting_platform", "rotating_platform"] or object_group == "platform" or object_type in ["platform", "lifting_platform", "rotating_platform"] or prefab_id in ["platform", "lifting_platform", "rotating_platform"] or data.has("platform_mode") or data.has("platform_type")

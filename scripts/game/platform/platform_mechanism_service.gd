@@ -44,7 +44,7 @@ static func is_platform_data(platform_data: Dictionary) -> bool:
 	var group_value: String = str(platform_data.get("object_group", platform_data.get("group", ""))).to_lower().strip_edges()
 	var archetype_value: String = str(platform_data.get("archetype_id", platform_data.get("map_constructor_prefab_id", ""))).to_lower().strip_edges()
 	var prefab_value: String = str(platform_data.get("map_constructor_prefab_id", platform_data.get("catalog_id", ""))).to_lower().strip_edges()
-	return type_value == "platform" or group_value == "platform" or archetype_value == "platform" or prefab_value == "platform" or platform_data.has("platform_mode")
+	return type_value in ["platform", "lifting_platform", "rotating_platform"] or group_value == "platform" or archetype_value in ["platform", "lifting_platform", "rotating_platform"] or prefab_value in ["platform", "lifting_platform", "rotating_platform"] or platform_data.has("platform_mode") or platform_data.has("platform_type")
 
 static func unwrap_platform_data(value: Variant) -> Dictionary:
 	if not value is Dictionary:
@@ -192,9 +192,9 @@ static func validate_mechanism(mechanism_id: String, members: Array, ground_cell
 	var platform_mode: String = PlatformTypesRef.MODE_ELEVATOR
 	var platform_kinds: Array[String] = []
 	if not platform_members.is_empty():
-		platform_mode = PlatformTypesRef.normalize_platform_mode(str(platform_members[0].get("platform_mode", platform_members[0].get("platform_type", ""))))
+		platform_mode = str(PlatformTypesRef.normalize_platform_config(platform_members[0]).get("platform_mode", PlatformTypesRef.MODE_ELEVATOR))
 	for member_data in platform_members:
-		var member_kind: String = PlatformTypesRef.normalize_platform_mode(str(member_data.get("platform_mode", member_data.get("platform_type", ""))))
+		var member_kind: String = str(PlatformTypesRef.normalize_platform_config(member_data).get("platform_mode", PlatformTypesRef.MODE_ELEVATOR))
 		if not platform_kinds.has(member_kind):
 			platform_kinds.append(member_kind)
 	if platform_kinds.size() > 1:
@@ -215,7 +215,7 @@ static func build_mechanism_summary(mechanism_id: String, members: Array) -> Dic
 	var cells: Array[Vector2i] = get_member_cells(platform_members)
 	var platform_kinds: Array[String] = []
 	for member_kind_data in platform_members:
-		var member_kind: String = PlatformTypesRef.normalize_platform_mode(str(member_kind_data.get("platform_mode", member_kind_data.get("platform_type", ""))))
+		var member_kind: String = str(PlatformTypesRef.normalize_platform_config(member_kind_data).get("platform_mode", PlatformTypesRef.MODE_ELEVATOR))
 		if not platform_kinds.has(member_kind):
 			platform_kinds.append(member_kind)
 	var platform_ids: Array[String] = []

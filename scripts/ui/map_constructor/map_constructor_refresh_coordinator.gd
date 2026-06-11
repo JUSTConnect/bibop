@@ -32,6 +32,8 @@ static func request_overlay_refresh(ui: Variant) -> void:
 static func request_field_visual_refresh(ui: Variant) -> void:
 	if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
 		ui.field_runtime.call("request_visual_refresh")
+	if ui.bipob != null and ui.bipob.has_method("refresh_world_action_panel"):
+		ui.bipob.call("refresh_world_action_panel")
 
 
 static func reopen_selected_inspector(ui: Variant) -> void:
@@ -48,6 +50,7 @@ static func refresh_panels_and_overlay(ui: Variant) -> void:
 	var snapshot: Dictionary = _capture(ui)
 	ui._refresh_map_constructor_panels()
 	request_overlay_refresh(ui)
+	request_field_visual_refresh(ui)
 	_restore(ui, snapshot)
 
 
