@@ -6608,9 +6608,7 @@ func set_platform_height_level(level: int, platform_id: String = "") -> void:
 	platform_height_level = maxi(0, level)
 	carried_by_platform_id = platform_id if platform_height_level > 0 else ""
 
-	if has_method("update_world_position"):
-		update_world_position()
-
+	update_world_position()
 	status_changed.emit()
 
 func refresh_platform_height_state_after_move() -> void:
@@ -6880,24 +6878,16 @@ func get_isometric_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
 	return final_parent_local + Vector2(0.0, isometric_visual_y_offset)
 
 func get_visual_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
-	var visual_position: Vector2 = Vector2.ZERO
+	if grid_manager == null:
+		return Vector2.ZERO
 
-	if grid_manager != null and grid_manager.has_method("get_visual_world_position_for_grid_cell"):
-		visual_position = Vector2(grid_manager.call("get_visual_world_position_for_grid_cell", cell))
-	else:
-		var tile_size: Vector2 = Vector2(64, 32)
-		visual_position = Vector2(
-			(cell.x - cell.y) * tile_size.x * 0.5,
-			(cell.x + cell.y) * tile_size.y * 0.5
-		)
+	if should_use_isometric_visual_position():
+		return get_isometric_world_position_for_grid_cell(cell)
 
-	# Platform height visual lift.
-	visual_position.y -= float(platform_height_level) * 18.0
+	if grid_manager.has_method("grid_to_world"):
+		return Vector2(grid_manager.call("grid_to_world", cell))
 
-	if use_isometric_visual_position:
-		visual_position.y += isometric_visual_y_offset
-
-	return visual_position
+	return Vector2.ZERO
 
 func update_world_position() -> void:
 	BipobMovementControllerRef.update_world_position(self)
