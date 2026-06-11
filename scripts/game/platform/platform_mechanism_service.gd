@@ -22,7 +22,12 @@ static func get_platform_cell(platform_data: Dictionary) -> Vector2i:
 	return Vector2i(int(platform_data.get("x", platform_data.get("cell_x", 0))), int(platform_data.get("y", platform_data.get("cell_y", 0))))
 
 static func get_platform_id(platform_data: Dictionary) -> String:
-	return str(platform_data.get("id", platform_data.get("object_id", platform_data.get("platform_id", "")))).strip_edges()
+	var platform_id: String = str(platform_data.get("id", "")).strip_edges()
+	if platform_id.is_empty():
+		platform_id = str(platform_data.get("object_id", platform_data.get("platform_id", ""))).strip_edges()
+	if platform_id.is_empty():
+		platform_id = str(platform_data.get("platform_id", "")).strip_edges()
+	return platform_id
 
 static func get_mechanism_id(platform_data: Dictionary) -> String:
 	return str(platform_data.get("mechanism_id", platform_data.get("platform_mechanism_id", ""))).strip_edges()
@@ -185,8 +190,15 @@ static func validate_mechanism(mechanism_id: String, members: Array, ground_cell
 	if not are_cells_orthogonally_connected(cells):
 		errors.append("Platform mechanism members must be orthogonally connected.")
 	var platform_mode: String = PlatformTypesRef.MODE_ELEVATOR
+	var platform_kinds: Array[String] = []
 	if not platform_members.is_empty():
-		platform_mode = PlatformTypesRef.normalize_platform_mode(str(platform_members[0].get("platform_mode", "")))
+		platform_mode = PlatformTypesRef.normalize_platform_mode(str(platform_members[0].get("platform_mode", platform_members[0].get("platform_type", ""))))
+	for member_data in platform_members:
+		var member_kind: String = PlatformTypesRef.normalize_platform_mode(str(member_data.get("platform_mode", member_data.get("platform_type", ""))))
+		if not platform_kinds.has(member_kind):
+			platform_kinds.append(member_kind)
+	if platform_kinds.size() > 1:
+		errors.append("Platform mechanism mixes elevator and rotating platform types.")
 	if PlatformTypesRef.platform_mode_supports_rotator(platform_mode) and not is_square_footprint(cells, true):
 		errors.append("Rotating platform mechanisms must form a filled square footprint.")
 	if PlatformTypesRef.platform_mode_supports_elevator(platform_mode) and not ground_cells.is_empty() and not has_any_ground_adjacency(cells, ground_cells):
@@ -201,12 +213,21 @@ static func build_mechanism_summary(mechanism_id: String, members: Array) -> Dic
 			continue
 		platform_members.append(member_data)
 	var cells: Array[Vector2i] = get_member_cells(platform_members)
+	var platform_kinds: Array[String] = []
+	for member_kind_data in platform_members:
+		var member_kind: String = PlatformTypesRef.normalize_platform_mode(str(member_kind_data.get("platform_mode", member_kind_data.get("platform_type", ""))))
+		if not platform_kinds.has(member_kind):
+			platform_kinds.append(member_kind)
 	var platform_ids: Array[String] = []
 	for member_data in platform_members:
 		var platform_id: String = get_platform_id(member_data)
 		if not platform_id.is_empty():
 			platform_ids.append(platform_id)
-	return {"ok": not platform_members.is_empty(), "mechanism_id": mechanism_id, "member_count": platform_members.size(), "platform_ids": platform_ids, "cells": cells, "bounds": get_cell_bounds(cells), "is_connected": are_cells_orthogonally_connected(cells), "is_square": is_square_footprint(cells, true), "errors": [] if not platform_members.is_empty() else ["Platform mechanism has no members."], "warnings": []}
+	var summary_errors: Array[String] = [] if not platform_members.is_empty() else ["Platform mechanism has no members."]
+	var summary_warnings: Array[String] = []
+	if platform_kinds.size() > 1:
+		summary_warnings.append("Mechanism contains mixed platform types; runtime filters members by type.")
+	return {"ok": not platform_members.is_empty() and platform_kinds.size() <= 1, "mechanism_id": mechanism_id, "member_count": platform_members.size(), "platform_ids": platform_ids, "platform_modes": platform_kinds, "cells": cells, "bounds": get_cell_bounds(cells), "is_connected": are_cells_orthogonally_connected(cells), "is_square": is_square_footprint(cells, true), "errors": summary_errors, "warnings": summary_warnings}
 
 static func get_mechanism_summary(mechanism_id: String, world_objects_or_members: Array) -> Dictionary:
 	var members: Array[Dictionary] = get_mechanism_members(mechanism_id, world_objects_or_members)

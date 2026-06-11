@@ -24,7 +24,7 @@ static func render(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, 
 	_add_mechanism(ui, parent, entity_kind, entity_id, cell, data)
 	_add_control(ui, parent, entity_kind, entity_id, cell, data)
 	_add_power(ui, parent, entity_kind, entity_id, data)
-	_add_warnings(ui, parent, data)
+	_add_warnings(ui, parent, entity_id, data)
 
 static func _add_identity(ui: Variant, parent: VBoxContainer, entity_id: String, data: Dictionary) -> void:
 	var section: VBoxContainer = ui._create_inspector_section("1. Identity")
@@ -79,7 +79,7 @@ static func _add_configuration(ui: Variant, parent: VBoxContainer, entity_kind: 
 static func _add_mechanism(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, cell: Vector2i, data: Dictionary) -> void:
 	var section: VBoxContainer = ui._create_inspector_section("4. Platform Mechanism")
 	ui._add_text_property(section, "Mechanism ID", entity_kind, entity_id, "mechanism_id", data.get("mechanism_id", ""))
-	var summary: Dictionary = _get_mechanism_summary(ui, data)
+	var summary: Dictionary = _get_mechanism_summary(ui, entity_id, data)
 	var summary_label: Label = Label.new()
 	summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	summary_label.text = _format_mechanism_summary(summary)
@@ -88,8 +88,9 @@ static func _add_mechanism(ui: Variant, parent: VBoxContainer, entity_kind: Stri
 	var validate_button: Button = Button.new()
 	validate_button.text = "Validate mechanism"
 	validate_button.pressed.connect(func() -> void:
-		var validation: Dictionary = _validate_mechanism(ui, data)
-		ui.show_hint("Platform mechanism valid." if bool(validation.get("ok", false)) else "Platform mechanism warnings: %s" % str(validation.get("warnings", [])))
+		var validation: Dictionary = _validate_mechanism(ui, entity_id, data)
+		var validation_messages: Array = Array(validation.get("errors", [])) + Array(validation.get("warnings", []))
+		ui.show_hint("Platform mechanism valid." if bool(validation.get("ok", false)) else "Platform mechanism issues: %s" % str(validation_messages))
 	)
 	section.add_child(validate_button)
 	parent.add_child(section)
@@ -114,14 +115,20 @@ static func _add_platform_member_checklist(ui: Variant, section: VBoxContainer, 
 		var platform_data: Dictionary = MapConstructorUiSafe.safe_dictionary(row.get("data", {}))
 		var platform_mechanism_id: String = _effective_mechanism_id(platform_id, platform_data)
 		var checked: bool = platform_id == entity_id or platform_mechanism_id == mechanism_id
+		var current_kind: String = PlatformTypesRef.normalize_platform_mode(str(data.get("platform_mode", data.get("platform_type", ""))))
+		var candidate_kind: String = PlatformTypesRef.normalize_platform_mode(str(platform_data.get("platform_mode", platform_data.get("platform_type", ""))))
+		var compatible_kind: bool = current_kind == candidate_kind
 		var check: CheckBox = CheckBox.new()
 		check.text = "%s at (%d, %d)%s" % [platform_id, platform_cell.x, platform_cell.y, "  ✓ current" if platform_id == entity_id else ""]
-		check.button_pressed = checked
-		check.tooltip_text = "Checked platforms share mechanism_id: %s" % mechanism_id
+		check.button_pressed = checked and compatible_kind
+		check.disabled = not compatible_kind
+		check.tooltip_text = "Mixed platform types cannot share a runtime mechanism." if not compatible_kind else "Checked platforms share mechanism_id: %s" % mechanism_id
 		check.toggled.connect(func(enabled: bool) -> void:
 			var next_mechanism_id: String = mechanism_id if enabled else ""
 			if platform_id == entity_id and not enabled:
 				next_mechanism_id = _single_mechanism_id(platform_id)
+			if enabled and MapConstructorUiSafe.safe_string(data.get("mechanism_id", "")).strip_edges().is_empty():
+				ui.mission_manager_runtime.call("apply_map_constructor_property_update", "world_object", entity_id, "mechanism_id", mechanism_id)
 			var result: Dictionary = ui.mission_manager_runtime.call("apply_map_constructor_property_update", "world_object", platform_id, "mechanism_id", next_mechanism_id)
 			ui.show_hint(ui._safe_ui_string(result.get("message", "Platform mechanism updated."), "Platform mechanism updated."))
 			ui._refresh_map_constructor_panels()
@@ -180,9 +187,9 @@ static func _add_power(ui: Variant, parent: VBoxContainer, entity_kind: String, 
 	section.add_child(note)
 	parent.add_child(section)
 
-static func _add_warnings(ui: Variant, parent: VBoxContainer, data: Dictionary) -> void:
+static func _add_warnings(ui: Variant, parent: VBoxContainer, entity_id: String, data: Dictionary) -> void:
 	var section: VBoxContainer = ui._create_inspector_section("7. Warnings")
-	var validation: Dictionary = _validate_mechanism(ui, data)
+	var validation: Dictionary = _validate_mechanism(ui, entity_id, data)
 	var warnings: Array = Array(validation.get("warnings", []))
 	if warnings.is_empty():
 		var ok_label: Label = Label.new()
@@ -232,14 +239,14 @@ static func _format_mechanism_summary(summary: Dictionary) -> String:
 		return "Members: 0"
 	return "Members: %d — %s" % [ids.size(), ", ".join(ids)]
 
-static func _get_mechanism_summary(ui: Variant, data: Dictionary) -> Dictionary:
-	var mechanism_id: String = MapConstructorUiSafe.safe_string(data.get("mechanism_id", ""))
+static func _get_mechanism_summary(ui: Variant, entity_id: String, data: Dictionary) -> Dictionary:
+	var mechanism_id: String = _effective_mechanism_id(entity_id, data)
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_platform_mechanism_summary"):
 		return MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("get_platform_mechanism_summary", mechanism_id))
 	return PlatformMechanismServiceRef.build_mechanism_summary(mechanism_id, [])
 
-static func _validate_mechanism(ui: Variant, data: Dictionary) -> Dictionary:
-	var mechanism_id: String = MapConstructorUiSafe.safe_string(data.get("mechanism_id", ""))
+static func _validate_mechanism(ui: Variant, entity_id: String, data: Dictionary) -> Dictionary:
+	var mechanism_id: String = _effective_mechanism_id(entity_id, data)
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("validate_platform_mechanism"):
 		return MapConstructorUiSafe.safe_dictionary(ui.mission_manager_runtime.call("validate_platform_mechanism", mechanism_id))
 	return PlatformMechanismServiceRef.validate_mechanism(mechanism_id, [])

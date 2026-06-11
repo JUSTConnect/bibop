@@ -40,8 +40,10 @@ static func normalize_platform_mode(value: String) -> String:
 	normalized_value = normalized_value.replace(" ", "_")
 	normalized_value = normalized_value.replace("-", "_")
 	match normalized_value:
-		"rotate", "rotation", "rotator", "rotating", "turntable", "platform_rotator":
+		"rotate", "rotation", "rotator", "rotating", "rotating_platform", "turntable", "platform_rotator":
 			return MODE_ROTATE
+		"elevator", "lift", "lifting", "lifting_platform", "platform", "movable_platform_block":
+			return MODE_ELEVATOR
 		"both", "elevator_rotator", "rotator_elevator", "lift_rotate", "rotate_lift", "elevator_and_rotator":
 			return MODE_ELEVATOR
 	return MODE_ELEVATOR
@@ -202,7 +204,14 @@ static func normalize_platform_config(config: Dictionary) -> Dictionary:
 	var legacy_source_id: String = str(normalized.get("source_prefab_id", normalized.get("legacy_prefab_id", normalized.get("map_constructor_prefab_id", normalized.get("legacy_object_type", ""))))).strip_edges().to_lower()
 	var old_level: Variant = config.get("platform_level", config.get("current_level", config.get("height_level", config.get("platform_height_level", 0))))
 	var old_max_level: Variant = config.get("max_level", config.get("max_height_level", maxi(int(old_level), 1)))
-	normalized["platform_mode"] = normalize_platform_mode(str(normalized.get("platform_mode", normalized.get("mode", normalized.get("platform_type", MODE_ELEVATOR)))))
+	var mode_source: String = str(config.get("platform_mode", "")).strip_edges()
+	if mode_source.is_empty():
+		mode_source = str(config.get("mode", "")).strip_edges()
+	if mode_source.is_empty():
+		mode_source = str(config.get("platform_type", "")).strip_edges()
+	if mode_source.is_empty():
+		mode_source = str(config.get("object_type", config.get("archetype_id", MODE_ELEVATOR))).strip_edges()
+	normalized["platform_mode"] = normalize_platform_mode(mode_source)
 	normalized["control_type"] = normalize_control_type(str(normalized.get("control_type", normalized.get("control_mode", CONTROL_INTERNAL))))
 	normalized["power_type"] = normalize_power_type(str(normalized.get("power_type", normalized.get("power_mode", POWER_NONE))))
 	normalized["activation_mode"] = normalize_activation_mode(str(normalized.get("activation_mode", ACTIVATION_INSTANT)))
@@ -217,6 +226,11 @@ static func normalize_platform_config(config: Dictionary) -> Dictionary:
 	normalized["object_type"] = "platform"
 	normalized["object_group"] = "platform"
 	normalized["archetype_id"] = "platform"
+	var normalized_platform_id: String = str(normalized.get("platform_id", "")).strip_edges()
+	if normalized_platform_id.is_empty():
+		normalized_platform_id = str(normalized.get("id", normalized.get("object_id", ""))).strip_edges()
+	if not normalized_platform_id.is_empty():
+		normalized["platform_id"] = normalized_platform_id
 	if legacy_source_id == "movable_platform_block":
 		for stale_key in ["weight_class", "required_bipob_power_class", "magnetic", "material_tags", "heavy_claw_movable", "heavy_claw_mode", "movable", "platform_type", "platform_id", "platform_cells", "height_level", "min_height_level", "max_height_level", "requires_terminal_enabled", "linked_terminal_id", "local_switch_cell", "local_switch_facing_dir", "timer_turns", "timer_remaining_turns", "period_turns", "periodic_active", "permanent_state", "pending_activation", "rotation_direction", "non_destructible", "destructible", "is_powered"]:
 			normalized.erase(stale_key)
