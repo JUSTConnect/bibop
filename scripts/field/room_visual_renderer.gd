@@ -9,6 +9,7 @@ const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_servi
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
+const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 
 # GridManager remains the gameplay grid source.
 # RoomVisualRenderer is a future visual projection layer.
@@ -1771,10 +1772,20 @@ func get_iso_wall_asset_catalog() -> Dictionary:
 	return ISO_WALL_ASSET_CATALOG.duplicate()
 
 func get_iso_gray_test_asset_path(asset_key: String) -> String:
-	if asset_key == ISO_FLOOR_TEST_ASSET_KEY:
-		return ISO_TEST_ASSET_PACK_DIR + str(ISO_FLOOR_ASSET_CATALOG.get(asset_key, ""))
-	if ISO_WALL_ASSET_CATALOG.has(asset_key) and asset_key.begins_with("wall_gray_"):
-		return ISO_TEST_ASSET_PACK_DIR + str(ISO_WALL_ASSET_CATALOG.get(asset_key, ""))
+	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
+	if normalized_asset_key.is_empty():
+		return ""
+
+	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	if catalog_path.find("/test/") >= 0:
+		return catalog_path
+
+	if normalized_asset_key == ISO_FLOOR_TEST_ASSET_KEY:
+		return ISO_TEST_ASSET_PACK_DIR + str(ISO_FLOOR_ASSET_CATALOG.get(normalized_asset_key, ""))
+
+	if ISO_WALL_ASSET_CATALOG.has(normalized_asset_key) and normalized_asset_key.begins_with("wall_gray_"):
+		return ISO_TEST_ASSET_PACK_DIR + str(ISO_WALL_ASSET_CATALOG.get(normalized_asset_key, ""))
+
 	return ""
 
 func get_gray_room_visual_test_asset_validation() -> Dictionary:
@@ -2537,16 +2548,19 @@ func log_iso_object_asset_resolution(object_data: Dictionary, fallback_profile_k
 	])
 
 func get_iso_object_png_asset_path(asset_key: String) -> String:
-	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
+	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
 	if normalized_asset_key.is_empty():
 		return ""
+
 	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
 	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0):
 		return catalog_path
-	if not ISO_OBJECT_PNG_ASSET_PATHS.has(normalized_asset_key):
-		return ""
-	return str(ISO_OBJECT_PNG_ASSET_PATHS.get(normalized_asset_key, ""))
 
+	if ISO_OBJECT_PNG_ASSET_PATHS.has(normalized_asset_key):
+		return str(ISO_OBJECT_PNG_ASSET_PATHS.get(normalized_asset_key, ""))
+
+	return ""
+	
 func is_iso_object_png_asset_key(asset_key: String) -> bool:
 	return not get_iso_object_png_asset_path(asset_key).is_empty()
 
@@ -2574,15 +2588,19 @@ func get_iso_object_png_texture_for_asset_key(asset_key: String) -> Texture2D:
 	return null
 
 func get_iso_placeholder_asset_path(asset_key: String) -> String:
-	if asset_key == "":
+	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
+	if normalized_asset_key.is_empty():
 		return ""
-	var placeholder_path: String = VisualAssetCatalogRef.get_asset_path(asset_key)
-	if placeholder_path.find("/placeholders/") >= 0:
-		return placeholder_path
-	if not ISO_PLACEHOLDER_ASSET_PATHS.has(asset_key):
-		return ""
-	return str(ISO_PLACEHOLDER_ASSET_PATHS.get(asset_key, ""))
 
+	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	if catalog_path.find("/placeholders/") >= 0:
+		return catalog_path
+
+	if ISO_PLACEHOLDER_ASSET_PATHS.has(normalized_asset_key):
+		return str(ISO_PLACEHOLDER_ASSET_PATHS.get(normalized_asset_key, ""))
+
+	return ""
+	
 func is_placeholder_object_texture_path(texture_path: String) -> bool:
 	var normalized_path: String = texture_path.strip_edges().to_lower()
 	return normalized_path.begins_with("res://assets/visual/isometric/placeholders/iso_object_") and normalized_path.ends_with(".svg")
@@ -3442,14 +3460,11 @@ func _is_wall_cable_broken(object_data: Dictionary) -> bool:
 	if bool(object_data.get("broken", false)):
 		return true
 
-	if bool(object_data.get("cut", false)):
-		return true
-
 	return (
-		state_value in ["broken", "cut"]
-		or cable_state_value in ["broken", "cut"]
-		or cable_health_state in ["broken", "cut"]
-		or health_state in ["broken", "cut"]
+		state_value == "broken"
+		or cable_state_value == "broken"
+		or cable_health_state == "broken"
+		or health_state == "broken"
 	)
 func _draw_wall_cable_broken_overlay_segment(start_edge: Vector2, end_edge: Vector2, normal: Vector2, profile: Dictionary) -> void:
 	var axis: Vector2 = end_edge - start_edge
