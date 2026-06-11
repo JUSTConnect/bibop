@@ -108,12 +108,16 @@ static func _get_normalized_object_class(ui: Variant, data: Dictionary, type_gro
 
 static func _get_power_health_state(data: Dictionary) -> String:
 	var state: String = MapConstructorUiSafe.safe_string(data.get("cable_health_state", data.get("health_state", data.get("state", "")))).strip_edges().to_lower()
-	if bool(data.get("cut", false)) or state == "cut":
-		return "cut"
-	if bool(data.get("broken", false)) or state == "broken":
+
+	if bool(data.get("is_broken", false)):
 		return "broken"
-	if bool(data.get("damaged", false)) or state == "damaged":
-		return "damaged"
+
+	if bool(data.get("broken", false)):
+		return "broken"
+
+	if state == "broken":
+		return "broken"
+
 	return "normal"
 
 
@@ -617,7 +621,42 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		if power_object_type == "power_source":
 			var source_active_state: String = "off" if ui._safe_ui_string(data.get("state", "on")).strip_edges().to_lower() == "off" else "on"
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Active state", entity_kind, entity_id, source_active_state, [{"label":"On", "value":"on", "updates":{"state":"on"}}, {"label":"Off", "value":"off", "updates":{"state":"off"}}])
-			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"state":"on", "damaged":false}}, {"label":"Damaged", "value":"damaged", "updates":{"state":"damaged", "damaged":true}}, {"label":"Broken", "value":"broken", "updates":{"state":"broken", "damaged":true}}])
+			MapConstructorPropertyControls.add_enum_updates_property(
+				ui,
+				configurable,
+				"Health state",
+				entity_kind,
+				entity_id,
+				_get_power_health_state(data),
+				[
+					{
+						"label": "Normal",
+						"value": "normal",
+						"updates": {
+							"state": "normal",
+							"cable_health_state": "normal",
+							"health_state": "normal",
+							"broken": false,
+							"is_broken": false,
+							"damaged": false,
+							"cut": false
+						}
+					},
+					{
+						"label": "Broken",
+						"value": "broken",
+						"updates": {
+							"state": "broken",
+							"cable_health_state": "broken",
+							"health_state": "broken",
+							"broken": true,
+							"is_broken": true,
+							"damaged": true,
+							"cut": false
+						}
+					}
+				]
+			)
 			var source_class_options: Array[Dictionary] = [{"label":"C1 (4 outlets)", "value":"1"}, {"label":"C2 (5 outlets)", "value":"2"}, {"label":"C3 (6 outlets)", "value":"3"}]
 			ui._add_enum_property(configurable, "Source class", entity_kind, entity_id, "power_source_class", data.get("power_source_class", 1), source_class_options)
 		elif power_object_type == "power_cable" or power_object_type == "power_cable_reel":
