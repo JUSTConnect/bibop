@@ -44,7 +44,7 @@ static func build_validation_world_objects() -> Dictionary:
 		{"type":"fuse_box_installed","id":"task_test_fuse_box_installed","pos":Vector2i(12, 3),"extra":{"power_network_id":"task_test_power_main"}},
 		{"type":"power_socket","id":"task_test_power_socket_a","pos":Vector2i(13, 3),"extra":{"power_network_id":"task_test_power_main"}},
 		{"type":"power_cable","id":"task_test_power_cable_main","pos":Vector2i(14, 3),"extra":{"power_network_id":"task_test_power_main"}},
-		{"type":"power_cable","id":"task_test_power_cable_cut","pos":Vector2i(14, 4),"extra":{"power_network_id":"task_test_power_main","state":"cut","damaged":true}},
+		{"type":"power_cable","id":"task_test_power_cable_cut","pos":Vector2i(14, 4),"extra":{"power_network_id":"task_test_power_main","state":"broken","cable_health_state":"broken","health_state":"broken","broken":true,"is_broken":true,"damaged":true,"cut":false}},
 		{"type":"power_cable","id":"task_test_hidden_cable","pos":Vector2i(13, 4),"extra":{"hidden":true,"visible_with_xray":true,"power_network_id":"task_test_power_main"}},
 		{"type":"power_socket","id":"task_test_hidden_socket","pos":Vector2i(12, 4),"extra":{"hidden":true,"visible_with_xray":true,"power_network_id":"task_test_power_main"}},
 		# Generic cable/socket/power runtime smoke chain (PR-GEN-02)

@@ -9,77 +9,106 @@ const InformationTerminalServiceRef = preload("res://scripts/game/map_constructo
 const KeyDoorLinkServiceRef = preload("res://scripts/game/map_constructor_key_door_link_service.gd")
 
 static func _is_power_cable_object(world_object: Dictionary) -> bool:
-	var object_type: String = str(world_object.get("object_type", world_object.get("type", ""))).strip_edges().to_lower()
-	var archetype_id: String = str(world_object.get("archetype_id", world_object.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
-	var prefab_id: String = str(world_object.get("map_constructor_prefab_id", world_object.get("prefab_id", ""))).strip_edges().to_lower()
+	var ids: Array[String] = []
+	for field_name in ["object_type", "type", "archetype_id", "map_constructor_prefab_id", "prefab_id", "item_type"]:
+		ids.append(str(world_object.get(field_name, "")).strip_edges().to_lower())
 
-	return (
-		object_type == "power_cable"
-		or archetype_id == "power_cable"
-		or prefab_id == "power_cable"
-	)
+	for id_value in ids:
+		if id_value in ["power_cable", "cable", "cable_reel", "power_cable_reel"]:
+			return true
+	return false
+
+
+static func _apply_power_cable_cut_fields(cable: Dictionary) -> void:
+	cable["state"] = "broken"
+	cable["cable_health_state"] = "broken"
+	cable["health_state"] = "broken"
+	cable["broken"] = true
+	cable["is_broken"] = true
+	cable["damaged"] = true
+	cable["cut"] = false
+	if cable.has("connected"):
+		cable["connected"] = false
+	if cable.has("is_connected"):
+		cable["is_connected"] = false
+	if cable.has("connected_side"):
+		cable["connected_side"] = false
+	if cable.has("disconnected"):
+		cable["disconnected"] = true
+
+
+static func _apply_power_cable_repair_fields(cable: Dictionary) -> void:
+	cable["state"] = "normal"
+	cable["cable_health_state"] = "normal"
+	cable["health_state"] = "normal"
+	cable["broken"] = false
+	cable["is_broken"] = false
+	cable["damaged"] = false
+	cable["cut"] = false
+
+
+static func _persist_direct_power_cable_update(controller: Variant, updated: Dictionary, target_position: Vector2i) -> Dictionary:
+	controller.mission_manager.set_world_object_at_cell(target_position, updated)
+	var object_id: String = str(updated.get("id", "")).strip_edges()
+	if not object_id.is_empty() and controller.mission_manager.has_method("get_world_object_by_id"):
+		var persisted: Dictionary = Dictionary(controller.mission_manager.call("get_world_object_by_id", object_id))
+		if not persisted.is_empty():
+			return persisted
+	return updated
+
+
+static func _build_power_cable_action_result(success: bool, message: String, updated: Dictionary, target_position: Vector2i, action_result: Dictionary, reason: String) -> Dictionary:
+	var result: Dictionary = _build_result(success, message, updated, target_position, action_result, reason)
+	if success:
+		result["refresh_overlay"] = true
+		result["refresh_threats"] = true
+		result["refresh_action_panel"] = true
+		result["emit_facing_hint"] = true
+		result["clear_selected_action"] = true
+		result["pending_paid_action"] = true
+	return result
 
 
 static func _execute_power_cable_state_action(controller: Variant, world_object: Dictionary, target_position: Vector2i, action_id: String) -> Dictionary:
 	if controller == null or controller.mission_manager == null:
 		return _build_result(false, "Runtime world is unavailable.", world_object, target_position, {"success": false}, "runtime_unavailable")
+	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
+		return _build_result(false, "Not enough action/energy.", world_object, target_position, {"success": false}, "insufficient_resources")
 
+	var object_id: String = str(world_object.get("id", "")).strip_edges()
 	var updated: Dictionary = world_object.duplicate(true)
+	var action_result: Dictionary = {"success": true}
 
 	match action_id:
-		"repair":
-			updated["state"] = "normal"
-			updated["cable_health_state"] = "normal"
-			updated["health_state"] = "normal"
-			updated["broken"] = false
-			updated["is_broken"] = false
-			updated["damaged"] = false
-			updated["cut"] = false
-
-			controller.mission_manager.set_world_object_at_cell(target_position, updated)
-
-			var repair_result: Dictionary = _build_result(
-				true,
-				"Cable repaired.",
-				updated,
-				target_position,
-				{"success": true, "message": "Cable repaired."},
-				"ok"
-			)
-			repair_result["refresh_overlay"] = true
-			repair_result["refresh_threats"] = true
-			repair_result["refresh_action_panel"] = true
-			repair_result["emit_facing_hint"] = true
-			repair_result["clear_selected_action"] = true
-			repair_result["pending_paid_action"] = true
-			return repair_result
-
 		"cut":
-			updated["state"] = "broken"
-			updated["cable_health_state"] = "broken"
-			updated["health_state"] = "broken"
-			updated["broken"] = true
-			updated["is_broken"] = true
-			updated["damaged"] = true
-			updated["cut"] = false
+			if not object_id.is_empty() and controller.mission_manager.has_method("cut_power_cable"):
+				action_result = Dictionary(controller.mission_manager.call("cut_power_cable", object_id))
+				if bool(action_result.get("success", false)) and controller.mission_manager.has_method("get_world_object_by_id"):
+					updated = Dictionary(controller.mission_manager.call("get_world_object_by_id", object_id))
+			if updated.is_empty() or not bool(action_result.get("success", false)):
+				updated = world_object.duplicate(true)
+				_apply_power_cable_cut_fields(updated)
+				updated = _persist_direct_power_cable_update(controller, updated, target_position)
+				_apply_power_cable_cut_fields(updated)
+				action_result = {"success": true, "message": "Cable broken.", "reason": "fallback_direct_cable_cut"}
+			else:
+				_apply_power_cable_cut_fields(updated)
+			return _build_power_cable_action_result(true, "Cable broken.", updated, target_position, action_result, "ok")
 
-			controller.mission_manager.set_world_object_at_cell(target_position, updated)
-
-			var cut_result: Dictionary = _build_result(
-				true,
-				"Cable broken.",
-				updated,
-				target_position,
-				{"success": true, "message": "Cable broken."},
-				"ok"
-			)
-			cut_result["refresh_overlay"] = true
-			cut_result["refresh_threats"] = true
-			cut_result["refresh_action_panel"] = true
-			cut_result["emit_facing_hint"] = true
-			cut_result["clear_selected_action"] = true
-			cut_result["pending_paid_action"] = true
-			return cut_result
+		"repair":
+			if not object_id.is_empty() and controller.mission_manager.has_method("repair_power_cable"):
+				action_result = Dictionary(controller.mission_manager.call("repair_power_cable", object_id, true))
+				if bool(action_result.get("success", false)) and controller.mission_manager.has_method("get_world_object_by_id"):
+					updated = Dictionary(controller.mission_manager.call("get_world_object_by_id", object_id))
+			if updated.is_empty() or not bool(action_result.get("success", false)):
+				updated = world_object.duplicate(true)
+				_apply_power_cable_repair_fields(updated)
+				updated = _persist_direct_power_cable_update(controller, updated, target_position)
+				_apply_power_cable_repair_fields(updated)
+				action_result = {"success": true, "message": "Cable repaired.", "reason": "fallback_direct_cable_repair"}
+			else:
+				_apply_power_cable_repair_fields(updated)
+			return _build_power_cable_action_result(true, "Cable repaired.", updated, target_position, action_result, "ok")
 
 	return _build_result(false, "Unsupported cable action.", world_object, target_position, {"success": false}, "unsupported_cable_action")
 	

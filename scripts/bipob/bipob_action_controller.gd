@@ -233,7 +233,44 @@ static func try_direct_repair_facing_object(controller: Variant) -> bool:
 		controller.status_changed.emit()
 		return false
 	var updated: Dictionary = target_object.duplicate(true)
-	var is_power_cable: bool = object_type == "power_cable" or str(updated.get("archetype_id", "")).strip_edges().to_lower() == "power_cable" or str(updated.get("map_constructor_prefab_id", "")).strip_edges().to_lower() == "power_cable"
+	var object_ids: Array[String] = [
+		object_type,
+		str(updated.get("type", "")).strip_edges().to_lower(),
+		str(updated.get("archetype_id", "")).strip_edges().to_lower(),
+		str(updated.get("map_constructor_prefab_id", "")).strip_edges().to_lower(),
+		str(updated.get("prefab_id", "")).strip_edges().to_lower(),
+		str(updated.get("item_type", "")).strip_edges().to_lower()
+	]
+	var is_power_cable: bool = false
+	for object_id_value in object_ids:
+		if object_id_value in ["power_cable", "cable", "cable_reel", "power_cable_reel"]:
+			is_power_cable = true
+			break
+	if is_power_cable and controller.mission_manager.has_method("repair_power_cable"):
+		var target_id: String = str(updated.get("id", "")).strip_edges()
+		if not target_id.is_empty():
+			var repair_result: Dictionary = Dictionary(controller.mission_manager.call("repair_power_cable", target_id, true))
+			if bool(repair_result.get("success", false)):
+				if controller.mission_manager.has_method("get_world_object_by_id"):
+					var repaired: Dictionary = Dictionary(controller.mission_manager.call("get_world_object_by_id", target_id))
+					if not repaired.is_empty():
+						updated = repaired
+				updated["state"] = "normal"
+				updated["cable_health_state"] = "normal"
+				updated["health_state"] = "normal"
+				updated["broken"] = false
+				updated["is_broken"] = false
+				updated["damaged"] = false
+				updated["cut"] = false
+				InteractionActionCostServiceRef.commit_gameplay_action(controller, {"success": true, "message": "Cable repaired."})
+				controller.selected_world_action = ""
+				controller.hint_requested.emit("Cable repaired.")
+				controller.refresh_world_object_overlay()
+				controller.update_threat_detection_preview()
+				controller.emit_facing_world_object_hint()
+				refresh_world_action_panel(controller)
+				controller.status_changed.emit()
+				return true
 	updated["broken"] = false
 	updated["is_broken"] = false
 	updated["damaged"] = false
@@ -245,6 +282,18 @@ static func try_direct_repair_facing_object(controller: Variant) -> bool:
 	else:
 		updated["state"] = "active"
 	controller.mission_manager.set_world_object_at_cell(target_position, updated)
+	if is_power_cable and controller.mission_manager.has_method("get_world_object_by_id"):
+		var fallback_id: String = str(updated.get("id", "")).strip_edges()
+		if not fallback_id.is_empty():
+			var persisted: Dictionary = Dictionary(controller.mission_manager.call("get_world_object_by_id", fallback_id))
+			if not persisted.is_empty():
+				persisted["state"] = "normal"
+				persisted["cable_health_state"] = "normal"
+				persisted["health_state"] = "normal"
+				persisted["broken"] = false
+				persisted["is_broken"] = false
+				persisted["damaged"] = false
+				persisted["cut"] = false
 	InteractionActionCostServiceRef.commit_gameplay_action(controller, {"success": true, "message": "Cable repaired." if is_power_cable else "Object repaired."})
 	controller.selected_world_action = ""
 	controller.hint_requested.emit("Cable repaired." if is_power_cable else "Object repaired.")
