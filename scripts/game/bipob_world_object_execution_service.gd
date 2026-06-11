@@ -8,23 +8,110 @@ const InteractionActionCostServiceRef = preload("res://scripts/game/interaction/
 const InformationTerminalServiceRef = preload("res://scripts/game/map_constructor_information_terminal_service.gd")
 const KeyDoorLinkServiceRef = preload("res://scripts/game/map_constructor_key_door_link_service.gd")
 
+static func _is_power_cable_object(world_object: Dictionary) -> bool:
+	var object_type: String = str(world_object.get("object_type", world_object.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(world_object.get("archetype_id", world_object.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var prefab_id: String = str(world_object.get("map_constructor_prefab_id", world_object.get("prefab_id", ""))).strip_edges().to_lower()
 
+	return (
+		object_type == "power_cable"
+		or archetype_id == "power_cable"
+		or prefab_id == "power_cable"
+	)
+
+
+static func _execute_power_cable_state_action(controller: Variant, world_object: Dictionary, target_position: Vector2i, action_id: String) -> Dictionary:
+	if controller == null or controller.mission_manager == null:
+		return _build_result(false, "Runtime world is unavailable.", world_object, target_position, {"success": false}, "runtime_unavailable")
+
+	var updated: Dictionary = world_object.duplicate(true)
+
+	match action_id:
+		"repair":
+			updated["state"] = "normal"
+			updated["cable_health_state"] = "normal"
+			updated["health_state"] = "normal"
+			updated["broken"] = false
+			updated["is_broken"] = false
+			updated["damaged"] = false
+			updated["cut"] = false
+
+			controller.mission_manager.set_world_object_at_cell(target_position, updated)
+
+			var repair_result: Dictionary = _build_result(
+				true,
+				"Cable repaired.",
+				updated,
+				target_position,
+				{"success": true, "message": "Cable repaired."},
+				"ok"
+			)
+			repair_result["refresh_overlay"] = true
+			repair_result["refresh_threats"] = true
+			repair_result["refresh_action_panel"] = true
+			repair_result["emit_facing_hint"] = true
+			repair_result["clear_selected_action"] = true
+			repair_result["pending_paid_action"] = true
+			return repair_result
+
+		"cut":
+			updated["state"] = "broken"
+			updated["cable_health_state"] = "broken"
+			updated["health_state"] = "broken"
+			updated["broken"] = true
+			updated["is_broken"] = true
+			updated["damaged"] = true
+			updated["cut"] = false
+
+			controller.mission_manager.set_world_object_at_cell(target_position, updated)
+
+			var cut_result: Dictionary = _build_result(
+				true,
+				"Cable broken.",
+				updated,
+				target_position,
+				{"success": true, "message": "Cable broken."},
+				"ok"
+			)
+			cut_result["refresh_overlay"] = true
+			cut_result["refresh_threats"] = true
+			cut_result["refresh_action_panel"] = true
+			cut_result["emit_facing_hint"] = true
+			cut_result["clear_selected_action"] = true
+			cut_result["pending_paid_action"] = true
+			return cut_result
+
+	return _build_result(false, "Unsupported cable action.", world_object, target_position, {"success": false}, "unsupported_cable_action")
+	
 static func execute_world_object_action(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> Dictionary:
 	if str(world_object.get("object_group", "")) == "terminal" and action_id == "download" and InformationTerminalServiceRef.is_information_terminal(world_object):
 		return _execute_information_terminal_download(controller, world_object, target_position)
+
 	if str(world_object.get("object_group", "")) == "door" and action_id in ["apply_digital_key", "input_password"]:
 		var access_result: Dictionary = _execute_acquired_door_access(controller, world_object, target_position, action_id)
 		if bool(access_result.get("handled", false)):
 			return access_result
+
+	# Cable-specific state actions.
+	# Cut is not a state. Cut action makes the cable broken.
+	# Repair action returns the cable to normal.
+	if _is_power_cable_object(world_object) and action_id in ["repair", "cut"]:
+		return _execute_power_cable_state_action(controller, world_object, target_position, action_id)
+
 	if action_id == "insert_fuse" and controller != null and controller.has_method("_trace_runtime_inventory_state"):
 		controller.call("_trace_runtime_inventory_state", "insert_fuse_check")
+
 	var working_object: Dictionary = world_object.duplicate(true)
 	var action_result: Dictionary = InteractionSystemRef.normalize_action_result(Dictionary(InteractionSystemRef.apply_action(actor, module, working_object, action_id)), working_object, action_id)
+
 	if not bool(action_result.get("success", false)):
 		return _build_result(false, str(action_result.get("message", "Action failed.")), world_object, target_position, action_result, "action_failed")
+
 	world_object = working_object
+
 	if action_id != "connect" and not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
 		return _build_result(false, "Not enough action/energy.", world_object, target_position, action_result, "insufficient_resources")
+
 	if action_id == "insert_fuse":
 		print("[INSERT_FUSE_EXECUTION_REACHED] before consume")
 		var consumed_fuse: bool = false
@@ -37,19 +124,26 @@ static func execute_world_object_action(controller: Variant, world_object: Dicti
 
 		if not consumed_fuse:
 			return _build_result(false, "Manipulator does not contain a fuse.", world_object, target_position, action_result, "fuse_not_held")
+
 	if action_id == "remove_fuse" and controller.has_method("can_receive_physical_item") and not bool(Dictionary(controller.call("can_receive_physical_item", {"item_type": "fuse"})).get("success", false)):
 		return _build_result(false, "No free pocket or manipulator slot.", world_object, target_position, action_result, "no_free_pocket_or_manipulator_slot")
+
 	if action_id == "repair" and str(module.get("id", "")) == "repair_kit":
 		controller.consume_held_world_item_if_type("repair_kit")
+
 	var moved: bool = bool(controller._apply_world_object_effects(action_result.get("effects", []), world_object, target_position, actor))
 	if not moved:
 		controller.mission_manager.set_world_object_at_cell(target_position, world_object)
+
 	if action_id == "unlock" and str(world_object.get("object_group", "")) == "door" and WorldObjectCatalogRef.normalize_access_type(world_object.get("access_type", world_object.get("lock_type", ""))) == WorldObjectCatalogRef.ACCESS_TYPE_KEY_CARD and controller.mission_manager.has_method("remove_keycard_if_no_door_references"):
 		controller.mission_manager.call("remove_keycard_if_no_door_references", str(world_object.get("required_key_id", "")))
+
 	_apply_explicit_power_event(controller, world_object, action_id, action_result)
+
 	var action_message: String = str(action_result.get("message", "Action complete."))
 	if str(world_object.get("object_group", "")) != "door" or action_id not in ["open", "close", "unlock"]:
 		action_message = "%s (%s): %s | Action: %s" % [world_object.get("display_name", "Object"), world_object.get("state", "unknown"), action_message, action_id]
+
 	var result: Dictionary = _build_result(true, action_message, world_object, target_position, action_result, "ok")
 	result["refresh_overlay"] = true
 	result["refresh_threats"] = true
@@ -57,6 +151,7 @@ static func execute_world_object_action(controller: Variant, world_object: Dicti
 	result["emit_facing_hint"] = true
 	result["clear_selected_action"] = true
 	result["pending_paid_action"] = action_id != "connect"
+
 	return result
 
 
