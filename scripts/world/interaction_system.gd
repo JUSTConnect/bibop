@@ -21,6 +21,9 @@ static func _is_cable_object(target_object: Dictionary) -> bool:
 			return true
 	return false
 
+static func _is_broken_cable_object(target_object: Dictionary) -> bool:
+	return bool(target_object.get("broken", false)) or bool(target_object.get("is_broken", false)) or bool(target_object.get("damaged", false)) or str(target_object.get("state", "")).strip_edges().to_lower() == "broken" or str(target_object.get("cable_health_state", "")).strip_edges().to_lower() == "broken" or str(target_object.get("health_state", "")).strip_edges().to_lower() == "broken"
+
 static func _actor_held_item_matches(actor: Dictionary, expected_type: String) -> bool:
 	var normalized_expected: String = expected_type.strip_edges().to_lower()
 	if normalized_expected.is_empty():
@@ -186,6 +189,12 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 
 		if not fuse_match:
 			return _result(false, "FUSE_GATE: Fuse required.", [], "fuse_required")
+	if action_type == "cut" and module_id != "plasma_cutter_v1":
+		return _result(false, "Plasma Cutter required.", [], "plasma_cutter_required")
+	if action_type == "cut" and _is_cable_object(target_object) and _is_broken_cable_object(target_object):
+		return _result(false, "Cable already broken.", [], "cable_already_broken")
+	if action_type == "repair" and module_id != "repair_kit":
+		return _result(false, "Repair kit required.", [], "repair_kit_required")
 	if action_type == "hack" and actor.get("processor_level", 0) < target_object.get("required_processor_level", 1):
 		return _result(false, "Hacking impossible")
 	if action_type == "download":

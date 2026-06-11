@@ -72,6 +72,8 @@ static func _build_power_cable_action_result(success: bool, message: String, upd
 static func _execute_power_cable_state_action(controller: Variant, world_object: Dictionary, target_position: Vector2i, action_id: String) -> Dictionary:
 	if controller == null or controller.mission_manager == null:
 		return _build_result(false, "Runtime world is unavailable.", world_object, target_position, {"success": false}, "runtime_unavailable")
+	if action_id == "repair" and (not controller.has_method("has_held_world_item") or not bool(controller.call("has_held_world_item", "repair_kit"))):
+		return _build_result(false, "Repair kit required.", world_object, target_position, {"success": false}, "repair_kit_required")
 	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
 		return _build_result(false, "Not enough action/energy.", world_object, target_position, {"success": false}, "insufficient_resources")
 
@@ -90,10 +92,12 @@ static func _execute_power_cable_state_action(controller: Variant, world_object:
 				_apply_power_cable_cut_fields(updated)
 				updated = _persist_direct_power_cable_update(controller, updated, target_position)
 				_apply_power_cable_cut_fields(updated)
-				action_result = {"success": true, "message": "Cable broken.", "reason": "fallback_direct_cable_cut"}
+				action_result = {"success": true, "message": "Cable cut.", "reason": "fallback_direct_cable_cut"}
 			else:
 				_apply_power_cable_cut_fields(updated)
-			return _build_power_cable_action_result(true, "Cable broken.", updated, target_position, action_result, "ok")
+				updated = _persist_direct_power_cable_update(controller, updated, target_position)
+				_apply_power_cable_cut_fields(updated)
+			return _build_power_cable_action_result(true, "Cable cut.", updated, target_position, action_result, "ok")
 
 		"repair":
 			if not object_id.is_empty() and controller.mission_manager.has_method("repair_power_cable"):
@@ -108,6 +112,10 @@ static func _execute_power_cable_state_action(controller: Variant, world_object:
 				action_result = {"success": true, "message": "Cable repaired.", "reason": "fallback_direct_cable_repair"}
 			else:
 				_apply_power_cable_repair_fields(updated)
+				updated = _persist_direct_power_cable_update(controller, updated, target_position)
+				_apply_power_cable_repair_fields(updated)
+			if controller.has_method("consume_held_world_item_if_type"):
+				controller.call("consume_held_world_item_if_type", "repair_kit")
 			return _build_power_cable_action_result(true, "Cable repaired.", updated, target_position, action_result, "ok")
 
 	return _build_result(false, "Unsupported cable action.", world_object, target_position, {"success": false}, "unsupported_cable_action")
@@ -126,6 +134,9 @@ static func execute_world_object_action(controller: Variant, world_object: Dicti
 	# Repair action returns the cable to normal.
 	if _is_power_cable_object(world_object) and action_id in ["repair", "cut"]:
 		return _execute_power_cable_state_action(controller, world_object, target_position, action_id)
+
+	if action_id == "repair" and (controller == null or not controller.has_method("has_held_world_item") or not bool(controller.call("has_held_world_item", "repair_kit"))):
+		return _build_result(false, "Repair kit required.", world_object, target_position, {"success": false}, "repair_kit_required")
 
 	if action_id == "insert_fuse" and controller != null and controller.has_method("_trace_runtime_inventory_state"):
 		controller.call("_trace_runtime_inventory_state", "insert_fuse_check")
@@ -157,8 +168,8 @@ static func execute_world_object_action(controller: Variant, world_object: Dicti
 	if action_id == "remove_fuse" and controller.has_method("can_receive_physical_item") and not bool(Dictionary(controller.call("can_receive_physical_item", {"item_type": "fuse"})).get("success", false)):
 		return _build_result(false, "No free pocket or manipulator slot.", world_object, target_position, action_result, "no_free_pocket_or_manipulator_slot")
 
-	if action_id == "repair" and str(module.get("id", "")) == "repair_kit":
-		controller.consume_held_world_item_if_type("repair_kit")
+	if action_id == "repair" and str(module.get("id", "")) == "repair_kit" and controller.has_method("consume_held_world_item_if_type"):
+		controller.call("consume_held_world_item_if_type", "repair_kit")
 
 	var moved: bool = bool(controller._apply_world_object_effects(action_result.get("effects", []), world_object, target_position, actor))
 	if not moved:

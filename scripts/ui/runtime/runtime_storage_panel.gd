@@ -1,6 +1,8 @@
 extends RefCounted
 class_name RuntimeStoragePanel
 
+const BipobActionControllerRef = preload("res://scripts/bipob/bipob_action_controller.gd")
+
 const PANEL_SIZE: Vector2 = Vector2(380, 190)
 const FLYOUT_SIZE: Vector2 = Vector2(66, 118)
 const MANIPULATOR_CELL_SIZE: float = 54.0
@@ -149,27 +151,20 @@ static func _get_runtime_manipulator_tool_channels(ui, bipob, inventory_state: D
 				var object_data: Dictionary = Dictionary(drag_context.get("object", {}))
 				claw_content = _short_label(_get_world_object_short_name(object_data, str(drag_context.get("object_id", "Object"))))
 		channels.append({"label": "Claw", "content": claw_content, "tooltip": "Heavy Claw: %s" % claw_content})
-	var has_repair: bool = bipob.has_method("has_module_id") and bool(bipob.call("has_module_id", "repair_v1"))
 	var has_cutter: bool = bipob.has_method("has_module_id") and bool(bipob.call("has_module_id", "plasma_cutter_v1"))
-	if has_repair or has_cutter:
-		var tool_label: String = "Repair" if has_repair else "Cutter"
-		if has_repair and has_cutter:
-			tool_label = "Repair"
-		var tool_content: String = _get_tool_target_label(ui, bipob, has_repair, has_cutter)
+	if has_cutter:
+		var tool_label: String = "Cutter"
+		var tool_content: String = _get_tool_target_label(ui, bipob)
 		channels.append({"label": tool_label, "content": tool_content, "tooltip": "%s: %s" % [tool_label, tool_content]})
 	return channels.slice(0, MANIPULATOR_VISIBLE_SLOTS)
 
 
-static func _get_tool_target_label(ui, bipob, has_repair: bool, has_cutter: bool) -> String:
-	if not bipob.has_method("get_facing_world_action_target"):
+static func _get_tool_target_label(ui, bipob) -> String:
+	var cut_context: Dictionary = BipobActionControllerRef.get_direct_cut_target_context(bipob) if bipob != null else {}
+	if not bool(cut_context.get("available", false)):
 		return "Empty"
-	var target_data: Dictionary = Dictionary(bipob.call("get_facing_world_action_target"))
-	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
+	var target_object: Dictionary = Dictionary(cut_context.get("target_object", {}))
 	if target_object.is_empty():
-		return "Empty"
-	var action_ids: Array = Array(target_data.get("available_action_ids", []))
-	var target_available: bool = (has_repair and action_ids.has("repair")) or (has_cutter and action_ids.has("cut"))
-	if not target_available:
 		return "Empty"
 	return _short_label(_get_world_object_short_name(target_object, "Target"))
 

@@ -13806,7 +13806,7 @@ func _build_task_test_module_port_specs() -> Array[Dictionary]:
 		{"id":"task_test_processor_v2","module_id":"processor_v2"},
 		{"id":"task_test_wired_connector_v1","module_id":"wired_connector_v1"},
 		{"id":"task_test_optical_connector_v1","module_id":"optical_connector_v1"},
-		{"id":"task_test_extra_external_tool","module_id":"repair_v1"},
+		{"id":"task_test_extra_external_tool","module_id":"plasma_cutter_v1"},
 		{"id":"task_test_battery_v1","module_id":"battery_v1"},
 		{"id":"task_test_cooler_v1","module_id":"cooler_v1"},
 		{"id":"task_test_radiator_v1","module_id":"radiator_v1"}
