@@ -17,9 +17,25 @@ static func normalize_action_id(action_type: String) -> String:
 static func _is_cable_object(target_object: Dictionary) -> bool:
 	for field_name in ["object_type", "type", "archetype_id", "map_constructor_prefab_id", "prefab_id"]:
 		var id_value: String = str(target_object.get(field_name, "")).strip_edges().to_lower()
-		if id_value in ["power_cable", "cable", "cable_reel", "power_cable_reel"]:
+		if id_value in ["power_cable", "cable", "wall_cable", "placed_cable_segment", "cable_reel", "power_cable_reel"]:
 			return true
 	return false
+
+static func _is_cable_reel_object(target_object: Dictionary) -> bool:
+	for field_name in ["object_type", "type", "archetype_id", "map_constructor_prefab_id", "prefab_id"]:
+		var id_value: String = str(target_object.get(field_name, "")).strip_edges().to_lower()
+		if id_value in ["power_cable_reel", "cable_reel"]:
+			return true
+	return false
+
+static func _object_supports_external_power_input(target_object: Dictionary) -> bool:
+	if bool(target_object.get("requires_external_power", false)):
+		return true
+	var power_mode: String = str(target_object.get("power_mode", "")).strip_edges().to_lower()
+	if power_mode in ["external", "external_power", "external power"]:
+		return true
+	var object_type: String = str(target_object.get("object_type", target_object.get("type", ""))).strip_edges().to_lower()
+	return object_type in ["power_socket", "outlet"]
 
 static func _is_broken_cable_object(target_object: Dictionary) -> bool:
 	return bool(target_object.get("broken", false)) or bool(target_object.get("is_broken", false)) or bool(target_object.get("damaged", false)) or str(target_object.get("state", "")).strip_edges().to_lower() == "broken" or str(target_object.get("cable_health_state", "")).strip_edges().to_lower() == "broken" or str(target_object.get("health_state", "")).strip_edges().to_lower() == "broken"
@@ -63,10 +79,25 @@ static func _actor_held_item_matches(actor: Dictionary, expected_type: String) -
 
 	return false
 
+static func _actor_has_valid_cable_reel_end(actor: Dictionary) -> bool:
+	var held_type: String = str(actor.get("held_item_type", "")).strip_edges().to_lower()
+	var held_data: Dictionary = Dictionary(actor.get("held_item_data", {}))
+	var data_type: String = ""
+	for field_name in ["item_type", "object_type", "item_class", "id", "item_id"]:
+		var value: String = str(held_data.get(field_name, "")).strip_edges().to_lower()
+		if not value.is_empty():
+			data_type = value
+			break
+	var is_reel_end: bool = held_type == "cable_reel_end" or data_type == "cable_reel_end"
+	var is_legacy_identified_end: bool = (held_type in ["cable_end", "wire_end"] or data_type in ["cable_end", "wire_end"]) and held_data.has("reel_id") and held_data.has("end_index")
+	if not is_reel_end and not is_legacy_identified_end:
+		return false
+	var reel_id: String = str(held_data.get("reel_id", "")).strip_edges()
+	var end_index: int = int(held_data.get("end_index", 0))
+	return not reel_id.is_empty() and end_index >= 1 and end_index <= 2
+
 static func _actor_has_visible_cable_item(actor: Dictionary) -> bool:
-	if _actor_held_item_matches(actor, "cable_end") or _actor_held_item_matches(actor, "wire_end"):
-		return true
-	return _actor_held_item_matches(actor, "cable_reel") or _actor_held_item_matches(actor, "power_cable_reel")
+	return _actor_has_valid_cable_reel_end(actor)
 
 
 static func _actor_has_free_storage_slot(actor: Dictionary) -> bool:
@@ -191,9 +222,14 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 	if action_type in ["switch", "plug_in", "plug_out"]:
 		if not module_id.begins_with("manipulator_arm_v"):
 			return _result(false, "Manipulator required.", [], "manipulator_required")
-	if action_type in ["plug_in", "connect_wire_end", "connect_wire_1", "connect_wire_2"]:
-		if not _actor_has_visible_cable_item(actor):
-			return _result(false, "Cable required.", [], "cable_required")
+	if action_type == "plug_in":
+		if not _object_supports_external_power_input(target_object):
+			return _result(false, "Target cannot receive external power.", [], "target_not_connectable")
+		if not _actor_has_valid_cable_reel_end(actor):
+			return _result(false, "Nothing to plug in.", [], "nothing_to_plug_in")
+	if action_type in ["connect_wire_end", "connect_wire_1", "connect_wire_2"]:
+		if not _actor_has_valid_cable_reel_end(actor):
+			return _result(false, "Nothing to plug in.", [], "cable_reel_end_required")
 	if action_type == "insert_fuse":
 		var fuse_match: bool = _actor_held_item_matches(actor, "fuse")
 
@@ -325,12 +361,21 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			return _result(true, "Switch toggled.", [{"type":"set_bool","field":"is_on","value":next_on},{"type":"toggle_linked_lights","is_on":next_on},{"type":"power_recalc_needed"}])
 		"plug_in":
 			target_object["plugged"] = true
-			return _result(true, "Plug inserted.", [{"type":"set_bool","field":"plugged","value":true},{"type":"connect_cable"},{"type":"power_recalc_needed"}])
+			return _result(true, "Cable plugged in.", [{"type":"set_bool","field":"plugged","value":true},{"type":"connect_cable_end_to_target"},{"type":"power_recalc_needed"}])
 		"plug_out":
 			target_object["plugged"] = false
 			return _result(true, "Plug removed.", [{"type":"set_bool","field":"plugged","value":false},{"type":"disconnect_cable"},{"type":"power_recalc_needed"}])
 		"take_end_1", "take_end_2":
+			if not _is_cable_reel_object(target_object):
+				return _result(false, "Cable reel required.", [], "cable_reel_required")
+			if bool(actor.get("manipulator_occupied", false)):
+				return _result(false, "Hand occupied.", [], "hand_occupied")
 			var take_end_index: int = 1 if action_type == "take_end_1" else 2
+			var take_end_state: String = str(target_object.get("end_%d_state" % take_end_index, "on_reel")).strip_edges().to_lower()
+			if take_end_state == "connected" or not str(target_object.get("end_%d_target_id" % take_end_index, "")).strip_edges().is_empty():
+				return _result(false, "Cable end already connected.", [], "reel_end_already_connected")
+			if not (take_end_state in ["on_reel", "disconnected", "free", ""]):
+				return _result(false, "Cable end unavailable.", [], "reel_end_unavailable")
 			return _result(true, "Cable end taken.", [{"type":"take_cable_end","end_index":take_end_index}])
 		"connect_wire_end", "connect_wire_1", "connect_wire_2":
 			var connect_end_index: int = 0

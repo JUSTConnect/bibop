@@ -8317,10 +8317,15 @@ func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_
 	var cable_reel := get_world_object_by_id(normalized_reel_id)
 	if cable_reel.is_empty():
 		return {"success": false, "reason": "target_not_found", "message": "Cable reel not found."}
+	var cable_reel_type: String = str(cable_reel.get("object_type", cable_reel.get("type", ""))).strip_edges().to_lower()
+	if cable_reel_type not in ["power_cable_reel", "cable_reel"]:
+		return {"success": false, "reason": "cable_reel_required", "message": "Cable reel required."}
 	var target := get_world_object_by_id(normalized_target_id)
 	if target.is_empty():
 		return {"success": false, "reason": "target_not_found", "message": "Cable target not found."}
 	_normalize_power_cable_reel_state(cable_reel)
+	if str(cable_reel.get("end_%d_state" % end_index, "on_reel")).strip_edges().to_lower() == "connected" or not str(cable_reel.get("end_%d_target_id" % end_index, "")).strip_edges().is_empty():
+		return {"success": false, "reason": "reel_end_already_connected", "message": "Cable end already connected."}
 	if _is_power_cable_unavailable(cable_reel):
 		return {"success": false, "reason": "cable_damaged", "message": "Cable reel must be repaired first."}
 	var can_connect := can_connect_cable_reel_to_target(cable_reel, target)
@@ -8329,10 +8334,17 @@ func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_
 	cable_reel["state"] = "connected"
 	cable_reel["end_%d_state" % end_index] = "connected"
 	cable_reel["end_%d_target_id" % end_index] = normalized_target_id
+	cable_reel["end_%d_target_cell" % end_index] = target.get("position", target.get("cell", Vector2i(-1, -1)))
 	cable_reel["end_%d_path_cells" % end_index] = can_connect.get("path_cells", [])
 	cable_reel["end_%d_cable_length" % end_index] = int(can_connect.get("length", 0))
 	cable_reel["cable_endpoint_a_id"] = str(cable_reel.get("id", "")).strip_edges()
 	cable_reel["cable_max_length"] = int(can_connect.get("max_length", 0))
+	target["cable_power_connected"] = true
+	target["external_power_reel_id"] = normalized_reel_id
+	target["external_power_end_index"] = end_index
+	target["connected_reel_id"] = normalized_reel_id
+	target["connected_reel_end_index"] = end_index
+	target["plugged_cable_end"] = {"reel_id": normalized_reel_id, "end_index": end_index, "target_id": normalized_target_id}
 	_normalize_power_cable_reel_state(cable_reel)
 	var report := _apply_graph_power_after_world_object_power_change(cable_reel, "cable_connected")
 	return {"success": true, "reason": "ok", "message": "Cable end connected.", "apply": report, "path": can_connect, "reel_id": normalized_reel_id, "end_index": end_index, "target_id": normalized_target_id}

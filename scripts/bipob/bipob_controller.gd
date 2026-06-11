@@ -7686,13 +7686,23 @@ func _get_held_cable_end_metadata() -> Dictionary:
 		return {"held": false, "reel_id": "", "end_index": 0}
 	var inventory: Dictionary = Dictionary(mission_manager.call("get_inventory_state"))
 	var held_id: String = _runtime_inventory_value_id(inventory.get("manipulator_hold", ""))
-	var held_id_lower: String = held_id.to_lower()
-	if held_id_lower.find("cable_end") >= 0 or held_id_lower.find("wire_end") >= 0:
-		var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
-		var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
-		var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
-		return {"held": true, "reel_id": str(item_data.get("reel_id", inventory.get("held_cable_reel_id", ""))), "end_index": int(item_data.get("end_index", inventory.get("held_cable_end_index", 0))), "held_id": held_id}
-	return {"held": false, "reel_id": "", "end_index": 0}
+	if held_id.is_empty():
+		return {"held": false, "reel_id": "", "end_index": 0}
+	var runtime_map: Dictionary = Dictionary(inventory.get("world_item_runtime", {}))
+	var runtime_row: Dictionary = Dictionary(runtime_map.get(held_id, {}))
+	var item_data: Dictionary = Dictionary(runtime_row.get("item_data", {}))
+	if item_data.is_empty() and not runtime_row.is_empty():
+		item_data = runtime_row.duplicate(true)
+	var item_type: String = str(item_data.get("item_type", item_data.get("object_type", ""))).strip_edges().to_lower()
+	var reel_id: String = str(item_data.get("reel_id", "")).strip_edges()
+	var end_index: int = int(item_data.get("end_index", 0))
+	var is_explicit_reel_end: bool = item_type == "cable_reel_end"
+	var is_legacy_identified_end: bool = item_type in ["cable_end", "wire_end"] and not reel_id.is_empty() and end_index >= 1 and end_index <= 2
+	if not is_explicit_reel_end and not is_legacy_identified_end:
+		return {"held": false, "reel_id": "", "end_index": 0}
+	if reel_id.is_empty() or end_index < 1 or end_index > 2:
+		return {"held": false, "reel_id": "", "end_index": 0}
+	return {"held": true, "reel_id": reel_id, "end_index": end_index, "held_id": held_id}
 
 func _has_manipulator_cable_end() -> bool:
 	return bool(_get_held_cable_end_metadata().get("held", false))
@@ -8041,8 +8051,8 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	elif group == "terminal":
 		if bool(world_object.get("cable_power_connected", false)):
 			actions.append("disconnect_power_wire")
-		elif _has_manipulator_cable_end():
-			actions.append("connect_wire_end")
+		elif _object_supports_external_power_input(world_object):
+			actions.append("plug_in")
 		if bool(world_object.get("has_connector_jack", false)):
 			if str(world_object.get("terminal_type", "")).strip_edges().to_lower() == "information" and _world_object_has_download_payload(world_object):
 				actions.append("download")
@@ -8085,20 +8095,11 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		var force_openable: bool = wall_state in ["damaged", "broken", "jammed", "half_open", "breached"] or bool(world_object.get("heavy_claw_breachable", false)) or bool(world_object.get("force_openable", false))
 		if has_heavy_claw() and force_openable:
 			actions.append("force_open")
-	elif str(world_object.get("object_type", "")) == "power_cable":
-		if has_plasma_cutter():
-			actions.append("cut")
+	elif str(world_object.get("object_type", "")).strip_edges().to_lower() in ["power_cable", "cable", "wall_cable", "placed_cable_segment"]:
+		# Static wall/floor cable is fixed wiring. It cannot provide portable cable ends
+		# and generic Action must not expose wire-end connect/disconnect verbs for it.
 		if state in ["damaged", "broken"]:
 			actions.append("repair")
-			if _has_manipulator_cable_end():
-				if str(world_object.get("wire_1_reel_id", "")).strip_edges().is_empty():
-					actions.append("connect_wire_1")
-				else:
-					actions.append("disconnect_wire_1")
-				if str(world_object.get("wire_2_reel_id", "")).strip_edges().is_empty():
-					actions.append("connect_wire_2")
-				else:
-					actions.append("disconnect_wire_2")
 	elif str(world_object.get("object_type", "")) == "circuit_switch":
 		# The switch UI always exposes all three explicit positions. InteractionSystem
 		# disables an unwired output with a clear unavailable reason.
@@ -8121,11 +8122,13 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("plug_out")
 		else:
 			actions.append("plug_in")
-	elif str(world_object.get("object_type", "")) == "power_cable_reel":
-		for end_index in range(1, 3):
-			var reel_end_state: String = str(world_object.get("end_%d_state" % end_index, "on_reel")).strip_edges().to_lower()
-			if reel_end_state in ["on_reel", "disconnected", ""]:
-				actions.append("take_end_%d" % end_index)
+	elif str(world_object.get("object_type", "")).strip_edges().to_lower() in ["power_cable_reel", "cable_reel"]:
+		if not is_hand_occupied():
+			for end_index in range(1, 3):
+				var reel_end_state: String = str(world_object.get("end_%d_state" % end_index, "on_reel")).strip_edges().to_lower()
+				var reel_end_target_id: String = str(world_object.get("end_%d_target_id" % end_index, "")).strip_edges()
+				if reel_end_state in ["on_reel", "disconnected", "free", ""] and reel_end_target_id.is_empty():
+					actions.append("take_end_%d" % end_index)
 	elif group == "physical_object":
 		if has_magnetic_manipulator() and (bool(world_object.get("magnetic", false)) or Array(world_object.get("material_tags", [])).has("metal")):
 			actions.append("pull")
@@ -8398,8 +8401,8 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 		elif effect_type == "take_cable_end":
 			var end_index: int = int(effect.get("end_index", 1))
 			var reel_id: String = str(effect.get("reel_id", world_object.get("id", ""))).strip_edges()
-			var cable_end_id: String = "%s_cable_end_%d" % [reel_id if not reel_id.is_empty() else str(world_object.get("id", "reel")), end_index]
-			var cable_item: Dictionary = {"id":cable_end_id, "item_type":"cable_end", "display_name":"Cable End %d" % end_index, "item_form":"physical", "reel_id":reel_id, "end_index":end_index}
+			var cable_end_id: String = "%s_cable_reel_end_%d" % [reel_id if not reel_id.is_empty() else str(world_object.get("id", "reel")), end_index]
+			var cable_item: Dictionary = {"id":cable_end_id, "item_type":"cable_reel_end", "object_type":"cable_reel_end", "display_name":"Cable end %d" % end_index, "item_form":"physical", "reel_id":reel_id, "end_index":end_index}
 			var cable_route: Dictionary = route_runtime_item(cable_item, "manipulator") if has_method("route_runtime_item") else {"success": false, "message": "Runtime storage unavailable."}
 			if bool(cable_route.get("success", false)):
 				world_object["end_%d_state" % end_index] = "held"
@@ -8408,22 +8411,31 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 				hint_requested.emit(str(cable_route.get("message", "No free manipulator slot.")))
 		elif effect_type == "connect_cable_end_to_target":
 			var held_cable: Dictionary = _get_held_cable_end_metadata()
-			if bool(held_cable.get("held", false)):
+			if not bool(held_cable.get("held", false)):
+				hint_requested.emit("Nothing to plug in.")
+			else:
 				var reel_id_connect: String = str(held_cable.get("reel_id", "")).strip_edges()
 				var end_index_connect: int = int(held_cable.get("end_index", 0))
 				var wire_side: int = int(effect.get("wire_side", 0))
 				var target_id: String = str(world_object.get("id", "")).strip_edges()
+				var connect_report: Dictionary = {}
+				if mission_manager != null and mission_manager.has_method("connect_cable_reel_to_target") and not reel_id_connect.is_empty():
+					connect_report = Dictionary(mission_manager.call("connect_cable_reel_to_target", reel_id_connect, target_id, end_index_connect))
+				if not bool(connect_report.get("success", false)):
+					hint_requested.emit(str(connect_report.get("message", "Nothing to plug in.")))
+					continue
 				world_object["cable_power_connected"] = true
+				world_object["external_power_reel_id"] = reel_id_connect
+				world_object["external_power_end_index"] = end_index_connect
 				world_object["connected_reel_id"] = reel_id_connect
 				world_object["connected_reel_end_index"] = end_index_connect
 				world_object["plugged_cable_end"] = {"reel_id": reel_id_connect, "end_index": end_index_connect, "target_id": target_id}
 				if wire_side >= 1 and wire_side <= 2:
 					world_object["wire_%d_reel_id" % wire_side] = reel_id_connect
 					world_object["wire_%d_reel_end_index" % wire_side] = end_index_connect
-				if mission_manager != null and mission_manager.has_method("connect_cable_reel_to_target") and not reel_id_connect.is_empty():
-					mission_manager.call("connect_cable_reel_to_target", reel_id_connect, target_id, end_index_connect)
 				if mission_manager != null and mission_manager.has_method("clear_manipulator"):
 					mission_manager.call("clear_manipulator")
+				hint_requested.emit("Cable plugged in.")
 		elif effect_type == "disconnect_cable_end_from_target":
 			var disconnect_side: int = int(effect.get("wire_side", 0))
 			var reel_id_disconnect: String = str(world_object.get("connected_reel_id", "")).strip_edges()
