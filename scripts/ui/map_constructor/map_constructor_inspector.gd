@@ -310,7 +310,7 @@ static func _build_cell_panel(ui: Variant, cell: Vector2i) -> PanelContainer:
 	return panel
 
 
-static func _make_tab_content(ui: Variant, inspector_rect: Rect2) -> VBoxContainer:
+static func _make_tab_content(_ui: Variant, inspector_rect: Rect2) -> VBoxContainer:
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
