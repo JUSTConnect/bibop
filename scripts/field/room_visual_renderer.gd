@@ -3433,9 +3433,73 @@ func _is_wall_cable_face_visible(cell: Vector2i, face: String) -> bool:
 func _is_wall_cable_broken(object_data: Dictionary) -> bool:
 	var state_value: String = str(object_data.get("state", "")).strip_edges().to_lower()
 	var cable_state_value: String = str(object_data.get("cable_state", "")).strip_edges().to_lower()
-	var broken_flag: bool = bool(object_data.get("is_broken", false)) or bool(object_data.get("broken", false))
+	var cable_health_state: String = str(object_data.get("cable_health_state", "")).strip_edges().to_lower()
+	var health_state: String = str(object_data.get("health_state", "")).strip_edges().to_lower()
 
-	return broken_flag or state_value == "broken" or cable_state_value == "broken"
+	if bool(object_data.get("is_broken", false)):
+		return true
+
+	if bool(object_data.get("broken", false)):
+		return true
+
+	if bool(object_data.get("cut", false)):
+		return true
+
+	return (
+		state_value in ["broken", "cut"]
+		or cable_state_value in ["broken", "cut"]
+		or cable_health_state in ["broken", "cut"]
+		or health_state in ["broken", "cut"]
+	)
+func _draw_wall_cable_broken_overlay_segment(start_edge: Vector2, end_edge: Vector2, normal: Vector2, profile: Dictionary) -> void:
+	var axis: Vector2 = end_edge - start_edge
+	if axis.length() <= 0.001:
+		return
+
+	axis = axis.normalized()
+
+	var mid_point: Vector2 = start_edge.lerp(end_edge, 0.5)
+
+	# Размер центрального разрыва.
+	var gap_half: float = 9.0
+	var left_gap: Vector2 = mid_point - axis * gap_half
+	var right_gap: Vector2 = mid_point + axis * gap_half
+
+	# Рисуем тот же кабель, но уже с пропуском в центре.
+	draw_iso_cable_wall_segment(start_edge, left_gap, profile)
+	draw_iso_cable_wall_segment(right_gap, end_edge, profile)
+
+	# Короткие оборванные концы около разрыва.
+	var left_stub_start: Vector2 = left_gap - axis * 5.0
+	var right_stub_end: Vector2 = right_gap + axis * 5.0
+
+	draw_iso_cable_wall_segment(left_stub_start, left_gap, profile)
+	draw_iso_cable_wall_segment(right_gap, right_stub_end, profile)
+
+	# Небольшие свисающие жилы.
+	var safe_normal: Vector2 = normal
+	if safe_normal.length() <= 0.001:
+		safe_normal = Vector2.UP
+	else:
+		safe_normal = safe_normal.normalized()
+
+	var hang_dir: Vector2 = (Vector2.DOWN * 0.86 + safe_normal * 0.14).normalized()
+	var hang_len: float = 7.0
+
+	var left_tip: Vector2 = left_gap + hang_dir * hang_len
+	var right_tip: Vector2 = right_gap + hang_dir * hang_len
+
+	draw_line(left_gap, left_tip, Color(0.025, 0.025, 0.03, 0.96), 2.6, true)
+	draw_line(right_gap, right_tip, Color(0.025, 0.025, 0.03, 0.96), 2.6, true)
+
+	var perp: Vector2 = Vector2(-hang_dir.y, hang_dir.x).normalized()
+
+	draw_line(left_gap + perp * 0.5, left_tip + perp * 0.8, Color(0.95, 0.22, 0.16, 0.95), 1.0, true)
+	draw_line(left_gap - perp * 0.5, left_tip - perp * 0.6, Color(0.95, 0.78, 0.22, 0.95), 1.0, true)
+
+	draw_line(right_gap + perp * 0.5, right_tip + perp * 0.8, Color(0.95, 0.22, 0.16, 0.95), 1.0, true)
+	draw_line(right_gap - perp * 0.5, right_tip - perp * 0.6, Color(0.95, 0.78, 0.22, 0.95), 1.0, true)
+		
 func _draw_wall_cable_break_overlay(cell: Vector2i, face: String, profile: Dictionary) -> bool:
 	if not _is_wall_cable_face_visible(cell, face):
 		return false
@@ -3515,39 +3579,38 @@ func _draw_wall_cable_broken_end(anchor: Vector2, away_from_gap: Vector2, normal
 
 func _get_wall_cable_face_line_segment(cell: Vector2i, face: String) -> Dictionary:
 	var normalized_face: String = face.strip_edges().to_lower()
-	var visual_center: Vector2 = grid_to_iso(cell)
+	var center: Vector2 = grid_to_iso(cell)
+	var half: Vector2 = get_iso_tile_half_size()
 
-	var face_data: Dictionary = {
-		"wall_side": normalized_face,
-		"interaction_side": normalized_face,
-		"facing_side": normalized_face,
-		"facing_dir": normalized_face,
-		"object_type": "power_cable",
-		"cable_install_mode": "wall",
-		"install_mode": "wall",
-		"mount": "wall",
-		"route_surface": "wall"
-	}
+	# Высота кабеля на стене.
+	# Сейчас фиксируем рабочую высоту, не трогаем broken/overlay.
+	var cable_height_px: float = 50.0
+	var y_offset: Vector2 = Vector2(0.0, -cable_height_px)
 
-	var segment: Dictionary = get_wall_route_segment_points(
-		visual_center,
-		face_data,
-		50.0
-	)
+	var bottom_a: Vector2
+	var bottom_b: Vector2
 
-	var start_edge: Vector2 = Vector2(segment.get("start", visual_center))
-	var end_edge: Vector2 = Vector2(segment.get("end", visual_center))
+	match normalized_face:
+		"sw":
+			# Полная ширина SW-грани: левое ребро -> внутреннее/центральное ребро.
+			bottom_a = center + Vector2(-half.x, 0.0)
+			bottom_b = center + Vector2(0.0, half.y)
+		"se":
+			# Полная ширина SE-грани: внутреннее/центральное ребро -> правое ребро.
+			bottom_a = center + Vector2(0.0, half.y)
+			bottom_b = center + Vector2(half.x, 0.0)
+		_:
+			bottom_a = center + Vector2(-half.x, 0.0)
+			bottom_b = center + Vector2(0.0, half.y)
+
+	var start_edge: Vector2 = bottom_a + y_offset
+	var end_edge: Vector2 = bottom_b + y_offset
 	var mid_point: Vector2 = start_edge.lerp(end_edge, 0.5)
-	var normal: Vector2 = Vector2(segment.get("normal", Vector2.ZERO))
 
-	if normal.length() <= 0.001:
-		var axis: Vector2 = end_edge - start_edge
-		if axis.length() <= 0.001:
-			normal = Vector2.UP
-		else:
-			normal = Vector2(-axis.y, axis.x).normalized()
-	else:
-		normal = normal.normalized()
+	var axis: Vector2 = end_edge - start_edge
+	var normal: Vector2 = Vector2.UP
+	if axis.length() > 0.001:
+		normal = Vector2(-axis.y, axis.x).normalized()
 
 	return {
 		"face": normalized_face,
@@ -3558,7 +3621,7 @@ func _get_wall_cable_face_line_segment(cell: Vector2i, face: String) -> Dictiona
 	}
 
 
-func _draw_wall_cable_face_half_segment(start: Vector2, end: Vector2, normal: Vector2, routing_mode: String, profile: Dictionary) -> void:
+func _draw_wall_cable_face_half_segment(start: Vector2, end: Vector2, _normal: Vector2, routing_mode: String, profile: Dictionary) -> void:
 	if start.distance_squared_to(end) <= 0.25:
 		return
 
@@ -3569,26 +3632,29 @@ func _draw_wall_cable_face_half_segment(start: Vector2, end: Vector2, normal: Ve
 
 	draw_iso_cable_wall_segment(start, end, profile)
 
-func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: String, profile: Dictionary, _object_data: Dictionary = {}) -> bool:
+func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: String, profile: Dictionary, object_data: Dictionary = {}) -> bool:
 	if not _is_wall_cable_face_visible(cell, face):
 		return false
 
 	var normalized_routing_mode: String = routing_mode.strip_edges().to_lower()
 
+	# Inner/hidden кабель обработан, но внешний красный кабель не рисуем.
 	if normalized_routing_mode == "inner":
 		return true
 
 	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
 
 	var start_edge: Vector2 = Vector2(segment.get("start_edge", Vector2.ZERO))
-	var mid_point: Vector2 = Vector2(segment.get("mid", Vector2.ZERO))
 	var end_edge: Vector2 = Vector2(segment.get("end_edge", Vector2.ZERO))
 	var normal: Vector2 = Vector2(segment.get("normal", Vector2.UP)).normalized()
 
-	# Рабочая normal-геометрия:
-	# две половины, но вместе они дают одну полную линию от ребра до ребра.
-	_draw_wall_cable_face_half_segment(start_edge, mid_point, normal, normalized_routing_mode, profile)
-	_draw_wall_cable_face_half_segment(mid_point, end_edge, normal, normalized_routing_mode, profile)
+	# Normal: старая рабочая логика — один цельный отрезок от ребра до ребра.
+	if not _is_wall_cable_broken(object_data):
+		draw_iso_cable_wall_segment(start_edge, end_edge, profile)
+		return true
+
+	# Broken/cut: та же геометрия, но вместо цельного кабеля рисуем разорванный overlay.
+	_draw_wall_cable_broken_overlay_segment(start_edge, end_edge, normal, profile)
 
 	return true
 
@@ -3601,7 +3667,8 @@ func _draw_wall_cable_faces_for_cell(cell: Vector2i, object_data: Dictionary, pr
 
 	var routing_mode: String = get_cable_wall_routing_mode(object_data).strip_edges().to_lower()
 
-	# Inner cable обработан, но внешний красный кабель не рисуем.
+	# Inner/hidden кабель не рисуем снаружи, но считаем обработанным,
+	# чтобы не падал в PNG/SVG fallback.
 	if routing_mode == "inner":
 		return true
 
@@ -3611,7 +3678,7 @@ func _draw_wall_cable_faces_for_cell(cell: Vector2i, object_data: Dictionary, pr
 	if _is_wall_cable_face_visible(cell, "se"):
 		_draw_wall_cable_face_segment(cell, "se", routing_mode, profile, object_data)
 
-	# Даже если видимых граней нет, это обработанный wall cable.
+	# Даже если обе грани скрыты, wall cable обработан.
 	return true
 	
 func draw_wall_mounted_cable_tap(_object_data: Dictionary, _visual_center: Vector2, _profile: Dictionary, _has_terminal_visual: bool = false) -> bool:
