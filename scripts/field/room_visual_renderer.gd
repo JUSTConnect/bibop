@@ -3220,36 +3220,41 @@ func get_iso_visual_debug_report_text() -> String:
 
 func validate_iso_visual_debug_report() -> Array[String]:
 	var warnings: Array[String] = []
+
 	if get_iso_tile_size().x <= 0.0:
 		warnings.append("iso_tile_width_invalid")
+
 	if get_iso_tile_size().y <= 0.0:
 		warnings.append("iso_tile_height_invalid")
+
 	if iso_wall_height <= 0.0:
 		warnings.append("iso_wall_height_invalid")
+
 	if iso_object_marker_height <= 0.0:
 		warnings.append("iso_object_marker_height_invalid")
-	if use_iso_placeholder_asset_preset and ISO_PLACEHOLDER_ASSET_PATHS.is_empty():
+
+	if use_iso_placeholder_asset_preset and get_iso_placeholder_asset_path("object_generic").is_empty():
 		warnings.append("iso_placeholder_asset_paths_missing")
+
 	var alignment_diagnostics: Dictionary = get_iso_asset_alignment_diagnostics()
 	if not bool(alignment_diagnostics.get("ok", false)):
 		warnings.append("iso_asset_alignment_rules_missing")
+
 	var object_png_diagnostics: Dictionary = validate_iso_object_png_assets()
 	if not bool(object_png_diagnostics.get("ok", false)):
 		warnings.append("iso_object_png_assets_invalid")
+
 	if use_iso_placeholder_asset_preset and iso_placeholder_asset_preset_requires_preview and not is_iso_visual_preview_active():
 		warnings.append("iso_placeholder_preset_waiting_for_preview")
+
 	var debug_report: Dictionary = get_iso_visual_debug_report()
-	if not bool(debug_report.get("single_render_path", true)):
-		warnings.append("single_render_path_duplicate_risk")
-	if use_iso_tile_asset_hooks and not should_use_iso_placeholder_asset_preset():
-		var texture_keys: Array[String] = get_iso_visual_texture_debug_keys()
-		var has_explicit_texture: bool = false
-		for texture_key in texture_keys:
-			if get_explicit_iso_texture_for_asset_key(texture_key) != null:
-				has_explicit_texture = true
-				break
-		if not has_explicit_texture:
-			warnings.append("iso_asset_hooks_enabled_without_textures")
+	if not bool(debug_report.get("single_render_path", false)):
+		warnings.append("iso_single_render_path_conflict")
+
+	var cell_stat_warnings: Array[String] = validate_iso_visual_cell_stats()
+	for warning_key in cell_stat_warnings:
+		warnings.append(warning_key)
+
 	return warnings
 
 func get_iso_visual_debug_validation_text() -> String:
@@ -3929,7 +3934,7 @@ func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: St
 		ISO_OBJECT_PNG_MAX_VISUAL_SCALE
 	)
 
-	if not has_iso_object_png_asset_path(asset_key):
+	if not is_iso_object_png_asset_key(asset_key):
 		return rule_scale
 
 	if not bool(object_data.get("allow_custom_visual_scale", false)):
@@ -4066,7 +4071,7 @@ func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 			"layer_hint": "object",
 			"notes": "Fallback object alignment."
 		}
-	elif has_iso_object_png_asset_path(asset_key):
+	elif is_iso_object_png_asset_key(asset_key):
 		rule = get_iso_object_png_visual_rule(asset_key)
 	else:
 		rule = {
@@ -4116,7 +4121,7 @@ func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center
 	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
 	var destination_size: Vector2 = source_size * scale_value
 
-	if asset_key.begins_with("floor_") or asset_key.begins_with("object_") or has_iso_object_png_asset_path(asset_key):
+	if asset_key.begins_with("floor_") or asset_key.begins_with("object_") or is_iso_object_png_asset_key(asset_key):
 		destination_size = get_iso_asset_alignment_expected_size(asset_key) * scale_value
 
 	var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
@@ -4124,7 +4129,7 @@ func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center
 	var destination_position: Vector2 = center - anchor_offset + offset
 
 	return Rect2(destination_position, destination_size)
-	
+		
 func get_iso_texture_draw_rect_for_asset_key(asset_key: String, center: Vector2, texture: Texture2D) -> Rect2:
 	if texture == null:
 		return get_iso_texture_draw_rect_for_asset_key_with_size(asset_key, center, get_iso_asset_alignment_expected_size(asset_key))
