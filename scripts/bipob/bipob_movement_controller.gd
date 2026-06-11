@@ -165,26 +165,34 @@ static func update_world_position(controller: BipobController) -> void:
 	if controller.grid_manager == null:
 		return
 
+	var height_visual_offset: float = 0.0
+	if controller.has_method("get_platform_height_level"):
+		height_visual_offset = float(controller.call("get_platform_height_level")) * 18.0
+
 	var use_iso_visual_position: bool = controller.should_use_isometric_visual_position()
-	# Renderer preview preset is sampled only when Bipob updates visual world position.
-	# It does not force any mission or gameplay state changes.
+
 	if use_iso_visual_position:
 		var iso_position: Vector2 = controller.get_visual_world_position_for_grid_cell(controller.grid_position)
+		iso_position.y -= height_visual_offset
+
 		var parent_node: Node = controller.get_parent()
 		if parent_node != null and parent_node is Node2D:
 			controller.position = iso_position
 		else:
 			controller.global_position = iso_position
-		controller.z_index = controller.grid_position.x + controller.grid_position.y + 10
+
+		controller.z_index = controller.grid_position.x + controller.grid_position.y + 10 + int(controller.get_platform_height_level()) * 10
 	else:
-		controller.global_position = controller.grid_manager.global_position + controller.get_visual_world_position_for_grid_cell(controller.grid_position)
+		var world_position: Vector2 = controller.grid_manager.global_position + controller.get_visual_world_position_for_grid_cell(controller.grid_position)
+		world_position.y -= height_visual_offset
+		controller.global_position = world_position
+
 	update_visual_facing(controller)
 	controller.update_vision()
 	controller.update_threat_detection_preview()
 	controller.emit_facing_world_object_hint()
 	controller.refresh_world_action_panel()
-
-
+	
 static func update_visual_facing(controller: BipobController) -> void:
 	if controller.should_use_isometric_visual_position():
 		controller.rotation = controller.get_isometric_visual_rotation_for_direction(controller.direction)
