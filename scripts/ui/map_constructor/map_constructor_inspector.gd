@@ -107,12 +107,17 @@ static func _get_normalized_object_class(ui: Variant, data: Dictionary, type_gro
 
 
 static func _get_power_health_state(data: Dictionary) -> String:
-	var state: String = MapConstructorUiSafe.safe_string(data.get("cable_health_state", data.get("health_state", data.get("state", "")))).strip_edges().to_lower()
+	var state: String = MapConstructorUiSafe.safe_string(
+		data.get("cable_health_state", data.get("health_state", data.get("state", "")))
+	).strip_edges().to_lower()
 
 	if bool(data.get("is_broken", false)):
 		return "broken"
 
 	if bool(data.get("broken", false)):
+		return "broken"
+
+	if bool(data.get("damaged", false)):
 		return "broken"
 
 	if state == "broken":

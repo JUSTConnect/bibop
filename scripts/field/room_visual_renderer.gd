@@ -1547,29 +1547,45 @@ func get_iso_floor_asset_key_for_visual_state(cell: Vector2i) -> String:
 	return ""
 
 func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
-	if not ISO_FLOOR_ASSET_CATALOG.has(asset_key):
+	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
+	if normalized_asset_key.is_empty():
 		return null
-	if _iso_floor_asset_texture_cache.has(asset_key):
-		var cached_value: Variant = _iso_floor_asset_texture_cache.get(asset_key)
+
+	var known_floor_asset: bool = ISO_FLOOR_ASSET_CATALOG.has(normalized_asset_key)
+	var known_ground_asset: bool = ISO_GROUND_ASSET_CATALOG.has(normalized_asset_key)
+	var known_test_asset: bool = normalized_asset_key == ISO_FLOOR_TEST_ASSET_KEY
+	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+
+	if not known_floor_asset and not known_ground_asset and not known_test_asset and catalog_path.is_empty():
+		return null
+
+	if _iso_floor_asset_texture_cache.has(normalized_asset_key):
+		var cached_value: Variant = _iso_floor_asset_texture_cache.get(normalized_asset_key)
 		if cached_value is Texture2D:
 			return cached_value as Texture2D
 		return null
-	var texture_path: String = VisualAssetCatalogRef.get_asset_path(asset_key)
+
+	var texture_path: String = catalog_path
 	if texture_path.is_empty():
-		var asset_file: String = str(ISO_FLOOR_ASSET_CATALOG.get(asset_key, ""))
+		var asset_file: String = str(ISO_FLOOR_ASSET_CATALOG.get(normalized_asset_key, ""))
 		var asset_directory: String = ISO_FLOOR_ASSET_PACK_DIR
-		if asset_key == ISO_FLOOR_TEST_ASSET_KEY:
+
+		if known_test_asset:
 			asset_directory = ISO_TEST_ASSET_PACK_DIR
-		elif asset_key.begins_with("ground_"):
+		elif known_ground_asset:
 			asset_directory = ISO_GROUND_ASSET_PACK_DIR
+			asset_file = str(ISO_GROUND_ASSET_CATALOG.get(normalized_asset_key, ""))
+
 		texture_path = asset_directory + asset_file
+
 	if ResourceLoader.exists(texture_path):
 		var loaded_resource: Resource = ResourceLoader.load(texture_path)
 		if loaded_resource is Texture2D:
 			var loaded_texture: Texture2D = loaded_resource as Texture2D
-			_iso_floor_asset_texture_cache[asset_key] = loaded_texture
+			_iso_floor_asset_texture_cache[normalized_asset_key] = loaded_texture
 			return loaded_texture
-	_iso_floor_asset_texture_cache[asset_key] = null
+
+	_iso_floor_asset_texture_cache[normalized_asset_key] = null
 	return null
 
 func get_iso_floor_asset_placement(asset_key: String) -> Dictionary:
@@ -1600,24 +1616,33 @@ func get_iso_ground_asset_key_for_floor_height(floor_height: String) -> String:
 	return ""
 
 func get_iso_ground_texture_for_asset_key(asset_key: String) -> Texture2D:
-	if not ISO_GROUND_ASSET_CATALOG.has(asset_key):
+	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
+	if normalized_asset_key.is_empty():
 		return null
-	if _iso_ground_asset_texture_cache.has(asset_key):
-		var cached_value: Variant = _iso_ground_asset_texture_cache.get(asset_key)
+
+	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	if not ISO_GROUND_ASSET_CATALOG.has(normalized_asset_key) and catalog_path.is_empty():
+		return null
+
+	if _iso_ground_asset_texture_cache.has(normalized_asset_key):
+		var cached_value: Variant = _iso_ground_asset_texture_cache.get(normalized_asset_key)
 		if cached_value is Texture2D:
 			return cached_value as Texture2D
 		return null
-	var texture_path: String = VisualAssetCatalogRef.get_asset_path(asset_key)
+
+	var texture_path: String = catalog_path
 	if texture_path.is_empty():
-		var asset_file: String = str(ISO_GROUND_ASSET_CATALOG.get(asset_key, ""))
+		var asset_file: String = str(ISO_GROUND_ASSET_CATALOG.get(normalized_asset_key, ""))
 		texture_path = ISO_GROUND_ASSET_PACK_DIR + asset_file
+
 	if ResourceLoader.exists(texture_path):
 		var loaded_resource: Resource = ResourceLoader.load(texture_path)
 		if loaded_resource is Texture2D:
 			var loaded_texture: Texture2D = loaded_resource as Texture2D
-			_iso_ground_asset_texture_cache[asset_key] = loaded_texture
+			_iso_ground_asset_texture_cache[normalized_asset_key] = loaded_texture
 			return loaded_texture
-	_iso_ground_asset_texture_cache[asset_key] = null
+
+	_iso_ground_asset_texture_cache[normalized_asset_key] = null
 	return null
 
 func get_iso_ground_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, asset_key: String) -> Rect2:
@@ -1872,33 +1897,42 @@ func get_iso_wall_explicit_texture_for_asset_key(asset_key: String) -> Texture2D
 func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var normalized_key: String = normalize_wall_asset_key(asset_key)
 	var catalog: Dictionary = get_iso_wall_asset_catalog()
-	if catalog.has(normalized_key):
+	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_key)
+
+	if catalog.has(normalized_key) or not catalog_path.is_empty():
 		if _iso_wall_asset_texture_cache.has(normalized_key):
 			var cached_value: Variant = _iso_wall_asset_texture_cache.get(normalized_key)
 			if cached_value is Texture2D:
 				return cached_value as Texture2D
 			return null
-		var texture_path: String = VisualAssetCatalogRef.get_asset_path(normalized_key)
+
+		var texture_path: String = catalog_path
 		if texture_path.is_empty():
 			var asset_file: String = str(catalog.get(normalized_key, ""))
 			var pack_dir: String = ISO_WALL_ASSET_PACK_DIR
 			if normalized_key.begins_with("wall_gray_"):
 				pack_dir = ISO_TEST_ASSET_PACK_DIR
 			texture_path = pack_dir + asset_file
+
 		if ResourceLoader.exists(texture_path):
 			var loaded_resource: Resource = ResourceLoader.load(texture_path)
 			if loaded_resource is Texture2D:
 				var loaded_texture: Texture2D = loaded_resource as Texture2D
 				_iso_wall_asset_texture_cache[normalized_key] = loaded_texture
 				return loaded_texture
+
 		_iso_wall_asset_texture_cache[normalized_key] = null
+
 	if normalized_key.begins_with("wall_gray_"):
 		return null
+
 	var explicit_texture: Texture2D = get_iso_wall_explicit_texture_for_asset_key(normalized_key)
 	if explicit_texture != null:
 		return explicit_texture
+
 	if normalized_key != "wall_concrete_mid":
 		return get_iso_wall_texture_for_asset_key("wall_concrete_mid")
+
 	return null
 
 func get_iso_wall_texture_for_profile(profile_key: String) -> Texture2D:
@@ -2170,21 +2204,31 @@ func get_breach_overlay_asset_key(base_material: String) -> String:
 	return ""
 
 func get_breach_overlay_texture_for_asset_key(asset_key: String) -> Texture2D:
-	var normalized_key: String = asset_key.strip_edges().to_lower()
-	if not ISO_WALL_BREACH_OVERLAY_CATALOG.has(normalized_key):
+	var normalized_key: String = str(asset_key).strip_edges().to_lower()
+	if normalized_key.is_empty():
 		return null
+
+	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_key)
+	if not ISO_WALL_BREACH_OVERLAY_CATALOG.has(normalized_key) and catalog_path.is_empty():
+		return null
+
 	if _iso_wall_breach_overlay_texture_cache.has(normalized_key):
 		var cached_value: Variant = _iso_wall_breach_overlay_texture_cache.get(normalized_key)
 		if cached_value is Texture2D:
 			return cached_value as Texture2D
 		return null
-	var texture_path: String = ISO_WALL_BREACH_OVERLAY_PACK_DIR + str(ISO_WALL_BREACH_OVERLAY_CATALOG.get(normalized_key, ""))
+
+	var texture_path: String = catalog_path
+	if texture_path.is_empty():
+		texture_path = ISO_WALL_BREACH_OVERLAY_PACK_DIR + str(ISO_WALL_BREACH_OVERLAY_CATALOG.get(normalized_key, ""))
+
 	if ResourceLoader.exists(texture_path):
 		var loaded_resource: Resource = ResourceLoader.load(texture_path)
 		if loaded_resource is Texture2D:
 			var loaded_texture: Texture2D = loaded_resource as Texture2D
 			_iso_wall_breach_overlay_texture_cache[normalized_key] = loaded_texture
 			return loaded_texture
+
 	_iso_wall_breach_overlay_texture_cache[normalized_key] = null
 	return null
 
