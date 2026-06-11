@@ -8255,6 +8255,10 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			var field_name := str(effect.get("field", "")).strip_edges()
 			if not field_name.is_empty() and not (str(world_object.get("object_group", "")) == "door" and field_name in ["is_open", "is_closed", "is_locked", "locked", "blocks_movement"]):
 				world_object[field_name] = bool(effect.get("value", false))
+		elif effect_type == "set_field":
+			var generic_field_name := str(effect.get("field", "")).strip_edges()
+			if not generic_field_name.is_empty():
+				world_object[generic_field_name] = effect.get("value")
 		elif effect_type == "set_int":
 			var int_field_name := str(effect.get("field", "")).strip_edges()
 			if not int_field_name.is_empty():
