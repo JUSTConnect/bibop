@@ -6165,15 +6165,21 @@ func is_runtime_door_cell_passable(cell: Vector2i) -> bool:
 func is_cell_walkable_for_bipob(cell: Vector2i) -> bool:
 	if grid_manager == null or not grid_manager.is_in_bounds(cell):
 		return false
+
 	if mission_manager != null and mission_manager.has_method("is_runtime_cell_passable"):
 		return _is_runtime_cell_passable(cell)
+
 	if grid_manager.is_walkable(cell):
 		var object_data: Dictionary = _get_world_object_at_cell(cell)
 		if not object_data.is_empty() and bool(object_data.get("blocks_movement", false)):
+			if mission_manager != null and mission_manager.has_method("_is_surface_provider_object"):
+				if bool(mission_manager.call("_is_surface_provider_object", object_data)):
+					return true
 			return false
 		return true
-	return is_runtime_door_cell_passable(cell)
 
+	return is_runtime_door_cell_passable(cell)
+	
 func _get_grid_tile_display_name(tile_type: int) -> String:
 	if grid_manager == null:
 		return "unknown"
@@ -6636,7 +6642,6 @@ func get_cell_surface_height_level(cell: Vector2i) -> int:
 
 	return 0
 
-
 func get_surface_visual_offset_for_height_level(level: int) -> Vector2:
 	return Vector2(0.0, -float(maxi(0, level)) * 18.0)
 
@@ -6645,7 +6650,7 @@ func get_surface_visual_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
 	var base_position: Vector2 = get_visual_world_position_for_grid_cell(cell)
 	var surface_level: int = get_cell_surface_height_level(cell)
 	return base_position + get_surface_visual_offset_for_height_level(surface_level)
-	
+		
 func get_platform_height_level() -> int:
 	return platform_height_level
 
