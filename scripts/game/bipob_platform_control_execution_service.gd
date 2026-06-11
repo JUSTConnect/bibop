@@ -367,21 +367,151 @@ static func _resolve_requested_action(platform_object: Dictionary, mechanism: Di
 				return PlatformTypesRef.ACTION_ROTATE_RIGHT
 			return PlatformTypesRef.ACTION_RAISE
 	return ""
+static func _get_platform_id(platform_data: Dictionary) -> String:
+	return str(platform_data.get("platform_id", platform_data.get("id", platform_data.get("object_id", "")))).strip_edges()
 
+
+static func _get_platform_mechanism_id(platform_data: Dictionary) -> String:
+	return str(platform_data.get("mechanism_id", platform_data.get("platform_mechanism_id", ""))).strip_edges()
+
+
+static func _get_platform_mechanism_kind(platform_data: Dictionary) -> String:
+	var mode_source: String = str(platform_data.get(
+		"platform_mode",
+		platform_data.get(
+			"mode",
+			platform_data.get("platform_type", "")
+		)
+	)).strip_edges().to_lower()
+
+	mode_source = mode_source.replace(" ", "_")
+	mode_source = mode_source.replace("-", "_")
+
+	var object_type: String = str(platform_data.get("object_type", platform_data.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(platform_data.get("archetype_id", platform_data.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+
+	if mode_source.is_empty():
+		if object_type.contains("rotat") or archetype_id.contains("rotat"):
+			return PlatformTypesRef.MODE_ROTATE
+
+		if object_type.contains("lift") or object_type.contains("elevator") or archetype_id.contains("lift") or archetype_id.contains("elevator"):
+			return PlatformTypesRef.MODE_ELEVATOR
+
+	var normalized_mode: String = PlatformTypesRef.normalize_platform_mode(mode_source)
+	if normalized_mode == PlatformTypesRef.MODE_ROTATE:
+		return PlatformTypesRef.MODE_ROTATE
+
+	return PlatformTypesRef.MODE_ELEVATOR
+
+
+static func _is_same_platform_mechanism_kind(a: Dictionary, b: Dictionary) -> bool:
+	return _get_platform_mechanism_kind(a) == _get_platform_mechanism_kind(b)
+
+
+static func _read_platform_row_cell(row: Dictionary) -> Vector2i:
+	for field_name in ["cell", "position", "grid_position", "world_cell", "target_position"]:
+		if row.has(field_name):
+			var cell: Vector2i = WorldObjectCatalogRef.to_world_cell(row.get(field_name), Vector2i(-1, -1))
+			if cell.x >= 0 and cell.y >= 0:
+				return cell
+
+	var x_value: int = int(row.get("x", row.get("cell_x", -1)))
+	var y_value: int = int(row.get("y", row.get("cell_y", -1)))
+
+	if x_value >= 0 and y_value >= 0:
+		return Vector2i(x_value, y_value)
+
+	return Vector2i(-1, -1)
+
+
+static func _build_platform_candidate_from_row(controller: Variant, row: Dictionary) -> Dictionary:
+	var object_id: String = str(row.get("id", row.get("object_id", row.get("platform_id", "")))).strip_edges()
+	var candidate: Dictionary = row.duplicate(true)
+	var row_cell: Vector2i = _read_platform_row_cell(row)
+
+	if not object_id.is_empty() and controller != null and controller.mission_manager != null and controller.mission_manager.has_method("get_map_constructor_entity_by_id"):
+		var entity: Dictionary = Dictionary(controller.mission_manager.call("get_map_constructor_entity_by_id", "world_object", object_id))
+		if bool(entity.get("ok", false)):
+			candidate = Dictionary(entity.get("data", {})).duplicate(true)
+			candidate["id"] = object_id
+
+	# Preserve runtime/placement fields from row.
+	# Entity data can be prefab-like, while row is the actual placed object.
+	for field_name in [
+		"mechanism_id",
+		"platform_mechanism_id",
+		"platform_mode",
+		"platform_type",
+		"platform_action",
+		"operation",
+		"mechanism_operation",
+		"platform_level",
+		"current_level",
+		"height_level",
+		"max_level",
+		"max_height_level",
+		"control_type",
+		"control_mode",
+		"power_type",
+		"power_mode"
+	]:
+		if row.has(field_name):
+			candidate[field_name] = row.get(field_name)
+
+	if row_cell.x >= 0 and row_cell.y >= 0:
+		candidate["position"] = row_cell
+		candidate["platform_cells"] = [row_cell]
+
+	if not object_id.is_empty():
+		candidate["id"] = object_id
+		if not candidate.has("platform_id"):
+			candidate["platform_id"] = object_id
+
+	return candidate
+	
 
 static func _build_platform_mechanism(controller: Variant, platform_object: Dictionary) -> Dictionary:
 	var platform_ids: Array[String] = []
-	var mechanism_id: String = str(platform_object.get("mechanism_id", platform_object.get("platform_mechanism_id", ""))).strip_edges()
-	if not mechanism_id.is_empty() and controller.mission_manager != null and controller.mission_manager.has_method("get_platform_mechanism_summary"):
+
+	var current_platform_id: String = _get_platform_id(platform_object)
+	var mechanism_id: String = _get_platform_mechanism_id(platform_object)
+	var mechanism_kind: String = _get_platform_mechanism_kind(platform_object)
+
+	if not current_platform_id.is_empty():
+		platform_ids.append(current_platform_id)
+
+	# Optional summary support:
+	# if mission manager already has mechanism summary, use it, but filter by platform kind.
+	if not mechanism_id.is_empty() and controller != null and controller.mission_manager != null and controller.mission_manager.has_method("get_platform_mechanism_summary"):
 		var summary_variant: Variant = controller.mission_manager.call("get_platform_mechanism_summary", mechanism_id)
 		if summary_variant is Dictionary:
-			platform_ids = Array(Dictionary(summary_variant).get("platform_ids", []))
-	if platform_ids.is_empty():
-		var platform_id: String = str(platform_object.get("platform_id", platform_object.get("id", ""))).strip_edges()
-		if not platform_id.is_empty():
-			platform_ids.append(platform_id)
-	return PlatformMechanismRulesServiceRef.build_mechanism_from_platform(platform_object, platform_ids)
+			var summary: Dictionary = Dictionary(summary_variant)
 
+			for platform_id_variant in Array(summary.get("platform_ids", [])):
+				var platform_id: String = str(platform_id_variant).strip_edges()
+				if platform_id.is_empty() or platform_ids.has(platform_id):
+					continue
+
+				var member: Dictionary = {}
+				if controller.mission_manager.has_method("get_platform_by_id"):
+					member = Dictionary(controller.mission_manager.call("get_platform_by_id", platform_id))
+
+				if member.is_empty():
+					continue
+
+				if _get_platform_mechanism_kind(member) != mechanism_kind:
+					continue
+
+				platform_ids.append(platform_id)
+
+	var mechanism: Dictionary = PlatformMechanismRulesServiceRef.build_mechanism_from_platform(platform_object, platform_ids)
+
+	mechanism["mechanism_id"] = mechanism_id
+	mechanism["platform_mechanism_id"] = mechanism_id
+	mechanism["platform_mode"] = mechanism_kind
+	mechanism["mechanism_kind"] = mechanism_kind
+
+	return mechanism
 
 static func _collect_mechanism_members(controller: Variant, mechanism: Dictionary, platform_object: Dictionary) -> Array[Dictionary]:
 	var members: Array[Dictionary] = []
@@ -390,15 +520,23 @@ static func _collect_mechanism_members(controller: Variant, mechanism: Dictionar
 		members.append(platform_object.duplicate(true))
 		return members
 
-	var current_platform_id: String = str(platform_object.get("platform_id", platform_object.get("id", ""))).strip_edges()
-	var mechanism_id: String = str(platform_object.get("mechanism_id", platform_object.get("platform_mechanism_id", mechanism.get("mechanism_id", mechanism.get("platform_mechanism_id", ""))))).strip_edges()
+	var current_platform_id: String = _get_platform_id(platform_object)
+	var mechanism_id: String = _get_platform_mechanism_id(platform_object)
 
-	# Single platform: no mechanism_id means this platform is its own independent mechanism.
+	if mechanism_id.is_empty():
+		mechanism_id = str(mechanism.get("mechanism_id", mechanism.get("platform_mechanism_id", ""))).strip_edges()
+
+	var mechanism_kind: String = _get_platform_mechanism_kind(platform_object)
+
+	# Single platform: no mechanism_id means independent mechanism.
 	if mechanism_id.is_empty():
 		members.append(platform_object.duplicate(true))
 		return members
 
-	# Mechanism platform: collect all platforms with the same mechanism_id.
+	# Current platform is always a member.
+	_append_unique_platform_member(members, platform_object)
+
+	# 1) Collect from explicit platform_ids, but only same kind.
 	if controller.mission_manager.has_method("get_platform_by_id"):
 		for platform_id_variant in Array(mechanism.get("platform_ids", [])):
 			var platform_id: String = str(platform_id_variant).strip_edges()
@@ -406,50 +544,68 @@ static func _collect_mechanism_members(controller: Variant, mechanism: Dictionar
 				continue
 
 			var member: Dictionary = Dictionary(controller.mission_manager.call("get_platform_by_id", platform_id))
+
 			if member.is_empty() and platform_id == current_platform_id:
 				member = platform_object.duplicate(true)
 
-			if not member.is_empty() and _is_platform_member_data(member):
-				_append_unique_platform_member(members, member)
+			if member.is_empty():
+				continue
 
+			if not _is_platform_member_data(member):
+				continue
+
+			if _get_platform_mechanism_id(member) != mechanism_id:
+				continue
+
+			if _get_platform_mechanism_kind(member) != mechanism_kind:
+				continue
+
+			_append_unique_platform_member(members, member)
+
+	# 2) Map constructor placed rows.
 	if controller.mission_manager.has_method("get_map_constructor_placed_object_rows"):
 		var rows: Array = Array(controller.mission_manager.call("get_map_constructor_placed_object_rows"))
+
 		for row_variant in rows:
 			if typeof(row_variant) != TYPE_DICTIONARY:
 				continue
 
 			var row: Dictionary = Dictionary(row_variant)
-			var object_id: String = str(row.get("id", "")).strip_edges()
-			if object_id.is_empty():
-				continue
-
-			var candidate: Dictionary = row.duplicate(true)
-
-			if controller.mission_manager.has_method("get_map_constructor_entity_by_id"):
-				var entity: Dictionary = Dictionary(controller.mission_manager.call("get_map_constructor_entity_by_id", "world_object", object_id))
-				if bool(entity.get("ok", false)):
-					candidate = Dictionary(entity.get("data", {}))
-					candidate["id"] = object_id
+			var candidate: Dictionary = _build_platform_candidate_from_row(controller, row)
 
 			if not _is_platform_member_data(candidate):
 				continue
 
-			var candidate_mechanism_id: String = str(candidate.get("mechanism_id", candidate.get("platform_mechanism_id", ""))).strip_edges()
-			if candidate_mechanism_id == mechanism_id:
-				_append_unique_platform_member(members, candidate)
+			if _get_platform_mechanism_id(candidate) != mechanism_id:
+				continue
 
-	elif "mission_world_objects" in controller.mission_manager:
-		for object_variant in Array(controller.mission_manager.mission_world_objects):
+			# Main rule:
+			# elevator mechanism can collect only elevator platforms,
+			# rotate mechanism can collect only rotate platforms.
+			if _get_platform_mechanism_kind(candidate) != mechanism_kind:
+				continue
+
+			_append_unique_platform_member(members, candidate)
+
+	# 3) Runtime mission world objects fallback.
+	var world_objects_variant: Variant = controller.mission_manager.get("mission_world_objects")
+	if world_objects_variant is Array:
+		for object_variant in Array(world_objects_variant):
 			if typeof(object_variant) != TYPE_DICTIONARY:
 				continue
 
 			var candidate_object: Dictionary = Dictionary(object_variant)
+
 			if not _is_platform_member_data(candidate_object):
 				continue
 
-			var candidate_mechanism_id_direct: String = str(candidate_object.get("mechanism_id", candidate_object.get("platform_mechanism_id", ""))).strip_edges()
-			if candidate_mechanism_id_direct == mechanism_id:
-				_append_unique_platform_member(members, candidate_object)
+			if _get_platform_mechanism_id(candidate_object) != mechanism_id:
+				continue
+
+			if _get_platform_mechanism_kind(candidate_object) != mechanism_kind:
+				continue
+
+			_append_unique_platform_member(members, candidate_object)
 
 	if members.is_empty():
 		members.append(platform_object.duplicate(true))
@@ -484,16 +640,30 @@ static func _append_unique_platform_member(members: Array[Dictionary], member: D
 	if member.is_empty():
 		return
 
-	var member_id: String = str(member.get("id", member.get("platform_id", ""))).strip_edges()
-	var member_platform_id: String = str(member.get("platform_id", member.get("id", ""))).strip_edges()
+	var member_id: String = _get_platform_id(member)
+
+	if member_id.is_empty():
+		var member_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
+			member.get("position", member.get("cell", member.get("pos", Vector2i(-1, -1)))),
+			Vector2i(-1, -1)
+		)
+
+		if member_cell.x >= 0 and member_cell.y >= 0:
+			member_id = "platform_at_%d_%d" % [member_cell.x, member_cell.y]
 
 	for existing in members:
-		var existing_id: String = str(existing.get("id", existing.get("platform_id", ""))).strip_edges()
-		var existing_platform_id: String = str(existing.get("platform_id", existing.get("id", ""))).strip_edges()
+		var existing_id: String = _get_platform_id(existing)
+
+		if existing_id.is_empty():
+			var existing_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
+				existing.get("position", existing.get("cell", existing.get("pos", Vector2i(-1, -1)))),
+				Vector2i(-1, -1)
+			)
+
+			if existing_cell.x >= 0 and existing_cell.y >= 0:
+				existing_id = "platform_at_%d_%d" % [existing_cell.x, existing_cell.y]
 
 		if not member_id.is_empty() and member_id == existing_id:
-			return
-		if not member_platform_id.is_empty() and member_platform_id == existing_platform_id:
 			return
 
 	members.append(member.duplicate(true))
