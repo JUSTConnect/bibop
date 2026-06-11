@@ -207,28 +207,53 @@ static func validate_mechanism(mechanism_id: String, members: Array, ground_cell
 
 static func build_mechanism_summary(mechanism_id: String, members: Array) -> Dictionary:
 	var platform_members: Array[Dictionary] = []
+
 	for member_variant in members:
 		var member_data: Dictionary = unwrap_platform_data(member_variant)
+
 		if member_data.is_empty() or not is_platform_data(member_data):
 			continue
+
 		platform_members.append(member_data)
+
 	var cells: Array[Vector2i] = get_member_cells(platform_members)
+
 	var platform_kinds: Array[String] = []
 	for member_kind_data in platform_members:
 		var member_kind: String = str(PlatformTypesRef.normalize_platform_config(member_kind_data).get("platform_mode", PlatformTypesRef.MODE_ELEVATOR))
+
 		if not platform_kinds.has(member_kind):
 			platform_kinds.append(member_kind)
+
 	var platform_ids: Array[String] = []
 	for member_data in platform_members:
 		var platform_id: String = get_platform_id(member_data)
+
 		if not platform_id.is_empty():
 			platform_ids.append(platform_id)
-	var summary_errors: Array[String] = [] if not platform_members.is_empty() else ["Platform mechanism has no members."]
+
+	var summary_errors: Array[String] = []
+	if platform_members.is_empty():
+		summary_errors.append("Platform mechanism has no members.")
+
 	var summary_warnings: Array[String] = []
 	if platform_kinds.size() > 1:
 		summary_warnings.append("Mechanism contains mixed platform types; runtime filters members by type.")
-	return {"ok": not platform_members.is_empty() and platform_kinds.size() <= 1, "mechanism_id": mechanism_id, "member_count": platform_members.size(), "platform_ids": platform_ids, "platform_modes": platform_kinds, "cells": cells, "bounds": get_cell_bounds(cells), "is_connected": are_cells_orthogonally_connected(cells), "is_square": is_square_footprint(cells, true), "errors": summary_errors, "warnings": summary_warnings}
 
+	return {
+		"ok": not platform_members.is_empty() and platform_kinds.size() <= 1,
+		"mechanism_id": mechanism_id,
+		"member_count": platform_members.size(),
+		"platform_ids": platform_ids,
+		"platform_modes": platform_kinds,
+		"cells": cells,
+		"bounds": get_cell_bounds(cells),
+		"is_connected": are_cells_orthogonally_connected(cells),
+		"is_square": is_square_footprint(cells, true),
+		"errors": summary_errors,
+		"warnings": summary_warnings
+	}
+	
 static func get_mechanism_summary(mechanism_id: String, world_objects_or_members: Array) -> Dictionary:
 	var members: Array[Dictionary] = get_mechanism_members(mechanism_id, world_objects_or_members)
 	return build_mechanism_summary(mechanism_id, members)
