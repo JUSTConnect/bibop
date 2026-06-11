@@ -4694,6 +4694,10 @@ func _install_module_if_missing(module: BipobModule) -> void:
 	install_module(module)
 
 func ensure_task_test_default_modules() -> void:
+	for module_index in range(installed_modules.size() - 1, -1, -1):
+		var installed_module: BipobModule = installed_modules[module_index]
+		if installed_module != null and installed_module.id == "repair_v1":
+			installed_modules.remove_at(module_index)
 	# TASK TEST is a runtime sandbox: seed the core physical capabilities and
 	# the minimal internal port chain required to keep its connector active.
 	_install_module_if_missing(create_internal_module("internal_interface_v1", "Internal Interface V1", Vector3i(1, 1, 1)))
@@ -4703,7 +4707,6 @@ func ensure_task_test_default_modules() -> void:
 	_install_module_if_missing(create_external_module_by_id("wired_connector_v1"))
 	_install_module_if_missing(create_external_module_by_id("manipulator_v1"))
 	_install_module_if_missing(create_external_module_by_id("manipulator_heavy_claw_v1"))
-	_install_module_if_missing(create_external_module_by_id("repair_v1"))
 	_install_module_if_missing(create_external_module_by_id("plasma_cutter_v1"))
 
 func create_default_modules() -> void:
@@ -7565,7 +7568,7 @@ func has_sledgehammer() -> bool:
 	return has_world_tool("sledgehammer_v1")
 
 func has_repair_tool() -> bool:
-	return has_world_tool("repair_v1")
+	return has_held_world_item("repair_kit")
 
 func has_magnetic_manipulator() -> bool:
 	return has_world_tool("magnetic_manipulator_v1")
@@ -8238,8 +8241,6 @@ func get_world_action_module(action_id: String, world_object: Dictionary) -> Dic
 		"force_open", "breach", "break_breachable_wall", "push":
 			return _module_dict("manipulator_heavy_claw_v1" if has_module_id("manipulator_heavy_claw_v1") or has_heavy_claw_capability() else "")
 		"repair":
-			if has_module_id("repair_v1"):
-				return _module_dict("repair_v1")
 			if has_held_world_item("repair_kit"):
 				return _module_dict("repair_kit")
 			return _module_dict("")
@@ -8300,6 +8301,9 @@ func interact() -> void:
 
 func try_direct_repair_facing_object() -> bool:
 	return BipobActionControllerRef.try_direct_repair_facing_object(self)
+
+func try_direct_cut_facing_object() -> bool:
+	return BipobActionControllerRef.try_direct_cut_facing_object(self)
 
 
 func _apply_world_object_effects(effects: Array, world_object: Dictionary, target_position: Vector2i, actor: Dictionary = {}) -> bool:

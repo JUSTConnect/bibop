@@ -215,6 +215,57 @@ static func _empty_direct_repair_target_context(reason: String = "No repair targ
 	}
 
 
+static func _empty_direct_cut_target_context(reason: String = "No cut target.", target_position: Vector2i = Vector2i.ZERO) -> Dictionary:
+	return {
+		"available": false,
+		"reason": reason,
+		"target_kind": "",
+		"target_object": {},
+		"target_position": target_position
+	}
+
+
+static func _build_direct_cut_context(target_kind: String, reason: String, target_object: Dictionary, target_position: Vector2i, available: bool = true) -> Dictionary:
+	return {
+		"available": available,
+		"reason": reason,
+		"target_kind": target_kind,
+		"target_object": target_object,
+		"target_position": target_position
+	}
+
+
+static func _is_power_cable_target_data(value: Dictionary) -> bool:
+	for field_name in ["object_type", "type", "archetype_id", "map_constructor_prefab_id", "prefab_id", "item_type"]:
+		var id_value: String = str(value.get(field_name, "")).strip_edges().to_lower()
+		if id_value in ["power_cable", "cable", "cable_reel", "power_cable_reel"]:
+			return true
+	return false
+
+
+static func _is_broken_cut_target_data(value: Dictionary) -> bool:
+	if bool(value.get("broken", false)) or bool(value.get("is_broken", false)) or bool(value.get("damaged", false)) or bool(value.get("cut", false)):
+		return true
+	if str(value.get("state", "")).strip_edges().to_lower() in ["broken", "cut", "destroyed"]:
+		return true
+	if str(value.get("cable_health_state", "")).strip_edges().to_lower() == "broken":
+		return true
+	if str(value.get("health_state", "")).strip_edges().to_lower() in ["broken", "destroyed"]:
+		return true
+	return false
+
+
+static func _target_data_has_action(target_data: Dictionary, action_id: String) -> bool:
+	var normalized_action_id: String = action_id.strip_edges().to_lower()
+	for candidate in Array(target_data.get("available_action_ids", [])):
+		if str(candidate).strip_edges().to_lower() == normalized_action_id:
+			return true
+	for descriptor_variant in Array(target_data.get("actions", [])):
+		if descriptor_variant is Dictionary and str(Dictionary(descriptor_variant).get("id", "")).strip_edges().to_lower() == normalized_action_id:
+			return true
+	return false
+
+
 static func _variant_has_property(value: Variant, property_name: String) -> bool:
 	if value is Dictionary:
 		return Dictionary(value).has(property_name)
@@ -353,6 +404,60 @@ static func get_direct_repair_target_context(controller: Variant) -> Dictionary:
 	return _empty_direct_repair_target_context("No repair target.", target_position)
 
 
+static func get_direct_cut_target_context(controller: Variant) -> Dictionary:
+	if controller == null or controller.mission_manager == null:
+		return _empty_direct_cut_target_context("No cut target.")
+	var fallback_position: Vector2i = controller.get_facing_device_position() if controller.has_method("get_facing_device_position") else Vector2i.ZERO
+	var target_context: Dictionary = BipobTargetingServiceRef.build_action_target_context(controller)
+	var target_position: Vector2i = Vector2i(target_context.get("target_position", fallback_position))
+	var target_object: Dictionary = Dictionary(target_context.get("target_object", {}))
+	if target_object.is_empty():
+		target_object = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
+		target_object = BipobTargetingServiceRef.resolve_runtime_action_target_for_cell(controller, target_position, target_object)
+	if target_object.is_empty():
+		return _empty_direct_cut_target_context("No cut target.", target_position)
+	var is_power_cable: bool = _is_power_cable_target_data(target_object)
+	if is_power_cable and _is_broken_cut_target_data(target_object):
+		return _build_direct_cut_context("world_object", "Cable already broken.", target_object, target_position, false)
+	if is_power_cable:
+		return _build_direct_cut_context("world_object", "Cut facing cable.", target_object, target_position)
+	if _target_data_has_action(target_context, "cut"):
+		if _is_broken_cut_target_data(target_object):
+			return _build_direct_cut_context("world_object", "Target cannot be cut.", target_object, target_position, false)
+		return _build_direct_cut_context("world_object", "Cut facing cable.", target_object, target_position)
+	return _build_direct_cut_context("world_object", "Target cannot be cut.", target_object, target_position, false)
+
+
+static func try_direct_cut_facing_object(controller: Variant) -> bool:
+	if controller == null or controller.mission_manager == null:
+		return false
+	if not controller.has_method("has_module_id") or not controller.has_module_id("plasma_cutter_v1"):
+		controller.hint_requested.emit("Plasma Cutter required.")
+		controller.status_changed.emit()
+		return false
+	var cut_context: Dictionary = get_direct_cut_target_context(controller)
+	if not bool(cut_context.get("available", false)):
+		controller.hint_requested.emit(str(cut_context.get("reason", "No cut target.")))
+		controller.status_changed.emit()
+		return false
+	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
+		controller.hint_requested.emit("Not enough action/energy.")
+		controller.status_changed.emit()
+		return false
+	var target_object: Dictionary = Dictionary(cut_context.get("target_object", {}))
+	var target_position: Vector2i = Vector2i(cut_context.get("target_position", controller.get_facing_device_position()))
+	var actor: Dictionary = build_runtime_action_actor(controller, target_object, target_position)
+	var module: Dictionary = {"id": "plasma_cutter_v1", "tool_action": "cut"}
+	var execution: Dictionary = BipobWorldObjectExecutionServiceRef.execute_world_object_action(controller, target_object, target_position, actor, module, "cut")
+	if bool(execution.get("clear_selected_action", false)):
+		clear_selected_world_action_if_invalid(controller, Dictionary(execution.get("world_object", target_object)), target_position)
+	BipobWorldObjectExecutionServiceRef.finalize_world_object_action(controller, execution)
+	var success: bool = bool(execution.get("success", false))
+	controller.hint_requested.emit("Cable cut." if success else str(execution.get("message", "No cut target.")))
+	_apply_action_execution_refresh(controller, execution)
+	return success
+
+
 static func _method_accepts_no_arguments(target: Object, method_name: String) -> bool:
 	for method_info in Array(target.get_method_list()):
 		if not method_info is Dictionary:
@@ -389,8 +494,8 @@ static func _repair_bipob_target(target_bipob: Variant) -> void:
 static func try_direct_repair_facing_object(controller: Variant) -> bool:
 	if controller == null or controller.mission_manager == null:
 		return false
-	if not controller.has_module_id("repair_v1"):
-		controller.hint_requested.emit("Repair Tool required.")
+	if not controller.has_method("has_held_world_item") or not controller.has_held_world_item("repair_kit"):
+		controller.hint_requested.emit("Repair kit required.")
 		controller.status_changed.emit()
 		return false
 	var repair_context: Dictionary = get_direct_repair_target_context(controller)
@@ -406,6 +511,8 @@ static func try_direct_repair_facing_object(controller: Variant) -> bool:
 	var target_position: Vector2i = Vector2i(repair_context.get("target_position", controller.get_facing_device_position()))
 	if target_kind == "bipob":
 		_repair_bipob_target(repair_context.get("target_node", null))
+		if controller.has_method("consume_held_world_item_if_type"):
+			controller.consume_held_world_item_if_type("repair_kit")
 		InteractionActionCostServiceRef.commit_gameplay_action(controller, {"success": true, "message": "Bipob repaired."})
 		controller.selected_world_action = ""
 		controller.hint_requested.emit("Bipob repaired.")
@@ -447,6 +554,8 @@ static func try_direct_repair_facing_object(controller: Variant) -> bool:
 				updated["is_broken"] = false
 				updated["damaged"] = false
 				updated["cut"] = false
+				if controller.has_method("consume_held_world_item_if_type"):
+					controller.consume_held_world_item_if_type("repair_kit")
 				InteractionActionCostServiceRef.commit_gameplay_action(controller, {"success": true, "message": "Cable repaired."})
 				controller.selected_world_action = ""
 				controller.hint_requested.emit("Cable repaired.")
@@ -479,6 +588,8 @@ static func try_direct_repair_facing_object(controller: Variant) -> bool:
 				persisted["is_broken"] = false
 				persisted["damaged"] = false
 				persisted["cut"] = false
+	if controller.has_method("consume_held_world_item_if_type"):
+		controller.consume_held_world_item_if_type("repair_kit")
 	InteractionActionCostServiceRef.commit_gameplay_action(controller, {"success": true, "message": "Cable repaired." if is_power_cable else "Object repaired."})
 	controller.selected_world_action = ""
 	controller.hint_requested.emit("Cable repaired." if is_power_cable else "Object repaired.")

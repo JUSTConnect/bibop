@@ -181,11 +181,11 @@ func on_heavy_claw_pressed() -> void:
 	RuntimeInteractionPresenterRef.on_heavy_claw_pressed(ui)
 
 
-func on_repair_pressed() -> void:
+func on_cut_pressed() -> void:
 	if ui == null or ui.bipob == null:
 		return
-	if ui.bipob.has_method("try_direct_repair_facing_object"):
-		ui.bipob.call("try_direct_repair_facing_object")
+	if ui.bipob.has_method("try_direct_cut_facing_object"):
+		ui.bipob.call("try_direct_cut_facing_object")
 	ui.update_status()
 
 
