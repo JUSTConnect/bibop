@@ -11152,11 +11152,6 @@ func get_platform_for_cell(cell: Vector2i) -> Dictionary:
 				return object_data
 	return {}
 
-func get_cell_height_level(cell: Vector2i) -> int:
-	var platform := get_platform_for_cell(cell)
-	if platform.is_empty() or str(platform.get("platform_type", "")) != "lifting":
-		return 0
-	return int(platform.get("height_level", 0))
 
 func refresh_world_object_platform_height_state(object_data: Dictionary) -> void:
 	if object_data.is_empty():
@@ -11200,19 +11195,61 @@ func get_actor_height_level(actor_cell: Vector2i, actor: Node = null) -> int:
 	if actor.has_method("get_platform_height_level"):
 		return int(actor.call("get_platform_height_level"))
 	return get_cell_height_level(actor_cell)
+func _is_platform_object_data(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
 
-func can_move_between_height_levels(from_cell: Vector2i, to_cell: Vector2i, actor: Node = null) -> bool:
-	var from_height := get_actor_height_level(from_cell, actor)
-	var to_height := get_cell_height_level(to_cell)
-	if from_height == to_height:
+	var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(object_data.get("archetype_id", object_data.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(object_data.get("platform_mode", "")).strip_edges().to_lower()
+
+	if object_group == "platform":
 		return true
-	if actor != null and actor.has_method("get_carried_by_platform_id"):
-		var carried_platform_id := str(actor.call("get_carried_by_platform_id")).strip_edges()
-		if not carried_platform_id.is_empty():
-			var target_platform := get_platform_for_cell(to_cell)
-			if not target_platform.is_empty() and str(target_platform.get("platform_id", "")).strip_edges() == carried_platform_id:
-				return true
+	if object_type == "platform":
+		return true
+	if archetype_id == "platform":
+		return true
+	if not platform_mode.is_empty():
+		return true
+
 	return false
+
+
+func _get_platform_level_from_object(platform_object: Dictionary) -> int:
+	return maxi(0, int(platform_object.get("platform_level", platform_object.get("current_level", platform_object.get("height_level", 0)))))
+
+
+func get_cell_height_level(cell: Vector2i) -> int:
+	var object_data: Dictionary = get_world_object_at_cell(cell)
+
+	if _is_platform_object_data(object_data):
+		return _get_platform_level_from_object(object_data)
+
+	# Ground/floor is level 0.
+	return 0
+
+
+func can_move_between_height_levels(from_cell: Vector2i, to_cell: Vector2i, actor: Variant = null) -> bool:
+	var actor_height: int = 0
+
+	if actor != null and actor.has_method("get_platform_height_level"):
+		actor_height = int(actor.call("get_platform_height_level"))
+	else:
+		actor_height = get_cell_height_level(from_cell)
+
+	var target_height: int = get_cell_height_level(to_cell)
+
+	# Ground level movement is normal.
+	if actor_height <= 0 and target_height <= 0:
+		return true
+
+	# At height, Bipob can move only to another cell at the same height.
+	# This prevents stepping off a raised platform into ground-level void/floor.
+	if actor_height != target_height:
+		return false
+
+	return true
 
 func get_platform_occupants(platform_id: String) -> Dictionary:
 	var platform := get_platform_by_id(platform_id)
