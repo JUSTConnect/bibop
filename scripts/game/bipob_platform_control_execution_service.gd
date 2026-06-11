@@ -232,25 +232,80 @@ static func _is_actor_standing_on_platform_target(controller: Variant, platform_
 			return true
 
 	return false
-	
+static func _carry_actor_with_elevator_if_needed(controller: Variant, platform_object: Dictionary, members: Array[Dictionary], target_level: int) -> void:
+	if controller == null:
+		return
+
+	if not ("grid_position" in controller):
+		return
+
+	var actor_cell: Vector2i = Vector2i(controller.grid_position)
+	var carrying_platform_id: String = ""
+
+	for member in members:
+		var member_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
+			member.get("position", member.get("cell", member.get("pos", Vector2i(-1, -1)))),
+			Vector2i(-1, -1)
+		)
+
+		var platform_cells: Array = Array(member.get("platform_cells", []))
+		var actor_on_member: bool = member_cell == actor_cell
+
+		for cell_variant in platform_cells:
+			var platform_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(cell_variant, Vector2i(-1, -1))
+			if platform_cell == actor_cell:
+				actor_on_member = true
+				break
+
+		if actor_on_member:
+			carrying_platform_id = str(member.get("platform_id", member.get("id", ""))).strip_edges()
+			break
+
+	if carrying_platform_id.is_empty():
+		var fallback_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(
+			platform_object.get("position", platform_object.get("cell", platform_object.get("pos", Vector2i(-1, -1)))),
+			Vector2i(-1, -1)
+		)
+
+		if fallback_cell == actor_cell:
+			carrying_platform_id = str(platform_object.get("platform_id", platform_object.get("id", ""))).strip_edges()
+
+	if carrying_platform_id.is_empty():
+		return
+
+	if controller.has_method("set_platform_height_level"):
+		controller.call("set_platform_height_level", target_level, carrying_platform_id)
+
+	if controller.has_method("update_world_position"):
+		controller.call("update_world_position")
+
+	if "status_changed" in controller:
+		controller.status_changed.emit()
+			
 static func _execute_elevator_action(controller: Variant, platform_object: Dictionary, target_position: Vector2i, mechanism: Dictionary, members: Array[Dictionary], action: String) -> Dictionary:
 	var current_level: int = int(platform_object.get("platform_level", platform_object.get("current_level", platform_object.get("height_level", 0))))
 	var max_level: int = maxi(int(platform_object.get("max_level", platform_object.get("max_height_level", 1))), 0)
 	var target_level: int = current_level
+
 	if action == PlatformTypesRef.ACTION_RAISE:
 		target_level = mini(current_level + 1, max_level)
 	elif action == PlatformTypesRef.ACTION_LOWER:
 		target_level = maxi(current_level - 1, 0)
+
 	if target_level == current_level:
 		return _build_result(false, "Platform is already at the requested level.", platform_object, target_position, "already_at_target_level")
+
 	var motion_plan: Dictionary = PlatformMotionServiceRef.build_elevator_motion_plan(members, [], action, current_level, max_level)
+
 	var updated_count: int = _apply_platform_level_updates(controller, mechanism, members, target_level, current_level, action)
 	if updated_count <= 0:
 		return _build_result(false, "Platform update failed.", platform_object, target_position, "update_failed")
-	if controller.has_method("set_platform_height_level"):
-		var platform_ids: Array = Array(mechanism.get("platform_ids", []))
-		var platform_id: String = str(platform_ids[0]) if not platform_ids.is_empty() else str(platform_object.get("platform_id", platform_object.get("id", "")))
-		controller.call("set_platform_height_level", target_level, platform_id)
+
+	# Important:
+	# If Bipob stands on one of the moving platform members,
+	# his runtime height follows the platform height.
+	_carry_actor_with_elevator_if_needed(controller, platform_object, members, target_level)
+
 	return _build_success_result(platform_object, target_position, action, "Platform %s." % PlatformTypesRef.action_label(action), mechanism, {
 		"height_level": target_level,
 		"current_level": target_level,
