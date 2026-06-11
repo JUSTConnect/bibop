@@ -2734,16 +2734,98 @@ func _get_ground_surface_height_level(ground_object: Dictionary) -> int:
 	return 1
 
 
+func _is_surface_platform_object(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+
+	var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(object_data.get("archetype_id", object_data.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var platform_mode: String = str(object_data.get("platform_mode", "")).strip_edges().to_lower()
+	var platform_type: String = str(object_data.get("platform_type", "")).strip_edges().to_lower()
+
+	if object_group == "platform":
+		return true
+	if object_type == "platform":
+		return true
+	if object_type in ["lifting_platform", "rotating_platform"]:
+		return true
+	if archetype_id == "platform":
+		return true
+	if not platform_mode.is_empty():
+		return true
+	if platform_type in ["lifting", "rotating", "elevator", "rotator"]:
+		return true
+
+	return false
+
+
+func _is_surface_ground_object(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+
+	var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var archetype_id: String = str(object_data.get("archetype_id", object_data.get("map_constructor_prefab_id", ""))).strip_edges().to_lower()
+	var prefab_id: String = str(object_data.get("map_constructor_prefab_id", object_data.get("prefab_id", ""))).strip_edges().to_lower()
+
+	# Important:
+	# "floor" here means placed configurable floor/ground object,
+	# not the base GridManager tile.
+	if object_group in ["ground", "raised_ground", "terrain", "floor"]:
+		return true
+
+	if object_type in ["ground", "raised_ground", "elevated_ground", "ground_block", "floor_block", "floor"]:
+		return true
+
+	if archetype_id in ["ground", "raised_ground", "elevated_ground", "ground_block", "floor_block", "floor"]:
+		return true
+
+	if prefab_id in ["ground", "raised_ground", "elevated_ground", "ground_block", "floor_block", "floor"]:
+		return true
+
+	if object_type.contains("ground") or prefab_id.contains("ground"):
+		return true
+
+	return false
+
+
+func _get_floor_visual_surface_height_level(cell: Vector2i) -> int:
+	if grid_manager == null:
+		return 0
+
+	var floor_state: Dictionary = {}
+
+	if grid_manager.has_method("get_floor_visual_state"):
+		var state_variant: Variant = grid_manager.call("get_floor_visual_state", cell)
+		if state_variant is Dictionary:
+			floor_state = Dictionary(state_variant)
+
+	if floor_state.is_empty() and grid_manager.has_method("get_floor_visual_state_for_cell"):
+		var state_variant_2: Variant = grid_manager.call("get_floor_visual_state_for_cell", cell)
+		if state_variant_2 is Dictionary:
+			floor_state = Dictionary(state_variant_2)
+
+	if floor_state.is_empty():
+		return 0
+
+	for key in ["surface_height", "ground_height", "floor_height", "floor_visual_height", "height_level", "elevation_level", "z_level"]:
+		if floor_state.has(key):
+			return _surface_height_from_variant(floor_state.get(key), 0)
+
+	return 0
+
+
 func get_cell_height_level(cell: Vector2i) -> int:
 	var object_data: Dictionary = get_world_object_at_cell(cell)
 
-	if _is_platform_surface_object(object_data):
+	if _is_surface_platform_object(object_data):
 		return _get_platform_surface_height_level(object_data)
 
-	if _is_ground_surface_object(object_data):
+	if _is_surface_ground_object(object_data):
 		return _get_ground_surface_height_level(object_data)
 
-	return 0
+	return _get_floor_visual_surface_height_level(cell)
 
 
 func can_move_between_height_levels(from_cell: Vector2i, to_cell: Vector2i, actor: Variant = null) -> bool:
@@ -2852,6 +2934,8 @@ func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
 	if bool(state.get("has_object", false)) and bool(state.get("blocks_movement", false)):
 		if _is_surface_provider_object(object_data):
 			state["blocks_movement"] = false
+			state["is_passable"] = true
+			state["block_reason"] = ""
 		else:
 			state["is_passable"] = false
 			state["block_reason"] = "blocked_by_object"
