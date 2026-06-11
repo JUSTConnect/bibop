@@ -62,6 +62,7 @@ const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory
 const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const PlatformMechanismRulesServiceRef = preload("res://scripts/game/platform/platform_mechanism_rules_service.gd")
+const PlatformMechanismServiceRef = preload("res://scripts/game/platform/platform_mechanism_service.gd")
 const DEBUG_RUNTIME_INVENTORY_TRACE := false
 const EXTERNAL_MODULE_CATALOG: Dictionary = {
 "wheels_v1":{"name":"Wheels V1","cat":"Gear","size":Vector2i(3,2),"sides":[EXTERNAL_SIDE_BOTTOM],"desc":"Fast movement system for flat and stable surfaces. Ineffective on stairs, mud and debris.","energy":1,"terrain":"Flat surface","movement":"Drive","speed":3},
@@ -7885,6 +7886,8 @@ func get_platform_control_action_payload(platform_object: Dictionary, target_pos
 	var runtime_block_message: String = _get_platform_runtime_block_message(normalized_platform)
 	var platform_ids: Array[String] = []
 	var mechanism_id: String = str(normalized_platform.get("mechanism_id", normalized_platform.get("platform_mechanism_id", ""))).strip_edges()
+	if mechanism_id.is_empty():
+		mechanism_id = PlatformMechanismServiceRef.get_single_mechanism_id(normalized_platform)
 
 	if mission_manager != null and not mechanism_id.is_empty() and mission_manager.has_method("get_platform_mechanism_summary"):
 		var summary_variant: Variant = mission_manager.call("get_platform_mechanism_summary", mechanism_id)
@@ -7896,11 +7899,15 @@ func get_platform_control_action_payload(platform_object: Dictionary, target_pos
 					platform_ids.append(platform_id_text)
 
 	if platform_ids.is_empty():
-		var single_platform_id: String = str(normalized_platform.get("platform_id", normalized_platform.get("id", ""))).strip_edges()
+		var single_platform_id: String = str(normalized_platform.get("platform_id", "")).strip_edges()
+		if single_platform_id.is_empty():
+			single_platform_id = str(normalized_platform.get("id", normalized_platform.get("object_id", ""))).strip_edges()
 		if not single_platform_id.is_empty():
 			platform_ids.append(single_platform_id)
 
 	var mechanism: Dictionary = PlatformMechanismRulesServiceRef.build_mechanism_from_platform(normalized_platform, platform_ids)
+	mechanism["mechanism_id"] = mechanism_id
+	mechanism["platform_mechanism_id"] = mechanism_id
 
 	var payload: Dictionary = {
 		"mechanism": mechanism,
