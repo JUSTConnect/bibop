@@ -33,7 +33,7 @@ static func create_inspector_section(_ui: Variant, title: String) -> VBoxContain
 	section.add_child(header)
 	return section
 
-static func create_property_row(_ui: Variant, label_text: String, control: Control, expand_layout: bool = false) -> HBoxContainer:
+static func create_property_row(_ui: Variant, label_text: String, control: Control, _expand_layout: bool = false) -> HBoxContainer:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
