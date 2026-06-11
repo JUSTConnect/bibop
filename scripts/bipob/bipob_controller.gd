@@ -7725,7 +7725,16 @@ func get_platform_control_action_payload(platform_object: Dictionary, target_pos
 
 	var actor_standing_on_platform: bool = _is_actor_standing_on_platform_target(normalized_platform, target_position)
 	var runtime_block_message: String = _get_platform_runtime_block_message(normalized_platform)
-
+	print("[platform_payload] id=", str(normalized_platform.get("id", "")),
+		" actor_cell=", grid_position,
+		" target_position=", target_position,
+		" standing=", actor_standing_on_platform,
+		" block='", runtime_block_message, "'",
+		" group=", str(normalized_platform.get("object_group", "")),
+		" type=", str(normalized_platform.get("object_type", "")),
+		" control=", str(normalized_platform.get("control_type", normalized_platform.get("control_mode", ""))),
+		" power=", str(normalized_platform.get("power_type", normalized_platform.get("power_mode", ""))),
+		" state=", str(normalized_platform.get("state", "")))
 	var platform_ids: Array[String] = []
 	var mechanism_id: String = str(normalized_platform.get("mechanism_id", normalized_platform.get("platform_mechanism_id", ""))).strip_edges()
 
@@ -7756,15 +7765,18 @@ func get_platform_control_action_payload(platform_object: Dictionary, target_pos
 	}
 
 	if not actor_standing_on_platform:
+		print("[platform_payload] BLOCK not_on_platform")
 		return payload
 
 	if not runtime_block_message.is_empty():
+		print("[platform_payload] BLOCK runtime_message=", runtime_block_message)
 		payload["message"] = runtime_block_message
 		return payload
 
 	payload["show_action"] = true
 	payload["enabled"] = true
 	payload["message"] = "Platform control available."
+	print("[platform_payload] OK show_action activate_platform")
 	return payload
 	
 func _is_actor_standing_on_platform_target(platform_object: Dictionary, target_position: Vector2i) -> bool:
