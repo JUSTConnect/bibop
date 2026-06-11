@@ -435,11 +435,16 @@ static func _build_platform_candidate_from_row(controller: Variant, row: Diction
 			candidate = Dictionary(entity.get("data", {})).duplicate(true)
 			candidate["id"] = object_id
 
-	# Preserve runtime/placement fields from row.
-	# Entity data can be prefab-like, while row is the actual placed object.
+	# Preserve actual placed row data over prefab/entity data.
+	# This is important because mechanism membership is edited in map constructor rows.
 	for field_name in [
 		"mechanism_id",
 		"platform_mechanism_id",
+		"platform_ids",
+		"member_platform_ids",
+		"mechanism_platform_ids",
+		"linked_platform_ids",
+		"members",
 		"platform_mode",
 		"platform_type",
 		"platform_action",
@@ -472,29 +477,50 @@ static func _build_platform_candidate_from_row(controller: Variant, row: Diction
 
 static func _build_platform_mechanism(controller: Variant, platform_object: Dictionary) -> Dictionary:
 	var platform_ids: Array[String] = []
-
 	var current_platform_id: String = _get_platform_id(platform_object)
 	var mechanism_id: String = _get_platform_mechanism_id(platform_object)
 	var mechanism_kind: String = _get_platform_mechanism_kind(platform_object)
 
-	if not current_platform_id.is_empty():
+	for field_name in [
+		"platform_ids",
+		"member_platform_ids",
+		"mechanism_platform_ids",
+		"linked_platform_ids",
+		"members"
+	]:
+		if not platform_object.has(field_name):
+			continue
+
+		var value: Variant = platform_object.get(field_name)
+		if value is Array:
+			for item in Array(value):
+				var platform_id: String = ""
+
+				if item is Dictionary:
+					platform_id = _get_platform_id(Dictionary(item))
+				else:
+					platform_id = str(item).strip_edges()
+
+				if not platform_id.is_empty() and not platform_ids.has(platform_id):
+					platform_ids.append(platform_id)
+
+	if not current_platform_id.is_empty() and not platform_ids.has(current_platform_id):
 		platform_ids.append(current_platform_id)
 
-	# Optional summary support:
-	# if mission manager already has mechanism summary, use it, but filter by platform kind.
+	# Optional summary support, but filtered by platform kind.
 	if not mechanism_id.is_empty() and controller != null and controller.mission_manager != null and controller.mission_manager.has_method("get_platform_mechanism_summary"):
 		var summary_variant: Variant = controller.mission_manager.call("get_platform_mechanism_summary", mechanism_id)
 		if summary_variant is Dictionary:
 			var summary: Dictionary = Dictionary(summary_variant)
 
 			for platform_id_variant in Array(summary.get("platform_ids", [])):
-				var platform_id: String = str(platform_id_variant).strip_edges()
-				if platform_id.is_empty() or platform_ids.has(platform_id):
+				var platform_id_from_summary: String = str(platform_id_variant).strip_edges()
+				if platform_id_from_summary.is_empty() or platform_ids.has(platform_id_from_summary):
 					continue
 
 				var member: Dictionary = {}
 				if controller.mission_manager.has_method("get_platform_by_id"):
-					member = Dictionary(controller.mission_manager.call("get_platform_by_id", platform_id))
+					member = Dictionary(controller.mission_manager.call("get_platform_by_id", platform_id_from_summary))
 
 				if member.is_empty():
 					continue
@@ -502,7 +528,7 @@ static func _build_platform_mechanism(controller: Variant, platform_object: Dict
 				if _get_platform_mechanism_kind(member) != mechanism_kind:
 					continue
 
-				platform_ids.append(platform_id)
+				platform_ids.append(platform_id_from_summary)
 
 	var mechanism: Dictionary = PlatformMechanismRulesServiceRef.build_mechanism_from_platform(platform_object, platform_ids)
 
@@ -510,6 +536,7 @@ static func _build_platform_mechanism(controller: Variant, platform_object: Dict
 	mechanism["platform_mechanism_id"] = mechanism_id
 	mechanism["platform_mode"] = mechanism_kind
 	mechanism["mechanism_kind"] = mechanism_kind
+	mechanism["platform_ids"] = platform_ids
 
 	return mechanism
 
@@ -526,35 +553,64 @@ static func _collect_mechanism_members(controller: Variant, mechanism: Dictionar
 	if mechanism_id.is_empty():
 		mechanism_id = str(mechanism.get("mechanism_id", mechanism.get("platform_mechanism_id", ""))).strip_edges()
 
-	var mechanism_kind: String = _get_platform_mechanism_kind(platform_object)
+	var mechanism_kind: String = str(mechanism.get("mechanism_kind", mechanism.get("platform_mode", ""))).strip_edges()
+	if mechanism_kind.is_empty():
+		mechanism_kind = _get_platform_mechanism_kind(platform_object)
 
-	# Single platform: no mechanism_id means independent mechanism.
-	if mechanism_id.is_empty():
+	var requested_platform_ids: Array[String] = []
+
+	for platform_id_variant in Array(mechanism.get("platform_ids", [])):
+		var platform_id_from_mechanism: String = str(platform_id_variant).strip_edges()
+		if not platform_id_from_mechanism.is_empty() and not requested_platform_ids.has(platform_id_from_mechanism):
+			requested_platform_ids.append(platform_id_from_mechanism)
+
+	for field_name in [
+		"platform_ids",
+		"member_platform_ids",
+		"mechanism_platform_ids",
+		"linked_platform_ids",
+		"members"
+	]:
+		if not platform_object.has(field_name):
+			continue
+
+		var value: Variant = platform_object.get(field_name)
+		if value is Array:
+			for item in Array(value):
+				var platform_id_from_field: String = ""
+
+				if item is Dictionary:
+					platform_id_from_field = _get_platform_id(Dictionary(item))
+				else:
+					platform_id_from_field = str(item).strip_edges()
+
+				if not platform_id_from_field.is_empty() and not requested_platform_ids.has(platform_id_from_field):
+					requested_platform_ids.append(platform_id_from_field)
+
+	if not current_platform_id.is_empty() and not requested_platform_ids.has(current_platform_id):
+		requested_platform_ids.append(current_platform_id)
+
+	# Single platform:
+	# no mechanism_id and no member list means independent platform.
+	# Important: do not return early if member ids exist.
+	if mechanism_id.is_empty() and requested_platform_ids.size() <= 1:
 		members.append(platform_object.duplicate(true))
 		return members
 
-	# Current platform is always a member.
 	_append_unique_platform_member(members, platform_object)
 
-	# 1) Collect from explicit platform_ids, but only same kind.
+	# 1) Explicit platform ids.
 	if controller.mission_manager.has_method("get_platform_by_id"):
-		for platform_id_variant in Array(mechanism.get("platform_ids", [])):
-			var platform_id: String = str(platform_id_variant).strip_edges()
-			if platform_id.is_empty():
-				continue
+		for requested_platform_id in requested_platform_ids:
+			var member: Dictionary = Dictionary(controller.mission_manager.call("get_platform_by_id", requested_platform_id))
 
-			var member: Dictionary = Dictionary(controller.mission_manager.call("get_platform_by_id", platform_id))
-
-			if member.is_empty() and platform_id == current_platform_id:
+			if member.is_empty() and requested_platform_id == current_platform_id:
 				member = platform_object.duplicate(true)
 
 			if member.is_empty():
 				continue
 
 			if not _is_platform_member_data(member):
-				continue
-
-			if _get_platform_mechanism_id(member) != mechanism_id:
 				continue
 
 			if _get_platform_mechanism_kind(member) != mechanism_kind:
@@ -576,16 +632,48 @@ static func _collect_mechanism_members(controller: Variant, mechanism: Dictionar
 			if not _is_platform_member_data(candidate):
 				continue
 
-			if _get_platform_mechanism_id(candidate) != mechanism_id:
-				continue
-
-			# Main rule:
-			# elevator mechanism can collect only elevator platforms,
-			# rotate mechanism can collect only rotate platforms.
 			if _get_platform_mechanism_kind(candidate) != mechanism_kind:
 				continue
 
-			_append_unique_platform_member(members, candidate)
+			var candidate_id: String = _get_platform_id(candidate)
+			var candidate_mechanism_id: String = _get_platform_mechanism_id(candidate)
+			var candidate_matches: bool = false
+
+			if not candidate_id.is_empty() and requested_platform_ids.has(candidate_id):
+				candidate_matches = true
+
+			if not mechanism_id.is_empty() and candidate_mechanism_id == mechanism_id:
+				candidate_matches = true
+
+			for field_name in [
+				"platform_ids",
+				"member_platform_ids",
+				"mechanism_platform_ids",
+				"linked_platform_ids",
+				"members"
+			]:
+				if candidate_matches:
+					break
+
+				if not candidate.has(field_name):
+					continue
+
+				var candidate_value: Variant = candidate.get(field_name)
+				if candidate_value is Array:
+					for item in Array(candidate_value):
+						var listed_id: String = ""
+
+						if item is Dictionary:
+							listed_id = _get_platform_id(Dictionary(item))
+						else:
+							listed_id = str(item).strip_edges()
+
+						if not current_platform_id.is_empty() and listed_id == current_platform_id:
+							candidate_matches = true
+							break
+
+			if candidate_matches:
+				_append_unique_platform_member(members, candidate)
 
 	# 3) Runtime mission world objects fallback.
 	var world_objects_variant: Variant = controller.mission_manager.get("mission_world_objects")
@@ -599,13 +687,48 @@ static func _collect_mechanism_members(controller: Variant, mechanism: Dictionar
 			if not _is_platform_member_data(candidate_object):
 				continue
 
-			if _get_platform_mechanism_id(candidate_object) != mechanism_id:
-				continue
-
 			if _get_platform_mechanism_kind(candidate_object) != mechanism_kind:
 				continue
 
-			_append_unique_platform_member(members, candidate_object)
+			var candidate_object_id: String = _get_platform_id(candidate_object)
+			var candidate_object_mechanism_id: String = _get_platform_mechanism_id(candidate_object)
+			var candidate_object_matches: bool = false
+
+			if not candidate_object_id.is_empty() and requested_platform_ids.has(candidate_object_id):
+				candidate_object_matches = true
+
+			if not mechanism_id.is_empty() and candidate_object_mechanism_id == mechanism_id:
+				candidate_object_matches = true
+
+			for field_name in [
+				"platform_ids",
+				"member_platform_ids",
+				"mechanism_platform_ids",
+				"linked_platform_ids",
+				"members"
+			]:
+				if candidate_object_matches:
+					break
+
+				if not candidate_object.has(field_name):
+					continue
+
+				var candidate_object_value: Variant = candidate_object.get(field_name)
+				if candidate_object_value is Array:
+					for item in Array(candidate_object_value):
+						var listed_object_id: String = ""
+
+						if item is Dictionary:
+							listed_object_id = _get_platform_id(Dictionary(item))
+						else:
+							listed_object_id = str(item).strip_edges()
+
+						if not current_platform_id.is_empty() and listed_object_id == current_platform_id:
+							candidate_object_matches = true
+							break
+
+			if candidate_object_matches:
+				_append_unique_platform_member(members, candidate_object)
 
 	if members.is_empty():
 		members.append(platform_object.duplicate(true))
