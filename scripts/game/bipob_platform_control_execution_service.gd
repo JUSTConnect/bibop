@@ -356,19 +356,23 @@ static func _resolve_requested_action(platform_object: Dictionary, mechanism: Di
 		"rotate_platform_right", "rotate_right":
 			return PlatformTypesRef.ACTION_ROTATE_RIGHT
 		"toggle", "activate_platform", "":
-			var configured_action: String = str(mechanism.get("operation", platform_object.get("platform_action", platform_object.get("operation", "toggle")))).strip_edges().to_lower()
-			if configured_action in [PlatformTypesRef.ACTION_RAISE, PlatformTypesRef.ACTION_LOWER, PlatformTypesRef.ACTION_ROTATE_LEFT, PlatformTypesRef.ACTION_ROTATE_RIGHT]:
+			var platform_kind: String = _get_platform_mechanism_kind(platform_object)
+			var configured_action: String = PlatformTypesRef.normalize_platform_action(str(mechanism.get("operation", platform_object.get("platform_action", platform_object.get("operation", "toggle")))))
+			if configured_action in [PlatformTypesRef.ACTION_RAISE, PlatformTypesRef.ACTION_LOWER] and PlatformTypesRef.platform_mode_supports_elevator(platform_kind):
 				return configured_action
-			if configured_action == "toggle":
-				var current_level: int = int(platform_object.get("platform_level", platform_object.get("current_level", platform_object.get("height_level", 0))))
-				var max_level: int = maxi(int(platform_object.get("max_level", platform_object.get("max_height_level", 1))), 0)
-				return PlatformTypesRef.ACTION_RAISE if current_level <= 0 else PlatformTypesRef.ACTION_LOWER if current_level >= max_level else PlatformTypesRef.ACTION_RAISE
-			if PlatformTypesRef.platform_mode_supports_rotator(str(platform_object.get("platform_mode", platform_object.get("platform_type", "")))):
+			if configured_action in [PlatformTypesRef.ACTION_ROTATE_LEFT, PlatformTypesRef.ACTION_ROTATE_RIGHT] and PlatformTypesRef.platform_mode_supports_rotator(platform_kind):
+				return configured_action
+			if PlatformTypesRef.platform_mode_supports_rotator(platform_kind):
 				return PlatformTypesRef.ACTION_ROTATE_RIGHT
-			return PlatformTypesRef.ACTION_RAISE
+			var current_level: int = int(platform_object.get("platform_level", platform_object.get("current_level", platform_object.get("height_level", 0))))
+			var max_level: int = maxi(int(platform_object.get("max_level", platform_object.get("max_height_level", 1))), 0)
+			return PlatformTypesRef.ACTION_RAISE if current_level <= 0 else PlatformTypesRef.ACTION_LOWER if current_level >= max_level else PlatformTypesRef.ACTION_RAISE
 	return ""
 static func _get_platform_id(platform_data: Dictionary) -> String:
-	return str(platform_data.get("platform_id", platform_data.get("id", platform_data.get("object_id", "")))).strip_edges()
+	var platform_id: String = str(platform_data.get("platform_id", "")).strip_edges()
+	if platform_id.is_empty():
+		platform_id = str(platform_data.get("id", platform_data.get("object_id", ""))).strip_edges()
+	return platform_id
 
 
 static func _get_platform_mechanism_id(platform_data: Dictionary) -> String:
@@ -479,6 +483,8 @@ static func _build_platform_mechanism(controller: Variant, platform_object: Dict
 	var platform_ids: Array[String] = []
 	var current_platform_id: String = _get_platform_id(platform_object)
 	var mechanism_id: String = _get_platform_mechanism_id(platform_object)
+	if mechanism_id.is_empty():
+		mechanism_id = PlatformMechanismServiceRef.get_single_mechanism_id(platform_object)
 	var mechanism_kind: String = _get_platform_mechanism_kind(platform_object)
 
 	for field_name in [
@@ -552,6 +558,8 @@ static func _collect_mechanism_members(controller: Variant, mechanism: Dictionar
 
 	if mechanism_id.is_empty():
 		mechanism_id = str(mechanism.get("mechanism_id", mechanism.get("platform_mechanism_id", ""))).strip_edges()
+	if mechanism_id.is_empty():
+		mechanism_id = PlatformMechanismServiceRef.get_single_mechanism_id(platform_object)
 
 	var mechanism_kind: String = str(mechanism.get("mechanism_kind", mechanism.get("platform_mode", ""))).strip_edges()
 	if mechanism_kind.is_empty():

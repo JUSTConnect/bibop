@@ -4943,7 +4943,8 @@ func get_map_constructor_placed_object_rows() -> Array[Dictionary]:
 			"category_or_placement": str(object_data.get("category", placement_mode.capitalize())),
 			"placement_mode": placement_mode,
 			"attached_wall_cell": Vector2i(-1, -1),
-			"wall_side": str(object_data.get("wall_side", ""))
+			"wall_side": str(object_data.get("wall_side", "")),
+			"data": object_data.duplicate(true)
 		}
 		for link_field in ["control_source_id", "linked_terminal_id", "controller_id", "target_door_id", "target_platform_id", "linked_object_id", "target_object_id", "required_key_id"]:
 			if object_data.has(link_field):
@@ -11460,10 +11461,15 @@ func set_active_bipob_ref(bipob: Node) -> void:
 	active_bipob_ref = bipob
 
 func get_platform_by_id(platform_id: String) -> Dictionary:
+	var normalized_id: String = platform_id.strip_edges()
+	if normalized_id.is_empty():
+		return {}
 	for object_data in mission_world_objects:
-		if str(object_data.get("object_group", "")) != "platform":
+		if not PlatformTypesRef.is_platform_data(object_data):
 			continue
-		if str(object_data.get("platform_id", "")) == platform_id:
+		if str(object_data.get("platform_id", "")).strip_edges() == normalized_id:
+			return object_data
+		if str(object_data.get("id", object_data.get("object_id", ""))).strip_edges() == normalized_id:
 			return object_data
 	return {}
 
