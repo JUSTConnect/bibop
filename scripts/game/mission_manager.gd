@@ -2622,34 +2622,35 @@ func _surface_height_from_variant(value: Variant, fallback: int = 0) -> int:
 	match typeof(value):
 		TYPE_INT:
 			return maxi(0, int(value))
+
 		TYPE_FLOAT:
 			return maxi(0, int(value))
+
 		TYPE_STRING:
 			var text: String = str(value).strip_edges().to_lower()
-			text = text.replace(" ", "_").replace("-", "_")
+			text = text.replace(" ", "_")
+			text = text.replace("-", "_")
 
 			if text.is_empty():
 				return fallback
 
-			if text in ["default", "floor", "ground", "ground_level", "floor_level"]:
+			if text in ["default", "floor", "ground", "ground_level", "floor_level", "flat", "normal"]:
 				return 0
 
 			if text.is_valid_int():
 				return maxi(0, int(text))
+
+			match text:
+				"step_1", "ground_low", "ground_low_01", "low", "raised", "high":
+					return 1
+				"step_2", "ground_halflow", "ground_halflow_01", "halflow", "half_low", "upper":
+					return 2
 
 			for prefix in ["level_", "height_", "surface_", "ground_", "floor_", "z_"]:
 				if text.begins_with(prefix):
 					var tail: String = text.substr(prefix.length())
 					if tail.is_valid_int():
 						return maxi(0, int(tail))
-
-			match text:
-				"low":
-					return 0
-				"raised", "high":
-					return 1
-				"upper":
-					return 2
 
 	return fallback
 
@@ -2815,18 +2816,111 @@ func _get_floor_visual_surface_height_level(cell: Vector2i) -> int:
 
 	return 0
 
+func resolve_runtime_surface_cell(cell: Vector2i, actor_level: int = -1) -> Dictionary:
+	if grid_manager == null:
+		return {
+			"ok": false,
+			"cell": cell,
+			"surface_level": 0,
+			"reason": "missing_grid_manager"
+		}
 
+	if not grid_manager.is_in_bounds(cell):
+		return {
+			"ok": false,
+			"cell": cell,
+			"surface_level": 0,
+			"reason": "out_of_bounds"
+		}
+
+	var object_data: Dictionary = {}
+	if has_method("get_world_object_at_cell"):
+		object_data = Dictionary(get_world_object_at_cell(cell))
+
+	var surface_level: int = get_cell_height_level(cell)
+	var has_surface_provider: bool = false
+
+	if not object_data.is_empty():
+		has_surface_provider = _is_surface_provider_object(object_data)
+
+	# Important:
+	# platform / ground / raised floor is not "blocking object" for movement.
+	# It is the walkable top surface.
+	var passable: bool = true
+	if has_method("is_runtime_cell_passable"):
+		passable = bool(is_runtime_cell_passable(cell))
+
+	if has_surface_provider:
+		passable = true
+
+	if not passable:
+		return {
+			"ok": false,
+			"cell": cell,
+			"surface_level": surface_level,
+			"surface_object": object_data,
+			"reason": "not_passable"
+		}
+
+	if actor_level >= 0 and surface_level != actor_level:
+		return {
+			"ok": false,
+			"cell": cell,
+			"surface_level": surface_level,
+			"surface_object": object_data,
+			"reason": "height_mismatch"
+		}
+
+	return {
+		"ok": true,
+		"cell": cell,
+		"surface_level": surface_level,
+		"surface_object": object_data,
+		"reason": ""
+	}
+	
 func get_cell_height_level(cell: Vector2i) -> int:
-	var object_data: Dictionary = get_world_object_at_cell(cell)
+	if grid_manager == null:
+		return 0
 
-	if _is_surface_platform_object(object_data):
+	var object_data: Dictionary = {}
+	if has_method("get_world_object_at_cell"):
+		object_data = Dictionary(get_world_object_at_cell(cell))
+
+	# Platform top has priority over base floor.
+	if not object_data.is_empty() and _is_surface_platform_object(object_data):
 		return _get_platform_surface_height_level(object_data)
 
-	if _is_surface_ground_object(object_data):
+	# Placed ground object means its TOP is the walkable surface.
+	if not object_data.is_empty() and _is_surface_ground_object(object_data):
 		return _get_ground_surface_height_level(object_data)
 
-	return _get_floor_visual_surface_height_level(cell)
+	# Map-constructor floor visual height.
+	# This is the important part: renderer already uses floor_height / floor_visual_height / ground_height
+	# to draw ground_low / ground_halflow, so runtime must use the same source.
+	if has_method("get_map_constructor_floor_material_for_cell"):
+		var floor_material_result: Dictionary = Dictionary(call("get_map_constructor_floor_material_for_cell", cell))
+		if bool(floor_material_result.get("ok", false)):
+			var floor_override: Dictionary = Dictionary(floor_material_result.get("override", {}))
 
+			for key in ["surface_height", "ground_height", "floor_height", "floor_visual_height", "height_level", "elevation_level", "z_level"]:
+				if floor_override.has(key):
+					return _surface_height_from_variant(floor_override.get(key), 0)
+
+	# GridManager floor visual height fallback.
+	if grid_manager.has_method("get_floor_visual_state"):
+		var floor_state_variant: Variant = grid_manager.call("get_floor_visual_state", cell)
+		if floor_state_variant is Dictionary:
+			var floor_state: Dictionary = Dictionary(floor_state_variant)
+
+			for key in ["surface_height", "ground_height", "floor_height", "floor_visual_height", "height_level", "elevation_level", "z_level"]:
+				if floor_state.has(key):
+					return _surface_height_from_variant(floor_state.get(key), 0)
+
+	if grid_manager.has_method("get_floor_height_for_cell"):
+		return _surface_height_from_variant(grid_manager.call("get_floor_height_for_cell", cell), 0)
+
+	return 0
 
 func can_move_between_height_levels(from_cell: Vector2i, to_cell: Vector2i, actor: Variant = null) -> bool:
 	var actor_height: int = get_cell_height_level(from_cell)
