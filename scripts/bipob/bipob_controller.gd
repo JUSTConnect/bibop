@@ -6617,23 +6617,35 @@ func refresh_platform_height_state_after_move() -> void:
 		carried_by_platform_id = ""
 		return
 
-	var platform: Dictionary = {}
-	if mission_manager.has_method("get_platform_for_cell"):
-		var platform_variant: Variant = mission_manager.call("get_platform_for_cell", grid_position)
-		if platform_variant is Dictionary:
-			platform = platform_variant
-
-	if not platform.is_empty() and str(platform.get("platform_type", "")) == "lifting":
-		platform_height_level = int(platform.get("height_level", 0))
-		carried_by_platform_id = str(platform.get("platform_id", ""))
-		return
-
-	if mission_manager.has_method("get_cell_height_level"):
-		platform_height_level = int(mission_manager.call("get_cell_height_level", grid_position))
-	else:
-		platform_height_level = 0
+	var surface_level: int = get_cell_surface_height_level(grid_position)
+	platform_height_level = surface_level
 	carried_by_platform_id = ""
 
+	var object_data: Dictionary = {}
+	if mission_manager.has_method("get_world_object_at_cell"):
+		object_data = Dictionary(mission_manager.call("get_world_object_at_cell", grid_position))
+
+	if not object_data.is_empty() and _is_platform_object_data(object_data):
+		var platform_id: String = str(object_data.get("platform_id", object_data.get("id", ""))).strip_edges()
+		if surface_level > 0 and not platform_id.is_empty():
+			carried_by_platform_id = platform_id
+			
+func get_cell_surface_height_level(cell: Vector2i) -> int:
+	if mission_manager != null and mission_manager.has_method("get_cell_height_level"):
+		return int(mission_manager.call("get_cell_height_level", cell))
+
+	return 0
+
+
+func get_surface_visual_offset_for_height_level(level: int) -> Vector2:
+	return Vector2(0.0, -float(maxi(0, level)) * 18.0)
+
+
+func get_surface_visual_world_position_for_grid_cell(cell: Vector2i) -> Vector2:
+	var base_position: Vector2 = get_visual_world_position_for_grid_cell(cell)
+	var surface_level: int = get_cell_surface_height_level(cell)
+	return base_position + get_surface_visual_offset_for_height_level(surface_level)
+	
 func get_platform_height_level() -> int:
 	return platform_height_level
 
