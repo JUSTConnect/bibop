@@ -676,42 +676,7 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 					_add_cable_note(ui, configurable, "Wall cable requires a wall in this cell.", true)
 			if _get_cable_install_type(data) == "hidden":
 				_add_cable_note(ui, configurable, "Hidden cables are visible only in the editor.")
-			MapConstructorPropertyControls.add_enum_updates_property(
-				ui,
-				configurable,
-				"Health state",
-				entity_kind,
-				entity_id,
-				_get_power_health_state(data),
-				[
-					{
-						"label": "Normal",
-						"value": "normal",
-						"updates": {
-							"state": "normal",
-							"cable_health_state": "normal",
-							"health_state": "normal",
-							"broken": false,
-							"is_broken": false,
-							"damaged": false,
-							"cut": false
-						}
-					},
-					{
-						"label": "Broken",
-						"value": "broken",
-						"updates": {
-							"state": "broken",
-							"cable_health_state": "broken",
-							"health_state": "broken",
-							"broken": true,
-							"is_broken": true,
-							"damaged": true,
-							"cut": false
-						}
-					}
-				]
-			)
+			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Health state", entity_kind, entity_id, _get_power_health_state(data), [{"label":"Normal", "value":"normal", "updates":{"state":"normal", "cable_health_state":"normal", "health_state":"normal", "broken":false, "is_broken":false, "damaged":false, "cut":false}}, {"label":"Broken", "value":"broken", "updates":{"state":"broken", "cable_health_state":"broken", "health_state":"broken", "broken":true, "is_broken":true, "damaged":true, "cut":false}}])
 			MapConstructorPropertyControls.add_enum_updates_property(ui, configurable, "Power state", entity_kind, entity_id, "powered" if bool(data.get("is_powered", false)) else "unpowered", [{"label":"Powered", "value":"powered", "updates":{"is_powered":true}}, {"label":"Unpowered", "value":"unpowered", "updates":{"is_powered":false}}])
 		
 	if entity_kind == "world_object" and _is_wall_cable_constructor_object(data) and _get_cable_install_type(data) == "wall":

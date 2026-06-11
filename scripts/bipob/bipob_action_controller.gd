@@ -203,6 +203,59 @@ static func handle_runtime_action_interact(controller: Variant, target_position:
 	return true
 
 
+static func try_direct_repair_facing_object(controller: Variant) -> bool:
+	if controller == null or controller.mission_manager == null:
+		return false
+	if not controller.has_module_id("repair_v1"):
+		controller.hint_requested.emit("Repair Tool required.")
+		controller.status_changed.emit()
+		return false
+	var target_context: Dictionary = BipobTargetingServiceRef.build_action_target_context(controller)
+	var target_object: Dictionary = Dictionary(target_context.get("target_object", {}))
+	var target_position: Vector2i = Vector2i(target_context.get("target_position", controller.get_facing_device_position()))
+	if target_object.is_empty():
+		target_object = Dictionary(controller.mission_manager.get_world_object_at_cell(target_position))
+		target_object = BipobTargetingServiceRef.resolve_runtime_action_target_for_cell(controller, target_position, target_object)
+	if target_object.is_empty():
+		controller.hint_requested.emit("No repair target.")
+		controller.status_changed.emit()
+		return false
+	var object_type: String = str(target_object.get("object_type", target_object.get("type", ""))).strip_edges().to_lower()
+	var state_text: String = str(target_object.get("state", "")).strip_edges().to_lower()
+	var health_text: String = str(target_object.get("cable_health_state", target_object.get("health_state", ""))).strip_edges().to_lower()
+	var needs_repair: bool = bool(target_object.get("broken", false)) or bool(target_object.get("is_broken", false)) or bool(target_object.get("damaged", false)) or bool(target_object.get("cut", false)) or state_text in ["broken", "damaged", "cut", "destroyed"] or health_text in ["broken", "damaged", "cut"]
+	if not needs_repair:
+		controller.hint_requested.emit("Target does not need repair.")
+		controller.status_changed.emit()
+		return false
+	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
+		controller.hint_requested.emit("Not enough action/energy.")
+		controller.status_changed.emit()
+		return false
+	var updated: Dictionary = target_object.duplicate(true)
+	var is_power_cable: bool = object_type == "power_cable" or str(updated.get("archetype_id", "")).strip_edges().to_lower() == "power_cable" or str(updated.get("map_constructor_prefab_id", "")).strip_edges().to_lower() == "power_cable"
+	updated["broken"] = false
+	updated["is_broken"] = false
+	updated["damaged"] = false
+	updated["cut"] = false
+	updated["health_state"] = "normal"
+	if is_power_cable:
+		updated["state"] = "normal"
+		updated["cable_health_state"] = "normal"
+	else:
+		updated["state"] = "active"
+	controller.mission_manager.set_world_object_at_cell(target_position, updated)
+	InteractionActionCostServiceRef.commit_gameplay_action(controller, {"success": true, "message": "Cable repaired." if is_power_cable else "Object repaired."})
+	controller.selected_world_action = ""
+	controller.hint_requested.emit("Cable repaired." if is_power_cable else "Object repaired.")
+	controller.refresh_world_object_overlay()
+	controller.update_threat_detection_preview()
+	controller.emit_facing_world_object_hint()
+	refresh_world_action_panel(controller)
+	controller.status_changed.emit()
+	return true
+
+
 static func _apply_pickup_execution(controller: Variant, pickup_execution: Dictionary, target_position: Vector2i) -> void:
 	if bool(pickup_execution.get("success", false)) and not InteractionActionCostServiceRef.commit_gameplay_action(controller, pickup_execution):
 		controller.hint_requested.emit(str(pickup_execution.get("message", "Not enough action/energy.")))

@@ -6312,7 +6312,9 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["state"] = str(data.get("state", "ok")).strip_edges().to_lower()
 		if data["state"] == "active":
 			data["state"] = "ok"
-		if not (str(data["state"]) in ["ok", "cut", "damaged", "broken"]):
+		if str(data["state"]) == "cut":
+			data["state"] = "broken"
+		if not (str(data["state"]) in ["ok", "normal", "damaged", "broken"]):
 			data["state"] = "ok"
 		if not data.has("connected"):
 			data["connected"] = true
@@ -7477,7 +7479,7 @@ func _get_power_gate_state(object_data: Dictionary) -> Dictionary:
 	var object_type := _normalize_power_gate_text(object_data.get("object_type", ""))
 	var state := _normalize_power_gate_text(object_data.get("state", ""))
 	var damaged_or_broken := bool(object_data.get("cut", false)) or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
-	if state in ["cut", "damaged", "broken"] or damaged_or_broken:
+	if state in ["damaged", "broken"] or damaged_or_broken:
 		if object_type in ["switch", "light_switch", "circuit_switch", "circuit_breaker", "fuse_box", "power_cable", "cable", "cable_reel"]:
 			return {"is_gate": true, "gate_type": object_type, "is_closed": false, "reason": state if not state.is_empty() else "damaged"}
 	var closed_states := {}
@@ -7493,8 +7495,8 @@ func _get_power_gate_state(object_data: Dictionary) -> Dictionary:
 		open_states = {"empty": true, "missing_fuse": true, "open": true}
 	elif object_type in ["power_cable", "cable", "cable_reel"]:
 		is_gate = true
-		closed_states = {"connected": true, "installed": true, "active": true}
-		open_states = {"disconnected": true, "cut": true, "damaged": true, "broken": true}
+		closed_states = {"connected": true, "installed": true, "active": true, "normal": true, "ok": true}
+		open_states = {"disconnected": true, "damaged": true, "broken": true}
 	if not is_gate:
 		return {"is_gate": false, "gate_type": "", "is_closed": true, "reason": "not_gate"}
 	if open_states.has(state):
@@ -7537,7 +7539,7 @@ func _is_power_load_consumer_object(object_data: Dictionary) -> bool:
 		return false
 	var state := _normalize_power_gate_text(object_data.get("state", ""))
 	var damaged_or_broken := bool(object_data.get("cut", false)) or bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
-	if damaged_or_broken or state in ["cut", "damaged", "broken", "destroyed"]:
+	if damaged_or_broken or state in ["damaged", "broken", "destroyed"]:
 		return false
 	var object_type := _normalize_power_gate_text(object_data.get("object_type", ""))
 	var object_group := _normalize_power_gate_text(object_data.get("object_group", ""))
@@ -7733,10 +7735,7 @@ func preview_power_graph_state_application(filter: String = "") -> Dictionary:
 			var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
 			var preview_is_powered := current_is_powered
 			var reason := "no_powered_source"
-			if state == "cut":
-				preview_is_powered = false
-				reason = "cut"
-			elif state == "broken" or damaged_or_broken:
+			if state == "broken" or damaged_or_broken:
 				preview_is_powered = false
 				reason = "broken" if state == "broken" else "damaged"
 			elif state == "damaged":
@@ -7813,7 +7812,7 @@ func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
 		var next_is_powered := bool(change.get("preview_is_powered", false))
 		var state := _normalize_power_gate_text(object_data.get("state", ""))
 		var damaged_or_broken := bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false))
-		if next_is_powered and (state in ["damaged", "broken", "cut"] or damaged_or_broken):
+		if next_is_powered and (state in ["damaged", "broken"] or damaged_or_broken):
 			next_is_powered = false
 		if previous_is_powered == next_is_powered:
 			continue
@@ -8075,7 +8074,7 @@ func can_connect_cable_reel_to_target(cable_reel: Dictionary, target: Dictionary
 
 func _is_power_cable_unavailable(cable: Dictionary) -> bool:
 	var cable_state: String = str(cable.get("state", "")).strip_edges().to_lower()
-	return cable_state in ["cut", "damaged", "broken", "destroyed"] or bool(cable.get("cut", false)) or bool(cable.get("damaged", false)) or bool(cable.get("broken", false))
+	return cable_state in ["damaged", "broken", "destroyed"] or bool(cable.get("cut", false)) or bool(cable.get("damaged", false)) or bool(cable.get("broken", false))
 
 func _normalize_power_cable_reel_state(cable: Dictionary) -> void:
 	if cable.is_empty():
@@ -8187,8 +8186,13 @@ func cut_power_cable(cable_id: String) -> Dictionary:
 	var cable := get_world_object_by_id(cable_id.strip_edges())
 	if cable.is_empty():
 		return {"success": false, "reason": "target_not_connectable"}
-	cable["state"] = "cut"
-	cable["cut"] = true
+	cable["state"] = "broken"
+	cable["cable_health_state"] = "broken"
+	cable["health_state"] = "broken"
+	cable["broken"] = true
+	cable["is_broken"] = true
+	cable["damaged"] = true
+	cable["cut"] = false
 	cable["connected"] = false
 	cable["disconnected"] = true
 	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_cut")
@@ -8203,13 +8207,16 @@ func repair_power_cable(cable_id: String, normalize_repaired: bool = false) -> D
 	cable["cut"] = false
 	cable["damaged"] = false
 	cable["broken"] = false
+	cable["is_broken"] = false
+	cable["cable_health_state"] = "normal"
+	cable["health_state"] = "normal"
 	var is_cable_reel: bool = str(cable.get("object_type", "")).strip_edges().to_lower() == "power_cable_reel" or cable.has("end_1_state") or cable.has("end_1_target_id") or cable.has("end_2_state") or cable.has("end_2_target_id")
 	if is_cable_reel:
 		for repaired_end in range(1, 3):
 			if str(cable.get("end_%d_target_id" % repaired_end, "")).strip_edges().is_empty():
 				cable["end_%d_state" % repaired_end] = "on_reel"
 		_normalize_power_cable_reel_state(cable)
-	cable["state"] = "connected" if bool(cable.get("connected", false)) else "ok"
+	cable["state"] = "normal"
 	var report := _apply_graph_power_after_world_object_power_change(cable, "cable_repaired")
 	return {"success": true, "reason": "cable_repaired", "apply": report}
 
@@ -8740,7 +8747,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_empty_fuse_gate", "fuse_box", "power_debug_graph_empty_fuse", {"state": "empty"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_empty_fuse_consumer", "power_socket", "power_debug_graph_empty_fuse", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_cut_cable_source", "power_source", "power_debug_graph_cut_cable", {"is_powered": true}))
-	temp_objects.append(_build_power_network_debug_object("power_debug_graph_cut_cable_gate", "power_cable", "power_debug_graph_cut_cable", {"state": "cut"}))
+	temp_objects.append(_build_power_network_debug_object("power_debug_graph_cut_cable_gate", "power_cable", "power_debug_graph_cut_cable", {"state": "broken", "broken": true, "damaged": true, "cut": false}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_cut_cable_consumer", "power_socket", "power_debug_graph_cut_cable", {"is_powered": true}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_no_source_source", "power_source", "power_debug_graph_no_source", {"is_powered": false, "state": "off"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_graph_no_source_consumer", "power_socket", "power_debug_graph_no_source", {"is_powered": true}))
@@ -13311,7 +13318,7 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 	if object_type == "power_socket": tags.append("power_socket")
 	if object_type == "power_cable":
 		tags.append("power_cable")
-		if state == "cut" or bool(object_data.get("damaged", false)): tags.append("power_cable_cut")
+		if bool(object_data.get("broken", false)) or bool(object_data.get("damaged", false)): tags.append("power_cable_cut")
 		if bool(object_data.get("hidden", false)): tags.append("hidden_power_cable")
 	if bool(object_data.get("requires_external_power", false)): tags.append("external_power_required")
 	if object_type in ["circuit_switch","circuit_breaker","power_switcher"]: tags.append("control_switch")
