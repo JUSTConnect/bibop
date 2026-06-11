@@ -31,6 +31,9 @@ static func _get_item_type_from_data(item_data: Dictionary, fallback_id: String 
 		if value == "fuse" or value.contains("fuse"):
 			return "fuse"
 
+		if value == "cable_reel_end" or value.contains("cable_reel_end"):
+			return "cable_reel_end"
+
 		if value == "cable_end" or value.contains("cable_end") or value.contains("wire_end"):
 			return "cable_end"
 
@@ -40,6 +43,9 @@ static func _get_item_type_from_data(item_data: Dictionary, fallback_id: String 
 
 	if fallback == "fuse" or fallback.contains("fuse"):
 		return "fuse"
+
+	if fallback == "cable_reel_end" or fallback.contains("cable_reel_end"):
+		return "cable_reel_end"
 
 	if fallback == "cable_end" or fallback.contains("cable_end") or fallback.contains("wire_end"):
 		return "cable_end"
