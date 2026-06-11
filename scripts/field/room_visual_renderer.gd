@@ -9,7 +9,6 @@ const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_servi
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
-const IsoVisualAlignmentServiceRef = preload("res://scripts/field/iso_visual_alignment_service_ref.gd")
 
 # GridManager remains the gameplay grid source.
 # RoomVisualRenderer is a future visual projection layer.
@@ -2063,7 +2062,7 @@ func get_iso_wall_asset_placement(asset_key: String, source_size: Vector2) -> Di
 		placement = {"visible_bounds": Rect2(Vector2.ZERO, source_size), "target_base_width": get_iso_tile_size().x, "target_height": ISO_WALL_ASSET_EXPECTED_SIZE.y, "scale": 1.0, "offset": Vector2.ZERO}
 	return placement
 
-func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, profile_key: String, topology: Dictionary) -> Rect2:
+func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, profile_key: String, _topology: Dictionary) -> Rect2:
 	var source_size: Vector2 = texture.get_size()
 	if source_size.x <= 0.0 or source_size.y <= 0.0:
 		return Rect2()
@@ -2228,11 +2227,11 @@ func _apply_breach_overlay_rules_adjustment(destination_rect: Rect2, height_leve
 	adjusted.position.y = bottom_y - adjusted.size.y
 	return adjusted
 
-func draw_breach_overlay_texture_rect(texture: Texture2D, destination_rect: Rect2, source_rect: Rect2, transform: Dictionary) -> void:
+func draw_breach_overlay_texture_rect(texture: Texture2D, destination_rect: Rect2, source_rect: Rect2, texture_transform: Dictionary) -> void:
 	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
 		return
-	var flip_h: bool = bool(transform.get("flip_h", false))
-	var flip_v: bool = bool(transform.get("flip_v", false))
+	var flip_h: bool = bool(texture_transform.get("flip_h", false))
+	var flip_v: bool = bool(texture_transform.get("flip_v", false))
 	if not flip_h and not flip_v:
 		draw_texture_rect_region(texture, destination_rect, source_rect)
 		return
@@ -3434,38 +3433,10 @@ func _is_wall_cable_face_visible(cell: Vector2i, face: String) -> bool:
 func _is_wall_cable_broken(object_data: Dictionary) -> bool:
 	var state_value: String = str(object_data.get("state", "")).strip_edges().to_lower()
 	var cable_state_value: String = str(object_data.get("cable_state", "")).strip_edges().to_lower()
-	return bool(object_data.get("is_broken", false)) or state_value == "broken" or cable_state_value == "broken"
+	var broken_flag: bool = bool(object_data.get("is_broken", false)) or bool(object_data.get("broken", false))
 
-func _draw_wall_cable_broken_end(edge: Vector2, mid: Vector2, normal: Vector2, profile: Dictionary, invert_tangent: bool = false) -> void:
-	var tangent: Vector2 = (mid - edge)
-	if tangent.length() <= 0.001:
-		return
-	tangent = tangent.normalized()
-
-	if invert_tangent:
-		tangent = -tangent
-
-	# короткий отрезок кабеля вдоль своей грани
-	var stub_length: float = 12.0
-	var stub_inner: Vector2 = edge + tangent * stub_length
-
-	# основной кусок кабеля у края грани
-	draw_iso_cable_wall_segment(edge, stub_inner, profile)
-
-	# висящий оборванный конец
-	var hang_dir: Vector2 = (Vector2.DOWN * 0.92 + normal * 0.08).normalized()
-	var hang_tip: Vector2 = edge + hang_dir * 8.0
-
-	# тёмная оболочка висящего конца
-	draw_line(edge, hang_tip, Color(0.03, 0.03, 0.04, 0.95), 3.0, true)
-
-	# торчащие жилы
-	var fray_perp: Vector2 = Vector2(-hang_dir.y, hang_dir.x).normalized()
-	draw_line(edge + fray_perp * 0.8, hang_tip + fray_perp * 1.0, Color(0.95, 0.25, 0.18, 0.95), 1.0, true)
-	draw_line(edge - fray_perp * 0.6, hang_tip - fray_perp * 0.4, Color(0.92, 0.78, 0.22, 0.95), 1.0, true)
-	draw_line(edge + fray_perp * 0.2, hang_tip - fray_perp * 0.8, Color(0.86, 0.86, 0.90, 0.95), 1.0, true)
-
-func _draw_wall_cable_broken_face_segment(cell: Vector2i, face: String, profile: Dictionary) -> bool:
+	return broken_flag or state_value == "broken" or cable_state_value == "broken"
+func _draw_wall_cable_break_overlay(cell: Vector2i, face: String, profile: Dictionary) -> bool:
 	if not _is_wall_cable_face_visible(cell, face):
 		return false
 
@@ -3476,14 +3447,72 @@ func _draw_wall_cable_broken_face_segment(cell: Vector2i, face: String, profile:
 	var end_edge: Vector2 = Vector2(segment.get("end_edge", Vector2.ZERO))
 	var normal: Vector2 = Vector2(segment.get("normal", Vector2.UP)).normalized()
 
-	# левый оборванный конец
-	_draw_wall_cable_broken_end(start_edge, mid_point, normal, profile, false)
+	var axis: Vector2 = end_edge - start_edge
+	if axis.length() <= 0.001:
+		return false
+	axis = axis.normalized()
 
-	# правый оборванный конец
-	_draw_wall_cable_broken_end(end_edge, mid_point, normal, profile, false)
+	# Размер визуального разрыва в центре.
+	var gap_half: float = 7.0
+	var left_gap: Vector2 = mid_point - axis * gap_half
+	var right_gap: Vector2 = mid_point + axis * gap_half
+
+	# Маска разрыва поверх уже нарисованного кабеля.
+	# Пока используем тёмный stroke, без попытки идеально повторить текстуру стены.
+	var mask_color: Color = Color(0.14, 0.14, 0.14, 1.0)
+	draw_line(left_gap, right_gap, mask_color, 8.0, true)
+
+	# Два коротких оборванных конца по краям разрыва.
+	var stub_len: float = 7.0
+	var left_stub_start: Vector2 = left_gap - axis * stub_len
+	var right_stub_end: Vector2 = right_gap + axis * stub_len
+
+	draw_iso_cable_wall_segment(left_stub_start, left_gap, profile)
+	draw_iso_cable_wall_segment(right_gap, right_stub_end, profile)
+
+	# Две короткие свисающие жилы
+	var hang_dir: Vector2 = (Vector2.DOWN * 0.88 + normal * 0.12).normalized()
+	var hang_len: float = 7.0
+	var left_hang_tip: Vector2 = left_gap + hang_dir * hang_len
+	var right_hang_tip: Vector2 = right_gap + hang_dir * hang_len
+
+	draw_line(left_gap, left_hang_tip, Color(0.03, 0.03, 0.04, 0.96), 3.0, true)
+	draw_line(right_gap, right_hang_tip, Color(0.03, 0.03, 0.04, 0.96), 3.0, true)
+
+	var left_perp: Vector2 = Vector2(-hang_dir.y, hang_dir.x).normalized()
+	var right_perp: Vector2 = left_perp
+
+	draw_line(left_gap + left_perp * 0.5, left_hang_tip + left_perp * 0.8, Color(0.95, 0.25, 0.18, 0.95), 1.0, true)
+	draw_line(left_gap - left_perp * 0.4, left_hang_tip - left_perp * 0.6, Color(0.92, 0.78, 0.22, 0.95), 1.0, true)
+
+	draw_line(right_gap + right_perp * 0.5, right_hang_tip + right_perp * 0.8, Color(0.95, 0.25, 0.18, 0.95), 1.0, true)
+	draw_line(right_gap - right_perp * 0.4, right_hang_tip - right_perp * 0.6, Color(0.92, 0.78, 0.22, 0.95), 1.0, true)
 
 	return true
-			
+		
+func _draw_wall_cable_broken_end(anchor: Vector2, away_from_gap: Vector2, normal: Vector2, profile: Dictionary) -> void:
+	var tangent: Vector2 = away_from_gap - anchor
+	if tangent.length() <= 0.001:
+		return
+
+	tangent = tangent.normalized()
+
+	var stub_length: float = 10.0
+	var stub_end: Vector2 = anchor + tangent * stub_length
+
+	draw_iso_cable_wall_segment(anchor, stub_end, profile)
+
+	var hang_dir: Vector2 = (Vector2.DOWN * 0.85 + normal * 0.15).normalized()
+	var hang_tip: Vector2 = anchor + hang_dir * 7.0
+
+	draw_line(anchor, hang_tip, Color(0.03, 0.03, 0.04, 0.96), 3.0, true)
+
+	var fray_perp: Vector2 = Vector2(-hang_dir.y, hang_dir.x).normalized()
+	draw_line(anchor + fray_perp * 0.8, hang_tip + fray_perp * 1.0, Color(0.95, 0.25, 0.18, 0.95), 1.0, true)
+	draw_line(anchor - fray_perp * 0.6, hang_tip - fray_perp * 0.4, Color(0.92, 0.78, 0.22, 0.95), 1.0, true)
+	draw_line(anchor + fray_perp * 0.2, hang_tip - fray_perp * 0.8, Color(0.86, 0.86, 0.90, 0.95), 1.0, true)
+	
+
 func _get_wall_cable_face_line_segment(cell: Vector2i, face: String) -> Dictionary:
 	var normalized_face: String = face.strip_edges().to_lower()
 	var visual_center: Vector2 = grid_to_iso(cell)
@@ -3536,28 +3565,18 @@ func _draw_wall_cable_face_half_segment(start: Vector2, end: Vector2, normal: Ve
 	var normalized_routing_mode: String = routing_mode.strip_edges().to_lower()
 
 	if normalized_routing_mode == "inner":
-		# Inner cable is hidden/embedded. Keep only a subtle editor-visible groove.
-		draw_line(start + normal * 1.0, end + normal * 1.0, Color(0.01, 0.012, 0.016, 0.30), 5.0, true)
-		_draw_wall_routed_dashed_line(start, end, 8.0, 5.0, Color(0.05, 0.055, 0.065, 0.42), 2.3)
 		return
 
-	# Reuse the same visual style as normal cable wall segment.
 	draw_iso_cable_wall_segment(start, end, profile)
 
-
-func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: String, profile: Dictionary, object_data: Dictionary = {}) -> bool:
+func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: String, profile: Dictionary, _object_data: Dictionary = {}) -> bool:
 	if not _is_wall_cable_face_visible(cell, face):
 		return false
 
 	var normalized_routing_mode: String = routing_mode.strip_edges().to_lower()
 
-	# hidden/inner cable - не рисуем внешний красный кабель
 	if normalized_routing_mode == "inner":
 		return true
-
-	# broken cable - рисуем только оборванные висящие концы
-	if _is_wall_cable_broken(object_data):
-		return _draw_wall_cable_broken_face_segment(cell, face, profile)
 
 	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
 
@@ -3566,7 +3585,8 @@ func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: S
 	var end_edge: Vector2 = Vector2(segment.get("end_edge", Vector2.ZERO))
 	var normal: Vector2 = Vector2(segment.get("normal", Vector2.UP)).normalized()
 
-	# обычный целый кабель: две половины, чтобы позже можно было делать разрывы
+	# Рабочая normal-геометрия:
+	# две половины, но вместе они дают одну полную линию от ребра до ребра.
 	_draw_wall_cable_face_half_segment(start_edge, mid_point, normal, normalized_routing_mode, profile)
 	_draw_wall_cable_face_half_segment(mid_point, end_edge, normal, normalized_routing_mode, profile)
 
@@ -3580,15 +3600,18 @@ func _draw_wall_cable_faces_for_cell(cell: Vector2i, object_data: Dictionary, pr
 		return false
 
 	var routing_mode: String = get_cable_wall_routing_mode(object_data).strip_edges().to_lower()
-	var drew_any: bool = false
+
+	# Inner cable обработан, но внешний красный кабель не рисуем.
+	if routing_mode == "inner":
+		return true
 
 	if _is_wall_cable_face_visible(cell, "sw"):
-		drew_any = _draw_wall_cable_face_segment(cell, "sw", routing_mode, profile, object_data) or drew_any
+		_draw_wall_cable_face_segment(cell, "sw", routing_mode, profile, object_data)
 
 	if _is_wall_cable_face_visible(cell, "se"):
-		drew_any = _draw_wall_cable_face_segment(cell, "se", routing_mode, profile, object_data) or drew_any
+		_draw_wall_cable_face_segment(cell, "se", routing_mode, profile, object_data)
 
-	# даже если кабель скрытый / граней не видно - это обработанный wall cable
+	# Даже если видимых граней нет, это обработанный wall cable.
 	return true
 	
 func draw_wall_mounted_cable_tap(_object_data: Dictionary, _visual_center: Vector2, _profile: Dictionary, _has_terminal_visual: bool = false) -> bool:
@@ -3778,7 +3801,7 @@ func draw_wall_procedural_routed_object(cell: Vector2i, object_data: Dictionary,
 
 	return false
 	
-func draw_wall_routed_procedural_visual(object_data: Dictionary, profile: Dictionary, fallback_cell: Vector2i) -> bool:
+func draw_wall_routed_procedural_visual(object_data: Dictionary, _profile: Dictionary, fallback_cell: Vector2i) -> bool:
 	var visual_center: Vector2 = get_wall_mounted_visual_center(object_data, fallback_cell)
 	return draw_wall_procedural_routed_object(fallback_cell, object_data, visual_center)
 
@@ -3793,7 +3816,7 @@ func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: St
 	var custom_scale: float = float(object_data.get("visual_scale", rule_scale))
 	return clampf(custom_scale, ISO_OBJECT_PNG_MIN_VISUAL_SCALE, ISO_OBJECT_PNG_MAX_VISUAL_SCALE)
 
-func build_iso_object_surface_context(object_data: Dictionary, cell_visual_center: Vector2 = Vector2.INF) -> Dictionary:
+func build_iso_object_surface_context(object_data: Dictionary, _cell_visual_center: Vector2 = Vector2.INF) -> Dictionary:
 	var surface_level: int = get_iso_object_surface_level(object_data)
 	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("install_mode", object_data.get("mount", "")))).to_lower().strip_edges()
 	var anchor_value: String = str(object_data.get("anchor", object_data.get("visual_anchor", object_data.get("alignment_anchor", "")))).to_lower().strip_edges()
@@ -4754,15 +4777,15 @@ func draw_iso_breachable_wall_overlay(cell: Vector2i) -> void:
 	if not bool(descriptor.get("visible", false)):
 		return
 	var crack_center: Vector2 = grid_to_iso(cell) + Vector2(descriptor.get("center_offset", Vector2.ZERO))
-	var scale: float = float(descriptor.get("scale", 1.0))
+	var crack_scale: float = float(descriptor.get("scale", 1.0))
 	var crack_color: Color = Color(0.06, 0.045, 0.035, 0.92)
 	var glow_color: Color = Color(1.0, 0.72, 0.24, 0.34)
-	draw_circle(crack_center, 8.0 * scale, glow_color)
-	draw_line(crack_center + Vector2(-2.0, -12.0) * scale, crack_center + Vector2(1.0, -3.0) * scale, crack_color, 2.0 * scale)
-	draw_line(crack_center + Vector2(1.0, -3.0) * scale, crack_center + Vector2(-5.0, 5.0) * scale, crack_color, 2.0 * scale)
-	draw_line(crack_center + Vector2(1.0, -3.0) * scale, crack_center + Vector2(7.0, 7.0) * scale, crack_color, 2.0 * scale)
-	draw_line(crack_center + Vector2(-5.0, 5.0) * scale, crack_center + Vector2(-1.0, 13.0) * scale, crack_color, 1.4 * scale)
-	draw_line(crack_center + Vector2(7.0, 7.0) * scale, crack_center + Vector2(3.0, 14.0) * scale, crack_color, 1.4 * scale)
+	draw_circle(crack_center, 8.0 * crack_scale, glow_color)
+	draw_line(crack_center + Vector2(-2.0, -12.0) * crack_scale, crack_center + Vector2(1.0, -3.0) * crack_scale, crack_color, 2.0 * crack_scale)
+	draw_line(crack_center + Vector2(1.0, -3.0) * crack_scale, crack_center + Vector2(-5.0, 5.0) * crack_scale, crack_color, 2.0 * crack_scale)
+	draw_line(crack_center + Vector2(1.0, -3.0) * crack_scale, crack_center + Vector2(7.0, 7.0) * crack_scale, crack_color, 2.0 * crack_scale)
+	draw_line(crack_center + Vector2(-5.0, 5.0) * crack_scale, crack_center + Vector2(-1.0, 13.0) * crack_scale, crack_color, 1.4 * crack_scale)
+	draw_line(crack_center + Vector2(7.0, 7.0) * crack_scale, crack_center + Vector2(3.0, 14.0) * crack_scale, crack_color, 1.4 * crack_scale)
 
 func draw_iso_wall_debug_and_mount_overlays(cell: Vector2i, arch: Dictionary, topology: String) -> void:
 	if show_wall_topology_overlay:
@@ -6403,10 +6426,12 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 			var runtime_objects: Array = Array(runtime_objects_by_cell.get(cell, []))
 			for object_index in range(runtime_objects.size()):
 				var object_data: Dictionary = Dictionary(runtime_objects[object_index])
-				var profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "generic_object")
-				var layer_name: String = "wall_mounted" if is_wall_mounted_runtime_object(object_data) else ("cable" if CableTopologyServiceRef.is_cable_object(object_data) else ("terminal" if is_terminal_like_profile(profile_key) else "item"))
+				var object_profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "generic_object")
+				var layer_name: String = "wall_mounted" if is_wall_mounted_runtime_object(object_data) else ("cable" if CableTopologyServiceRef.is_cable_object(object_data) else ("terminal" if is_terminal_like_profile(object_profile_key) else "item"))
 				var layer_bias: float = ISO_LAYER_BIAS_WALL_MOUNTED if layer_name == "wall_mounted" else (ISO_LAYER_BIAS_CABLE if layer_name == "cable" else (ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM))
-				draw_entries.append({"cell":cell, "layer":layer_name, "layer_bias":layer_bias + float(object_index) * 0.01, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":profile_key, "object_data":object_data}})
+				draw_entries.append({"cell":cell, "layer":layer_name, "layer_bias":layer_bias + float(object_index) * 0.01, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":object_profile_key, "object_data":object_data}})
+				var tile_profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
+				draw_entries.append({"cell":cell, "layer":"item", "layer_bias":ISO_LAYER_BIAS_ITEM, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":tile_profile_key}})
 			if not runtime_objects.is_empty() or not is_iso_object_tile(tile_type):
 				continue
 			var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
