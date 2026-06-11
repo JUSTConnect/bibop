@@ -6050,10 +6050,10 @@ func set_map_constructor_entity_link(entity_kind: String, entity_id: String, lin
 		return _set_map_constructor_key_door_link(entity_kind, entity_id, target_id)
 	if link_type == "access_terminal" and not target_id.strip_edges().is_empty():
 		var source_entity: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
-		var target_entity: Dictionary = get_map_constructor_entity_by_id("world_object", target_id.strip_edges())
-		if bool(source_entity.get("ok", false)) and bool(target_entity.get("ok", false)):
+		var linked_target_entity: Dictionary = get_map_constructor_entity_by_id("world_object", target_id.strip_edges())
+		if bool(source_entity.get("ok", false)) and bool(linked_target_entity.get("ok", false)):
 			var source_data: Dictionary = _safe_dictionary(source_entity.get("data", {}))
-			var target_data: Dictionary = _safe_dictionary(target_entity.get("data", {}))
+			var target_data: Dictionary = _safe_dictionary(linked_target_entity.get("data", {}))
 			if MapConstructorTerminalLinkFilterServiceRef.is_door_data(source_data) and not MapConstructorTerminalLinkFilterServiceRef.can_information_terminal_store_for_door(target_data, source_data, func(key_id: String) -> Dictionary:
 				var key_entity: Dictionary = find_map_constructor_key_item_by_id(key_id)
 				return _safe_dictionary(key_entity.get("data", key_entity.get("item_data", {}))) if bool(key_entity.get("ok", false)) else {}
@@ -10918,10 +10918,16 @@ func move_or_swap_runtime_pocket_slot_with_manipulator(pocket_index: int, pocket
 		return {"ok": false, "message": "Only physical items can move to the manipulator."}
 	if not set_pocket_item(pocket_index, held_data):
 		return {"ok": false, "message": "Only physical items can be stored in pockets."}
-	if not set_manipulator_item(pocket_data if not pocket_id.is_empty() else ""):
+
+	var next_manipulator_item: Variant = ""
+	if not pocket_id.is_empty():
+		next_manipulator_item = pocket_data
+
+	if not set_manipulator_item(next_manipulator_item):
 		set_pocket_item(pocket_index, pocket_data)
 		set_manipulator_item(held_data)
 		return {"ok": false, "message": "Only physical items can move to the manipulator."}
+
 	return {"ok": true, "message": "Moved or swapped pocket and manipulator items."}
 
 func can_drop_inventory_item(item_id: String) -> Dictionary:
