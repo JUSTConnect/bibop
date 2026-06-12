@@ -1057,26 +1057,66 @@ const ISO_LAYER_BIAS_TERMINAL: float = 0.6
 const ISO_LAYER_BIAS_ACTOR: float = 0.8
 const ISO_LAYER_BIAS_OVERLAY: float = 1.0
 
-func get_iso_depth_key(cell: Vector2i, layer_bias: float = 0.0) -> float:
-	return float(cell.x + cell.y) + layer_bias
+const ISO_DRAW_SUB_ORDER_FLOOR: float = 0.0
+const ISO_DRAW_SUB_ORDER_GROUND: float = 0.02
+const ISO_DRAW_SUB_ORDER_CABLE: float = 0.08
+const ISO_DRAW_SUB_ORDER_ITEM: float = 0.14
+const ISO_DRAW_SUB_ORDER_DOOR: float = 0.22
+const ISO_DRAW_SUB_ORDER_WALL_BODY: float = 0.40
+const ISO_DRAW_SUB_ORDER_WALL_TOP: float = 0.46
+const ISO_DRAW_SUB_ORDER_WALL_MOUNTED: float = 0.56
+const ISO_DRAW_SUB_ORDER_TERMINAL: float = 0.62
+const ISO_DRAW_SUB_ORDER_OVERLAY: float = 1.0
+
+func get_iso_depth_key(cell: Vector2i, local_bias: float = 0.0) -> float:
+	# Depth is screen-space Y based, not gameplay-cell based. For the active
+	# standard_128x71 projection this keeps any surface that is lower on screen
+	# after unrelated upper walls while preserving deterministic cell tie-breaks.
+	return grid_to_iso(cell).y + get_iso_tile_half_size().y + local_bias
+
+func get_iso_floor_depth_key(cell: Vector2i) -> float:
+	return grid_to_iso(cell).y + get_iso_tile_half_size().y
+
+func get_iso_wall_depth_key_for_cell(cell: Vector2i) -> float:
+	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
+	var depth_y: float = grid_to_iso(cell).y + get_iso_tile_half_size().y
+	for point in base_points:
+		depth_y = maxf(depth_y, point.y)
+	return depth_y
+
+func get_iso_object_depth_key_for_payload(payload: Dictionary) -> float:
+	var object_cell: Vector2i = Vector2i(payload.get("object_cell", Vector2i.ZERO))
+	var object_data: Dictionary = Dictionary(payload.get("object_data", {}))
+	if object_data.is_empty():
+		return get_iso_floor_depth_key(object_cell)
+	if is_wall_mounted_runtime_object(object_data):
+		var attached_wall_cell: Vector2i = _try_parse_cell_variant(object_data.get("attached_wall_cell", object_cell), object_cell)
+		return get_iso_wall_depth_key_for_cell(attached_wall_cell)
+	var grounding_profile: Dictionary = get_iso_object_grounding_profile(object_data, object_cell)
+	var anchor_cell: Vector2i = Vector2i(grounding_profile.get("anchor_cell", object_cell))
+	return get_iso_floor_depth_key(anchor_cell)
 
 func sort_iso_draw_entries(a: Dictionary, b: Dictionary) -> bool:
-	var cell_a: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
-	var cell_b: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
-	var bias_a: float = float(a.get("layer_bias", 0.0))
-	var bias_b: float = float(b.get("layer_bias", 0.0))
-	var depth_a: float = get_iso_depth_key(cell_a, bias_a)
-	var depth_b: float = get_iso_depth_key(cell_b, bias_b)
+	var depth_a: float = float(a.get("depth_key", get_iso_depth_key(Vector2i(a.get("cell", Vector2i.ZERO)))))
+	var depth_b: float = float(b.get("depth_key", get_iso_depth_key(Vector2i(b.get("cell", Vector2i.ZERO)))))
 	if is_equal_approx(depth_a, depth_b):
-		if cell_a.y == cell_b.y:
-			return cell_a.x < cell_b.x
-		return cell_a.y < cell_b.y
+		var sub_a: float = float(a.get("sub_order", a.get("layer_bias", 0.0)))
+		var sub_b: float = float(b.get("sub_order", b.get("layer_bias", 0.0)))
+		if is_equal_approx(sub_a, sub_b):
+			var cell_a: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
+			var cell_b: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
+			if cell_a.y == cell_b.y:
+				if cell_a.x == cell_b.x:
+					return false
+				return cell_a.x < cell_b.x
+			return cell_a.y < cell_b.y
+		return sub_a < sub_b
 	return depth_a < depth_b
 
 func sort_cells_by_iso_depth(a: Vector2i, b: Vector2i) -> bool:
 	var depth_a: float = get_iso_depth_key(a)
 	var depth_b: float = get_iso_depth_key(b)
-	if depth_a == depth_b:
+	if is_equal_approx(depth_a, depth_b):
 		if a.y == b.y:
 			return a.x < b.x
 		return a.y < b.y
@@ -5311,9 +5351,84 @@ func draw_iso_floor_atlas_for_cell(cell: Vector2i) -> bool:
 		draw_floor_atlas_layer(cell, overlay_key, int(state.get("overlay_variant", -1)), mirror_h, mirror_v)
 	return base_drawn
 
+func draw_iso_floor_cell(cell: Vector2i, tile_type: int) -> void:
+	if not is_floor_like_tile(tile_type):
+		return
+
+	var floor_asset_key: String = get_iso_floor_asset_key_for_tile(tile_type)
+	var draw_cell_border: bool = should_draw_floor_cell_border(cell)
+	var floor_inset: float = 0.0
+	if draw_cell_border:
+		floor_inset = maxf(iso_floor_visual_inset * 0.35, 0.0)
+	var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, floor_inset)
+	var profile_key: String = get_iso_floor_visual_profile_key_for_cell(cell)
+	var profile: Dictionary = get_iso_floor_visual_profile(profile_key)
+	var fill_color: Color = _get_color_from_dict(profile, "fill", get_floor_prototype_color(tile_type, cell))
+	var mission_manager: Node = get_mission_manager_ref()
+	var floor_texture_asset_id: String = ""
+	var floor_material_key: String = "concrete"
+	var floor_height_level: String = ""
+	if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
+		var floor_material_result: Dictionary = _safe_variant_dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
+		if bool(floor_material_result.get("ok", false)):
+			var floor_material: Dictionary = _safe_variant_dictionary(floor_material_result.get("material", {}))
+			fill_color = Color(floor_material.get("fallback_color", fill_color))
+			floor_texture_asset_id = str(floor_material.get("texture_asset_id", "")).strip_edges()
+			floor_material_key = normalize_floor_material_key(str(floor_material.get("material", floor_material.get("id", "concrete"))))
+			var floor_override: Dictionary = _safe_variant_dictionary(floor_material_result.get("override", {}))
+			floor_height_level = normalize_floor_height_level(str(floor_override.get("floor_height", floor_override.get("floor_visual_height", floor_override.get("ground_height", "")))))
+	if floor_height_level.is_empty() and _grid_manager != null and _grid_manager.has_method("get_floor_height_for_cell"):
+		floor_height_level = normalize_floor_height_level(str(_grid_manager.call("get_floor_height_for_cell", cell)))
+	if floor_texture_asset_id.begins_with("floor_"):
+		floor_asset_key = floor_texture_asset_id
+	else:
+		floor_asset_key = get_iso_floor_asset_key_for_material_key(floor_material_key)
+	var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
+	var surface_y_offset: float = get_ground_surface_y_offset_for_asset_key(ground_asset_key)
+	if not ground_asset_key.is_empty():
+		draw_iso_ground_asset_texture_for_cell(cell, ground_asset_key)
+	var platform_data: Dictionary = get_platform_data_for_floor_cell(cell)
+	if draw_platform_floor_visual_for_cell(cell, platform_data, surface_y_offset):
+		if debug_floor_tile_bounds:
+			draw_floor_tile_bounds_debug(cell)
+		return
+	if use_procedural_floor_debug_tiles:
+		draw_procedural_floor_debug_tile(cell, fill_color)
+		return
+	if draw_iso_floor_asset_texture_for_cell(cell, floor_asset_key, surface_y_offset):
+		if debug_floor_tile_bounds:
+			draw_floor_tile_bounds_debug(cell)
+		return
+	# Fallback to the procedural renderer so missing assets never leave holes.
+	# The old floor atlas and legacy texture hooks remain opt-in fallbacks.
+	if use_iso_floor_atlas_textures:
+		draw_floor_seamless_underlay(cell, fill_color)
+		if draw_iso_floor_atlas_for_cell(cell):
+			if debug_floor_tile_bounds:
+				draw_floor_tile_bounds_debug(cell)
+			return
+	if allow_legacy_floor_texture_assets:
+		if not floor_texture_asset_id.is_empty() and draw_cell_border:
+			var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
+			if floor_asset_drawn:
+				if debug_floor_tile_bounds:
+					draw_floor_tile_bounds_debug(cell)
+				return
+		if draw_cell_border and draw_iso_texture_asset(cell, floor_asset_key):
+			if debug_floor_tile_bounds:
+				draw_floor_tile_bounds_debug(cell)
+			return
+	draw_procedural_floor_tile(cell, fill_color, profile, draw_cell_border)
+	if diamond_points.size() >= 4:
+		var seam_color: Color = _get_color_from_dict(profile, "seam", Color(0.36, 0.42, 0.48, 0.26))
+		if profile_key == "floor_passage":
+			draw_line(diamond_points[0].lerp(diamond_points[2], 0.32), diamond_points[0].lerp(diamond_points[2], 0.68), seam_color.lightened(0.03), 0.8)
+		elif profile_key == "floor_doorway":
+			draw_line(diamond_points[0].lerp(diamond_points[2], 0.42), diamond_points[0].lerp(diamond_points[2], 0.58), seam_color, 1.4)
+
 func draw_iso_floor_prototype() -> void:
-	# Procedural prototype floor renderer for early isometric look exploration.
-	# Gameplay remains square-grid based in GridManager; this is visual-only.
+	# Compatibility wrapper: floors now also participate in the unified visual
+	# queue, but debug callers can still invoke this pass directly.
 	if _grid_manager == null:
 		return
 
@@ -5322,83 +5437,10 @@ func draw_iso_floor_prototype() -> void:
 	if map_width <= 0 or map_height <= 0:
 		return
 
-	for y in range(map_height):
-		for x in range(map_width):
-			var cell: Vector2i = Vector2i(x, y)
-			var tile_type: int = _grid_manager.get_tile(cell)
-			if not is_floor_like_tile(tile_type):
-				continue
-
-			var floor_asset_key: String = get_iso_floor_asset_key_for_tile(tile_type)
-			var draw_cell_border: bool = should_draw_floor_cell_border(cell)
-			var floor_inset: float = 0.0
-			if draw_cell_border:
-				floor_inset = maxf(iso_floor_visual_inset * 0.35, 0.0)
-			var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, floor_inset)
-			var profile_key: String = get_iso_floor_visual_profile_key_for_cell(cell)
-			var profile: Dictionary = get_iso_floor_visual_profile(profile_key)
-			var fill_color: Color = _get_color_from_dict(profile, "fill", get_floor_prototype_color(tile_type, cell))
-			var mission_manager: Node = get_mission_manager_ref()
-			var floor_texture_asset_id: String = ""
-			var floor_material_key: String = "concrete"
-			var floor_height_level: String = ""
-			if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
-				var floor_material_result: Dictionary = _safe_variant_dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
-				if bool(floor_material_result.get("ok", false)):
-					var floor_material: Dictionary = _safe_variant_dictionary(floor_material_result.get("material", {}))
-					fill_color = Color(floor_material.get("fallback_color", fill_color))
-					floor_texture_asset_id = str(floor_material.get("texture_asset_id", "")).strip_edges()
-					floor_material_key = normalize_floor_material_key(str(floor_material.get("material", floor_material.get("id", "concrete"))))
-					var floor_override: Dictionary = _safe_variant_dictionary(floor_material_result.get("override", {}))
-					floor_height_level = normalize_floor_height_level(str(floor_override.get("floor_height", floor_override.get("floor_visual_height", floor_override.get("ground_height", "")))))
-			if floor_height_level.is_empty() and _grid_manager != null and _grid_manager.has_method("get_floor_height_for_cell"):
-				floor_height_level = normalize_floor_height_level(str(_grid_manager.call("get_floor_height_for_cell", cell)))
-			if floor_texture_asset_id.begins_with("floor_"):
-				floor_asset_key = floor_texture_asset_id
-			else:
-				floor_asset_key = get_iso_floor_asset_key_for_material_key(floor_material_key)
-			var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
-			var surface_y_offset: float = get_ground_surface_y_offset_for_asset_key(ground_asset_key)
-			if not ground_asset_key.is_empty():
-				draw_iso_ground_asset_texture_for_cell(cell, ground_asset_key)
-			var platform_data: Dictionary = get_platform_data_for_floor_cell(cell)
-			if draw_platform_floor_visual_for_cell(cell, platform_data, surface_y_offset):
-				if debug_floor_tile_bounds:
-					draw_floor_tile_bounds_debug(cell)
-				continue
-			if use_procedural_floor_debug_tiles:
-				draw_procedural_floor_debug_tile(cell, fill_color)
-				continue
-			if draw_iso_floor_asset_texture_for_cell(cell, floor_asset_key, surface_y_offset):
-				if debug_floor_tile_bounds:
-					draw_floor_tile_bounds_debug(cell)
-				continue
-			# Fallback to the procedural renderer so missing assets never leave holes.
-			# The old floor atlas and legacy texture hooks remain opt-in fallbacks.
-			if use_iso_floor_atlas_textures:
-				draw_floor_seamless_underlay(cell, fill_color)
-				if draw_iso_floor_atlas_for_cell(cell):
-					if debug_floor_tile_bounds:
-						draw_floor_tile_bounds_debug(cell)
-					continue
-			if allow_legacy_floor_texture_assets:
-				if not floor_texture_asset_id.is_empty() and draw_cell_border:
-					var floor_asset_drawn: bool = draw_optional_visual_texture_asset(floor_texture_asset_id, cell, "", {"visual_center": grid_to_iso(cell)})
-					if floor_asset_drawn:
-						if debug_floor_tile_bounds:
-							draw_floor_tile_bounds_debug(cell)
-						continue
-				if draw_cell_border and draw_iso_texture_asset(cell, floor_asset_key):
-					if debug_floor_tile_bounds:
-						draw_floor_tile_bounds_debug(cell)
-					continue
-			draw_procedural_floor_tile(cell, fill_color, profile, draw_cell_border)
-			if diamond_points.size() >= 4:
-				var seam_color: Color = _get_color_from_dict(profile, "seam", Color(0.36, 0.42, 0.48, 0.26))
-				if profile_key == "floor_passage":
-					draw_line(diamond_points[0].lerp(diamond_points[2], 0.32), diamond_points[0].lerp(diamond_points[2], 0.68), seam_color.lightened(0.03), 0.8)
-				elif profile_key == "floor_doorway":
-					draw_line(diamond_points[0].lerp(diamond_points[2], 0.42), diamond_points[0].lerp(diamond_points[2], 0.58), seam_color, 1.4)
+	var floor_entries: Array[Dictionary] = build_iso_floor_draw_entries()
+	floor_entries.sort_custom(sort_iso_draw_entries)
+	for entry in floor_entries:
+		draw_iso_draw_entry(entry)
 
 func draw_iso_wall_prototype() -> void:
 	if _grid_manager == null:
@@ -6537,6 +6579,32 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	if show_object_grounding_overlay:
 		_draw_grounding_overlay(profile_data)
 
+func build_iso_floor_draw_entries() -> Array[Dictionary]:
+	if _grid_manager == null:
+		return []
+	var map_width: int = _grid_manager.get_map_width()
+	var map_height: int = _grid_manager.get_map_height()
+	if map_width <= 0 or map_height <= 0:
+		return []
+
+	var floor_entries: Array[Dictionary] = []
+	for y in range(map_height):
+		for x in range(map_width):
+			var cell: Vector2i = Vector2i(x, y)
+			var tile_type: int = _grid_manager.get_tile(cell)
+			if not is_floor_like_tile(tile_type):
+				continue
+			var ground_asset_key: String = get_ground_asset_key_for_cell(cell)
+			floor_entries.append({
+				"cell": cell,
+				"kind": "ground" if not ground_asset_key.is_empty() else "floor",
+				"layer": "floor",
+				"depth_key": get_iso_floor_depth_key(cell),
+				"sub_order": ISO_DRAW_SUB_ORDER_GROUND if not ground_asset_key.is_empty() else ISO_DRAW_SUB_ORDER_FLOOR,
+				"payload": {"tile_type": tile_type}
+			})
+	return floor_entries
+
 func build_iso_wall_draw_entries() -> Array[Dictionary]:
 	if _grid_manager == null:
 		return []
@@ -6556,7 +6624,9 @@ func build_iso_wall_draw_entries() -> Array[Dictionary]:
 				"cell": cell,
 				"layer": "wall",
 				"layer_bias": ISO_LAYER_BIAS_WALL,
-				"kind": "wall",
+				"kind": "wall_body",
+				"depth_key": get_iso_wall_depth_key_for_cell(cell),
+				"sub_order": ISO_DRAW_SUB_ORDER_WALL_BODY,
 				"payload": {"tile_type": tile_type}
 			})
 	return wall_entries
@@ -6602,6 +6672,31 @@ func _get_runtime_world_objects_for_iso_render(include_hidden_cables: bool = tru
 				result.append(path_segment)
 	return result
 
+func get_iso_object_sub_order(layer_name: String, profile_key: String) -> float:
+	if layer_name == "wall_mounted":
+		return ISO_DRAW_SUB_ORDER_WALL_MOUNTED
+	if layer_name == "cable":
+		return ISO_DRAW_SUB_ORDER_CABLE
+	if layer_name == "terminal":
+		return ISO_DRAW_SUB_ORDER_TERMINAL
+	if profile_key.contains("door") or profile_key.contains("gate"):
+		return ISO_DRAW_SUB_ORDER_DOOR
+	return ISO_DRAW_SUB_ORDER_ITEM
+
+func make_iso_object_draw_entry(cell: Vector2i, layer_name: String, layer_bias: float, object_index: float, payload: Dictionary) -> Dictionary:
+	var profile_key: String = str(payload.get("profile_key", ""))
+	var sub_order: float = get_iso_object_sub_order(layer_name, profile_key) + object_index * 0.01
+	var entry: Dictionary = {
+		"cell": cell,
+		"layer": layer_name,
+		"layer_bias": layer_bias + object_index * 0.01,
+		"kind": "wall_mounted" if layer_name == "wall_mounted" else ("cable" if layer_name == "cable" else ("door" if profile_key.contains("door") or profile_key.contains("gate") else "object")),
+		"depth_key": get_iso_object_depth_key_for_payload(payload),
+		"sub_order": sub_order,
+		"payload": payload
+	}
+	return entry
+
 func build_iso_object_draw_entries() -> Array[Dictionary]:
 	# Runtime objects are rendered from their real dictionaries so visuals and
 	# interaction lookup stay aligned even when an object occupies a floor tile.
@@ -6629,24 +6724,30 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 			var runtime_items: Array[Dictionary] = _get_runtime_items_for_cell(cell)
 			for item_index in range(runtime_items.size()):
 				var item_data: Dictionary = runtime_items[item_index]
-				draw_entries.append({"cell":cell, "layer":"item", "layer_bias":ISO_LAYER_BIAS_ITEM + float(item_index) * 0.01, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":get_iso_object_profile_key_for_object_data(item_data, "key"), "object_data":item_data}})
+				var item_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":get_iso_object_profile_key_for_object_data(item_data, "key"), "object_data":item_data}
+				draw_entries.append(make_iso_object_draw_entry(cell, "item", ISO_LAYER_BIAS_ITEM, float(item_index), item_payload))
 			var runtime_objects: Array = Array(runtime_objects_by_cell.get(cell, []))
 			for object_index in range(runtime_objects.size()):
 				var object_data: Dictionary = Dictionary(runtime_objects[object_index])
 				var object_profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "generic_object")
 				var layer_name: String = "wall_mounted" if is_wall_mounted_runtime_object(object_data) else ("cable" if CableTopologyServiceRef.is_cable_object(object_data) else ("terminal" if is_terminal_like_profile(object_profile_key) else "item"))
 				var layer_bias: float = ISO_LAYER_BIAS_WALL_MOUNTED if layer_name == "wall_mounted" else (ISO_LAYER_BIAS_CABLE if layer_name == "cable" else (ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM))
-				draw_entries.append({"cell":cell, "layer":layer_name, "layer_bias":layer_bias + float(object_index) * 0.01, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":object_profile_key, "object_data":object_data}})
+				var object_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":object_profile_key, "object_data":object_data}
+				draw_entries.append(make_iso_object_draw_entry(cell, layer_name, layer_bias, float(object_index), object_payload))
 				var tile_profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
-				draw_entries.append({"cell":cell, "layer":"item", "layer_bias":ISO_LAYER_BIAS_ITEM, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":tile_profile_key}})
+				var tile_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":tile_profile_key}
+				draw_entries.append(make_iso_object_draw_entry(cell, "item", ISO_LAYER_BIAS_ITEM, 0.0, tile_payload))
 			if not runtime_objects.is_empty() or not is_iso_object_tile(tile_type):
 				continue
 			var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
-			draw_entries.append({"cell":cell, "layer":"item", "layer_bias":ISO_LAYER_BIAS_ITEM, "kind":"object", "payload":{"object_cell":cell, "tile_type":tile_type, "profile_key":profile_key}})
+			var fallback_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":profile_key}
+			draw_entries.append(make_iso_object_draw_entry(cell, "item", ISO_LAYER_BIAS_ITEM, 0.0, fallback_payload))
 	return draw_entries
 
-func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool) -> Array[Dictionary]:
+func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool, include_floors: bool = false) -> Array[Dictionary]:
 	var draw_entries: Array[Dictionary] = []
+	if include_floors:
+		draw_entries.append_array(build_iso_floor_draw_entries())
 	if include_walls:
 		draw_entries.append_array(build_iso_wall_draw_entries())
 	if include_objects:
@@ -6656,13 +6757,24 @@ func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool)
 
 func draw_iso_draw_entry(entry: Dictionary) -> void:
 	var kind: String = str(entry.get("kind", ""))
-	if kind == "wall":
+	if kind == "floor" or kind == "ground":
+		var floor_cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
+		if floor_cell.x < 0 or floor_cell.y < 0:
+			return
+		var floor_payload: Dictionary = Dictionary(entry.get("payload", {}))
+		var floor_tile_type: int = int(floor_payload.get("tile_type", _grid_manager.get_tile(floor_cell)))
+		draw_iso_floor_cell(floor_cell, floor_tile_type)
+		return
+	if kind == "wall" or kind == "wall_body" or kind == "wall_top":
 		var cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
 		if cell.x < 0 or cell.y < 0:
 			return
+		# Wall textures and procedural walls are still emitted by one cell-local
+		# callback so asset alignment, breach overlays, caps, and tops stay intact;
+		# the command itself is sorted by wall foot/base Y with wall-body sub-order.
 		draw_iso_wall_block(cell)
 		return
-	if kind == "object":
+	if kind == "object" or kind == "door" or kind == "wall_mounted" or kind == "cable":
 		var payload: Dictionary = Dictionary(entry.get("payload", {}))
 		var object_cell: Vector2i = Vector2i(payload.get("object_cell", Vector2i(-1, -1)))
 		if object_cell.x < 0 or object_cell.y < 0:
@@ -6670,11 +6782,11 @@ func draw_iso_draw_entry(entry: Dictionary) -> void:
 		var tile_type: int = int(payload.get("tile_type", _grid_manager.get_tile(object_cell)))
 		draw_iso_object_marker(object_cell, tile_type, Dictionary(payload.get("object_data", {})))
 
-func draw_iso_geometry_prototype(include_walls: bool, include_objects: bool) -> void:
+func draw_iso_geometry_prototype(include_walls: bool, include_objects: bool, include_floors: bool = false) -> void:
 	if _grid_manager == null:
 		return
 
-	var draw_entries: Array[Dictionary] = build_iso_geometry_draw_entries(include_walls, include_objects)
+	var draw_entries: Array[Dictionary] = build_iso_geometry_draw_entries(include_walls, include_objects, include_floors)
 	for entry in draw_entries:
 		draw_iso_draw_entry(entry)
 
@@ -6845,18 +6957,15 @@ func _draw() -> void:
 	if debug_draw_marker:
 		draw_circle(Vector2.ZERO, 3.0, Color(0.8, 0.95, 1.0, 0.75))
 
-	# Isometric render pass order (compatibility-focused):
-	# 1) floor/base
-	# 2) unified walls+objects queue (depth-sorted with layer bias)
-	# 3) constructor/selection overlays
-	# 4) fog/final overlay
-	if should_render_iso_floor_visuals():
-		draw_iso_floor_prototype()
-
+	# Isometric render pass order:
+	# 1) unified floor/ground/walls/objects queue (screen-Y depth sorted)
+	# 2) constructor/selection overlays intentionally outside depth queue
+	# 3) fog/final overlay
+	var include_floors: bool = should_render_iso_floor_visuals()
 	var include_walls: bool = should_render_iso_wall_visuals()
 	var include_objects: bool = should_render_iso_object_visuals()
-	if include_walls or include_objects:
-		draw_iso_geometry_prototype(include_walls, include_objects)
+	if include_floors or include_walls or include_objects:
+		draw_iso_geometry_prototype(include_walls, include_objects, include_floors)
 	if show_wall_mount_zones_overlay and include_walls:
 		draw_wall_mount_zones_overlay()
 	if show_wall_run_overlay and include_walls:
