@@ -359,6 +359,12 @@ static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer,
 				continue
 			if field_name == "active_line_id" and switcher_type != "power_switcher":
 				continue
+		var test_override_enabled: bool = bool(data.get("test_override_enabled", false))
+		if field_name in ["status", "allowed_statuses"] and not test_override_enabled:
+			continue
+		var power_mode: String = TerminalVisibilityServiceRef.normalize_power_type(data)
+		if field_name in ["is_powered", "power_state"] and power_mode == "none":
+			continue
 		var field_type: String = MapConstructorUiSafe.safe_string(row.get("type", "string"))
 		var current_value: Variant = data.get(field_name, row.get("default"))
 		if field_type == "enum":

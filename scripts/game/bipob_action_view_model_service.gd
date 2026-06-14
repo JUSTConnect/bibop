@@ -166,9 +166,9 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 			if not bool(breach_payload.get("show_heavy_claw", false)):
 				enabled = false
 				reason = _get_breachable_wall_disabled_reason(breach_payload)
-		if enabled and group == "terminal" and action_id in ["hack", "activate_platform"] and not controller._is_terminal_powered_for_interaction(normalized_target):
+		if enabled and group == "terminal" and action_id in ["connect", "scan", "hack", "download", "activate_platform", "apply_digital_key", "input_password"] and not controller._is_terminal_powered_for_interaction(normalized_target):
 			enabled = false
-			reason = "unpowered"
+			reason = "terminal_unpowered"
 		var label: String = controller.get_world_action_display_label(action_id, normalized_target) if enabled else _runtime_action_disabled_label(controller, action_id, reason, normalized_target)
 		descriptors.append({"id":action_id, "label":label, "enabled":enabled, "reason":reason, "target_id":target_id, "target_type":target_type, "target_cell":target_position, "source":"world_object", "priority":100, "requires_free_manipulator":requires_free_manipulator, "module_id":str(module.get("id", "")), "module":module, "gate":gate})
 		if enabled:
@@ -306,6 +306,8 @@ static func _runtime_action_disabled_label(controller: Variant, action_id: Strin
 		"terminal_control_required": return "Use linked terminal"
 		"digital_access_required": return "Digital access required"
 		"unpowered": return "Unpowered"
+		"terminal_unpowered": return "Terminal unpowered"
+		"broken": return "Broken"
 		"wrong_breach_side": return "Cracked side only"
 		"wrong_wall_side": return ObjectFacingServiceRef.FRONT_SIDE_HINT
 		"wrong_front_side": return ObjectFacingServiceRef.FRONT_SIDE_HINT

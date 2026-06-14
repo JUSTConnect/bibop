@@ -899,6 +899,16 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		if manager.has_method("is_breachable_wall_cell") and bool(manager.call("is_breachable_wall_cell", cable_cell)):
 			result["message"] = "Cannot route cables on a Breachable Wall."
 			return result
+	var power_mode_for_state: String = str(data.get("power_type", data.get("power_mode", "internal"))).strip_edges().to_lower().trim_suffix("_power")
+	var test_override_enabled: bool = bool(data.get("test_override_enabled", false))
+	if not test_override_enabled and power_mode_for_state == "internal" and ((field_name == "is_powered" and not bool(new_value)) or (field_name in ["state", "status"] and str(new_value).strip_edges().to_lower() == "unpowered")):
+		result["message"] = "Internal-powered objects cannot be forced unpowered unless test override is enabled."
+		return result
+	if not test_override_enabled and power_mode_for_state == "none" and (field_name in ["is_powered", "state", "status"]):
+		var normalized_state_value: String = str(new_value).strip_edges().to_lower()
+		if field_name == "is_powered" or normalized_state_value == "unpowered":
+			result["message"] = "Objects with no power mode cannot become unpowered."
+			return result
 	var old_value: Variant = data.get(field_name)
 	var old_network_id: String = str(data.get("power_network_id", ""))
 	data[field_name] = new_value

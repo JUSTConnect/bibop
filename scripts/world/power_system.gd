@@ -214,6 +214,8 @@ static func _apply_powered_state(obj: Dictionary, powered: bool) -> void:
 	if _is_power_source_object(obj):
 		obj["is_powered"] = _is_source_on(obj)
 		return
+	if bool(obj.get("test_override_enabled", false)):
+		return
 	obj["is_powered"] = powered
 	var object_type: String = _normalize_type(obj.get("object_type", ""))
 	var object_group: String = str(obj.get("object_group", ""))

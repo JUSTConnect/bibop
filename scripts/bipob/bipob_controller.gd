@@ -8013,6 +8013,11 @@ func _power_switcher_has_light_binding(world_object: Dictionary) -> bool:
 			return true
 	return false
 
+
+func _is_runtime_object_unusable(world_object: Dictionary) -> bool:
+	var state_text: String = str(world_object.get("state", world_object.get("status", ""))).strip_edges().to_lower()
+	return state_text in ["damaged", "broken", "destroyed", "disabled"] or bool(world_object.get("damaged", false)) or bool(world_object.get("broken", false)) or bool(world_object.get("destroyed", false))
+
 func get_available_world_actions(world_object: Dictionary, target_position: Vector2i) -> Array[String]:
 	var actions: Array[String] = []
 	var normalized_world_object: Dictionary = WorldObjectCatalog.normalize_world_object_contract(world_object)
@@ -8072,6 +8077,9 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		if has_sledgehammer() and str(world_object.get("material", "")) in ["steel", "reinforced_steel"]:
 			actions.append("impact")
 	elif group == "terminal":
+		if _is_runtime_object_unusable(world_object):
+			actions.append("repair")
+			return actions
 		if bool(world_object.get("cable_power_connected", false)):
 			actions.append("disconnect_power_wire")
 		elif _object_supports_external_power_input(world_object):
