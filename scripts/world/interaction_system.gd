@@ -139,6 +139,21 @@ static func _is_platform_control_action(action_type: String, target_object: Dict
 
 	return _is_platform_target_object(target_object)
 	
+
+static func _is_unusable_runtime_object(target_object: Dictionary) -> bool:
+	var state_text: String = str(target_object.get("state", target_object.get("status", ""))).strip_edges().to_lower()
+	return state_text in ["damaged", "broken", "destroyed", "disabled"] or bool(target_object.get("damaged", false)) or bool(target_object.get("broken", false)) or bool(target_object.get("destroyed", false))
+
+static func _is_terminal_powered(target_object: Dictionary) -> bool:
+	if str(target_object.get("object_group", "")).strip_edges().to_lower() != "terminal":
+		return true
+	if _is_unusable_runtime_object(target_object):
+		return false
+	var state_text: String = str(target_object.get("state", target_object.get("status", ""))).strip_edges().to_lower()
+	if state_text == "unpowered":
+		return false
+	return bool(target_object.get("is_powered", true))
+
 static func can_apply_action(actor: Dictionary, module: Dictionary, target_object: Dictionary, action_type: String) -> Dictionary:
 	action_type = normalize_action_id(action_type)
 	if action_type not in SUPPORTED_ACTIONS:
@@ -146,6 +161,8 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 	if target_object.is_empty():
 		return _result(false, "No target object.", [], "target_missing")
 	var module_id: String = str(module.get("id", "")).strip_edges()
+	if _is_unusable_runtime_object(target_object) and action_type not in ["repair", "push", "pull"]:
+		return _result(false, "Target is broken.", [], "broken")
 	if _is_platform_control_action(action_type, target_object):
 		if module_id != "platform_control":
 			return _result(false, "Platform control module required.", [], "platform_control_required")
@@ -205,13 +222,16 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		var breach_check: Dictionary = BreachableWallRulesServiceRef.can_heavy_claw_breach(rules_wall, actor_position - wall_position, true)
 		if not bool(breach_check.get("ok", false)):
 			return _result(false, str(breach_check.get("message", "Heavy Claw must attack the cracked side.")), [], "wrong_breach_side")
-	if action_type == "connect" or action_type == "apply_digital_key" or action_type == "input_password" or action_type.begins_with("access_code_"):
-		if not bool(target_object.get("has_connector_jack", false)):
-			return _result(false, "Connector jack unavailable.", [], "connector_jack_required")
-		var connection_type: String = str(target_object.get("connection_type", "wired"))
-		var interface_field := "%s_connector_level" % connection_type
-		if str(module.get("id", "")).is_empty() or int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
-			return _result(false, "Connector Version too low.", [], "connector_level_too_low")
+	if action_type == "connect" or action_type == "scan" or action_type == "hack" or action_type == "download" or action_type == "apply_digital_key" or action_type == "input_password" or action_type.begins_with("access_code_"):
+		if not _is_terminal_powered(target_object):
+			return _result(false, "Terminal unpowered.", [], "terminal_unpowered")
+		if action_type in ["connect", "apply_digital_key", "input_password"] or action_type.begins_with("access_code_"):
+			if not bool(target_object.get("has_connector_jack", false)):
+				return _result(false, "Connector jack unavailable.", [], "connector_jack_required")
+			var connection_type: String = str(target_object.get("connection_type", "wired"))
+			var interface_field := "%s_connector_level" % connection_type
+			if str(module.get("id", "")).is_empty() or int(actor.get(interface_field, actor.get("connector_level", 0))) < int(target_object.get("required_connector_level", 1)):
+				return _result(false, "Connector Version too low.", [], "connector_level_too_low")
 	if action_type == "pickup":
 		if module_id == "manipulator_heavy_claw_v1":
 			return _result(false, "Heavy Claw cannot pick up items.", [], "heavy_claw_cannot_pickup")

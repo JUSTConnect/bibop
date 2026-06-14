@@ -5036,7 +5036,7 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"state":"string","power_network_id":"string","circuit_id":"string","power_circuit_id":"string","network_id":"string","chain_id":"string","link_group":"string","cable_group":"string","connected_circuit":"string","circuit_name":"string","is_open":"bool","is_closed":"bool","is_locked":"bool","blocks_movement":"bool","is_powered":"bool","is_hidden":"bool","hidden_installation":"bool","fuse_installed":"bool","plugged":"bool",
 		"required_key_id":"string","required_terminal_id":"string","required_access_code_id":"string","required_digital_key_id":"string","lock_type":"string","linked_terminal_id":"string","required_manipulator_level":"int","has_connector_jack":"bool","required_connector_level":"int","required_processor_level":"int",
 		"door_type":"string","material":"string","covering":"string","visual_style":"string","door_class":"int","power_type":"string","control_type":"string","power_behavior":"string","allowed_states":"array_string",
-		"terminal_type":"string","controlled_target_type":"string","terminal_class":"int","status":"string","allowed_statuses":"array_string","linked_object_ids":"array_string","linked_door_ids":"array_string","linked_cooling_ids":"array_string","linked_platform_ids":"array_string","linked_power_ids":"array_string","linked_lighting_ids":"array_string","chain_input_ids":"array_string","chain_output_ids":"array_string",
+		"terminal_type":"string","controlled_target_type":"string","terminal_class":"int","test_override_enabled":"bool","status":"string","allowed_statuses":"array_string","linked_object_ids":"array_string","linked_door_ids":"array_string","linked_cooling_ids":"array_string","linked_platform_ids":"array_string","linked_power_ids":"array_string","linked_lighting_ids":"array_string","chain_input_ids":"array_string","chain_output_ids":"array_string",
 		"control_source_id":"string","connected_device_ids":"array_string","target_door_id":"string","target_platform_id":"string","requires_external_control":"bool","requires_terminal_enabled":"bool",
 		"requires_external_power":"bool","current_heat":"int","working_heat":"int","overheat_threshold":"int","power_source_class":"int","source_class":"int","outlet_capacity":"int","active_output_index":"int",
 		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
@@ -8016,6 +8016,8 @@ func apply_power_graph_state_from_preview(filter: String = "") -> Dictionary:
 		var object_data := get_world_object_by_id(object_id)
 		if object_data.is_empty() or _is_power_source_object(object_data):
 			continue
+		if bool(object_data.get("test_override_enabled", false)):
+			continue
 		var previous_is_powered := bool(object_data.get("is_powered", false))
 		var next_is_powered := bool(change.get("preview_is_powered", false))
 		var state := _normalize_power_gate_text(object_data.get("state", ""))
@@ -8252,16 +8254,19 @@ func validate_cable_path(cable_reel: Dictionary, target: Dictionary, path_cells:
 	if bool(cable_reel.get("damaged", false)):
 		return {"valid": false, "reason": "cable_damaged", "length": 0, "max_length": 0, "path_cells": path_cells}
 	var target_type: String = str(target.get("object_type", "")).strip_edges().to_lower()
-	if not bool(target.get("can_connect_cable", false)) and not (target_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]):
+	if not bool(target.get("can_connect_cable", false)) and not _object_supports_runtime_external_power_input(target) and not (target_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]):
 		return {"valid": false, "reason": "no_socket", "length": 0, "max_length": 0, "path_cells": path_cells}
 	var max_length := maxi(1, int(cable_reel.get("max_cable_length", 5)))
 	var length := path_cells.size()
 	if length > max_length:
 		return {"valid": false, "reason": "too_far", "length": length, "max_length": max_length, "path_cells": path_cells}
+	var target_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(target.get("position", target.get("cell", Vector2i(-1, -1))), Vector2i(-1, -1))
 	for path_cell_variant in path_cells:
 		if typeof(path_cell_variant) != TYPE_VECTOR2I:
 			continue
 		var path_cell: Vector2i = path_cell_variant
+		if path_cell == target_cell:
+			continue
 		var blocker := get_world_object_at_cell(path_cell)
 		if blocker.is_empty():
 			continue
@@ -8273,6 +8278,60 @@ func validate_cable_path(cable_reel: Dictionary, target: Dictionary, path_cells:
 	if not bool(topology_validation.get("ok", false)):
 		return {"valid": false, "reason": "invalid_cable_junction", "message": str(topology_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "length": length, "max_length": max_length, "path_cells": path_cells, "cable_topology": topology_validation}
 	return {"valid": true, "reason": "ok", "length": length, "max_length": max_length, "path_cells": path_cells}
+
+func _object_supports_runtime_external_power_input(object_data: Dictionary) -> bool:
+	if bool(object_data.get("requires_external_power", false)):
+		return true
+	var power_mode: String = str(object_data.get("power_type", object_data.get("power_mode", ""))).strip_edges().to_lower().trim_suffix("_power")
+	if power_mode in ["external", "external_power", "external power"]:
+		return true
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	return object_type in ["power_socket", "outlet"]
+
+func _is_runtime_power_output_target(object_data: Dictionary) -> bool:
+	var object_type: String = str(object_data.get("object_type", "")).strip_edges().to_lower()
+	return _is_power_source_object(object_data) or object_type in ["power_socket", "outlet"] or bool(object_data.get("is_powered", false))
+
+func _apply_completed_reel_power_bridge(cable_reel: Dictionary) -> Dictionary:
+	var end_1_id: String = str(cable_reel.get("end_1_target_id", "")).strip_edges()
+	var end_2_id: String = str(cable_reel.get("end_2_target_id", "")).strip_edges()
+	if end_1_id.is_empty() or end_2_id.is_empty():
+		return {"applied": false, "reason": "reel_incomplete"}
+	var end_1_target: Dictionary = get_world_object_by_id(end_1_id)
+	var end_2_target: Dictionary = get_world_object_by_id(end_2_id)
+	if end_1_target.is_empty() or end_2_target.is_empty():
+		return {"applied": false, "reason": "target_missing"}
+	var source_target: Dictionary = {}
+	var sink_target: Dictionary = {}
+	if _is_runtime_power_output_target(end_1_target) and _object_supports_runtime_external_power_input(end_2_target):
+		source_target = end_1_target
+		sink_target = end_2_target
+	elif _is_runtime_power_output_target(end_2_target) and _object_supports_runtime_external_power_input(end_1_target):
+		source_target = end_2_target
+		sink_target = end_1_target
+	else:
+		return {"applied": false, "reason": "no_source_sink_pair"}
+	if not bool(source_target.get("is_powered", _is_power_source_available(source_target))):
+		return {"applied": false, "reason": "source_unpowered"}
+	if bool(sink_target.get("test_override_enabled", false)):
+		return {"applied": false, "reason": "sink_test_override"}
+	var sink_state: String = _normalize_power_consumer_text(sink_target.get("state", ""))
+	if sink_state in ["damaged", "broken", "destroyed", "disabled"] or bool(sink_target.get("damaged", false)) or bool(sink_target.get("broken", false)):
+		return {"applied": false, "reason": "sink_broken"}
+	var source_network_id: String = _get_power_network_id(source_target)
+	if not source_network_id.is_empty():
+		sink_target["power_network_id"] = source_network_id
+	sink_target["power_source_id"] = str(source_target.get("power_source_id", source_target.get("id", ""))).strip_edges()
+	sink_target["physical_connection_source_id"] = str(source_target.get("id", "")).strip_edges()
+	sink_target["is_powered"] = true
+	sink_target["power_unavailable_reason"] = ""
+	if _is_terminal_object(sink_target):
+		update_terminal_power_state_from_is_powered(sink_target)
+	elif _is_power_reactive_door_object(sink_target):
+		update_power_door_state_from_is_powered(sink_target)
+	elif _is_platform_power_consumer(sink_target):
+		update_platform_power_state_from_is_powered(sink_target)
+	return {"applied": true, "source_id": str(source_target.get("id", "")), "sink_id": str(sink_target.get("id", "")), "power_network_id": source_network_id}
 
 func can_connect_cable_reel_to_target(cable_reel: Dictionary, target: Dictionary) -> Dictionary:
 	var path_report := preview_cable_path(str(cable_reel.get("id", "")), str(target.get("id", "")))
@@ -8372,7 +8431,8 @@ func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_
 	target["plugged_cable_end"] = {"reel_id": normalized_reel_id, "end_index": end_index, "target_id": normalized_target_id}
 	_normalize_power_cable_reel_state(cable_reel)
 	var report := _apply_graph_power_after_world_object_power_change(cable_reel, "cable_connected")
-	return {"success": true, "reason": "ok", "message": "Cable end connected.", "apply": report, "path": can_connect, "reel_id": normalized_reel_id, "end_index": end_index, "target_id": normalized_target_id}
+	var bridge_report: Dictionary = _apply_completed_reel_power_bridge(cable_reel)
+	return {"success": true, "reason": "ok", "message": "Cable end connected.", "apply": report, "bridge": bridge_report, "path": can_connect, "reel_id": normalized_reel_id, "end_index": end_index, "target_id": normalized_target_id}
 
 func disconnect_cable_from_target(cable_id_or_reel_id: String, target_id: String = "", end_index: int = 0) -> Dictionary:
 	var normalized_cable_id: String = cable_id_or_reel_id.strip_edges()

@@ -301,8 +301,9 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"controlled_target_type", "type":"enum", "values":["none", "door", "cooling", "platform", "power", "lighting", "device"], "default":"none", "labels":{"none":"None", "door":"Door", "cooling":"Cooling", "platform":"Platform", "power":"Power", "lighting":"Lighting", "device":"Device"}},
 			{"field":"terminal_class", "type":"enum", "values":[1, 2, 3], "default":1, "labels":{"1":"Class 1", "2":"Class 2", "3":"Class 3"}},
 			{"field":"has_connector_jack", "type":"bool", "default":true},
-			{"field":"power_type", "type":"enum", "values":["internal", "external"], "default":"internal", "labels":{"internal":"Internal", "external":"External"}},
-			{"field":"control_type", "type":"enum", "values":["internal", "external"], "default":"internal", "labels":{"internal":"Internal", "external":"External"}},
+			{"field":"power_type", "type":"enum", "values":["internal", "external", "none"], "default":"internal", "labels":{"internal":"Internal", "external":"External", "none":"None"}},
+			{"field":"control_type", "type":"enum", "values":["internal", "external", "none"], "default":"internal", "labels":{"internal":"Internal", "external":"External", "none":"None"}},
+			{"field":"test_override_enabled", "type":"bool", "default":false},
 			{"field":"status", "type":"enum", "values":["active", "damaged", "unpowered", "locked", "disabled", "error"], "default":"active", "labels":{"active":"Active", "damaged":"Damaged", "unpowered":"Unpowered", "locked":"Locked", "disabled":"Disabled", "error":"Error"}},
 			{"field":"allowed_statuses", "type":"enum_array", "values":["active", "damaged", "unpowered", "locked", "disabled", "error"], "default":["active", "damaged", "unpowered"]},
 			{"field":"linked_object_ids", "type":"object_ref_array", "default":[]},
@@ -926,24 +927,52 @@ static func normalize_terminal_contract(object_data: Dictionary) -> Dictionary:
 	data["archetype_id"] = "terminal"
 	data["object_group"] = "terminal"
 	data["object_type"] = "terminal"
+	var test_override_enabled: bool = _safe_bool_like(data.get("test_override_enabled", false), false)
+	data["test_override_enabled"] = test_override_enabled
 	if not data.has("status"):
 		data["status"] = _normalized_contract_token(data.get("state", "active"))
-	elif data.has("state") and str(data.get("state", "active")) != str(data.get("status", "active")):
+	elif test_override_enabled and data.has("state") and str(data.get("state", "active")) != str(data.get("status", "active")):
 		data["status"] = _normalized_contract_token(data.get("state", "active"))
 	if not data.has("allowed_statuses"):
 		data["allowed_statuses"] = ["active", "damaged", "unpowered"]
-	data["state"] = str(data.get("status", "active"))
-	data["is_powered"] = str(data.get("status", "active")) != "unpowered"
-	data["power_mode"] = str(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
-	data["control_mode"] = str(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
+	var power_mode: String = _normalized_contract_token(data.get("power_type", data.get("power_mode", "internal"))).trim_suffix("_power")
+	if power_mode not in ["internal", "external", "none"]:
+		power_mode = "external" if bool(data.get("requires_external_power", false)) else "internal"
+	var control_mode: String = _normalized_contract_token(data.get("control_type", data.get("control_mode", "internal"))).trim_suffix("_control")
+	if control_mode == "terminal":
+		control_mode = "external"
+	if control_mode not in ["internal", "external", "none"]:
+		control_mode = "internal"
+	data["power_mode"] = power_mode
+	data["power_type"] = power_mode
+	data["control_mode"] = control_mode
+	data["control_type"] = control_mode
+	var status: String = _normalized_contract_token(data.get("status", data.get("state", "active")))
+	var raw_state: String = _normalized_contract_token(data.get("state", status))
+	var broken_states: Array[String] = ["damaged", "broken", "destroyed", "disabled", "error"]
+	if test_override_enabled:
+		data["status"] = status
+		data["state"] = status
+		data["is_powered"] = status != "unpowered" and not (status in broken_states)
+	elif raw_state in broken_states or status in broken_states or bool(data.get("damaged", false)) or bool(data.get("broken", false)) or bool(data.get("destroyed", false)):
+		data["status"] = raw_state if raw_state in broken_states else status
+		data["state"] = str(data.get("status", "damaged"))
+		data["is_powered"] = false
+	elif power_mode in ["internal", "none"]:
+		data["status"] = "active"
+		data["state"] = "active"
+		data["is_powered"] = true
+	else:
+		var has_physical_power: bool = bool(data.get("is_powered", false)) and (bool(data.get("cable_power_connected", false)) or not str(data.get("physical_connection_source_id", data.get("power_source_id", ""))).strip_edges().is_empty())
+		data["status"] = "active" if has_physical_power else "unpowered"
+		data["state"] = str(data.get("status", "unpowered"))
+		data["is_powered"] = has_physical_power
+	data["requires_external_power"] = power_mode == "external"
+	data["can_connect_cable"] = power_mode == "external" or _safe_bool_like(data.get("can_connect_cable", false), false)
 	data["has_connector_jack"] = _safe_bool_like(data.get("has_connector_jack", true), true)
 	data["blocks_movement"] = true
 	data["blocks_vision"] = _safe_bool_like(data.get("blocks_vision", false), false)
 	data["can_interact"] = true
-	if str(data.get("power_mode", "internal")) == "internal" and str(data.get("status", "active")) == "unpowered":
-		data["status"] = "active"
-		data["state"] = "active"
-		data["is_powered"] = true
 	return data
 
 
