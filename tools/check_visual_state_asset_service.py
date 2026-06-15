@@ -33,6 +33,10 @@ checks = {
     "power switcher archetype opts into visual states": re.search(r'"power_switcher"\s*:\s*\{.*?"visual_family"\s*:\s*"power_switcher".*?"visual_state_policy"\s*:\s*"powered_three_state".*?"power_visual_state_enabled"\s*:\s*true', world_catalog, re.S) is not None,
     "power switcher archetype does not force visual surface floor": '"visual_surface":"floor"' not in power_switcher_archetype and '"visual_surface"' not in power_switcher_archetype,
     "power switcher switch states are recognized": '"switch_on"' in service and '"switch_off"' in service,
+
+    "explicit false power flag wins before generic off states": re.search(r"if _has_false_power_flag\(object_data\):.*?return VISUAL_STATE_BASE.*?if power_state in UNAVAILABLE_STATES", service, re.S) is not None,
+    "hard unavailable states can force off before false power flag": re.search(r"_is_hard_unavailable_state\(power_state\).*?return VISUAL_STATE_OFF.*?if _has_false_power_flag", service, re.S) is not None,
+    "source and switch off are power-flag overridable": 'POWER_FLAG_OVERRIDE_OFF_STATES' in service and '"source_off"' in service and '"switch_off"' in service,
     "power switcher resolution is not renderer hardcoded": all(token not in renderer for token in ["power_switcher_base_floor_01", "power_switcher_base_wall_01", "power_switcher_off_floor_01", "power_switcher_authored_off_wall_01", "power_switcher_on_floor_01", "power_switcher_authored_on_wall_01"]),
 
     "terminal family exists in visual state catalog": re.search(r'"terminal"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,

@@ -14,6 +14,7 @@ const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "power
 const UNAVAILABLE_STATES: Array[String] = ["off", "source_off", "switch_off", "locked", "blocked", "disabled", "damaged", "error", "overheated", "cooldown", "jammed"]
 const AVAILABLE_INTERACTION_STATES: Array[String] = ["available", "ready"]
 const UNAVAILABLE_INTERACTION_STATES: Array[String] = ["unavailable", "locked", "blocked"]
+const POWER_FLAG_OVERRIDE_OFF_STATES: Array[String] = ["off", "source_off", "switch_off"]
 
 static func _normalized_text(value: Variant) -> String:
 	return str(value).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
@@ -144,6 +145,10 @@ static func get_visual_surface(object_data: Dictionary) -> String:
 		return "wall"
 	return "floor"
 
+
+static func _is_hard_unavailable_state(value: String) -> bool:
+	return value in UNAVAILABLE_STATES and not POWER_FLAG_OVERRIDE_OFF_STATES.has(value)
+
 static func _has_false_power_flag(object_data: Dictionary) -> bool:
 	for key in ["is_powered", "powered", "has_power", "receives_power"]:
 		if object_data.has(key) and not bool(object_data.get(key, false)):
@@ -160,6 +165,14 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 	var power_state: String = _normalized_text(object_data.get("power_state", ""))
 	if power_state in POWER_OFF_STATES:
 		return VISUAL_STATE_BASE
+	if _is_hard_unavailable_state(power_state):
+		return VISUAL_STATE_OFF
+	for key in ["state", "status"]:
+		var value: String = _normalized_text(object_data.get(key, ""))
+		if _is_hard_unavailable_state(value):
+			return VISUAL_STATE_OFF
+	if _has_false_power_flag(object_data):
+		return VISUAL_STATE_BASE
 	if power_state in ACTIVE_STATES:
 		return VISUAL_STATE_ON
 	if power_state in UNAVAILABLE_STATES:
@@ -168,8 +181,6 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 		var value: String = _normalized_text(object_data.get(key, ""))
 		if value in UNAVAILABLE_STATES:
 			return VISUAL_STATE_OFF
-	if _has_false_power_flag(object_data):
-		return VISUAL_STATE_BASE
 	var powered: bool = _has_true_power_flag(object_data) or power_state in ACTIVE_STATES
 	if not powered and (object_data.has("power_state") or object_data.has("is_powered") or object_data.has("powered") or object_data.has("has_power") or object_data.has("receives_power")):
 		return VISUAL_STATE_BASE
