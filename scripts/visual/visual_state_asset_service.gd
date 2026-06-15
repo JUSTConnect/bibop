@@ -11,7 +11,7 @@ const VISUAL_STATE_POLICY_POWERED_THREE_STATE := "powered_three_state"
 
 const POWER_OFF_STATES: Array[String] = ["unpowered", "no_power", "disconnected", "offline"]
 const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "powered"]
-const UNAVAILABLE_STATES: Array[String] = ["off", "locked", "blocked", "disabled", "overheated", "cooldown", "jammed"]
+const UNAVAILABLE_STATES: Array[String] = ["off", "locked", "blocked", "disabled", "damaged", "error", "overheated", "cooldown", "jammed"]
 const AVAILABLE_INTERACTION_STATES: Array[String] = ["available", "ready"]
 const UNAVAILABLE_INTERACTION_STATES: Array[String] = ["unavailable", "locked", "blocked"]
 

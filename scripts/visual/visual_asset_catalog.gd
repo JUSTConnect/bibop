@@ -117,6 +117,11 @@ const ASSET_PATHS: Dictionary = {
 	"radiator_01": "res://assets/visual/isometric/objects/radiator_01.png",
 	"radiator_floor_01": "res://assets/visual/isometric/moovable/radiator_floor.png",
 	"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png",
+	"terminal_base_floor_01": "res://assets/visual/isometric/objects/terminal/terminal_base_floor.png",
+	"terminal_off_floor_01": "res://assets/visual/isometric/objects/terminal/terminal_off_floor.png",
+	"terminal_on_floor_01": "res://assets/visual/isometric/objects/terminal/terminal_on_floor.png",
+	"pulsar_overlay_terminal_on_floor_01": "res://assets/visual/isometric/objects/terminal/pulsar_overlay_terminal_on_floor.png",
+	"pulsar_overlay_terminal_off_floor_01": "res://assets/visual/isometric/objects/terminal/pulsar_overlay_terminal_off_floor.png",
 	"barrel_01": "res://assets/visual/isometric/moovable/barrel_01.png",
 	"normal_barrel_floor_01": "res://assets/visual/isometric/moovable/normal_barrel_floor.png",
 	"case_01": "res://assets/visual/isometric/objects/case_01.png",
@@ -211,7 +216,10 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"power_switcher": "power_switcher_off_01",
 	"radiator": "radiator_floor_01",
 	"external_radiator": "radiator_floor_01",
-	"terminal": "terminal_01",
+	"terminal": "terminal_base_floor_01",
+	"terminal_base": "terminal_base_floor_01",
+	"terminal_off": "terminal_off_floor_01",
+	"terminal_on": "terminal_on_floor_01",
 	"normal_barrel": "normal_barrel_floor_01",
 	"barrel": "normal_barrel_floor_01",
 	"fire_barrel": "fire_barrel_floor_01",
@@ -243,12 +251,30 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 		"overlays": {
 			"on": ["light_on_wall_pulsar_overlay_01"]
 		}
+	},
+	"terminal": {
+		"category": "objects",
+		"surface": "floor",
+		"states": {
+			"base": "terminal_base_floor_01",
+			"off": "terminal_off_floor_01",
+			"on": "terminal_on_floor_01"
+		},
+		"overlays": {
+			"off": ["pulsar_overlay_terminal_off_floor_01"],
+			"on": ["pulsar_overlay_terminal_on_floor_01"]
+		}
 	}
 }
 
 const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"power_source_01",
 	"terminal_01",
+	"terminal_base_floor_01",
+	"terminal_off_floor_01",
+	"terminal_on_floor_01",
+	"pulsar_overlay_terminal_on_floor_01",
+	"pulsar_overlay_terminal_off_floor_01",
 	"radiator_01",
 	"light_01",
 	"light_off_wall_01",
