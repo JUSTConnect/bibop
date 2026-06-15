@@ -20,6 +20,12 @@ checks = {
     "powered unavailable uses off state": 'UNAVAILABLE_STATES' in service and 'return VISUAL_STATE_OFF' in service,
     "renderer uses generic overlay path": 'draw_visual_state_overlays_for_descriptor' in renderer and 'resolve_overlay_asset_ids' in renderer,
     "renderer no longer calls light overlay drawer": 'draw_light_pulsar_overlay_for_descriptor(object_data, descriptor)' not in renderer,
+    "terminal family exists in visual state catalog": re.search(r'"terminal"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,
+    "terminal states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"base"\s*:\s*"terminal_base_floor_01"', r'"off"\s*:\s*"terminal_off_floor_01"', r'"on"\s*:\s*"terminal_on_floor_01"']),
+    "terminal overlays map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"off"\s*:\s*\["pulsar_overlay_terminal_off_floor_01"\]', r'"on"\s*:\s*\["pulsar_overlay_terminal_on_floor_01"\]']),
+    "damaged and error are unavailable off states": re.search(r'UNAVAILABLE_STATES.*"damaged".*"error"', service) is not None,
+    "terminal aliases use new base asset while legacy id remains": '"terminal": "terminal_base_floor_01"' in catalog and '"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png"' in catalog,
+    "terminal resolution is not renderer hardcoded": all(token not in renderer for token in ["terminal_on_floor_01", "terminal_off_floor_01", "terminal_base_floor_01"]),
 }
 
 failed = [name for name, ok in checks.items() if not ok]

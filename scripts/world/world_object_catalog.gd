@@ -294,6 +294,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"terminal": {
 		"archetype_id":"terminal", "object_group":"terminal", "object_type":"terminal", "palette_label":"Terminal", "facing_side":"SW",
+		"visual_family":"terminal", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true,
 		"configurable":true,
 		"property_schema":[
 			FACING_SIDE_SCHEMA,
