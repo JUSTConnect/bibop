@@ -20,7 +20,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 # The helpers in this script are visual projection helpers only.
 # Future PRs will use them for floor, wall, object, fog, and overlay rendering.
 @export var authored_wall_canvas_source_width: float = 512.0
-@export var authored_wall_canvas_anchor_ratio: Vector2 = Vector2(0.5, 0.5)
+@export var authored_wall_canvas_anchor_ratio: Vector2 = Vector2(0.5, 0.70)
 @export var authored_floor_canvas_source_width: float = 512.0
 @export var authored_floor_canvas_anchor_ratio: Vector2 = Vector2(0.5, 0.5)
 @export var debug_draw_marker: bool = false
@@ -4079,6 +4079,7 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 	}
 
 func build_authored_wall_canvas_descriptor(object_data: Dictionary, asset_key: String, texture_path: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
+	print("[AUTHORED WALL TEST] asset=", asset_key, " path=", texture_path)
 	var texture_size: Vector2 = texture.get_size()
 	var safe_source_width: float = maxf(1.0, authored_wall_canvas_source_width)
 	var visual_scale: float = get_iso_tile_size().x / safe_source_width
