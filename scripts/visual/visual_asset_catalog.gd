@@ -122,6 +122,11 @@ const ASSET_PATHS: Dictionary = {
 	"terminal_on_floor_01": "res://assets/visual/isometric/objects/terminal/terminal_on_floor.png",
 	"pulsar_overlay_terminal_on_floor_01": "res://assets/visual/isometric/objects/terminal/pulsar_overlay_terminal_on_floor.png",
 	"pulsar_overlay_terminal_off_floor_01": "res://assets/visual/isometric/objects/terminal/pulsar_overlay_terminal_off_floor.png",
+	"firewall_base_floor_01": "res://assets/visual/isometric/objects/firewall/firewall_base_floor.png",
+	"firewall_off_floor_01": "res://assets/visual/isometric/objects/firewall/firewall_off_floor.png",
+	"firewall_on_floor_01": "res://assets/visual/isometric/objects/firewall/firewall_on_floor.png",
+	"pulsar_overlay_firewall_off_floor_01": "res://assets/visual/isometric/objects/firewall/pulsar_overlay_firewall_off_floor.png",
+	"pulsar_overlay_firewall_on_floor_01": "res://assets/visual/isometric/objects/firewall/pulsar_overlay_firewall_on_floor.png",
 	"barrel_01": "res://assets/visual/isometric/moovable/barrel_01.png",
 	"normal_barrel_floor_01": "res://assets/visual/isometric/moovable/normal_barrel_floor.png",
 	"case_01": "res://assets/visual/isometric/objects/case_01.png",
@@ -220,6 +225,10 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"terminal_base": "terminal_base_floor_01",
 	"terminal_off": "terminal_off_floor_01",
 	"terminal_on": "terminal_on_floor_01",
+	"firewall": "firewall_base_floor_01",
+	"firewall_base": "firewall_base_floor_01",
+	"firewall_off": "firewall_off_floor_01",
+	"firewall_on": "firewall_on_floor_01",
 	"normal_barrel": "normal_barrel_floor_01",
 	"barrel": "normal_barrel_floor_01",
 	"fire_barrel": "fire_barrel_floor_01",
@@ -264,6 +273,19 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 			"off": ["pulsar_overlay_terminal_off_floor_01"],
 			"on": ["pulsar_overlay_terminal_on_floor_01"]
 		}
+	},
+	"firewall": {
+		"category": "objects",
+		"surface": "floor",
+		"states": {
+			"base": "firewall_base_floor_01",
+			"off": "firewall_off_floor_01",
+			"on": "firewall_on_floor_01"
+		},
+		"overlays": {
+			"off": ["pulsar_overlay_firewall_off_floor_01"],
+			"on": ["pulsar_overlay_firewall_on_floor_01"]
+		}
 	}
 }
 
@@ -275,6 +297,11 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"terminal_on_floor_01",
 	"pulsar_overlay_terminal_on_floor_01",
 	"pulsar_overlay_terminal_off_floor_01",
+	"firewall_base_floor_01",
+	"firewall_off_floor_01",
+	"firewall_on_floor_01",
+	"pulsar_overlay_firewall_off_floor_01",
+	"pulsar_overlay_firewall_on_floor_01",
 	"radiator_01",
 	"light_01",
 	"light_off_wall_01",

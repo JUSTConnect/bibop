@@ -317,6 +317,26 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"chain_output_ids", "type":"object_ref_array", "default":[]}
 		]
 	},
+	"firewall": {
+		"archetype_id":"firewall", "object_group":"security", "object_type":"firewall", "palette_label":"Firewall",
+		"display_name_template":"Firewall", "placement_mode":"object", "facing_side":"SW", "configurable":true,
+		"blocks_movement":false, "blocks_vision":false, "interactable":true,
+		"visual_family":"firewall", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true,
+		"power_type":"external", "control_type":"internal", "status":"unpowered",
+		"allowed_statuses":["active", "unpowered", "locked", "disabled", "damaged", "error"],
+		"firewall_class":1, "security_level":1, "requires_terminal":true, "linked_terminal_ids":[], "linked_object_ids":[],
+		"property_schema":[
+			FACING_SIDE_SCHEMA,
+			{"field":"firewall_class", "type":"enum", "values":[1, 2, 3], "default":1, "labels":{"1":"Class 1", "2":"Class 2", "3":"Class 3"}},
+			{"field":"security_level", "type":"enum", "values":[1, 2, 3], "default":1, "labels":{"1":"Level 1", "2":"Level 2", "3":"Level 3"}},
+			{"field":"power_type", "type":"enum", "values":["internal", "external", "none"], "default":"external", "labels":{"internal":"Internal", "external":"External", "none":"None"}},
+			{"field":"control_type", "type":"enum", "values":["internal", "external", "none"], "default":"internal", "labels":{"internal":"Internal", "external":"External", "none":"None"}},
+			{"field":"status", "type":"enum", "values":["active", "unpowered", "locked", "disabled", "damaged", "error"], "default":"unpowered", "labels":{"active":"Active", "unpowered":"Unpowered", "locked":"Locked", "disabled":"Disabled", "damaged":"Damaged", "error":"Error"}},
+			{"field":"allowed_statuses", "type":"enum_array", "values":["active", "unpowered", "locked", "disabled", "damaged", "error"], "default":["active", "unpowered", "locked", "disabled", "damaged", "error"]},
+			{"field":"linked_terminal_ids", "type":"object_ref_array", "target_group":"terminal", "default":[]},
+			{"field":"linked_object_ids", "type":"object_ref_array", "default":[]}
+		]
+	},
 	"item": {
 		"archetype_id":"item", "object_group":"item", "object_type":"item", "palette_label":"Item",
 		"placement_mode":"item", "display_name_template":"{item_class_label}",
