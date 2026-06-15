@@ -11,6 +11,7 @@ const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_v
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
+const VisualAssetRenderContractServiceRef = preload("res://scripts/visual/visual_asset_render_contract_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 # GridManager remains the gameplay grid source.
@@ -3328,6 +3329,10 @@ const WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX := 180.0
 const WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX := 330.0
 const WALL_MOUNT_SIDE_OFFSET_SW := Vector2(-18.0, -4.0)
 const WALL_MOUNT_SIDE_OFFSET_SE := Vector2(18.0, -4.0)
+const AUTHORED_WALL_CANVAS_SOURCE_WIDTH: float = 512.0
+const AUTHORED_WALL_CANVAS_ANCHOR_RATIO: Vector2 = Vector2(0.5, 0.5)
+const AUTHORED_FLOOR_CANVAS_SOURCE_WIDTH: float = 512.0
+const AUTHORED_FLOOR_CANVAS_ANCHOR_RATIO: Vector2 = Vector2(0.5, 0.5)
 
 func get_iso_object_png_visual_rule(asset_key: String) -> Dictionary:
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
@@ -4057,6 +4062,7 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 	return {
 		"visual_asset_key": asset_key,
 		"texture": texture,
+		"render_contract": VisualAssetRenderContractServiceRef.CONTRACT_OBJECT_SPRITE,
 		"visual_scale": visual_scale,
 		"visual_pivot": visual_pivot,
 		"surface_level": surface_level,
@@ -4067,6 +4073,83 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 		"source_rect": Rect2(Vector2.ZERO, texture.get_size() if texture != null else expected_size),
 		"mirror_h": (wall_visual_side == "se" and bool(object_data.get("mirror_visual_for_facing_side", true))) if wall_mounted else (ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true)))
 	}
+
+func build_authored_wall_canvas_descriptor(object_data: Dictionary, asset_key: String, texture_path: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
+	var texture_size: Vector2 = texture.get_size()
+	var visual_scale: float = get_iso_tile_size().x / AUTHORED_WALL_CANVAS_SOURCE_WIDTH
+	var destination_size: Vector2 = texture_size * visual_scale
+	var visual_pivot: Vector2 = destination_size * AUTHORED_WALL_CANVAS_ANCHOR_RATIO
+	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
+	var final_draw_position: Vector2 = visual_center - visual_pivot + explicit_visual_offset
+	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
+	var mirror_h: bool = ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true))
+	var descriptor: Dictionary = {
+		"visual_asset_key": asset_key,
+		"texture": texture,
+		"texture_path": texture_path,
+		"render_contract": VisualAssetRenderContractServiceRef.CONTRACT_WALL_AUTHORED_CANVAS,
+		"visual_scale": visual_scale,
+		"visual_pivot": visual_pivot,
+		"surface_level": get_iso_object_surface_level(object_data),
+		"surface_context": {},
+		"surface_y_offset": 0.0,
+		"final_draw_position": final_draw_position,
+		"destination_rect": destination_rect,
+		"source_rect": Rect2(Vector2.ZERO, texture_size),
+		"mirror_h": mirror_h
+	}
+	log_authored_canvas_descriptor(object_data, asset_key, texture_path, descriptor)
+	return descriptor
+
+func build_authored_floor_canvas_descriptor(object_data: Dictionary, asset_key: String, texture_path: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
+	var texture_size: Vector2 = texture.get_size()
+	var visual_scale: float = get_iso_tile_size().x / AUTHORED_FLOOR_CANVAS_SOURCE_WIDTH
+	var destination_size: Vector2 = texture_size * visual_scale
+	var visual_pivot: Vector2 = destination_size * AUTHORED_FLOOR_CANVAS_ANCHOR_RATIO
+	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
+	var final_draw_position: Vector2 = visual_center - visual_pivot + explicit_visual_offset
+	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
+	var mirror_h: bool = ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true))
+	var descriptor: Dictionary = {
+		"visual_asset_key": asset_key,
+		"texture": texture,
+		"texture_path": texture_path,
+		"render_contract": VisualAssetRenderContractServiceRef.CONTRACT_FLOOR_AUTHORED_CANVAS,
+		"visual_scale": visual_scale,
+		"visual_pivot": visual_pivot,
+		"surface_level": get_iso_object_surface_level(object_data),
+		"surface_context": {},
+		"surface_y_offset": 0.0,
+		"final_draw_position": final_draw_position,
+		"destination_rect": destination_rect,
+		"source_rect": Rect2(Vector2.ZERO, texture_size),
+		"mirror_h": mirror_h
+	}
+	log_authored_canvas_descriptor(object_data, asset_key, texture_path, descriptor)
+	return descriptor
+
+func log_authored_canvas_descriptor(object_data: Dictionary, asset_key: String, texture_path: String, descriptor: Dictionary) -> void:
+	if not debug_log_iso_object_asset_resolution:
+		return
+	var texture: Texture2D = descriptor.get("texture", null) as Texture2D
+	var texture_size: Vector2 = texture.get_size() if texture != null else Vector2.ZERO
+	print("[IsoAuthoredCanvas] object_id=%s asset_key=%s texture_path=%s render_contract=%s texture_size=%s visual_scale=%s destination_rect=%s mirror_h=%s" % [
+		str(object_data.get("id", object_data.get("object_id", ""))),
+		asset_key,
+		texture_path,
+		str(descriptor.get("render_contract", "")),
+		str(texture_size),
+		str(descriptor.get("visual_scale", 1.0)),
+		str(descriptor.get("destination_rect", Rect2())),
+		str(descriptor.get("mirror_h", false))
+	])
+
+func build_iso_object_visual_descriptor_for_contract(object_data: Dictionary, asset_key: String, texture_path: String, render_contract: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
+	if render_contract == VisualAssetRenderContractServiceRef.CONTRACT_WALL_AUTHORED_CANVAS:
+		return build_authored_wall_canvas_descriptor(object_data, asset_key, texture_path, visual_center, texture)
+	if render_contract == VisualAssetRenderContractServiceRef.CONTRACT_FLOOR_AUTHORED_CANVAS:
+		return build_authored_floor_canvas_descriptor(object_data, asset_key, texture_path, visual_center, texture)
+	return build_iso_object_visual_descriptor(object_data, asset_key, visual_center, texture)
 
 func draw_iso_object_png_texture_with_descriptor_modulated(texture: Texture2D, descriptor: Dictionary, modulate_color: Color, destination_rect_override: Rect2 = Rect2()) -> void:
 	var destination_rect: Rect2 = Rect2(descriptor.get("destination_rect", Rect2()))
@@ -4097,7 +4180,6 @@ func draw_light_pulsar_overlay_for_descriptor(object_data: Dictionary, descripto
 	var overlay_descriptor: Dictionary = descriptor.duplicate(true)
 	overlay_descriptor["visual_asset_key"] = overlay_asset_key
 	overlay_descriptor["texture"] = overlay_texture
-	overlay_descriptor["source_rect"] = Rect2(Vector2.ZERO, overlay_texture.get_size())
 	var base_rect: Rect2 = Rect2(descriptor.get("destination_rect", Rect2()))
 	var expand_amount: float = maxf(2.0, minf(base_rect.size.x, base_rect.size.y) * 0.035)
 	var glow_rect: Rect2 = base_rect.grow(expand_amount)
@@ -4273,6 +4355,9 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
 	if not is_iso_object_png_asset_key(normalized_asset_key):
 		return false
+	var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key)
+	if VisualAssetRenderContractServiceRef.is_pulsar_overlay(texture_path):
+		return true
 	var visual_center: Vector2 = grid_to_iso(cell)
 	if visual_center_override != Vector2.INF:
 		visual_center = visual_center_override
@@ -4281,12 +4366,12 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 		return draw_wall_procedural_routed_object(cell, object_data, visual_center)
 	var texture: Texture2D = get_iso_object_png_texture_for_asset_key(normalized_asset_key)
 	if texture == null:
-		var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key)
 		push_warning("[IsoObjectPNG] drawing missing fallback for visual_id=%s path=%s" % [normalized_asset_key, texture_path])
 		var fallback_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key_with_size(normalized_asset_key, visual_center, get_iso_asset_alignment_expected_size(normalized_asset_key))
 		draw_missing_iso_asset_debug_fallback(cell, normalized_asset_key, fallback_rect)
 		return true
-	var descriptor: Dictionary = build_iso_object_visual_descriptor(object_data, normalized_asset_key, visual_center, texture)
+	var render_contract: String = VisualAssetRenderContractServiceRef.get_render_contract(texture_path)
+	var descriptor: Dictionary = build_iso_object_visual_descriptor_for_contract(object_data, normalized_asset_key, texture_path, render_contract, visual_center, texture)
 	draw_iso_object_png_texture_with_descriptor(texture, descriptor)
 	draw_light_pulsar_overlay_for_descriptor(object_data, descriptor)
 	return true
