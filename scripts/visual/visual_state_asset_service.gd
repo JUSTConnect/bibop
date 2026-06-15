@@ -36,6 +36,60 @@ static func _identity_blob(object_data: Dictionary) -> String:
 		blob += part
 	return blob
 
+
+static func get_visual_state_family_config(family: String) -> Dictionary:
+	var normalized_family: String = _normalized_text(family)
+	if normalized_family.is_empty():
+		return {}
+	var families: Dictionary = VisualAssetCatalogRef.get_visual_state_asset_families()
+	if not families.has(normalized_family):
+		return {}
+	var config_variant: Variant = families.get(normalized_family, {})
+	if typeof(config_variant) != TYPE_DICTIONARY:
+		return {}
+	return Dictionary(config_variant).duplicate(true)
+
+static func has_visual_state_family(family: String) -> bool:
+	return not get_visual_state_family_config(family).is_empty()
+
+static func resolve_configured_state_asset_id(family: String, state: String, surface: String) -> String:
+	var config: Dictionary = get_visual_state_family_config(family)
+	if config.is_empty():
+		return ""
+	var normalized_state: String = _normalized_text(state)
+	var states_variant: Variant = config.get("states", {})
+	if normalized_state.is_empty() or typeof(states_variant) != TYPE_DICTIONARY:
+		return ""
+	var states: Dictionary = Dictionary(states_variant)
+	if not states.has(normalized_state):
+		return ""
+	var asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(states.get(normalized_state, "")))
+	return asset_id if VisualAssetCatalogRef.has_asset(asset_id) else ""
+
+static func resolve_configured_overlay_asset_ids(family: String, state: String, surface: String) -> Array[String]:
+	var config: Dictionary = get_visual_state_family_config(family)
+	var resolved: Array[String] = []
+	if config.is_empty():
+		return resolved
+	var normalized_state: String = _normalized_text(state)
+	var overlays_variant: Variant = config.get("overlays", {})
+	if normalized_state.is_empty() or typeof(overlays_variant) != TYPE_DICTIONARY:
+		return resolved
+	var overlays: Dictionary = Dictionary(overlays_variant)
+	if not overlays.has(normalized_state):
+		return resolved
+	var configured_variant: Variant = overlays.get(normalized_state, [])
+	var candidates: Array = []
+	if typeof(configured_variant) == TYPE_STRING or typeof(configured_variant) == TYPE_STRING_NAME:
+		candidates.append(str(configured_variant))
+	elif typeof(configured_variant) == TYPE_ARRAY:
+		candidates = Array(configured_variant)
+	for candidate_variant in candidates:
+		var asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(candidate_variant))
+		if VisualAssetCatalogRef.has_asset(asset_id) and not resolved.has(asset_id):
+			resolved.append(asset_id)
+	return resolved
+
 static func is_light_object(object_data: Dictionary) -> bool:
 	var blob: String = _identity_blob(object_data)
 	if blob.contains("light_switch") or blob.contains("lightswitch"):
@@ -44,29 +98,34 @@ static func is_light_object(object_data: Dictionary) -> bool:
 
 static func object_uses_visual_states(object_data: Dictionary) -> bool:
 	var policy: String = _normalized_text(object_data.get("visual_state_policy", ""))
-	if policy == VISUAL_STATE_POLICY_POWERED_THREE_STATE:
-		return true
 	if policy == VISUAL_STATE_POLICY_STATIC:
 		return false
+	for key in ["visual_family", "visual_asset_family"]:
+		var family: String = _normalized_text(object_data.get(key, ""))
+		if has_visual_state_family(family):
+			return true
+	if policy == VISUAL_STATE_POLICY_POWERED_THREE_STATE:
+		return true
 	if bool(object_data.get("power_visual_state_enabled", false)):
 		return true
-	for key in ["visual_family", "visual_asset_family"]:
-		if not _normalized_text(object_data.get(key, "")).is_empty():
-			return true
 	return is_light_object(object_data)
 
 static func get_visual_family(object_data: Dictionary) -> String:
-	var family: String = _first_text(object_data, ["visual_family", "visual_asset_family", "visual_category"])
+	var family: String = _first_text(object_data, ["visual_family", "visual_asset_family"])
 	if not family.is_empty():
 		return family
 	if is_light_object(object_data):
 		return "light"
-	return "object"
+	return _first_text(object_data, ["object_type", "type"], "object")
 
 static func get_visual_surface(object_data: Dictionary) -> String:
 	var surface: String = _first_text(object_data, ["visual_surface", "surface"])
 	if surface in ["wall", "floor"]:
 		return surface
+	var config: Dictionary = get_visual_state_family_config(get_visual_family(object_data))
+	var configured_surface: String = _normalized_text(config.get("surface", ""))
+	if configured_surface in ["wall", "floor"]:
+		return configured_surface
 	var mount: String = _first_text(object_data, ["mount", "install_mode", "placement_mode", "placement"])
 	if mount.contains("wall"):
 		return "wall"
@@ -123,6 +182,14 @@ static func _legacy_asset_id(object_data: Dictionary) -> String:
 static func _state_candidates(family: String, state: String, surface: String) -> Array[String]:
 	return ["%s_%s_%s_01" % [family, state, surface]]
 
+static func _fallback_state_order(state: String) -> Array[String]:
+	var normalized_state: String = _normalized_text(state)
+	if normalized_state == VISUAL_STATE_ON:
+		return [VISUAL_STATE_ON, VISUAL_STATE_OFF, VISUAL_STATE_BASE]
+	if normalized_state == VISUAL_STATE_OFF:
+		return [VISUAL_STATE_OFF, VISUAL_STATE_BASE]
+	return [VISUAL_STATE_BASE]
+
 static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 	if not object_uses_visual_states(object_data):
 		var legacy_static: String = _legacy_asset_id(object_data)
@@ -130,15 +197,11 @@ static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 	var family: String = get_visual_family(object_data)
 	var surface: String = get_visual_surface(object_data)
 	var state: String = resolve_visual_state(object_data)
-	var fallback_states: Array[String] = [state]
-	if state == VISUAL_STATE_ON:
-		fallback_states.append(VISUAL_STATE_OFF)
-	if not fallback_states.has(VISUAL_STATE_BASE):
-		fallback_states.append(VISUAL_STATE_BASE)
-	# Compatibility: no light_base_wall asset exists yet.
-	if family == "light" and surface == "wall" and not fallback_states.has(VISUAL_STATE_OFF):
-		fallback_states.append(VISUAL_STATE_OFF)
+	var fallback_states: Array[String] = _fallback_state_order(state)
 	for candidate_state in fallback_states:
+		var configured_asset_id: String = resolve_configured_state_asset_id(family, candidate_state, surface)
+		if not configured_asset_id.is_empty():
+			return configured_asset_id
 		for candidate in _state_candidates(family, str(candidate_state), surface):
 			if VisualAssetCatalogRef.has_asset(candidate):
 				return candidate
@@ -153,19 +216,19 @@ static func resolve_overlay_asset_ids(object_data: Dictionary, selected_asset_id
 	var family: String = get_visual_family(object_data)
 	var surface: String = get_visual_surface(object_data)
 	var state: String = resolve_visual_state(object_data)
+	if not selected_asset_id.is_empty():
+		var normalized_selected: String = VisualAssetCatalogRef.normalize_asset_id(selected_asset_id)
+		if normalized_selected != resolve_visual_asset_id(object_data):
+			return []
+	var resolved: Array[String] = resolve_configured_overlay_asset_ids(family, state, surface)
 	var preferred: Array[String] = [
 		"%s_%s_pulsar_overlay_%s_01" % [family, state, surface],
 		"%s_%s_%s_pulsar_overlay_01" % [family, state, surface],
 		"pulsar_overlay_%s_%s_%s_01" % [family, state, surface]
 	]
-	var resolved: Array[String] = []
 	for candidate in preferred:
 		if VisualAssetCatalogRef.has_asset(candidate) and not resolved.has(candidate):
 			resolved.append(candidate)
-	if not selected_asset_id.is_empty():
-		var normalized_selected: String = VisualAssetCatalogRef.normalize_asset_id(selected_asset_id)
-		if not normalized_selected.contains("_%s_" % state):
-			return []
 	for asset_id in VisualAssetCatalogRef.get_all_asset_paths().keys():
 		var normalized_id: String = VisualAssetCatalogRef.normalize_asset_id(str(asset_id))
 		if normalized_id.contains("pulsar_overlay") and normalized_id.contains(family) and normalized_id.contains(state) and normalized_id.contains(surface) and not resolved.has(normalized_id):
