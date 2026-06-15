@@ -11,6 +11,7 @@ const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_v
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
+const VisualStateAssetServiceRef = preload("res://scripts/visual/visual_state_asset_service.gd")
 const VisualAssetRenderContractServiceRef = preload("res://scripts/visual/visual_asset_render_contract_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
@@ -111,12 +112,13 @@ const WALL_CABLE_RAIL_Y_RATIO: float = 0.44
 const WALL_CABLE_RAIL_HALF_WIDTH_RATIO: float = 0.30
 
 const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
-	"power_source_01", "terminal_01", "radiator_01", "light_01",
+	"power_source_01", "terminal_01", "radiator_01", "radiator_floor_01", "light_01",
 	"light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01",
 	"cable_reel_01", "cable_reel_02",
 	"fuse_box_in_01", "fuse_box_out_01", "fuse_box_in_wall_01", "fuse_box_out_wall_01",
 	"power_switcher_off_01", "power_switcher_on_01", "power_switcher_off_wall_01", "power_switcher_on_wall_01",
-	"barrel_01", "fire_barrel_01", "case_01", "steel_box_01"
+	"barrel_01", "fire_barrel_01", "normal_barrel_floor_01", "fire_barrel_floor_01",
+	"normal_crate_floor_01", "heavy_crate_floor_01", "case_01", "steel_box_01"
 ]
 
 const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
@@ -2390,7 +2392,7 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 		"radiator":
 			return "radiator_01"
 		"light":
-			return LightVisualServiceRef.LIGHT_OFF_WALL_ASSET_ID
+			return "light_off_wall_01"
 		"barrel":
 			return "barrel_01"
 		"crate", "box", "steel_box":
@@ -2534,9 +2536,15 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 		if switch_mount == "wall":
 			return "power_switcher_%s_wall_01" % switch_suffix
 		return "power_switcher_%s_01" % switch_suffix
-	if type_value == "barrel" or blob.contains("barrel"):
+	if type_value == "barrel" or type_value == "fire_barrel" or type_value == "normal_barrel" or blob.contains("barrel"):
 		var barrel_variant: String = str(object_data.get("variant", "normal")).to_lower().strip_edges()
-		return "fire_barrel_01" if barrel_variant == "fire" or type_value == "fire_barrel" or blob.contains("fire_barrel") or blob.contains("fire barrel") else "barrel_01"
+		if barrel_variant == "fire" or type_value == "fire_barrel" or blob.contains("fire_barrel") or blob.contains("fire barrel") or blob.contains("flammable"):
+			return "fire_barrel_floor_01"
+		return "normal_barrel_floor_01"
+	if type_value == "heavy_crate" or blob.contains("heavy_crate") or blob.contains("heavy crate"):
+		return "heavy_crate_floor_01"
+	if type_value == "crate" or type_value == "normal_crate" or blob.contains("normal_crate") or blob.contains("normal crate"):
+		return "normal_crate_floor_01"
 	if type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
 		return "steel_box_01"
 	if type_value == "case" or blob.contains(" case"):
@@ -2545,10 +2553,10 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 		return "cable_reel_02" if _get_object_mount_mode(object_data) == "wall" else "cable_reel_01"
 	if type_value == "power_source" or blob.contains("power_source"):
 		return "power_source_01"
-	if type_value == "radiator" or blob.contains("radiator"):
-		return "radiator_01"
-	if LightVisualServiceRef.is_light_object(object_data):
-		return LightVisualServiceRef.get_light_base_asset_key(object_data)
+	if type_value == "radiator" or type_value == "external_radiator" or blob.contains("radiator"):
+		return "radiator_floor_01"
+	if VisualStateAssetServiceRef.object_uses_visual_states(object_data):
+		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
 	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
 		return "terminal_01"
 	if blob.contains("door") or blob.contains("powered_gate"):
@@ -2939,10 +2947,11 @@ func get_iso_visual_texture_debug_keys() -> Array[String]:
 		"wall_grate_mid", "wall_grate_halfmid", "wall_grate_tall",
 		"object_door", "object_terminal", "object_key", "object_component", "object_socket", "object_cable", "object_generic",
 		"object_fuse", "object_repair_kit", "object_keycard", "object_access_code", "object_cable_reel", "object_button", "object_switch",
-		"power_source_01", "terminal_01", "radiator_01", "light_01", "light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01", "cable_reel_01", "cable_reel_02",
+		"power_source_01", "terminal_01", "radiator_01", "radiator_floor_01", "light_01", "light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01", "cable_reel_01", "cable_reel_02",
 		"fuse_box_in_01", "fuse_box_out_01", "fuse_box_in_wall_01", "fuse_box_out_wall_01",
 		"power_switcher_off_01", "power_switcher_on_01", "power_switcher_off_wall_01", "power_switcher_on_wall_01",
-		"barrel_01", "fire_barrel_01", "case_01", "steel_box_01"
+		"barrel_01", "fire_barrel_01", "normal_barrel_floor_01", "fire_barrel_floor_01",
+		"normal_crate_floor_01", "heavy_crate_floor_01", "case_01", "steel_box_01"
 	]
 
 
@@ -4109,9 +4118,10 @@ func build_authored_wall_canvas_descriptor(object_data: Dictionary, asset_key: S
 
 func build_authored_floor_canvas_descriptor(object_data: Dictionary, asset_key: String, texture_path: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
 	var texture_size: Vector2 = texture.get_size()
-	var visual_scale: float = get_iso_tile_size().x / AUTHORED_FLOOR_CANVAS_SOURCE_WIDTH
+	var safe_source_width: float = maxf(1.0, authored_floor_canvas_source_width)
+	var visual_scale: float = get_iso_tile_size().x / safe_source_width
 	var destination_size: Vector2 = texture_size * visual_scale
-	var visual_pivot: Vector2 = destination_size * AUTHORED_FLOOR_CANVAS_ANCHOR_RATIO
+	var visual_pivot: Vector2 = destination_size * authored_floor_canvas_anchor_ratio
 	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
 	var final_draw_position: Vector2 = visual_center - visual_pivot + explicit_visual_offset
 	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
@@ -4176,23 +4186,24 @@ func draw_iso_object_png_texture_with_descriptor(texture: Texture2D, descriptor:
 	if debug_log_iso_object_asset_resolution:
 		print("[IsoObjectVisual] visual_asset_key=%s visual_scale=%s visual_pivot=%s surface_level=%s surface_y_offset=%s final_draw_position=%s" % [str(descriptor.get("visual_asset_key", "")), str(descriptor.get("visual_scale", 1.0)), str(descriptor.get("visual_pivot", Vector2.ZERO)), str(descriptor.get("surface_level", 0)), str(descriptor.get("surface_y_offset", 0.0)), str(descriptor.get("final_draw_position", Vector2.ZERO))])
 
-func draw_light_pulsar_overlay_for_descriptor(object_data: Dictionary, descriptor: Dictionary) -> void:
-	if not LightVisualServiceRef.should_draw_pulsar_overlay(object_data):
+func draw_visual_state_overlays_for_descriptor(object_data: Dictionary, descriptor: Dictionary) -> void:
+	var overlay_asset_keys: Array[String] = VisualStateAssetServiceRef.resolve_overlay_asset_ids(object_data, str(descriptor.get("visual_asset_key", "")))
+	if overlay_asset_keys.is_empty():
 		return
-	var overlay_asset_key: String = LightVisualServiceRef.get_light_overlay_asset_key(object_data)
-	var overlay_texture: Texture2D = get_iso_object_png_texture_for_asset_key(overlay_asset_key)
-	if overlay_texture == null:
-		return
-	var overlay_descriptor: Dictionary = descriptor.duplicate(true)
-	overlay_descriptor["visual_asset_key"] = overlay_asset_key
-	overlay_descriptor["texture"] = overlay_texture
 	var base_rect: Rect2 = Rect2(descriptor.get("destination_rect", Rect2()))
 	var expand_amount: float = maxf(2.0, minf(base_rect.size.x, base_rect.size.y) * 0.035)
 	var glow_rect: Rect2 = base_rect.grow(expand_amount)
 	var time_seconds: float = float(Time.get_ticks_msec()) / 1000.0
-	draw_iso_object_png_texture_with_descriptor_modulated(overlay_texture, overlay_descriptor, Color(1.0, 1.0, 1.0, LightVisualServiceRef.get_soft_glow_alpha(time_seconds, object_data)), glow_rect)
-	draw_iso_object_png_texture_with_descriptor_modulated(overlay_texture, overlay_descriptor, Color(1.0, 1.0, 1.0, LightVisualServiceRef.get_pulsar_overlay_alpha(time_seconds, object_data)))
-	_iso_light_overlay_animation_requested = true
+	for overlay_asset_key in overlay_asset_keys:
+		var overlay_texture: Texture2D = get_iso_object_png_texture_for_asset_key(overlay_asset_key)
+		if overlay_texture == null:
+			continue
+		var overlay_descriptor: Dictionary = descriptor.duplicate(true)
+		overlay_descriptor["visual_asset_key"] = overlay_asset_key
+		overlay_descriptor["texture"] = overlay_texture
+		draw_iso_object_png_texture_with_descriptor_modulated(overlay_texture, overlay_descriptor, Color(1.0, 1.0, 1.0, VisualStateAssetServiceRef.get_soft_glow_alpha(time_seconds, object_data)), glow_rect)
+		draw_iso_object_png_texture_with_descriptor_modulated(overlay_texture, overlay_descriptor, Color(1.0, 1.0, 1.0, VisualStateAssetServiceRef.get_pulsar_overlay_alpha(time_seconds, object_data)))
+		_iso_light_overlay_animation_requested = true
 
 func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	var rule: Dictionary = {}
@@ -4359,6 +4370,8 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 	if not should_use_iso_tile_asset_hook_visuals():
 		return false
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
+	if VisualStateAssetServiceRef.object_uses_visual_states(object_data):
+		normalized_asset_key = VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
 	if not is_iso_object_png_asset_key(normalized_asset_key):
 		return false
 	var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key)
@@ -4379,7 +4392,7 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 	var render_contract: String = VisualAssetRenderContractServiceRef.get_render_contract(texture_path)
 	var descriptor: Dictionary = build_iso_object_visual_descriptor_for_contract(object_data, normalized_asset_key, texture_path, render_contract, visual_center, texture)
 	draw_iso_object_png_texture_with_descriptor(texture, descriptor)
-	draw_light_pulsar_overlay_for_descriptor(object_data, descriptor)
+	draw_visual_state_overlays_for_descriptor(object_data, descriptor)
 	return true
 
 func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallback_callable_name: String = "", options: Dictionary = {}) -> bool:
