@@ -73,6 +73,9 @@ const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
 	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box_in_wall_01.png",
 	"fuse_box_out_wall_01": "res://assets/visual/isometric/objects/fuse_box_out_wall_01.png",
 	"light_01": "res://assets/visual/isometric/objects/light_01.png",
+	"light_off_wall_01": "res://assets/visual/isometric/light/light_off_wall.png",
+	"light_on_wall_01": "res://assets/visual/isometric/light/light_on_wall.png",
+	"light_on_wall_pulsar_overlay_01": "res://assets/visual/isometric/light/pulsar_overlay_light_on_wall.png",
 	"power_source_01": "res://assets/visual/isometric/objects/power_source_01.png",
 	"power_switcher_off_01": "res://assets/visual/isometric/objects/power_switcher_off_01.png",
 	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_switcher_off_wall_01.png",
@@ -183,7 +186,7 @@ const OBJECT_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"fire_barrel": "fire_barrel_01",
 	"case": "case_01",
 	"steel_box": "steel_box_01",
-	"light": "light_01"
+	"light": "light_off_wall_01"
 }
 
 const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
@@ -3712,6 +3715,9 @@ func get_visual_texture_asset_catalog() -> Dictionary:
 		{"id":"fuse_box_in_wall_01","category":"object","display_name":"Fuse Box / Wall / In","description":"Wall fuse box with fuse inserted.","texture_path":"res://assets/visual/isometric/objects/fuse_box_in_wall_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["object","fuse_box","wall"],"is_optional":true,"placeholder_asset_key":"object_component"},
 		{"id":"fuse_box_out_wall_01","category":"object","display_name":"Fuse Box / Wall / Out","description":"Wall fuse box with fuse removed.","texture_path":"res://assets/visual/isometric/objects/fuse_box_out_wall_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.74, 0.84, 0.96, 0.95),"tags":["object","fuse_box","wall"],"is_optional":true,"placeholder_asset_key":"object_component"},
 		{"id":"light_01","category":"object","display_name":"Light","description":"Wall light object asset.","texture_path":"res://assets/visual/isometric/objects/light_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.98, 0.94, 0.75, 0.99),"tags":["object","light"],"is_optional":true,"placeholder_asset_key":"object_button"},
+		{"id":"light_off_wall_01","category":"object","display_name":"Wall Light / Off","description":"Wall light off production asset.","texture_path":"res://assets/visual/isometric/light/light_off_wall.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.62, 0.58, 0.48, 0.99),"tags":["object","light","wall","off"],"is_optional":true,"placeholder_asset_key":"object_button"},
+		{"id":"light_on_wall_01","category":"object","display_name":"Wall Light / On","description":"Wall light on production asset.","texture_path":"res://assets/visual/isometric/light/light_on_wall.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.98, 0.94, 0.75, 0.99),"tags":["object","light","wall","on"],"is_optional":true,"placeholder_asset_key":"object_button"},
+		{"id":"light_on_wall_pulsar_overlay_01","category":"object","display_name":"Wall Light / Pulsar Overlay","description":"Wall light on pulsar overlay asset.","texture_path":"res://assets/visual/isometric/light/pulsar_overlay_light_on_wall.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.98, 0.94, 0.75, 0.45),"tags":["object","light","wall","overlay"],"is_optional":true,"placeholder_asset_key":"object_button"},
 		{"id":"power_source_01","category":"object","display_name":"Power Source","description":"Power source object asset.","texture_path":"res://assets/visual/isometric/objects/power_source_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","power"],"is_optional":true,"placeholder_asset_key":"object_component"},
 		{"id":"power_switcher_off_01","category":"object","display_name":"Floor Power Switcher / Off","description":"Floor power switcher off.","texture_path":"res://assets/visual/isometric/objects/power_switcher_off_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","switch"],"is_optional":true,"placeholder_asset_key":"object_switch"},
 		{"id":"power_switcher_off_wall_01","category":"object","display_name":"Power Switcher / Wall / Off","description":"Wall power switcher off.","texture_path":"res://assets/visual/isometric/objects/power_switcher_off_wall_01.png","atlas_region":Rect2i(0, 0, 0, 0),"fallback_style":"object","fallback_color":Color(0.95, 0.88, 0.52, 0.99),"tags":["object","switch","wall"],"is_optional":true,"placeholder_asset_key":"object_switch"},
