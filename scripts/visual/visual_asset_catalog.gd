@@ -119,6 +119,12 @@ const ASSET_PATHS: Dictionary = {
 	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_switcher_off_wall_01.png",
 	"power_switcher_on_01": "res://assets/visual/isometric/objects/power_switcher_on_01.png",
 	"power_switcher_on_wall_01": "res://assets/visual/isometric/objects/power_switcher_on_wall_01.png",
+	"power_switcher_base_floor_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_base_floor.png",
+	"power_switcher_base_wall_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_base_wall.png",
+	"power_switcher_off_floor_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_off_floor.png",
+	"power_switcher_on_floor_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_on_floor.png",
+	"power_switcher_authored_off_wall_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_off_wall.png",
+	"power_switcher_authored_on_wall_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_on_wall.png",
 	"radiator_01": "res://assets/visual/isometric/objects/radiator_01.png",
 	"radiator_floor_01": "res://assets/visual/isometric/moovable/radiator_floor.png",
 	"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png",
@@ -225,8 +231,17 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"power_source_class_1": "power_source_base_floor_01",
 	"power_source_class_2": "power_source_base_floor_01",
 	"power_source_class_3": "power_source_base_floor_01",
-	"switcher": "power_switcher_off_01",
-	"power_switcher": "power_switcher_off_01",
+	"switcher": "power_switcher_base_floor_01",
+	"power_switcher": "power_switcher_base_floor_01",
+	"power_switcher_base": "power_switcher_base_floor_01",
+	"power_switcher_base_floor": "power_switcher_base_floor_01",
+	"power_switcher_base_wall": "power_switcher_base_wall_01",
+	"power_switcher_off": "power_switcher_off_floor_01",
+	"power_switcher_off_floor": "power_switcher_off_floor_01",
+	"power_switcher_off_wall": "power_switcher_authored_off_wall_01",
+	"power_switcher_on": "power_switcher_on_floor_01",
+	"power_switcher_on_floor": "power_switcher_on_floor_01",
+	"power_switcher_on_wall": "power_switcher_authored_on_wall_01",
 	"radiator": "radiator_floor_01",
 	"external_radiator": "radiator_floor_01",
 	"terminal": "terminal_base_floor_01",
@@ -280,6 +295,23 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 		"overlays": {
 			"off": ["pulsar_overlay_power_source_off_floor_01"],
 			"on": ["pulsar_overlay_power_source_on_floor_01"]
+		}
+	},
+
+	"power_switcher": {
+		"category": "objects",
+		"default_surface": "floor",
+		"states": {
+			"floor": {
+				"base": "power_switcher_base_floor_01",
+				"off": "power_switcher_off_floor_01",
+				"on": "power_switcher_on_floor_01"
+			},
+			"wall": {
+				"base": "power_switcher_base_wall_01",
+				"off": "power_switcher_authored_off_wall_01",
+				"on": "power_switcher_authored_on_wall_01"
+			}
 		}
 	},
 	"terminal": {
@@ -343,6 +375,12 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"power_switcher_on_01",
 	"power_switcher_off_wall_01",
 	"power_switcher_on_wall_01",
+	"power_switcher_base_floor_01",
+	"power_switcher_base_wall_01",
+	"power_switcher_off_floor_01",
+	"power_switcher_on_floor_01",
+	"power_switcher_authored_off_wall_01",
+	"power_switcher_authored_on_wall_01",
 	"barrel_01",
 	"fire_barrel_01",
 	"normal_barrel_floor_01",

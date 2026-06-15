@@ -353,7 +353,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"power_switcher": {
 		"archetype_id":"power_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Power Switcher", "facing_side":"SW",
-		"placement_mode":"object", "display_name_template":"Power Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"power_breaker", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[], "switcher_lines":[], "active_line_id":"",
+		"placement_mode":"object", "display_name_template":"Power Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"power_breaker", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "visual_family":"power_switcher", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "mount":"floor", "blocks_movement":false, "blocks_vision":false, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[], "switcher_lines":[], "active_line_id":"",
 		"property_schema":[
 			FACING_SIDE_SCHEMA,
 			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
