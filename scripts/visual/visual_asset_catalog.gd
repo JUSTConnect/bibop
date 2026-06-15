@@ -9,6 +9,7 @@ const ISO_OBJECT_ASSET_PACK_DIR: String = "res://assets/visual/isometric/objects
 const ISO_MOVABLE_ASSET_PACK_DIR: String = "res://assets/visual/isometric/moovable/"
 const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
 const ISO_PLACEHOLDER_ASSET_PACK_DIR: String = "res://assets/visual/isometric/placeholders/"
+const ISO_LIGHT_ASSET_PACK_DIR: String = "res://assets/visual/isometric/light/"
 
 const ASSET_PATHS: Dictionary = {
 	"floor_concrete": "res://assets/visual/isometric/floor/floor_concrete_01.png",
@@ -105,6 +106,9 @@ const ASSET_PATHS: Dictionary = {
 	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box_in_wall_01.png",
 	"fuse_box_out_wall_01": "res://assets/visual/isometric/objects/fuse_box_out_wall_01.png",
 	"light_01": "res://assets/visual/isometric/objects/light_01.png",
+	"light_off_wall_01": "res://assets/visual/isometric/light/light_off_wall.png",
+	"light_on_wall_01": "res://assets/visual/isometric/light/light_on_wall.png",
+	"light_on_wall_pulsar_overlay_01": "res://assets/visual/isometric/light/pulsar_overlay_light_on_wall.png",
 	"power_source_01": "res://assets/visual/isometric/objects/power_source_01.png",
 	"power_switcher_off_01": "res://assets/visual/isometric/objects/power_switcher_off_01.png",
 	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_switcher_off_wall_01.png",
@@ -206,7 +210,7 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"barrel": "barrel_01",
 	"case": "case_01",
 	"steel_box": "steel_box_01",
-	"light": "light_01",
+	"light": "light_off_wall_01",
 	"fire_barrel": "fire_barrel_01"
 }
 
@@ -215,6 +219,9 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"terminal_01",
 	"radiator_01",
 	"light_01",
+	"light_off_wall_01",
+	"light_on_wall_01",
+	"light_on_wall_pulsar_overlay_01",
 	"cable_reel_01",
 	"cable_reel_02",
 	"fuse_box_in_01",
