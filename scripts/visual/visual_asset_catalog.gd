@@ -115,11 +115,16 @@ const ASSET_PATHS: Dictionary = {
 	"power_switcher_on_01": "res://assets/visual/isometric/objects/power_switcher_on_01.png",
 	"power_switcher_on_wall_01": "res://assets/visual/isometric/objects/power_switcher_on_wall_01.png",
 	"radiator_01": "res://assets/visual/isometric/objects/radiator_01.png",
+	"radiator_floor_01": "res://assets/visual/isometric/moovable/radiator_floor.png",
 	"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png",
 	"barrel_01": "res://assets/visual/isometric/moovable/barrel_01.png",
+	"normal_barrel_floor_01": "res://assets/visual/isometric/moovable/normal_barrel_floor.png",
 	"case_01": "res://assets/visual/isometric/objects/case_01.png",
 	"steel_box_01": "res://assets/visual/isometric/moovable/steel_box_01.png",
-	"fire_barrel_01": "res://assets/visual/isometric/moovable/fire_barrel_01.png"
+	"fire_barrel_01": "res://assets/visual/isometric/moovable/fire_barrel_01.png",
+	"fire_barrel_floor_01": "res://assets/visual/isometric/moovable/fire_barrel_floor.png",
+	"normal_crate_floor_01": "res://assets/visual/isometric/moovable/norma_crate_floor.png",
+	"heavy_crate_floor_01": "res://assets/visual/isometric/moovable/heavy_crate_floor.png"
 }
 
 const FLOOR_ASSET_ALIASES: Dictionary = {
@@ -204,14 +209,19 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"power_source_class_3": "power_source_01",
 	"switcher": "power_switcher_off_01",
 	"power_switcher": "power_switcher_off_01",
-	"radiator": "radiator_01",
-	"external_radiator": "radiator_01",
+	"radiator": "radiator_floor_01",
+	"external_radiator": "radiator_floor_01",
 	"terminal": "terminal_01",
-	"barrel": "barrel_01",
+	"normal_barrel": "normal_barrel_floor_01",
+	"barrel": "normal_barrel_floor_01",
+	"fire_barrel": "fire_barrel_floor_01",
+	"flammable_barrel": "fire_barrel_floor_01",
+	"normal_crate": "normal_crate_floor_01",
+	"crate": "normal_crate_floor_01",
+	"heavy_crate": "heavy_crate_floor_01",
 	"case": "case_01",
 	"steel_box": "steel_box_01",
-	"light": "light_off_wall_01",
-	"fire_barrel": "fire_barrel_01"
+	"light": "light_off_wall_01"
 }
 
 const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
@@ -234,6 +244,11 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"power_switcher_on_wall_01",
 	"barrel_01",
 	"fire_barrel_01",
+	"normal_barrel_floor_01",
+	"fire_barrel_floor_01",
+	"normal_crate_floor_01",
+	"heavy_crate_floor_01",
+	"radiator_floor_01",
 	"case_01",
 	"steel_box_01"
 ]
