@@ -111,12 +111,13 @@ const WALL_CABLE_RAIL_Y_RATIO: float = 0.44
 const WALL_CABLE_RAIL_HALF_WIDTH_RATIO: float = 0.30
 
 const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
-	"power_source_01", "terminal_01", "radiator_01", "light_01",
+	"power_source_01", "terminal_01", "radiator_01", "radiator_floor_01", "light_01",
 	"light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01",
 	"cable_reel_01", "cable_reel_02",
 	"fuse_box_in_01", "fuse_box_out_01", "fuse_box_in_wall_01", "fuse_box_out_wall_01",
 	"power_switcher_off_01", "power_switcher_on_01", "power_switcher_off_wall_01", "power_switcher_on_wall_01",
-	"barrel_01", "fire_barrel_01", "case_01", "steel_box_01"
+	"barrel_01", "fire_barrel_01", "normal_barrel_floor_01", "fire_barrel_floor_01",
+	"normal_crate_floor_01", "heavy_crate_floor_01", "case_01", "steel_box_01"
 ]
 
 const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
@@ -2534,9 +2535,15 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 		if switch_mount == "wall":
 			return "power_switcher_%s_wall_01" % switch_suffix
 		return "power_switcher_%s_01" % switch_suffix
-	if type_value == "barrel" or blob.contains("barrel"):
+	if type_value == "barrel" or type_value == "fire_barrel" or type_value == "normal_barrel" or blob.contains("barrel"):
 		var barrel_variant: String = str(object_data.get("variant", "normal")).to_lower().strip_edges()
-		return "fire_barrel_01" if barrel_variant == "fire" or type_value == "fire_barrel" or blob.contains("fire_barrel") or blob.contains("fire barrel") else "barrel_01"
+		if barrel_variant == "fire" or type_value == "fire_barrel" or blob.contains("fire_barrel") or blob.contains("fire barrel") or blob.contains("flammable"):
+			return "fire_barrel_floor_01"
+		return "normal_barrel_floor_01"
+	if type_value == "heavy_crate" or blob.contains("heavy_crate") or blob.contains("heavy crate"):
+		return "heavy_crate_floor_01"
+	if type_value == "crate" or type_value == "normal_crate" or blob.contains("normal_crate") or blob.contains("normal crate"):
+		return "normal_crate_floor_01"
 	if type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
 		return "steel_box_01"
 	if type_value == "case" or blob.contains(" case"):
@@ -2545,8 +2552,8 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 		return "cable_reel_02" if _get_object_mount_mode(object_data) == "wall" else "cable_reel_01"
 	if type_value == "power_source" or blob.contains("power_source"):
 		return "power_source_01"
-	if type_value == "radiator" or blob.contains("radiator"):
-		return "radiator_01"
+	if type_value == "radiator" or type_value == "external_radiator" or blob.contains("radiator"):
+		return "radiator_floor_01"
 	if LightVisualServiceRef.is_light_object(object_data):
 		return LightVisualServiceRef.get_light_base_asset_key(object_data)
 	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
@@ -2939,10 +2946,11 @@ func get_iso_visual_texture_debug_keys() -> Array[String]:
 		"wall_grate_mid", "wall_grate_halfmid", "wall_grate_tall",
 		"object_door", "object_terminal", "object_key", "object_component", "object_socket", "object_cable", "object_generic",
 		"object_fuse", "object_repair_kit", "object_keycard", "object_access_code", "object_cable_reel", "object_button", "object_switch",
-		"power_source_01", "terminal_01", "radiator_01", "light_01", "light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01", "cable_reel_01", "cable_reel_02",
+		"power_source_01", "terminal_01", "radiator_01", "radiator_floor_01", "light_01", "light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01", "cable_reel_01", "cable_reel_02",
 		"fuse_box_in_01", "fuse_box_out_01", "fuse_box_in_wall_01", "fuse_box_out_wall_01",
 		"power_switcher_off_01", "power_switcher_on_01", "power_switcher_off_wall_01", "power_switcher_on_wall_01",
-		"barrel_01", "fire_barrel_01", "case_01", "steel_box_01"
+		"barrel_01", "fire_barrel_01", "normal_barrel_floor_01", "fire_barrel_floor_01",
+		"normal_crate_floor_01", "heavy_crate_floor_01", "case_01", "steel_box_01"
 	]
 
 
@@ -4108,9 +4116,10 @@ func build_authored_wall_canvas_descriptor(object_data: Dictionary, asset_key: S
 
 func build_authored_floor_canvas_descriptor(object_data: Dictionary, asset_key: String, texture_path: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
 	var texture_size: Vector2 = texture.get_size()
-	var visual_scale: float = get_iso_tile_size().x / AUTHORED_FLOOR_CANVAS_SOURCE_WIDTH
+	var safe_source_width: float = maxf(1.0, authored_floor_canvas_source_width)
+	var visual_scale: float = get_iso_tile_size().x / safe_source_width
 	var destination_size: Vector2 = texture_size * visual_scale
-	var visual_pivot: Vector2 = destination_size * AUTHORED_FLOOR_CANVAS_ANCHOR_RATIO
+	var visual_pivot: Vector2 = destination_size * authored_floor_canvas_anchor_ratio
 	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
 	var final_draw_position: Vector2 = visual_center - visual_pivot + explicit_visual_offset
 	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)

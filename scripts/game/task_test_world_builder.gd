@@ -100,7 +100,12 @@ static func build_validation_world_objects() -> Dictionary:
 		{"type":"lifting_platform","id":"task_test_platform_lift","pos":Vector2i(8, 8),"extra":{"platform_id":"task_test_platform_lift","platform_cells":[[8, 8]],"is_powered":false,"requires_external_power":true,"power_network_id":"task_test_power_missing"}},
 		{"type":"lifting_platform","id":"task_test_platform_self_control","pos":Vector2i(9, 8),"extra":{"platform_id":"task_test_platform_self_control","object_group":"platform","object_type":"platform","platform_mode":"elevator","platform_type":"lifting","platform_cells":[[9, 8]],"control_mode":"cell","control_type":"internal","power_mode":"internal","power_type":"internal","operation":"toggle","platform_action":"raise","control_cell":Vector2i(9, 8),"control_cell_x":9,"control_cell_y":8,"platform_level":0,"current_level":0,"height_level":0,"max_level":1,"max_height_level":1,"is_powered":true,"blocks_movement":false,"walkable":true}},
 		{"type":"power_cable","id":"task_test_xray_route_marker","pos":Vector2i(9, 7),"extra":{"hidden":true,"visible_with_xray":true}},
-{"type":"door","id":"task_test_extraction_door","pos":Vector2i(14, 7),"extra":{"door_type":"digital","material":"energy","access_type":"digital_key","state":"open","mission_exit":true,"extraction":true}}
+		# Authored movable floor asset visual smoke coverage.
+		{"type":"barrel","id":"task_test_visual_normal_barrel","pos":Vector2i(10, 8),"extra":{"variant":"normal","visual_smoke_only":true}},
+		{"type":"fire_barrel","id":"task_test_visual_fire_barrel","pos":Vector2i(11, 8),"extra":{"variant":"fire","visual_smoke_only":true}},
+		{"type":"normal_crate","id":"task_test_visual_normal_crate","pos":Vector2i(12, 8),"extra":{"visual_smoke_only":true}},
+		{"type":"heavy_crate","id":"task_test_visual_heavy_crate","pos":Vector2i(13, 8),"extra":{"visual_smoke_only":true}},
+		{"type":"door","id":"task_test_extraction_door","pos":Vector2i(14, 7),"extra":{"door_type":"digital","material":"energy","access_type":"digital_key","state":"open","mission_exit":true,"extraction":true}}
 	]
 	for spec in specs:
 		var obj: Dictionary = WorldObjectCatalogRef.create_world_object(str(spec.get("type", "")), str(spec.get("id", "")))
