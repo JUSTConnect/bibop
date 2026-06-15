@@ -376,6 +376,16 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"line_3_circuit_id", "type":"string", "default":""}
 		]
 	},
+	"light_switcher": {
+		"archetype_id":"light_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Light Switcher", "facing_side":"SW",
+		"placement_mode":"wall_mounted", "display_name_template":"Light Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"light_switcher", "mount":"wall", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false, "visual_family":"light_switcher", "visual_surface":"wall", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[],
+		"property_schema":[
+			FACING_SIDE_SCHEMA,
+			{"field":"switch_state", "type":"enum", "values":["off", "on"], "default":"off", "labels":{"off":"Off", "on":"On"}},
+			{"field":"light_group_id", "type":"string", "default":""},
+			{"field":"target_light_ids", "type":"object_ref_array", "target_group":"lighting", "default":[]}
+		]
+	},
 	"fuse_box": {
 		"archetype_id":"fuse_box", "object_group":"power", "object_type":"fuse_box", "palette_label":"Fuse Box", "facing_side":"SW",
 		"placement_mode":"object", "display_name_template":"Fuse Box", "configurable":true, "state":"installed", "requires_fuse":true, "fuse_present":true, "fuse_installed":true, "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,

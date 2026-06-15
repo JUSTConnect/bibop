@@ -9,7 +9,8 @@ service = (root / "scripts/visual/visual_state_asset_service.gd").read_text()
 renderer = (root / "scripts/field/room_visual_renderer.gd").read_text()
 catalog = (root / "scripts/visual/visual_asset_catalog.gd").read_text()
 world_catalog = (root / "scripts/world/world_object_catalog.gd").read_text()
-power_switcher_archetype = world_catalog.split('"power_switcher": {', 1)[1].split('\n\t"fuse_box": {', 1)[0]
+power_switcher_archetype = world_catalog.split('"power_switcher": {', 1)[1].split('\n\t"light_switcher": {', 1)[0]
+light_switcher_archetype = world_catalog.split('"light_switcher": {', 1)[1].split('\n\t"fuse_box": {', 1)[0]
 firewall_service = root / "scripts/game/firewall/firewall_service.gd"
 
 checks = {
@@ -38,6 +39,13 @@ checks = {
     "hard unavailable states can force off before false power flag": re.search(r"_is_hard_unavailable_state\(power_state\).*?return VISUAL_STATE_OFF.*?if _has_false_power_flag", service, re.S) is not None,
     "source and switch off are power-flag overridable": 'POWER_FLAG_OVERRIDE_OFF_STATES' in service and '"source_off"' in service and '"switch_off"' in service,
     "power switcher resolution is not renderer hardcoded": all(token not in renderer for token in ["power_switcher_base_floor_01", "power_switcher_base_wall_01", "power_switcher_off_floor_01", "power_switcher_authored_off_wall_01", "power_switcher_on_floor_01", "power_switcher_authored_on_wall_01"]),
+
+    "light switcher family exists in visual state catalog": re.search(r'"light_switcher"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"wall"', catalog, re.S) is not None,
+    "light switcher states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"base"\s*:\s*"light_switcher_base_wall_01"', r'"off"\s*:\s*"light_switcher_base_wall_01"', r'"on"\s*:\s*"light_switcher_on_wall_01"']),
+    "light switcher archetype exists": re.search(r'"light_switcher"\s*:\s*\{.*?"archetype_id"\s*:\s*"light_switcher"', world_catalog, re.S) is not None,
+    "light switcher archetype is wall mounted": '"mount":"wall"' in light_switcher_archetype and '"placement_mode":"wall_mounted"' in light_switcher_archetype,
+    "light switcher archetype opts into visual states": all(token in light_switcher_archetype for token in ['"switcher_type":"light_switcher"', '"visual_family":"light_switcher"', '"visual_surface":"wall"', '"visual_state_policy":"powered_three_state"', '"power_visual_state_enabled":true']),
+    "light switcher resolution is not renderer hardcoded": all(token not in renderer for token in ["light_switcher_base_wall_01", "light_switcher_on_wall_01"]),
 
     "terminal family exists in visual state catalog": re.search(r'"terminal"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,
     "terminal states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"base"\s*:\s*"terminal_base_floor_01"', r'"off"\s*:\s*"terminal_off_floor_01"', r'"on"\s*:\s*"terminal_on_floor_01"']),
