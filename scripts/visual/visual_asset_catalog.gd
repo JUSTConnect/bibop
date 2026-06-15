@@ -110,6 +110,11 @@ const ASSET_PATHS: Dictionary = {
 	"light_on_wall_01": "res://assets/visual/isometric/light/light_on_wall.png",
 	"light_on_wall_pulsar_overlay_01": "res://assets/visual/isometric/light/pulsar_overlay_light_on_wall.png",
 	"power_source_01": "res://assets/visual/isometric/objects/power_source_01.png",
+	"power_source_base_floor_01": "res://assets/visual/isometric/objects/power_source/power_source_base_floor.png",
+	"power_source_off_floor_01": "res://assets/visual/isometric/objects/power_source/power_source_off_floor.png",
+	"power_source_on_floor_01": "res://assets/visual/isometric/objects/power_source/power_source_on_floor.png",
+	"pulsar_overlay_power_source_off_floor_01": "res://assets/visual/isometric/objects/power_source/pulsar_overlay_power_source_off_floor.png",
+	"pulsar_overlay_power_source_on_floor_01": "res://assets/visual/isometric/objects/power_source/pulsar_overlay_power_source_on_floor.png",
 	"power_switcher_off_01": "res://assets/visual/isometric/objects/power_switcher_off_01.png",
 	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_switcher_off_wall_01.png",
 	"power_switcher_on_01": "res://assets/visual/isometric/objects/power_switcher_on_01.png",
@@ -213,10 +218,13 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"fuse_box_empty": "fuse_box_out_01",
 	"fuse_box_installed": "fuse_box_in_01",
 	"wall_fuse_box": "fuse_box_out_wall_01",
-	"power_source": "power_source_01",
-	"power_source_class_1": "power_source_01",
-	"power_source_class_2": "power_source_01",
-	"power_source_class_3": "power_source_01",
+	"power_source": "power_source_base_floor_01",
+	"power_source_base": "power_source_base_floor_01",
+	"power_source_off": "power_source_off_floor_01",
+	"power_source_on": "power_source_on_floor_01",
+	"power_source_class_1": "power_source_base_floor_01",
+	"power_source_class_2": "power_source_base_floor_01",
+	"power_source_class_3": "power_source_base_floor_01",
 	"switcher": "power_switcher_off_01",
 	"power_switcher": "power_switcher_off_01",
 	"radiator": "radiator_floor_01",
@@ -261,6 +269,19 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 			"on": ["light_on_wall_pulsar_overlay_01"]
 		}
 	},
+	"power_source": {
+		"category": "objects",
+		"surface": "floor",
+		"states": {
+			"base": "power_source_base_floor_01",
+			"off": "power_source_off_floor_01",
+			"on": "power_source_on_floor_01"
+		},
+		"overlays": {
+			"off": ["pulsar_overlay_power_source_off_floor_01"],
+			"on": ["pulsar_overlay_power_source_on_floor_01"]
+		}
+	},
 	"terminal": {
 		"category": "objects",
 		"surface": "floor",
@@ -291,6 +312,11 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 
 const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"power_source_01",
+	"power_source_base_floor_01",
+	"power_source_off_floor_01",
+	"power_source_on_floor_01",
+	"pulsar_overlay_power_source_off_floor_01",
+	"pulsar_overlay_power_source_on_floor_01",
 	"terminal_01",
 	"terminal_base_floor_01",
 	"terminal_off_floor_01",
