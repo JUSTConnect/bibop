@@ -10,8 +10,8 @@ const VISUAL_STATE_POLICY_STATIC := "static"
 const VISUAL_STATE_POLICY_POWERED_THREE_STATE := "powered_three_state"
 
 const POWER_OFF_STATES: Array[String] = ["unpowered", "no_power", "disconnected", "offline"]
-const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "powered"]
-const UNAVAILABLE_STATES: Array[String] = ["off", "locked", "blocked", "disabled", "damaged", "error", "overheated", "cooldown", "jammed"]
+const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "powered", "source_on"]
+const UNAVAILABLE_STATES: Array[String] = ["off", "source_off", "locked", "blocked", "disabled", "damaged", "error", "overheated", "cooldown", "jammed"]
 const AVAILABLE_INTERACTION_STATES: Array[String] = ["available", "ready"]
 const UNAVAILABLE_INTERACTION_STATES: Array[String] = ["unavailable", "locked", "blocked"]
 
@@ -148,10 +148,18 @@ static func _has_true_power_flag(object_data: Dictionary) -> bool:
 	return false
 
 static func resolve_visual_state(object_data: Dictionary) -> String:
-	if _has_false_power_flag(object_data):
-		return VISUAL_STATE_BASE
 	var power_state: String = _normalized_text(object_data.get("power_state", ""))
 	if power_state in POWER_OFF_STATES:
+		return VISUAL_STATE_BASE
+	if power_state in ACTIVE_STATES:
+		return VISUAL_STATE_ON
+	if power_state in UNAVAILABLE_STATES:
+		return VISUAL_STATE_OFF
+	for key in ["state", "status"]:
+		var value: String = _normalized_text(object_data.get(key, ""))
+		if value in UNAVAILABLE_STATES:
+			return VISUAL_STATE_OFF
+	if _has_false_power_flag(object_data):
 		return VISUAL_STATE_BASE
 	var powered: bool = _has_true_power_flag(object_data) or power_state in ACTIVE_STATES
 	if not powered and (object_data.has("power_state") or object_data.has("is_powered") or object_data.has("powered") or object_data.has("has_power") or object_data.has("receives_power")):
@@ -167,8 +175,6 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 		var value: String = _normalized_text(object_data.get(key, ""))
 		if value in ACTIVE_STATES:
 			return VISUAL_STATE_ON
-		if value in UNAVAILABLE_STATES:
-			return VISUAL_STATE_OFF
 	var interaction_state: String = _normalized_text(object_data.get("interaction_state", ""))
 	if interaction_state in AVAILABLE_INTERACTION_STATES:
 		return VISUAL_STATE_ON
