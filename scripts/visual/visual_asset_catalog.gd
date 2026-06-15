@@ -224,6 +224,13 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"light": "light_off_wall_01"
 }
 
+# Visual state families are the primary resolver contract for powered object art.
+# - base = unpowered / no power.
+# - off = powered but disabled, locked, blocked, overheated, switched off, or unavailable.
+# - on = powered and active / usable.
+# - surface defines the default authored canvas surface for this family.
+# - states maps visual states to asset ids; ids are validated before use.
+# - overlays maps visual states to overlay asset ids; ids are validated before use.
 const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 	"light": {
 		"category": "lights",
