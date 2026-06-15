@@ -224,6 +224,21 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"light": "light_off_wall_01"
 }
 
+const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
+	"light": {
+		"category": "lights",
+		"surface": "wall",
+		"states": {
+			"base": "light_off_wall_01",
+			"off": "light_off_wall_01",
+			"on": "light_on_wall_01"
+		},
+		"overlays": {
+			"on": ["light_on_wall_pulsar_overlay_01"]
+		}
+	}
+}
+
 const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"power_source_01",
 	"terminal_01",
@@ -293,6 +308,9 @@ static func resolve_object_asset_id(raw_id: String) -> String:
 
 static func get_canonical_object_visual_ids() -> Array[String]:
 	return CANONICAL_OBJECT_VISUAL_IDS.duplicate()
+
+static func get_visual_state_asset_families() -> Dictionary:
+	return VISUAL_STATE_ASSET_FAMILIES.duplicate(true)
 
 static func get_all_asset_paths() -> Dictionary:
 	return ASSET_PATHS.duplicate()
