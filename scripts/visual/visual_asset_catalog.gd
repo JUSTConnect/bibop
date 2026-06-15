@@ -125,6 +125,8 @@ const ASSET_PATHS: Dictionary = {
 	"power_switcher_on_floor_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_on_floor.png",
 	"power_switcher_authored_off_wall_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_off_wall.png",
 	"power_switcher_authored_on_wall_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_on_wall.png",
+	"light_switcher_base_wall_01": "res://assets/visual/isometric/objects/light_swicher/light_swicher_base_wall.png",
+	"light_switcher_on_wall_01": "res://assets/visual/isometric/objects/light_swicher/light_swicher_on_wall.png",
 	"radiator_01": "res://assets/visual/isometric/objects/radiator_01.png",
 	"radiator_floor_01": "res://assets/visual/isometric/moovable/radiator_floor.png",
 	"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png",
@@ -242,6 +244,13 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"power_switcher_on": "power_switcher_on_floor_01",
 	"power_switcher_on_floor": "power_switcher_on_floor_01",
 	"power_switcher_on_wall": "power_switcher_authored_on_wall_01",
+	"light_switcher": "light_switcher_base_wall_01",
+	"light_switcher_base": "light_switcher_base_wall_01",
+	"light_switcher_off": "light_switcher_base_wall_01",
+	"light_switcher_on": "light_switcher_on_wall_01",
+	"light_switcher_wall": "light_switcher_base_wall_01",
+	"light_switcher_base_wall": "light_switcher_base_wall_01",
+	"light_switcher_on_wall": "light_switcher_on_wall_01",
 	"radiator": "radiator_floor_01",
 	"external_radiator": "radiator_floor_01",
 	"terminal": "terminal_base_floor_01",
@@ -314,6 +323,15 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 			}
 		}
 	},
+	"light_switcher": {
+		"category": "objects",
+		"surface": "wall",
+		"states": {
+			"base": "light_switcher_base_wall_01",
+			"off": "light_switcher_base_wall_01",
+			"on": "light_switcher_on_wall_01"
+		}
+	},
 	"terminal": {
 		"category": "objects",
 		"surface": "floor",
@@ -381,6 +399,8 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"power_switcher_on_floor_01",
 	"power_switcher_authored_off_wall_01",
 	"power_switcher_authored_on_wall_01",
+	"light_switcher_base_wall_01",
+	"light_switcher_on_wall_01",
 	"barrel_01",
 	"fire_barrel_01",
 	"normal_barrel_floor_01",
