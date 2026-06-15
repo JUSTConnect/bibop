@@ -9,6 +9,7 @@ service = (root / "scripts/visual/visual_state_asset_service.gd").read_text()
 renderer = (root / "scripts/field/room_visual_renderer.gd").read_text()
 catalog = (root / "scripts/visual/visual_asset_catalog.gd").read_text()
 world_catalog = (root / "scripts/world/world_object_catalog.gd").read_text()
+power_switcher_archetype = world_catalog.split('"power_switcher": {', 1)[1].split('\n\t"fuse_box": {', 1)[0]
 firewall_service = root / "scripts/game/firewall/firewall_service.gd"
 
 checks = {
@@ -22,6 +23,18 @@ checks = {
     "powered unavailable uses off state": 'UNAVAILABLE_STATES' in service and 'return VISUAL_STATE_OFF' in service,
     "renderer uses generic overlay path": 'draw_visual_state_overlays_for_descriptor' in renderer and 'resolve_overlay_asset_ids' in renderer,
     "renderer no longer calls light overlay drawer": 'draw_light_pulsar_overlay_for_descriptor(object_data, descriptor)' not in renderer,
+
+    "resolver supports nested surface state mapping": "states.has(normalized_surface)" in service and "surface_states.has(normalized_state)" in service,
+    "resolver keeps simple state mapping fallback": re.search(r"if not states\.has\(normalized_state\):.*?states\.get\(normalized_state", service, re.S) is not None,
+    "surface resolver checks mount before configured family surface": re.search(r"static func get_visual_surface.*?var mount:.*?configured_surface", service, re.S) is not None,
+    "power switcher family exists in visual state catalog": re.search(r'"power_switcher"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"default_surface"\s*:\s*"floor"', catalog, re.S) is not None,
+    "power switcher floor states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"floor"\s*:\s*\{.*?"base"\s*:\s*"power_switcher_base_floor_01"', r'"floor"\s*:\s*\{.*?"off"\s*:\s*"power_switcher_off_floor_01"', r'"floor"\s*:\s*\{.*?"on"\s*:\s*"power_switcher_on_floor_01"']),
+    "power switcher wall states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"wall"\s*:\s*\{.*?"base"\s*:\s*"power_switcher_base_wall_01"', r'"wall"\s*:\s*\{.*?"off"\s*:\s*"power_switcher_authored_off_wall_01"', r'"wall"\s*:\s*\{.*?"on"\s*:\s*"power_switcher_authored_on_wall_01"']),
+    "power switcher archetype opts into visual states": re.search(r'"power_switcher"\s*:\s*\{.*?"visual_family"\s*:\s*"power_switcher".*?"visual_state_policy"\s*:\s*"powered_three_state".*?"power_visual_state_enabled"\s*:\s*true', world_catalog, re.S) is not None,
+    "power switcher archetype does not force visual surface floor": '"visual_surface":"floor"' not in power_switcher_archetype and '"visual_surface"' not in power_switcher_archetype,
+    "power switcher switch states are recognized": '"switch_on"' in service and '"switch_off"' in service,
+    "power switcher resolution is not renderer hardcoded": all(token not in renderer for token in ["power_switcher_base_floor_01", "power_switcher_base_wall_01", "power_switcher_off_floor_01", "power_switcher_authored_off_wall_01", "power_switcher_on_floor_01", "power_switcher_authored_on_wall_01"]),
+
     "terminal family exists in visual state catalog": re.search(r'"terminal"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,
     "terminal states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"base"\s*:\s*"terminal_base_floor_01"', r'"off"\s*:\s*"terminal_off_floor_01"', r'"on"\s*:\s*"terminal_on_floor_01"']),
     "terminal overlays map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"off"\s*:\s*\["pulsar_overlay_terminal_off_floor_01"\]', r'"on"\s*:\s*\["pulsar_overlay_terminal_on_floor_01"\]']),

@@ -10,8 +10,8 @@ const VISUAL_STATE_POLICY_STATIC := "static"
 const VISUAL_STATE_POLICY_POWERED_THREE_STATE := "powered_three_state"
 
 const POWER_OFF_STATES: Array[String] = ["unpowered", "no_power", "disconnected", "offline"]
-const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "powered", "source_on"]
-const UNAVAILABLE_STATES: Array[String] = ["off", "source_off", "locked", "blocked", "disabled", "damaged", "error", "overheated", "cooldown", "jammed"]
+const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "powered", "source_on", "switch_on"]
+const UNAVAILABLE_STATES: Array[String] = ["off", "source_off", "switch_off", "locked", "blocked", "disabled", "damaged", "error", "overheated", "cooldown", "jammed"]
 const AVAILABLE_INTERACTION_STATES: Array[String] = ["available", "ready"]
 const UNAVAILABLE_INTERACTION_STATES: Array[String] = ["unavailable", "locked", "blocked"]
 
@@ -61,6 +61,12 @@ static func resolve_configured_state_asset_id(family: String, state: String, sur
 	if normalized_state.is_empty() or typeof(states_variant) != TYPE_DICTIONARY:
 		return ""
 	var states: Dictionary = Dictionary(states_variant)
+	var normalized_surface: String = _normalized_text(surface)
+	if states.has(normalized_surface) and typeof(states.get(normalized_surface)) == TYPE_DICTIONARY:
+		var surface_states: Dictionary = Dictionary(states.get(normalized_surface))
+		if surface_states.has(normalized_state):
+			var surface_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(surface_states.get(normalized_state, "")))
+			return surface_asset_id if VisualAssetCatalogRef.has_asset(surface_asset_id) else ""
 	if not states.has(normalized_state):
 		return ""
 	var asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(states.get(normalized_state, "")))
@@ -122,15 +128,18 @@ static func get_visual_surface(object_data: Dictionary) -> String:
 	var surface: String = _first_text(object_data, ["visual_surface", "surface"])
 	if surface in ["wall", "floor"]:
 		return surface
-	var config: Dictionary = get_visual_state_family_config(get_visual_family(object_data))
-	var configured_surface: String = _normalized_text(config.get("surface", ""))
-	if configured_surface in ["wall", "floor"]:
-		return configured_surface
 	var mount: String = _first_text(object_data, ["mount", "install_mode", "placement_mode", "placement"])
 	if mount.contains("wall"):
 		return "wall"
 	if mount.contains("floor"):
 		return "floor"
+	var config: Dictionary = get_visual_state_family_config(get_visual_family(object_data))
+	var configured_surface: String = _normalized_text(config.get("surface", ""))
+	if configured_surface in ["wall", "floor"]:
+		return configured_surface
+	var default_surface: String = _normalized_text(config.get("default_surface", ""))
+	if default_surface in ["wall", "floor"]:
+		return default_surface
 	if is_light_object(object_data):
 		return "wall"
 	return "floor"
