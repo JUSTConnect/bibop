@@ -19,6 +19,10 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 # Gameplay cells remain Vector2i in GridManager logic.
 # The helpers in this script are visual projection helpers only.
 # Future PRs will use them for floor, wall, object, fog, and overlay rendering.
+@export var authored_wall_canvas_source_width: float = 512.0
+@export var authored_wall_canvas_anchor_ratio: Vector2 = Vector2(0.5, 0.5)
+@export var authored_floor_canvas_source_width: float = 512.0
+@export var authored_floor_canvas_anchor_ratio: Vector2 = Vector2(0.5, 0.5)
 @export var debug_draw_marker: bool = false
 @export var debug_draw_iso_helper_preview: bool = false
 @export var render_iso_floor_prototype: bool = false
@@ -3330,7 +3334,7 @@ const WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX := 330.0
 const WALL_MOUNT_SIDE_OFFSET_SW := Vector2(-18.0, -4.0)
 const WALL_MOUNT_SIDE_OFFSET_SE := Vector2(18.0, -4.0)
 const AUTHORED_WALL_CANVAS_SOURCE_WIDTH: float = 512.0
-const AUTHORED_WALL_CANVAS_ANCHOR_RATIO: Vector2 = Vector2(0.5, 0.5)
+const AUTHORED_WALL_CANVAS_ANCHOR_RATIO: Vector2 = Vector2(0.5, 0.65)
 const AUTHORED_FLOOR_CANVAS_SOURCE_WIDTH: float = 512.0
 const AUTHORED_FLOOR_CANVAS_ANCHOR_RATIO: Vector2 = Vector2(0.5, 0.5)
 
@@ -4076,9 +4080,10 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 
 func build_authored_wall_canvas_descriptor(object_data: Dictionary, asset_key: String, texture_path: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
 	var texture_size: Vector2 = texture.get_size()
-	var visual_scale: float = get_iso_tile_size().x / AUTHORED_WALL_CANVAS_SOURCE_WIDTH
+	var safe_source_width: float = maxf(1.0, authored_wall_canvas_source_width)
+	var visual_scale: float = get_iso_tile_size().x / safe_source_width
 	var destination_size: Vector2 = texture_size * visual_scale
-	var visual_pivot: Vector2 = destination_size * AUTHORED_WALL_CANVAS_ANCHOR_RATIO
+	var visual_pivot: Vector2 = destination_size * authored_wall_canvas_anchor_ratio
 	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
 	var final_draw_position: Vector2 = visual_center - visual_pivot + explicit_visual_offset
 	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
