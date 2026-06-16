@@ -37,7 +37,7 @@ checks = {
     "door resolution is not renderer hardcoded": all(token not in renderer for token in DOOR_ASSET_IDS),
     "service reads configured visual state families": "get_visual_state_asset_families()" in service and "get_visual_state_family_config" in service,
     "service exposes visual family helper": "static func has_visual_state_family" in service,
-    "configured state mapping is validated first": "resolve_configured_state_asset_id" in service and re.search(r"resolve_configured_state_asset_id\(family, candidate_state, surface, variant\).*?if not configured_asset_id\.is_empty\(\):.*?return configured_asset_id.*?_state_candidates", service, re.S) is not None,
+    "configured state mapping is validated first": "resolve_configured_state_asset_id" in service and re.search(r"resolve_configured_state_asset_id\(family, candidate_state, surface(?:, source_variant)?\).*?if not configured_asset_id\.is_empty\(\):.*?return configured_asset_id.*?_state_candidates", service, re.S) is not None,
     "light base fallback comes from catalog": re.search(r'"base"\s*:\s*"light_off_wall_01"', catalog) is not None and "Compatibility: no light_base_wall asset exists yet" not in service and "family == \"light\" and surface == \"wall\"" not in service,
     "overlay resolution reads configured overlays": "resolve_configured_overlay_asset_ids" in service and re.search(r'"overlays"\s*:\s*\{\s*"on"\s*:\s*\["light_on_wall_pulsar_overlay_01"\]', catalog, re.S) is not None,
     "convention fallback still exists": '"%s_%s_%s_01" % [family, state, surface]' in service and '"%s_%s_%s_pulsar_overlay_01" % [family, state, surface]' in service,
@@ -101,6 +101,21 @@ checks = {
     "station archetype opts into static floor visual family": all(token in station_archetype for token in ['"visual_family":"station"', '"visual_surface":"floor"', '"visual_state_policy":"static"']),
     "station resolution is not renderer hardcoded": all(token not in renderer for token in station_asset_ids),
 }
+
+
+checks.update({
+    "air_cooling family exists": re.search(r'"air_cooling"\s*:\s*\{.*?"category"\s*:\s*"objects"', catalog, re.S) is not None,
+    "air_cooling family uses floor powered airflow defaults": all(token in catalog for token in ['"surface": "floor"', '"visual_state_policy": "powered_three_state"', '"variant_policy": "airflow_direction"', '"default_variant": "sw"']),
+    "air_cooling direction variants mirror generically": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"sw"\s*:\s*\{"source"\s*:\s*"sw",\s*"mirror_x"\s*:\s*false\}', r'"se"\s*:\s*\{"source"\s*:\s*"sw",\s*"mirror_x"\s*:\s*true\}', r'"ne"\s*:\s*\{"source"\s*:\s*"ne",\s*"mirror_x"\s*:\s*false\}', r'"nw"\s*:\s*\{"source"\s*:\s*"ne",\s*"mirror_x"\s*:\s*true\}']),
+    "air_cooling states only use source variants": all(token in catalog for token in ['"sw": {"base": "air_cooling_base_floor_sw_01", "off": "air_cooling_off_floor_sw_01", "on": "air_cooling_on_floor_sw_01"}', '"ne": {"base": "air_cooling_base_floor_ne_01", "off": "air_cooling_off_floor_ne_01", "on": "air_cooling_on_floor_ne_01"}']) and 'air_cooling_base_floor_se_01' not in catalog and 'air_cooling_base_floor_nw_01' not in catalog,
+    "air_cooling overlays only use source variants": all(token in catalog for token in ['"sw": {"off": ["pulsar_overlay_air_cooling_off_floor_sw_01"], "on": ["pulsar_overlay_air_cooling_on_floor_sw_01"]}', '"ne": {"off": ["pulsar_overlay_air_cooling_off_floor_ne_01"], "on": ["pulsar_overlay_air_cooling_on_floor_ne_01"]}']),
+    "air_cooling real source ids are cataloged": all(token in catalog for token in ['"air_cooling_base_floor_ne_01"', '"air_cooling_base_floor_sw_01"', '"air_cooling_off_floor_ne_01"', '"air_cooling_off_floor_sw_01"', '"air_cooling_on_floor_ne_01"', '"air_cooling_on_floor_sw_01"', '"pulsar_overlay_air_cooling_off_floor_ne_01"', '"pulsar_overlay_air_cooling_off_floor_sw_01"', '"pulsar_overlay_air_cooling_on_floor_ne_01"', '"pulsar_overlay_air_cooling_on_floor_sw_01"']),
+    "resolver supports direction source mirror descriptor": all(token in service for token in ['normalize_direction_variant', 'resolve_direction_variant_mapping', 'resolve_visual_asset_descriptor', '"source_variant"', '"mirror_x"']),
+    "resolver checks airflow direction fields": all(token in service for token in ['"airflow_direction"', '"flow_direction"', '"facing_side"', '"facing_dir"', '"direction"', '"visual_variant"', '"variant"']),
+    "overlay resolver uses source variant and preserves mirror descriptor path": 'resolve_configured_overlay_asset_ids(family, state, surface, source_variant)' in service and 'resolve_visual_asset_descriptor' in renderer and 'descriptor["mirror_h"] = true' in renderer,
+    "external air cooler remains single configurable archetype": re.search(r'"external_air_cooler"\s*:\s*\{.*?"airflow_direction":"sw".*?"visual_family":"air_cooling".*?"property_schema":\[\{"field":"airflow_direction"', world_catalog, re.S) is not None,
+    "renderer does not hardcode air_cooling assets": all(token not in renderer for token in ['air_cooling_base_floor_ne_01', 'air_cooling_base_floor_sw_01', 'air_cooling_off_floor_ne_01', 'air_cooling_off_floor_sw_01', 'air_cooling_on_floor_ne_01', 'air_cooling_on_floor_sw_01']),
+})
 
 failed = [name for name, ok in checks.items() if not ok]
 if failed:

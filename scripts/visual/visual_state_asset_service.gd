@@ -38,6 +38,59 @@ static func _identity_blob(object_data: Dictionary) -> String:
 	return blob
 
 
+
+static func normalize_direction_variant(value: Variant) -> String:
+	var normalized: String = _normalized_text(value)
+	match normalized:
+		"ne", "north_east", "up_right", "right_up":
+			return "ne"
+		"nw", "north_west", "up_left", "left_up":
+			return "nw"
+		"se", "south_east", "down_right", "right_down":
+			return "se"
+		"sw", "south_west", "down_left", "left_down":
+			return "sw"
+		_:
+			# TODO: Do not guess cardinal strings such as "right" without a project-wide isometric convention.
+			return ""
+
+static func get_logical_visual_variant(object_data: Dictionary, config: Dictionary) -> String:
+	for key in ["airflow_direction", "flow_direction", "facing_side", "facing_dir", "direction", "visual_variant", "variant"]:
+		var normalized: String = normalize_direction_variant(object_data.get(key, ""))
+		if not normalized.is_empty():
+			return normalized
+	return normalize_direction_variant(config.get("default_variant", ""))
+
+static func resolve_direction_variant_mapping(config: Dictionary, logical_variant: String) -> Dictionary:
+	var default_variant: String = normalize_direction_variant(config.get("default_variant", ""))
+	var normalized_variant: String = normalize_direction_variant(logical_variant)
+	if normalized_variant.is_empty():
+		normalized_variant = default_variant
+	var variants: Dictionary = Dictionary(config.get("direction_variants", {})) if typeof(config.get("direction_variants", {})) == TYPE_DICTIONARY else {}
+	if not variants.has(normalized_variant):
+		normalized_variant = default_variant
+	if variants.has(normalized_variant) and typeof(variants.get(normalized_variant)) == TYPE_DICTIONARY:
+		var mapping: Dictionary = Dictionary(variants.get(normalized_variant)).duplicate(true)
+		mapping["logical_variant"] = normalized_variant
+		mapping["source_variant"] = _normalized_text(mapping.get("source", normalized_variant))
+		mapping["mirror_x"] = bool(mapping.get("mirror_x", mapping.get("flip_x", false)))
+		return mapping
+	return {"logical_variant": normalized_variant, "source_variant": normalized_variant, "source": normalized_variant, "mirror_x": false}
+
+static func resolve_visual_asset_descriptor(object_data: Dictionary) -> Dictionary:
+	var asset_id: String = resolve_visual_asset_id(object_data)
+	var family: String = get_visual_family(object_data)
+	var config: Dictionary = get_visual_state_family_config(family)
+	var mapping: Dictionary = resolve_direction_variant_mapping(config, get_logical_visual_variant(object_data, config)) if not config.is_empty() else {}
+	return {
+		"asset_id": asset_id,
+		"visual_asset_id": asset_id,
+		"mirror_x": bool(mapping.get("mirror_x", false)),
+		"mirror_h": bool(mapping.get("mirror_x", false)),
+		"logical_variant": str(mapping.get("logical_variant", "")),
+		"source_variant": str(mapping.get("source_variant", ""))
+	}
+
 static func get_visual_state_family_config(family: String) -> Dictionary:
 	var normalized_family: String = _normalized_text(family)
 	if normalized_family.is_empty():
@@ -53,7 +106,7 @@ static func get_visual_state_family_config(family: String) -> Dictionary:
 static func has_visual_state_family(family: String) -> bool:
 	return not get_visual_state_family_config(family).is_empty()
 
-static func resolve_configured_state_asset_id(family: String, state: String, surface: String, variant: String = "") -> String:
+static func resolve_configured_state_asset_id(family: String, state: String, surface: String, source_variant: String = "") -> String:
 	var config: Dictionary = get_visual_state_family_config(family)
 	if config.is_empty():
 		return ""
@@ -62,6 +115,12 @@ static func resolve_configured_state_asset_id(family: String, state: String, sur
 	if normalized_state.is_empty() or typeof(states_variant) != TYPE_DICTIONARY:
 		return ""
 	var states: Dictionary = Dictionary(states_variant)
+	var normalized_source_variant: String = _normalized_text(source_variant)
+	if not normalized_source_variant.is_empty() and states.has(normalized_source_variant) and typeof(states.get(normalized_source_variant)) == TYPE_DICTIONARY:
+		var variant_states: Dictionary = Dictionary(states.get(normalized_source_variant))
+		if variant_states.has(normalized_state):
+			var variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variant_states.get(normalized_state, "")))
+			return variant_asset_id if VisualAssetCatalogRef.has_asset(variant_asset_id) else ""
 	var normalized_surface: String = _normalized_text(surface)
 	var normalized_variant: String = _normalized_text(variant)
 	if not normalized_variant.is_empty() and states.has(normalized_variant) and typeof(states.get(normalized_variant)) == TYPE_DICTIONARY:
@@ -79,7 +138,7 @@ static func resolve_configured_state_asset_id(family: String, state: String, sur
 	var asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(states.get(normalized_state, "")))
 	return asset_id if VisualAssetCatalogRef.has_asset(asset_id) else ""
 
-static func resolve_configured_overlay_asset_ids(family: String, state: String, surface: String) -> Array[String]:
+static func resolve_configured_overlay_asset_ids(family: String, state: String, surface: String, source_variant: String = "") -> Array[String]:
 	var config: Dictionary = get_visual_state_family_config(family)
 	var resolved: Array[String] = []
 	if config.is_empty():
@@ -89,9 +148,14 @@ static func resolve_configured_overlay_asset_ids(family: String, state: String, 
 	if normalized_state.is_empty() or typeof(overlays_variant) != TYPE_DICTIONARY:
 		return resolved
 	var overlays: Dictionary = Dictionary(overlays_variant)
-	if not overlays.has(normalized_state):
+	var configured_variant: Variant = null
+	var normalized_source_variant: String = _normalized_text(source_variant)
+	if not normalized_source_variant.is_empty() and overlays.has(normalized_source_variant) and typeof(overlays.get(normalized_source_variant)) == TYPE_DICTIONARY:
+		configured_variant = Dictionary(overlays.get(normalized_source_variant)).get(normalized_state, [])
+	elif overlays.has(normalized_state):
+		configured_variant = overlays.get(normalized_state, [])
+	else:
 		return resolved
-	var configured_variant: Variant = overlays.get(normalized_state, [])
 	var candidates: Array = []
 	if typeof(configured_variant) == TYPE_STRING or typeof(configured_variant) == TYPE_STRING_NAME:
 		candidates.append(str(configured_variant))
@@ -212,6 +276,8 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 			return VISUAL_STATE_OFF
 	if _has_false_power_flag(object_data):
 		return VISUAL_STATE_BASE
+	if object_data.has("fan_enabled"):
+		return VISUAL_STATE_ON if bool(object_data.get("fan_enabled", false)) else VISUAL_STATE_OFF
 	if power_state in ACTIVE_STATES:
 		return VISUAL_STATE_ON
 	if power_state in UNAVAILABLE_STATES:
@@ -295,10 +361,12 @@ static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 		var static_asset_id: String = resolve_configured_variant_asset_id(family, resolve_visual_variant(object_data), surface)
 		return static_asset_id if not static_asset_id.is_empty() else "object_generic"
 	var state: String = resolve_visual_state(object_data)
-	var variant: String = resolve_visual_variant(object_data)
+	var config: Dictionary = get_visual_state_family_config(family)
+	var variant_mapping: Dictionary = resolve_direction_variant_mapping(config, get_logical_visual_variant(object_data, config)) if not config.is_empty() else {}
+	var source_variant: String = str(variant_mapping.get("source_variant", ""))
 	var fallback_states: Array[String] = _fallback_state_order(state)
 	for candidate_state in fallback_states:
-		var configured_asset_id: String = resolve_configured_state_asset_id(family, candidate_state, surface, variant)
+		var configured_asset_id: String = resolve_configured_state_asset_id(family, candidate_state, surface, source_variant)
 		if not configured_asset_id.is_empty():
 			return configured_asset_id
 		for candidate in _state_candidates(family, str(candidate_state), surface, variant):
@@ -319,7 +387,12 @@ static func resolve_overlay_asset_ids(object_data: Dictionary, selected_asset_id
 		var normalized_selected: String = VisualAssetCatalogRef.normalize_asset_id(selected_asset_id)
 		if normalized_selected != resolve_visual_asset_id(object_data):
 			return []
-	var resolved: Array[String] = resolve_configured_overlay_asset_ids(family, state, surface)
+	var config: Dictionary = get_visual_state_family_config(family)
+	var variant_mapping: Dictionary = resolve_direction_variant_mapping(config, get_logical_visual_variant(object_data, config)) if not config.is_empty() else {}
+	var source_variant: String = str(variant_mapping.get("source_variant", ""))
+	var resolved: Array[String] = resolve_configured_overlay_asset_ids(family, state, surface, source_variant)
+	if not source_variant.is_empty():
+		return resolved
 	var preferred: Array[String] = [
 		"%s_%s_pulsar_overlay_%s_01" % [family, state, surface],
 		"%s_%s_%s_pulsar_overlay_01" % [family, state, surface],
