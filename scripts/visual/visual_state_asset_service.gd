@@ -1,7 +1,7 @@
 extends RefCounted
 class_name VisualStateAssetService
 
-const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
+const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_catalog.gd")
 const CableReelVisualStateServiceRef = preload("res://scripts/game/cable/cable_reel_visual_state_service.gd")
 const PowerSocketVisualStateServiceRef = preload("res://scripts/game/power/power_socket_visual_state_service.gd")
 const FuseBoxVisualStateServiceRef = preload("res://scripts/game/power/fuse_box_visual_state_service.gd")
@@ -103,7 +103,7 @@ static func get_visual_state_family_config(family: String) -> Dictionary:
 	var normalized_family: String = _normalized_text(family)
 	if normalized_family.is_empty():
 		return {}
-	var families: Dictionary = VisualAssetCatalogRef.get_visual_state_asset_families()
+	var families: Dictionary = VisualAssetCatalogScript.get_visual_state_asset_families()
 	if not families.has(normalized_family):
 		return {}
 	var config_variant: Variant = families.get(normalized_family, {})
@@ -130,22 +130,22 @@ static func resolve_configured_state_asset_id(family: String, state: String, sur
 		if surface_mapping.has(normalized_variant) and typeof(surface_mapping.get(normalized_variant)) == TYPE_DICTIONARY:
 			var surface_variant_states: Dictionary = Dictionary(surface_mapping.get(normalized_variant))
 			if surface_variant_states.has(normalized_state):
-				var surface_variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(surface_variant_states.get(normalized_state, "")))
-				return surface_variant_asset_id if VisualAssetCatalogRef.has_asset(surface_variant_asset_id) else ""
+				var surface_variant_asset_id: String = VisualAssetCatalogScript.normalize_asset_id(str(surface_variant_states.get(normalized_state, "")))
+				return surface_variant_asset_id if VisualAssetCatalogScript.has_asset(surface_variant_asset_id) else ""
 	if not normalized_variant.is_empty() and states.has(normalized_variant) and typeof(states.get(normalized_variant)) == TYPE_DICTIONARY:
 		var variant_states: Dictionary = Dictionary(states.get(normalized_variant))
 		if variant_states.has(normalized_state):
-			var variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variant_states.get(normalized_state, "")))
-			return variant_asset_id if VisualAssetCatalogRef.has_asset(variant_asset_id) else ""
+			var variant_asset_id: String = VisualAssetCatalogScript.normalize_asset_id(str(variant_states.get(normalized_state, "")))
+			return variant_asset_id if VisualAssetCatalogScript.has_asset(variant_asset_id) else ""
 	if states.has(normalized_surface) and typeof(states.get(normalized_surface)) == TYPE_DICTIONARY:
 		var surface_states: Dictionary = Dictionary(states.get(normalized_surface))
 		if surface_states.has(normalized_state):
-			var surface_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(surface_states.get(normalized_state, "")))
-			return surface_asset_id if VisualAssetCatalogRef.has_asset(surface_asset_id) else ""
+			var surface_asset_id: String = VisualAssetCatalogScript.normalize_asset_id(str(surface_states.get(normalized_state, "")))
+			return surface_asset_id if VisualAssetCatalogScript.has_asset(surface_asset_id) else ""
 	if not states.has(normalized_state):
 		return ""
-	var asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(states.get(normalized_state, "")))
-	return asset_id if VisualAssetCatalogRef.has_asset(asset_id) else ""
+	var asset_id: String = VisualAssetCatalogScript.normalize_asset_id(str(states.get(normalized_state, "")))
+	return asset_id if VisualAssetCatalogScript.has_asset(asset_id) else ""
 
 static func resolve_configured_overlay_asset_ids(family: String, state: String, surface: String, source_variant: String = "") -> Array[String]:
 	var config: Dictionary = get_visual_state_family_config(family)
@@ -174,8 +174,8 @@ static func resolve_configured_overlay_asset_ids(family: String, state: String, 
 	elif typeof(configured_variant) == TYPE_ARRAY:
 		candidates = Array(configured_variant)
 	for candidate_variant in candidates:
-		var asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(candidate_variant))
-		if VisualAssetCatalogRef.has_asset(asset_id) and not resolved.has(asset_id):
+		var asset_id: String = VisualAssetCatalogScript.normalize_asset_id(str(candidate_variant))
+		if VisualAssetCatalogScript.has_asset(asset_id) and not resolved.has(asset_id):
 			resolved.append(asset_id)
 	return resolved
 
@@ -469,17 +469,17 @@ static func resolve_configured_variant_asset_id(family: String, variant: String,
 	if typeof(variants_value) == TYPE_DICTIONARY:
 		var variants: Dictionary = Dictionary(variants_value)
 		if variants.has(normalized_variant):
-			var configured_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variants.get(normalized_variant, "")))
-			if VisualAssetCatalogRef.has_asset(configured_asset_id):
+			var configured_asset_id: String = VisualAssetCatalogScript.normalize_asset_id(str(variants.get(normalized_variant, "")))
+			if VisualAssetCatalogScript.has_asset(configured_asset_id):
 				return configured_asset_id
 	var normalized_surface: String = _normalized_text(surface)
 	var convention_asset_id: String = "%s_%s_%s_01" % [_normalized_text(family), normalized_variant, normalized_surface]
-	if VisualAssetCatalogRef.has_asset(convention_asset_id):
+	if VisualAssetCatalogScript.has_asset(convention_asset_id):
 		return convention_asset_id
 	var default_variant: String = _normalized_text(config.get("default_variant", "lab"))
 	if default_variant != normalized_variant:
 		return resolve_configured_variant_asset_id(family, default_variant, surface)
-	return VisualAssetCatalogRef.resolve_object_asset_id(family)
+	return VisualAssetCatalogScript.resolve_object_asset_id(family)
 
 static func _state_candidates(family: String, state: String, surface: String, variant: String = "") -> Array[String]:
 	var normalized_variant: String = _normalized_text(variant)
@@ -498,7 +498,7 @@ static func _fallback_state_order(state: String) -> Array[String]:
 static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 	if not object_uses_visual_states(object_data):
 		var legacy_static: String = _legacy_asset_id(object_data)
-		return VisualAssetCatalogRef.resolve_object_asset_id(legacy_static) if not legacy_static.is_empty() else "object_generic"
+		return VisualAssetCatalogScript.resolve_object_asset_id(legacy_static) if not legacy_static.is_empty() else "object_generic"
 	var family: String = get_visual_family(object_data)
 	var surface: String = get_visual_surface(object_data)
 	var config: Dictionary = get_visual_state_family_config(family)
@@ -516,11 +516,11 @@ static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 		if not configured_asset_id.is_empty():
 			return configured_asset_id
 		for candidate in _state_candidates(family, str(candidate_state), surface, source_variant):
-			if VisualAssetCatalogRef.has_asset(candidate):
+			if VisualAssetCatalogScript.has_asset(candidate):
 				return candidate
 	var legacy_id: String = _legacy_asset_id(object_data)
 	if not legacy_id.is_empty():
-		return VisualAssetCatalogRef.resolve_object_asset_id(legacy_id)
+		return VisualAssetCatalogScript.resolve_object_asset_id(legacy_id)
 	return "object_generic"
 
 static func resolve_overlay_asset_ids(object_data: Dictionary, selected_asset_id: String = "") -> Array[String]:
@@ -530,7 +530,7 @@ static func resolve_overlay_asset_ids(object_data: Dictionary, selected_asset_id
 	var surface: String = get_visual_surface(object_data)
 	var state: String = resolve_visual_state(object_data)
 	if not selected_asset_id.is_empty():
-		var normalized_selected: String = VisualAssetCatalogRef.normalize_asset_id(selected_asset_id)
+		var normalized_selected: String = VisualAssetCatalogScript.normalize_asset_id(selected_asset_id)
 		if normalized_selected != resolve_visual_asset_id(object_data):
 			return []
 	var config: Dictionary = get_visual_state_family_config(family)
@@ -545,10 +545,10 @@ static func resolve_overlay_asset_ids(object_data: Dictionary, selected_asset_id
 		"pulsar_overlay_%s_%s_%s_01" % [family, state, surface]
 	]
 	for candidate in preferred:
-		if VisualAssetCatalogRef.has_asset(candidate) and not resolved.has(candidate):
+		if VisualAssetCatalogScript.has_asset(candidate) and not resolved.has(candidate):
 			resolved.append(candidate)
-	for asset_id in VisualAssetCatalogRef.get_all_asset_paths().keys():
-		var normalized_id: String = VisualAssetCatalogRef.normalize_asset_id(str(asset_id))
+	for asset_id in VisualAssetCatalogScript.get_all_asset_paths().keys():
+		var normalized_id: String = VisualAssetCatalogScript.normalize_asset_id(str(asset_id))
 		if normalized_id.contains("pulsar_overlay") and normalized_id.contains(family) and normalized_id.contains(state) and normalized_id.contains(surface) and not resolved.has(normalized_id):
 			resolved.append(normalized_id)
 	return resolved

@@ -1,81 +1,60 @@
 #!/usr/bin/env python3
-"""Repo-local visual asset existence check for the iso renderer hotfix.
-
-This intentionally avoids the Godot CLI: it verifies the canonical floor and
-object visual IDs against the exact case-sensitive paths in this repository.
-"""
+"""Repo-local visual asset existence check for active visual catalog IDs."""
 from pathlib import Path
+import re
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-
-CANONICAL_FLOOR_ASSETS = {
-    "floor_concrete": "assets/visual/isometric/floor/floor_concrete_01.png",
-    "floor_steel": "assets/visual/isometric/floor/floor_steel_01.png",
-    "floor_titan": "assets/visual/isometric/floor/floor_titan_01.png",
-}
-
-CANONICAL_OBJECT_ASSETS = {
-    "cabel_reel_01": "assets/visual/isometric/objects/cabel_reel_01.png",
-    "cabel_reel_02": "assets/visual/isometric/objects/cabel_reel_02.png",
-    "fuse_box_in_01": "assets/visual/isometric/objects/fuse_box_in_01.png",
-    "fuse_box_out_01": "assets/visual/isometric/objects/fuse_box_out_01.png",
-    "fuse_box_in_wall_01": "assets/visual/isometric/objects/fuse_box_in_wall_01.png",
-    "fuse_box_out_wall_01": "assets/visual/isometric/objects/fuse_box_out_wall_01.png",
-    "light_01": "assets/visual/isometric/objects/light_01.png",
-    "power_source_01": "assets/visual/isometric/objects/power_source_01.png",
-    "power_switcher_off_01": "assets/visual/isometric/objects/power_switcher_off_01.png",
-    "power_switcher_off_wall_01": "assets/visual/isometric/objects/power_switcher_off_wall_01.png",
-    "power_switcher_on_01": "assets/visual/isometric/objects/power_switcher_on_01.png",
-    "power_switcher_on_wall_01": "assets/visual/isometric/objects/power_switcher_on_wall_01.png",
-    "radiator_01": "assets/visual/isometric/objects/radiator_01.png",
-    "terminal_01": "assets/visual/isometric/objects/terminal_01.png",
-    "barrel_01": "assets/visual/isometric/moovable/barrel_01.png",
-    "case_01": "assets/visual/isometric/objects/case_01.png",
-    "steel_box_01": "assets/visual/isometric/moovable/steel_box_01.png",
-    "fire_barrel_01": "assets/visual/isometric/moovable/fire_barrel_01.png",
-}
-
-# These are logical/canonical resolver IDs expected by gameplay objects. They
-# intentionally preserve gameplay IDs while pointing to the valid uploaded PNGs.
-EXPECTED_LOGICAL_VARIANTS = {
-    "power_switcher_floor_off": "power_switcher_off_01",
-    "power_switcher_wall_off": "power_switcher_off_wall_01",
-    "power_switcher_floor_on": "power_switcher_on_01",
-    "power_switcher_wall_on": "power_switcher_on_wall_01",
-    "fuse_box_floor_present": "fuse_box_in_01",
-    "fuse_box_floor_empty": "fuse_box_out_01",
-    "fuse_box_wall_present": "fuse_box_in_wall_01",
-    "fuse_box_wall_empty": "fuse_box_out_wall_01",
-    "barrel_normal": "barrel_01",
-    "barrel_fire": "fire_barrel_01",
-    "cable_reel_floor": "cabel_reel_01",
-    "cable_reel_wall": "cabel_reel_02",
-}
+CATALOG_PATH = REPO_ROOT / "scripts/visual/visual_asset_catalog.gd"
+WORLD_CATALOG_PATH = REPO_ROOT / "scripts/world/world_object_catalog.gd"
 
 
-def check_paths(group_name: str, catalog: dict[str, str]) -> list[str]:
-    failures: list[str] = []
-    for asset_id, relative_path in sorted(catalog.items()):
-        path = REPO_ROOT / relative_path
-        if not path.is_file():
-            failures.append(f"{group_name}:{asset_id} -> missing {relative_path}")
-    return failures
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def _asset_paths(catalog: str) -> dict[str, str]:
+    return dict(re.findall(r'"([^"]+)"\s*:\s*"res://([^"]+)"', catalog))
+
+
+def _canonical_object_ids(catalog: str) -> list[str]:
+    match = re.search(r'CANONICAL_OBJECT_VISUAL_IDS:\s*Array\[String\]\s*=\s*\[(.*?)\]', catalog, re.S)
+    if not match:
+        return []
+    return re.findall(r'"([^"]+)"', match.group(1))
+
+
+def _active_palette_asset_ids(world_catalog: str) -> list[str]:
+    return re.findall(r'"visual_asset_id"\s*:\s*"([^"]+)"', world_catalog)
 
 
 def main() -> int:
+    catalog = _read(CATALOG_PATH)
+    world_catalog = _read(WORLD_CATALOG_PATH)
+    asset_paths = _asset_paths(catalog)
+    active_ids = sorted(set(_canonical_object_ids(catalog) + _active_palette_asset_ids(world_catalog)))
     failures: list[str] = []
-    failures.extend(check_paths("floor", CANONICAL_FLOOR_ASSETS))
-    failures.extend(check_paths("object", CANONICAL_OBJECT_ASSETS))
-    for logical_id, canonical_id in sorted(EXPECTED_LOGICAL_VARIANTS.items()):
-        if canonical_id not in CANONICAL_OBJECT_ASSETS:
-            failures.append(f"logical:{logical_id} -> unknown canonical id {canonical_id}")
+    for asset_id in active_ids:
+        relative = asset_paths.get(asset_id, "")
+        if not relative:
+            failures.append(f"active:{asset_id} -> no ASSET_PATHS entry")
+            continue
+        if not (REPO_ROOT / relative).is_file():
+            failures.append(f"active:{asset_id} -> missing {relative}")
+    for blocked_id in ["power_switcher_off_01", "steel_box_01"]:
+        relative = asset_paths.get(blocked_id, "")
+        if not relative or not (REPO_ROOT / relative).is_file():
+            failures.append(f"blocked-runtime-warning:{blocked_id} -> missing active-compatible path {relative}")
+    if '"power_switcher_off": "power_switcher_off_floor_01"' not in catalog:
+        failures.append("alias:power_switcher_off -> not mapped to authored floor asset")
+    if '"steel_box": "heavy_crate_floor_01"' not in catalog:
+        failures.append("alias:steel_box -> not mapped to authored fallback asset")
     if failures:
         print("Visual asset validation failed:")
         for failure in failures:
             print(f"- {failure}")
         return 1
-    print(f"Visual asset validation passed: {len(CANONICAL_FLOOR_ASSETS)} floor assets, {len(CANONICAL_OBJECT_ASSETS)} object assets, {len(EXPECTED_LOGICAL_VARIANTS)} logical variants.")
+    print(f"Visual asset validation passed: {len(active_ids)} active visual ids resolve to existing files.")
     return 0
 
 

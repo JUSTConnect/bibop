@@ -159,7 +159,7 @@ static func _get_runtime_manipulator_tool_channels(ui, bipob, inventory_state: D
 	return channels.slice(0, MANIPULATOR_VISIBLE_SLOTS)
 
 
-static func _get_tool_target_label(ui, bipob) -> String:
+static func _get_tool_target_label(_unused_ui, bipob) -> String:
 	var cut_context: Dictionary = BipobActionControllerRef.get_direct_cut_target_context(bipob) if bipob != null else {}
 	if not bool(cut_context.get("available", false)):
 		return "Empty"
