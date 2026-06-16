@@ -9,7 +9,7 @@ const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_servi
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
-const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
+const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
 const VisualStateAssetServiceRef = preload("res://scripts/visual/visual_state_asset_service.gd")
 const VisualAssetRenderContractServiceRef = preload("res://scripts/visual/visual_asset_render_contract_service.gd")
@@ -116,9 +116,8 @@ const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
 	"light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01",
 	"cable_reel_01", "cable_reel_02",
 	"fuse_box_in_01", "fuse_box_out_01", "fuse_box_in_wall_01", "fuse_box_out_wall_01",
-	"power_switcher_off_01", "power_switcher_on_01", "power_switcher_off_wall_01", "power_switcher_on_wall_01",
 	"barrel_01", "fire_barrel_01", "normal_barrel_floor_01", "fire_barrel_floor_01",
-	"normal_crate_floor_01", "heavy_crate_floor_01", "case_01", "steel_box_01"
+	"normal_crate_floor_01", "radiator_floor_01"
 ]
 
 const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
@@ -1601,7 +1600,7 @@ func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 			return cached_value as Texture2D
 		return null
 
-	var texture_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	var texture_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
 	if texture_path.is_empty():
 		_iso_floor_asset_texture_cache[normalized_asset_key] = null
 		return null
@@ -1657,7 +1656,7 @@ func get_iso_ground_texture_for_asset_key(asset_key: String) -> Texture2D:
 			return cached_value as Texture2D
 		return null
 
-	var texture_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	var texture_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
 	if texture_path.is_empty():
 		_iso_ground_asset_texture_cache[normalized_asset_key] = null
 		return null
@@ -1828,7 +1827,7 @@ func get_iso_gray_test_asset_path(asset_key: String) -> String:
 	if normalized_asset_key.is_empty():
 		return ""
 
-	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	var catalog_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
 	if catalog_path.find("/test/") >= 0:
 		return catalog_path
 
@@ -1932,7 +1931,7 @@ func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 				return cached_value as Texture2D
 			return null
 
-		var texture_path: String = VisualAssetCatalogRef.get_asset_path(normalized_key)
+		var texture_path: String = VisualAssetCatalogScript.get_asset_path(normalized_key)
 		if texture_path.is_empty():
 			_iso_wall_asset_texture_cache[normalized_key] = null
 			return null
@@ -2240,7 +2239,7 @@ func get_breach_overlay_texture_for_asset_key(asset_key: String) -> Texture2D:
 			return cached_value as Texture2D
 		return null
 
-	var texture_path: String = VisualAssetCatalogRef.get_asset_path(normalized_key)
+	var texture_path: String = VisualAssetCatalogScript.get_asset_path(normalized_key)
 	if texture_path.is_empty():
 		_iso_wall_breach_overlay_texture_cache[normalized_key] = null
 		return null
@@ -2368,11 +2367,11 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 		"keycard", "digital_key":
 			return "object_keycard"
 		"fuse":
-			return "object_fuse"
+			return VisualAssetCatalogScript.resolve_object_asset_id("fuse")
 		"fuse_box":
 			return "fuse_box_in_01"
 		"repair_kit":
-			return "object_repair_kit"
+			return VisualAssetCatalogScript.resolve_object_asset_id("repair_kit")
 		"access_code", "datafile":
 			return "object_access_code"
 		"component":
@@ -2386,7 +2385,7 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 		"button", "platform_control", "fan_control", "fan_speed_control":
 			return "object_button"
 		"switch", "breaker", "circuit_breaker", "light_switch", "power_switcher":
-			return "power_switcher_off_01"
+			return VisualAssetCatalogScript.resolve_object_asset_id("power_switcher_off")
 		"power_source":
 			return "power_source_01"
 		"radiator":
@@ -2396,9 +2395,9 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 		"barrel":
 			return "barrel_01"
 		"crate", "box", "steel_box":
-			return "steel_box_01"
+			return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
 		"case":
-			return "case_01"
+			return VisualAssetCatalogScript.resolve_object_asset_id("case")
 		_:
 			return "object_generic"
 
@@ -2520,14 +2519,16 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 	var explicit_visual_asset_id: String = str(object_data.get("visual_asset_id", object_data.get("visual_texture_asset_id", object_data.get("texture_asset_id", object_data.get("asset_id", ""))))).strip_edges()
 	if not explicit_visual_asset_id.is_empty():
 		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
+	if VisualStateAssetServiceRef.object_uses_visual_states(object_data):
+		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
 	if type_value == "platform" or blob.contains(" platform"):
 		return ""
 	if type_value == "power_switcher" or blob.contains("power_switcher"):
 		var mount: String = _get_object_mount_mode(object_data)
 		var on_suffix: String = "on" if _is_object_state_on(object_data) else "off"
 		if mount == "wall":
-			return "power_switcher_%s_wall_01" % on_suffix
-		return "power_switcher_%s_01" % on_suffix
+			return VisualAssetCatalogScript.resolve_object_asset_id("power_switcher_%s_wall" % on_suffix)
+		return VisualAssetCatalogScript.resolve_object_asset_id("power_switcher_%s_floor" % on_suffix)
 	if type_value == "fuse_box" or blob.contains("fuse_box"):
 		var fuse_suffix: String = "in" if _is_fuse_present(object_data) else "out"
 		if _get_object_mount_mode(object_data) == "wall":
@@ -2537,29 +2538,27 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 		var switch_mount: String = _get_object_mount_mode(object_data)
 		var switch_suffix: String = "on" if _is_object_state_on(object_data) else "off"
 		if switch_mount == "wall":
-			return "power_switcher_%s_wall_01" % switch_suffix
-		return "power_switcher_%s_01" % switch_suffix
+			return VisualAssetCatalogScript.resolve_object_asset_id("power_switcher_%s_wall" % switch_suffix)
+		return VisualAssetCatalogScript.resolve_object_asset_id("power_switcher_%s_floor" % switch_suffix)
 	if type_value == "barrel" or type_value == "fire_barrel" or type_value == "normal_barrel" or blob.contains("barrel"):
 		var barrel_variant: String = str(object_data.get("variant", "normal")).to_lower().strip_edges()
 		if barrel_variant == "fire" or type_value == "fire_barrel" or blob.contains("fire_barrel") or blob.contains("fire barrel") or blob.contains("flammable"):
 			return "fire_barrel_floor_01"
 		return "normal_barrel_floor_01"
 	if type_value == "heavy_crate" or blob.contains("heavy_crate") or blob.contains("heavy crate"):
-		return "heavy_crate_floor_01"
+		return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
 	if type_value == "crate" or type_value == "normal_crate" or blob.contains("normal_crate") or blob.contains("normal crate"):
 		return "normal_crate_floor_01"
 	if type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
-		return "steel_box_01"
+		return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
 	if type_value == "case" or blob.contains(" case"):
-		return "case_01"
+		return VisualAssetCatalogScript.resolve_object_asset_id("case")
 	if type_value == "cable_reel" or type_value == "power_cable_reel" or blob.contains("cable_reel") or blob.contains("cable reel"):
 		return "cable_reel_02" if _get_object_mount_mode(object_data) == "wall" else "cable_reel_01"
 	if type_value == "power_source" or blob.contains("power_source"):
 		return "power_source_01"
 	if type_value == "radiator" or type_value == "external_radiator" or blob.contains("radiator"):
 		return "radiator_floor_01"
-	if VisualStateAssetServiceRef.object_uses_visual_states(object_data):
-		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
 	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
 		return "terminal_01"
 	if blob.contains("door") or blob.contains("powered_gate"):
@@ -2571,9 +2570,9 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 	if blob.contains("key"):
 		return "object_key"
 	if blob.contains("fuse"):
-		return "object_fuse"
+		return VisualAssetCatalogScript.resolve_object_asset_id("fuse")
 	if blob.contains("repair_kit") or blob.contains("repair kit"):
-		return "object_repair_kit"
+		return VisualAssetCatalogScript.resolve_object_asset_id("repair_kit")
 	if blob.contains("access_code") or blob.contains("access code"):
 		return "object_access_code"
 	if blob.contains("component"):
@@ -2633,7 +2632,7 @@ func get_iso_object_png_asset_path(asset_key: String) -> String:
 	if normalized_asset_key.is_empty():
 		return ""
 
-	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	var catalog_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
 	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0):
 		return catalog_path
 
@@ -2670,7 +2669,7 @@ func get_iso_placeholder_asset_path(asset_key: String) -> String:
 	if normalized_asset_key.is_empty():
 		return ""
 
-	var catalog_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	var catalog_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
 	if catalog_path.find("/placeholders/") >= 0:
 		return catalog_path
 
@@ -2709,7 +2708,7 @@ func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
 	if should_skip_placeholder_object_texture_in_gray_test(normalized_asset_key):
 		return null
 
-	var placeholder_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	var placeholder_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
 	if placeholder_path.is_empty() or placeholder_path.find("/placeholders/") < 0:
 		return null
 
@@ -2813,7 +2812,7 @@ func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 		return explicit_texture
 	if should_skip_placeholder_object_texture_in_gray_test(normalized_asset_key):
 		return null
-	var placeholder_path: String = VisualAssetCatalogRef.get_asset_path(normalized_asset_key)
+	var placeholder_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
 	if placeholder_path.is_empty() or placeholder_path.find("/placeholders/") < 0:
 		return null
 
@@ -2911,7 +2910,7 @@ func validate_iso_object_png_assets() -> Dictionary:
 	var invalid_textures: Array[Dictionary] = []
 	var svg_conflicts: Array[Dictionary] = []
 	var assets: Dictionary = {}
-	for visual_id_variant in VisualAssetCatalogRef.get_canonical_object_visual_ids():
+	for visual_id_variant in VisualAssetCatalogScript.get_canonical_object_visual_ids():
 		var visual_id: String = str(visual_id_variant)
 		var expected_path: String = get_iso_object_png_asset_path(visual_id)
 		var exists: bool = false
@@ -2929,7 +2928,7 @@ func validate_iso_object_png_assets() -> Dictionary:
 			svg_conflicts.append({"visual_id": visual_id, "png_path": expected_path, "svg_path": placeholder_path})
 	return {
 		"ok": missing_paths.is_empty() and invalid_textures.is_empty() and svg_conflicts.is_empty(),
-		"asset_count": VisualAssetCatalogRef.get_canonical_object_visual_ids().size(),
+		"asset_count": VisualAssetCatalogScript.get_canonical_object_visual_ids().size(),
 		"assets": assets,
 		"missing_paths": missing_paths,
 		"invalid_textures": invalid_textures,
@@ -2952,9 +2951,8 @@ func get_iso_visual_texture_debug_keys() -> Array[String]:
 		"object_fuse", "object_repair_kit", "object_keycard", "object_access_code", "object_cable_reel", "object_button", "object_switch",
 		"power_source_01", "terminal_01", "radiator_01", "radiator_floor_01", "light_01", "light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01", "cable_reel_01", "cable_reel_02",
 		"fuse_box_in_01", "fuse_box_out_01", "fuse_box_in_wall_01", "fuse_box_out_wall_01",
-		"power_switcher_off_01", "power_switcher_on_01", "power_switcher_off_wall_01", "power_switcher_on_wall_01",
 		"barrel_01", "fire_barrel_01", "normal_barrel_floor_01", "fire_barrel_floor_01",
-		"normal_crate_floor_01", "heavy_crate_floor_01", "case_01", "steel_box_01"
+		"normal_crate_floor_01", "radiator_floor_01"
 	]
 
 
@@ -2964,7 +2962,7 @@ func get_iso_asset_alignment_diagnostics() -> Dictionary:
 	var scale_overrides: Dictionary = {}
 
 	var known_object_asset_keys: Dictionary = {}
-	var all_asset_paths: Dictionary = VisualAssetCatalogRef.get_all_asset_paths()
+	var all_asset_paths: Dictionary = VisualAssetCatalogScript.get_all_asset_paths()
 
 	for asset_key_variant in all_asset_paths.keys():
 		var asset_key: String = str(asset_key_variant)
@@ -4212,7 +4210,11 @@ func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	var rule: Dictionary = {}
 
 	if ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
-		rule = Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(asset_key, {}))
+		var raw_rule: Variant = ISO_ASSET_ALIGNMENT_RULES.get(asset_key, {})
+		if raw_rule is Dictionary:
+			rule = Dictionary(raw_rule).duplicate(true)
+		else:
+			rule = {}
 	elif asset_key.begins_with("floor_"):
 		rule = {
 			"anchor": "center",
