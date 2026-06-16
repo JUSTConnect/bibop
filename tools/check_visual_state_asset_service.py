@@ -15,6 +15,14 @@ firewall_service = root / "scripts/game/firewall/firewall_service.gd"
 station_archetype = world_catalog.split('"station": {', 1)[1].split('\n\t"firewall": {', 1)[0]
 station_asset_ids = ["station_decrypt_floor_01", "station_lab_floor_01", "station_recharge_floor_01", "station_repair_floor_01", "station_shop_floor_01"]
 
+
+ITEM_ASSET_IDS = [
+    "parts_floor_01",
+    "fuse_floor_01",
+    "reinforcement_floor_01",
+    "repair_kit_floor_01",
+]
+
 DOOR_ASSET_IDS = [
     "door_close_base_floor_01",
     "door_close_off_floor_01",
@@ -26,6 +34,14 @@ DOOR_ASSET_IDS = [
 door_archetype = world_catalog.split('"door": {', 1)[1].split('\n\t"platform": {', 1)[0]
 
 checks = {
+
+    "item floor asset ids exist": all(f'"{asset_id}"' in catalog for asset_id in ITEM_ASSET_IDS),
+    "parts aliases map to parts floor asset": all(f'"{alias}": "parts_floor_01"' in catalog for alias in ["parts", "details", "ditales"]),
+    "fuse alias maps to fuse floor asset": '"fuse": "fuse_floor_01"' in catalog,
+    "reinforcement aliases map to reinforcement floor asset": all(f'"{alias}": "reinforcement_floor_01"' in catalog for alias in ["reinforcement", "reinforce"]),
+    "repair kit aliases map to repair kit floor asset": all(f'"{alias}": "repair_kit_floor_01"' in catalog for alias in ["repair_kit", "repair_tool"]),
+    "core item gameplay entries remain in object library": all(re.search(rf'"{item_id}"\s*:\s*\{{[^}}]*"group"\s*:\s*"item"', world_catalog) is not None for item_id in ["fuse", "repair_kit", "reinforcement", "parts"]),
+    "renderer does not hardcode static item floor asset ids": all(token not in renderer for token in ITEM_ASSET_IDS),
 
     "door family exists in visual state catalog": re.search(r'"door"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,
     "door family uses door pose variant policy": re.search(r'"door"\s*:\s*\{.*?"variant_policy"\s*:\s*"door_pose".*?"default_variant"\s*:\s*"close"', catalog, re.S) is not None,

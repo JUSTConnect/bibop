@@ -2517,6 +2517,9 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 	var name_value: String = str(object_data.get("name", "")).to_lower().strip_edges()
 	var id_value: String = str(object_data.get("id", object_data.get("object_id", ""))).to_lower().strip_edges()
 	var blob: String = "%s %s %s %s %s %s" % [fallback_profile_key.to_lower(), type_value, prefab_value, group_value, name_value, id_value]
+	var explicit_visual_asset_id: String = str(object_data.get("visual_asset_id", object_data.get("visual_texture_asset_id", object_data.get("texture_asset_id", object_data.get("asset_id", ""))))).strip_edges()
+	if not explicit_visual_asset_id.is_empty():
+		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
 	if type_value == "platform" or blob.contains(" platform"):
 		return ""
 	if type_value == "power_switcher" or blob.contains("power_switcher"):
