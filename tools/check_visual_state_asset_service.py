@@ -79,6 +79,19 @@ DOOR_ASSET_IDS = [
 ]
 door_archetype = world_catalog.split('"door": {', 1)[1].split('\n\t"platform": {', 1)[0]
 
+POWER_SOCKET_STALE_UNPOWERED_SMOKE_CASES = [
+    ({"power_state": "unpowered", "is_powered": True, "connected": False}, "off"),
+    ({"power_state": "unpowered", "is_powered": True, "connected": True}, "on"),
+    ({"power_state": "unpowered", "is_powered": False, "connected": True}, "base"),
+]
+
+def _resolve_power_socket_smoke_state(object_data):
+    true_power_keys = ["is_powered", "powered", "has_power", "receives_power", "upstream_powered"]
+    has_source_power = any(bool(object_data.get(key, False)) for key in true_power_keys if key in object_data)
+    if not has_source_power:
+        return "base"
+    return "on" if bool(object_data.get("connected", False)) else "off"
+
 checks = {
 
     "item floor asset ids exist": all(f'"{asset_id}"' in catalog for asset_id in ITEM_ASSET_IDS),
@@ -204,9 +217,10 @@ checks.update({
     "cable reel resolver behavior is connection driven": all(token in cable_reel_helper for token in ['connected_endpoint_count >= 2 and socket_connected_endpoint_count >= 1', 'connected_endpoint_count == 1 and socket_connected_endpoint_count == 1', 'return STATE_ON', 'return STATE_OFF', 'return STATE_BASE']),
     "visual service supports cable reel custom policy": all(token in service for token in ["CableReelVisualStateService", "VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE", 'policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE', "CableReelVisualStateServiceRef.resolve_visual_state(object_data)"]),
     "power socket source power true flag overrides stale unpowered state": re.search(r"static func _has_source_power.*?_has_true_power_flag\(object_data\).*?return true.*?power_state in POWER_OFF_STATES", service, re.S) is not None,
+    "power socket source power checks all runtime true evidence": all(token in service for token in ['"is_powered"', '"has_power"', '"receives_power"', '"upstream_powered"']),
     "power socket visuals keep connection separate from source power": all(token in service for token in ["static func _resolve_power_socket_visual_state", "_has_source_power(object_data)", "_has_connected_cable(object_data)", "return VISUAL_STATE_ON if _has_connected_cable(object_data) else VISUAL_STATE_OFF", "return VISUAL_STATE_BASE"]),
     "power socket connected false can override stale connection ids": re.search(r'static func _has_connected_cable.*?object_data.has\("connected"\).*?return false.*?connection_id', service, re.S) is not None,
-    "power socket stale unpowered smoke cases are represented": all(token in service for token in ["power_state", "is_powered", "connected"]),
+    "power socket stale unpowered smoke cases resolve correctly": all(_resolve_power_socket_smoke_state(data) == expected for data, expected in POWER_SOCKET_STALE_UNPOWERED_SMOKE_CASES),
     "cable reel resolution is not renderer hardcoded": all(token not in renderer for token in CABLE_REEL_ASSET_IDS),
 })
 

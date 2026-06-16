@@ -257,13 +257,13 @@ static func _is_hard_unavailable_state(value: String) -> bool:
 	return value in UNAVAILABLE_STATES and not POWER_FLAG_OVERRIDE_OFF_STATES.has(value)
 
 static func _has_false_power_flag(object_data: Dictionary) -> bool:
-	for key in ["is_powered", "powered", "has_power", "receives_power"]:
+	for key in ["is_powered", "powered", "has_power", "receives_power", "upstream_powered"]:
 		if object_data.has(key) and not bool(object_data.get(key, false)):
 			return true
 	return false
 
 static func _has_true_power_flag(object_data: Dictionary) -> bool:
-	for key in ["is_powered", "powered", "has_power", "receives_power"]:
+	for key in ["is_powered", "powered", "has_power", "receives_power", "upstream_powered"]:
 		if object_data.has(key) and bool(object_data.get(key, false)):
 			return true
 	return false
