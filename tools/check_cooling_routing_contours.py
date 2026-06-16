@@ -26,6 +26,38 @@ for oid, kind in [('external_air_duct','air_duct'),('external_water_pipe','water
         issues.append(f'{oid} missing wall_side visible_if')
 for token in ['add_archetype_schema_properties_for_tab', 'row_tab', 'TabContainer', 'Cooling System', 'rendered_cooling_schema']:
     if token not in ui: issues.append(f'missing inspector tab hook {token}')
+inspector = Path('scripts/ui/map_constructor/map_constructor_inspector.gd').read_text()
+for token in [
+    'static func _is_cooling_routing_object',
+    'routing_kind", data.get("cooling_system_type"',
+    'object_type in ["external_air_duct", "external_water_pipe"]',
+    'rendered_cooling_schema or is_cooling_routing_object',
+    '_render_cooling_system_controls',
+    '"Route mode"',
+    '"route_mode": "inner", "wall_routing_mode": "inner"',
+    '"route_mode": "outer", "wall_routing_mode": "outer"',
+    '"Wall side 1"',
+    '"Wall side 2"',
+    '"Contour mode"',
+    '"Manual contour id"',
+    '"Computed contour id"',
+    '"Contour members"',
+    '"Contour warnings"',
+    'CoolingRoutingContourServiceRef.build_contours',
+    'CoolingRoutingContourServiceRef.get_object_contour_id',
+    'CoolingRoutingContourServiceRef.collect_contour_warnings',
+    'and not is_cooling_routing_object',
+]:
+    if token not in inspector:
+        issues.append(f'missing robust cooling inspector token {token}')
+if inspector.find('"Route mode"') > inspector.find('"Wall side 1"'):
+    issues.append('route mode is not rendered before wall_side_1')
+if 'data.get("route_mode", data.get("wall_routing_mode", data.get("routing_mode", data.get("routing_style", "outer"))))' not in inspector:
+    issues.append('route mode normalization does not read route_mode/wall_routing_mode/routing_mode/routing_style')
+if '"Manual contour id"' not in inspector or 'if _normalize_cooling_contour_mode(data) == "manual":' not in inspector:
+    issues.append('manual contour id is not conditional on manual mode')
+if '"Wall side 1"' not in inspector or 'if _normalize_wall_routing_mode_value(data) == "inner":' not in inspector:
+    issues.append('wall_side rows are not conditional on inner mode')
 for token in ['class_name CoolingRoutingContourService', 'build_contours', 'collect_contour_warnings', 'get_object_contour_id', 'Manual contour id contains disconnected segments.', 'Manual contour id cannot mix air duct and water pipe.', '_physically_connected']:
     if token not in service: issues.append(f'missing service token {token}')
 if 'CoolingRoutingContourServiceRef.collect_contour_warnings' not in validation:
