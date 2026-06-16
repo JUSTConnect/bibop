@@ -130,6 +130,16 @@ const ASSET_PATHS: Dictionary = {
 	"power_source_on_floor_01": "res://assets/visual/isometric/objects/power_source/power_source_on_floor.png",
 	"pulsar_overlay_power_source_off_floor_01": "res://assets/visual/isometric/objects/power_source/pulsar_overlay_power_source_off_floor.png",
 	"pulsar_overlay_power_source_on_floor_01": "res://assets/visual/isometric/objects/power_source/pulsar_overlay_power_source_on_floor.png",
+	"power_socket_base_floor_01": "res://assets/visual/isometric/objects/power_socket/power_socket_base_floor.png",
+	"power_socket_base_wall_01": "res://assets/visual/isometric/objects/power_socket/power_socket_base_wall.png",
+	"power_socket_off_floor_01": "res://assets/visual/isometric/objects/power_socket/power_socket_off_floor.png",
+	"power_socket_off_wall_01": "res://assets/visual/isometric/objects/power_socket/power_socket_off_wall.png",
+	"power_socket_on_floor_01": "res://assets/visual/isometric/objects/power_socket/power_socket_on_floor.png",
+	"power_socket_on_wall_01": "res://assets/visual/isometric/objects/power_socket/power_socket_on_wall.png",
+	"pulsar_overlay_power_socket_off_floor_01": "res://assets/visual/isometric/objects/power_socket/pulsar_overlay_power_socket_off_floor.png",
+	"pulsar_overlay_power_socket_off_wall_01": "res://assets/visual/isometric/objects/power_socket/pulsar_overlay_power_socket_off_wall.png",
+	"pulsar_overlay_power_socket_on_floor_01": "res://assets/visual/isometric/objects/power_socket/pulsar_overlay_power_socket_on_floor.png",
+	"pulsar_overlay_power_socket_on_wall_01": "res://assets/visual/isometric/objects/power_socket/pulsar_overlay_power_socket_on_wall.png",
 	"power_switcher_off_01": "res://assets/visual/isometric/objects/power_switcher_off_01.png",
 	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_switcher_off_wall_01.png",
 	"power_switcher_on_01": "res://assets/visual/isometric/objects/power_switcher_on_01.png",
@@ -292,6 +302,19 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"power_source_class_1": "power_source_base_floor_01",
 	"power_source_class_2": "power_source_base_floor_01",
 	"power_source_class_3": "power_source_base_floor_01",
+	"power_socket": "power_socket_base_floor_01",
+	"socket": "power_socket_base_floor_01",
+	"outlet": "power_socket_base_floor_01",
+	"power_outlet": "power_socket_base_floor_01",
+	"power_socket_base": "power_socket_base_floor_01",
+	"power_socket_base_floor": "power_socket_base_floor_01",
+	"power_socket_base_wall": "power_socket_base_wall_01",
+	"power_socket_off": "power_socket_off_floor_01",
+	"power_socket_off_floor": "power_socket_off_floor_01",
+	"power_socket_off_wall": "power_socket_off_wall_01",
+	"power_socket_on": "power_socket_on_floor_01",
+	"power_socket_on_floor": "power_socket_on_floor_01",
+	"power_socket_on_wall": "power_socket_on_wall_01",
 	"switcher": "power_switcher_base_floor_01",
 	"power_switcher": "power_switcher_base_floor_01",
 	"power_switcher_base": "power_switcher_base_floor_01",
@@ -411,6 +434,33 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 		}
 	},
 
+	"power_socket": {
+		"category": "objects",
+		"default_surface": "floor",
+		"visual_state_policy": "power_socket_connection_state",
+		"states": {
+			"floor": {
+				"base": "power_socket_base_floor_01",
+				"off": "power_socket_off_floor_01",
+				"on": "power_socket_on_floor_01"
+			},
+			"wall": {
+				"base": "power_socket_base_wall_01",
+				"off": "power_socket_off_wall_01",
+				"on": "power_socket_on_wall_01"
+			}
+		},
+		"overlays": {
+			"floor": {
+				"off": ["pulsar_overlay_power_socket_off_floor_01"],
+				"on": ["pulsar_overlay_power_socket_on_floor_01"]
+			},
+			"wall": {
+				"off": ["pulsar_overlay_power_socket_off_wall_01"],
+				"on": ["pulsar_overlay_power_socket_on_wall_01"]
+			}
+		}
+	},
 	"power_switcher": {
 		"category": "objects",
 		"default_surface": "floor",
@@ -533,6 +583,16 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"power_source_on_floor_01",
 	"pulsar_overlay_power_source_off_floor_01",
 	"pulsar_overlay_power_source_on_floor_01",
+	"power_socket_base_floor_01",
+	"power_socket_base_wall_01",
+	"power_socket_off_floor_01",
+	"power_socket_off_wall_01",
+	"power_socket_on_floor_01",
+	"power_socket_on_wall_01",
+	"pulsar_overlay_power_socket_off_floor_01",
+	"pulsar_overlay_power_socket_off_wall_01",
+	"pulsar_overlay_power_socket_on_floor_01",
+	"pulsar_overlay_power_socket_on_wall_01",
 	"air_cooling_base_floor_ne_01",
 	"air_cooling_base_floor_sw_01",
 	"air_cooling_off_floor_ne_01",
