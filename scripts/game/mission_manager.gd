@@ -4069,7 +4069,19 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 				"warnings": []
 			}
 
-		var wall_side: String = preferred_wall_side.strip_edges().to_lower()
+		var direct_attachment: Dictionary = _resolve_direct_wall_mounted_attachment(cell, preferred_wall_side)
+		var direct_anchor_floor_cell: Vector2i = _deserialize_cell_variant(direct_attachment.get("anchor_floor_cell", Vector2i(-1, -1)))
+		if not bool(direct_attachment.get("ok", false)) or not _is_valid_grid_cell(direct_anchor_floor_cell):
+			return {
+				"ok": false,
+				"reason": "wall_mount_requires_floor_anchor",
+				"message": "Wall-mounted object requires an adjacent floor anchor.",
+				"placement_mode": "wall_mounted",
+				"direct_wall_cell_mount": true,
+				"warnings": []
+			}
+
+		var wall_side: String = str(direct_attachment.get("wall_side", "")).strip_edges().to_lower()
 		if wall_side.is_empty():
 			wall_side = "south"
 
@@ -4111,8 +4123,8 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 			"placement_mode": "wall_mounted",
 			"direct_wall_cell_mount": true,
 			"wall_side": wall_side,
-			"anchor_floor_cell": cell,
-			"attached_wall_cell": cell,
+			"anchor_floor_cell": direct_anchor_floor_cell,
+			"attached_wall_cell": Vector2i(direct_attachment.get("attached_wall_cell", cell)),
 			"warnings": []
 		}
 
