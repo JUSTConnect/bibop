@@ -252,6 +252,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"door": {
 		"archetype_id":"door", "object_group":"door", "object_type":"door", "palette_label":"Door", "facing_side":"SW",
+		"visual_family":"door", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true,
 		"configurable":true,
 		"display_name_template":"{material_label} {door_type_label} Door",
 		"property_schema":[
@@ -315,6 +316,28 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"linked_lighting_ids", "type":"object_ref_array", "target_group":"lighting", "default":[]},
 			{"field":"chain_input_ids", "type":"object_ref_array", "default":[]},
 			{"field":"chain_output_ids", "type":"object_ref_array", "default":[]}
+		]
+	},
+	"station": {
+		"archetype_id":"station", "object_group":"station", "object_type":"station", "palette_label":"Station",
+		"placement_mode":"object", "display_name_template":"{station_type_label} Station", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
+		"station_type":"lab", "allowed_station_types":["decrypt", "lab", "recharge", "repair", "shop"],
+		"visual_family":"station", "visual_surface":"floor", "visual_state_policy":"static", "visual_variant":"lab",
+		"state":"active", "status":"active", "is_powered":true,
+		"property_schema":[
+			{
+				"field":"station_type",
+				"type":"enum",
+				"values":["decrypt", "lab", "recharge", "repair", "shop"],
+				"default":"lab",
+				"labels":{
+					"decrypt":"Decrypt",
+					"lab":"Research Lab",
+					"recharge":"Recharge",
+					"repair":"Repair",
+					"shop":"Shop"
+				}
+			}
 		]
 	},
 	"firewall": {

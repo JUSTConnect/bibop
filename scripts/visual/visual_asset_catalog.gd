@@ -84,6 +84,12 @@ const ASSET_PATHS: Dictionary = {
 	"breach_overlay_concrete_sw": "res://assets/visual/isometric/wall/overlay/wall_breach_overlay_concrete_sw_01.png",
 	"breach_overlay_brick_sw": "res://assets/visual/isometric/wall/overlay/wall_breach_overlay_brick_sw_01.png",
 
+	"door_close_base_floor_01": "res://assets/visual/isometric/objects/door/door_close_base_floor.png",
+	"door_close_off_floor_01": "res://assets/visual/isometric/objects/door/door_close_off_floor.png",
+	"door_close_on_floor_01": "res://assets/visual/isometric/objects/door/door_close_on_floor.png",
+	"door_open_base_floor_01": "res://assets/visual/isometric/objects/door/door_open_base_floor.png",
+	"door_open_off_floor_01": "res://assets/visual/isometric/objects/door/door_open_off_floor.png",
+	"door_open_on_floor_01": "res://assets/visual/isometric/objects/door/door_open_on_floor.png",
 	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
 	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
 	"object_key": "res://assets/visual/isometric/placeholders/iso_object_key.svg",
@@ -157,7 +163,12 @@ const ASSET_PATHS: Dictionary = {
 	"fire_barrel_01": "res://assets/visual/isometric/moovable/fire_barrel_01.png",
 	"fire_barrel_floor_01": "res://assets/visual/isometric/moovable/fire_barrel_floor.png",
 	"normal_crate_floor_01": "res://assets/visual/isometric/moovable/norma_crate_floor.png",
-	"heavy_crate_floor_01": "res://assets/visual/isometric/moovable/heavy_crate_floor.png"
+	"heavy_crate_floor_01": "res://assets/visual/isometric/moovable/heavy_crate_floor.png",
+	"station_decrypt_floor_01": "res://assets/visual/isometric/objects/station/station_incrypt_floor.png",
+	"station_lab_floor_01": "res://assets/visual/isometric/objects/station/station_lab_floor.png",
+	"station_recharge_floor_01": "res://assets/visual/isometric/objects/station/station_recharge_floor.png",
+	"station_repair_floor_01": "res://assets/visual/isometric/objects/station/station_repair_floor.png",
+	"station_shop_floor_01": "res://assets/visual/isometric/objects/station/station_shop_floor.png"
 }
 
 const FLOOR_ASSET_ALIASES: Dictionary = {
@@ -227,6 +238,15 @@ const WALL_ASSET_ALIASES: Dictionary = {
 }
 
 const OBJECT_ASSET_ALIASES: Dictionary = {
+	"door": "door_close_base_floor_01",
+	"door_close": "door_close_base_floor_01",
+	"door_open": "door_open_base_floor_01",
+	"door_close_base": "door_close_base_floor_01",
+	"door_close_off": "door_close_off_floor_01",
+	"door_close_on": "door_close_on_floor_01",
+	"door_open_base": "door_open_base_floor_01",
+	"door_open_off": "door_open_off_floor_01",
+	"door_open_on": "door_open_on_floor_01",
 	"door_state_generic": "object_door",
 	"terminal_state_generic": "object_terminal",
 	"item_generic_marker": "object_generic",
@@ -299,7 +319,15 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"heavy_crate": "heavy_crate_floor_01",
 	"case": "case_01",
 	"steel_box": "steel_box_01",
-	"light": "light_off_wall_01"
+	"light": "light_off_wall_01",
+	"station": "station_lab_floor_01",
+	"station_decrypt": "station_decrypt_floor_01",
+	"station_incrypt": "station_decrypt_floor_01",
+	"station_lab": "station_lab_floor_01",
+	"station_research": "station_lab_floor_01",
+	"station_recharge": "station_recharge_floor_01",
+	"station_repair": "station_repair_floor_01",
+	"station_shop": "station_shop_floor_01"
 }
 
 # Visual state families are the primary resolver contract for powered object art.
@@ -320,6 +348,24 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 		},
 		"overlays": {
 			"on": ["light_on_wall_pulsar_overlay_01"]
+		}
+	},
+	"door": {
+		"category": "objects",
+		"surface": "floor",
+		"variant_policy": "door_pose",
+		"default_variant": "close",
+		"states": {
+			"close": {
+				"base": "door_close_base_floor_01",
+				"off": "door_close_off_floor_01",
+				"on": "door_close_on_floor_01"
+			},
+			"open": {
+				"base": "door_open_base_floor_01",
+				"off": "door_open_off_floor_01",
+				"on": "door_open_on_floor_01"
+			}
 		}
 	},
 	"power_source": {
@@ -408,10 +454,32 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 			"off": ["pulsar_overlay_firewall_off_floor_01"],
 			"on": ["pulsar_overlay_firewall_on_floor_01"]
 		}
+	},
+	"station": {
+		"category": "objects",
+		"surface": "floor",
+		"visual_state_policy": "static",
+		"variant_policy": "station_type",
+		"default_variant": "lab",
+		"variants": {
+			"decrypt": "station_decrypt_floor_01",
+			"incrypt": "station_decrypt_floor_01",
+			"lab": "station_lab_floor_01",
+			"research": "station_lab_floor_01",
+			"recharge": "station_recharge_floor_01",
+			"repair": "station_repair_floor_01",
+			"shop": "station_shop_floor_01"
+		}
 	}
 }
 
 const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
+	"door_close_base_floor_01",
+	"door_close_off_floor_01",
+	"door_close_on_floor_01",
+	"door_open_base_floor_01",
+	"door_open_off_floor_01",
+	"door_open_on_floor_01",
 	"power_source_01",
 	"power_source_base_floor_01",
 	"power_source_off_floor_01",
@@ -470,7 +538,12 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"heavy_crate_floor_01",
 	"radiator_floor_01",
 	"case_01",
-	"steel_box_01"
+	"steel_box_01",
+	"station_decrypt_floor_01",
+	"station_lab_floor_01",
+	"station_recharge_floor_01",
+	"station_repair_floor_01",
+	"station_shop_floor_01"
 ]
 
 static func normalize_asset_id(asset_id: String) -> String:

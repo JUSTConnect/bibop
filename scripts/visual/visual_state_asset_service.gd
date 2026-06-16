@@ -122,6 +122,12 @@ static func resolve_configured_state_asset_id(family: String, state: String, sur
 			var variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variant_states.get(normalized_state, "")))
 			return variant_asset_id if VisualAssetCatalogRef.has_asset(variant_asset_id) else ""
 	var normalized_surface: String = _normalized_text(surface)
+	var normalized_variant: String = _normalized_text(variant)
+	if not normalized_variant.is_empty() and states.has(normalized_variant) and typeof(states.get(normalized_variant)) == TYPE_DICTIONARY:
+		var variant_states: Dictionary = Dictionary(states.get(normalized_variant))
+		if variant_states.has(normalized_state):
+			var variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variant_states.get(normalized_state, "")))
+			return variant_asset_id if VisualAssetCatalogRef.has_asset(variant_asset_id) else ""
 	if states.has(normalized_surface) and typeof(states.get(normalized_surface)) == TYPE_DICTIONARY:
 		var surface_states: Dictionary = Dictionary(states.get(normalized_surface))
 		if surface_states.has(normalized_state):
@@ -169,12 +175,12 @@ static func is_light_object(object_data: Dictionary) -> bool:
 
 static func object_uses_visual_states(object_data: Dictionary) -> bool:
 	var policy: String = _normalized_text(object_data.get("visual_state_policy", ""))
-	if policy == VISUAL_STATE_POLICY_STATIC:
-		return false
 	for key in ["visual_family", "visual_asset_family"]:
 		var family: String = _normalized_text(object_data.get(key, ""))
 		if has_visual_state_family(family):
 			return true
+	if policy == VISUAL_STATE_POLICY_STATIC:
+		return false
 	if policy == VISUAL_STATE_POLICY_POWERED_THREE_STATE:
 		return true
 	if bool(object_data.get("power_visual_state_enabled", false)):
@@ -209,6 +215,39 @@ static func get_visual_surface(object_data: Dictionary) -> String:
 		return "wall"
 	return "floor"
 
+
+static func _configured_default_variant(family: String) -> String:
+	var config: Dictionary = get_visual_state_family_config(family)
+	return _normalized_text(config.get("default_variant", ""))
+
+static func _resolve_door_pose_variant(object_data: Dictionary, fallback: String) -> String:
+	for key in ["is_open", "open", "opened", "door_open"]:
+		if object_data.has(key) and bool(object_data.get(key, false)):
+			return "open"
+	var open_values: Array[String] = ["open", "opened", "unsealed"]
+	var close_values: Array[String] = ["close", "closed", "sealed", "locked", "jammed", "unpowered"]
+	for key in ["open_state", "door_state", "state", "status"]:
+		var value: String = _normalized_text(object_data.get(key, ""))
+		if value in open_values:
+			return "open"
+		if value in close_values:
+			return "close"
+	return fallback if not fallback.is_empty() else "close"
+
+static func resolve_visual_variant(object_data: Dictionary) -> String:
+	var family: String = get_visual_family(object_data)
+	var config: Dictionary = get_visual_state_family_config(family)
+	var fallback: String = _configured_default_variant(family)
+	var explicit_variant: String = _first_text(object_data, ["visual_variant", "visual_pose", "variant", "pose"])
+	if not explicit_variant.is_empty():
+		return explicit_variant
+	var policy: String = _normalized_text(config.get("variant_policy", object_data.get("variant_policy", "")))
+	if policy == "door_pose":
+		return _resolve_door_pose_variant(object_data, fallback)
+	return fallback
+
+static func get_visual_variant(object_data: Dictionary) -> String:
+	return resolve_visual_variant(object_data)
 
 static func _is_hard_unavailable_state(value: String) -> bool:
 	return value in UNAVAILABLE_STATES and not POWER_FLAG_OVERRIDE_OFF_STATES.has(value)
@@ -271,6 +310,35 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 static func _legacy_asset_id(object_data: Dictionary) -> String:
 	return _first_text(object_data, ["texture_asset_id", "visual_texture_asset_id", "visual_asset_id", "asset_id"])
 
+static func resolve_visual_variant(object_data: Dictionary) -> String:
+	return _first_text(object_data, ["station_type", "visual_variant", "variant"])
+
+static func _family_uses_static_visual_policy(config: Dictionary, object_data: Dictionary) -> bool:
+	return _normalized_text(config.get("visual_state_policy", object_data.get("visual_state_policy", ""))) == VISUAL_STATE_POLICY_STATIC
+
+static func resolve_configured_variant_asset_id(family: String, variant: String, surface: String) -> String:
+	var config: Dictionary = get_visual_state_family_config(family)
+	if config.is_empty():
+		return ""
+	var normalized_variant: String = _normalized_text(variant)
+	if normalized_variant.is_empty():
+		normalized_variant = _normalized_text(config.get("default_variant", "lab"))
+	var variants_value: Variant = config.get("variants", {})
+	if typeof(variants_value) == TYPE_DICTIONARY:
+		var variants: Dictionary = Dictionary(variants_value)
+		if variants.has(normalized_variant):
+			var configured_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variants.get(normalized_variant, "")))
+			if VisualAssetCatalogRef.has_asset(configured_asset_id):
+				return configured_asset_id
+	var normalized_surface: String = _normalized_text(surface)
+	var convention_asset_id: String = "%s_%s_%s_01" % [_normalized_text(family), normalized_variant, normalized_surface]
+	if VisualAssetCatalogRef.has_asset(convention_asset_id):
+		return convention_asset_id
+	var default_variant: String = _normalized_text(config.get("default_variant", "lab"))
+	if default_variant != normalized_variant:
+		return resolve_configured_variant_asset_id(family, default_variant, surface)
+	return VisualAssetCatalogRef.resolve_object_asset_id(family)
+
 static func _state_candidates(family: String, state: String, surface: String) -> Array[String]:
 	return ["%s_%s_%s_01" % [family, state, surface]]
 
@@ -288,6 +356,10 @@ static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 		return VisualAssetCatalogRef.resolve_object_asset_id(legacy_static) if not legacy_static.is_empty() else "object_generic"
 	var family: String = get_visual_family(object_data)
 	var surface: String = get_visual_surface(object_data)
+	var config: Dictionary = get_visual_state_family_config(family)
+	if _family_uses_static_visual_policy(config, object_data):
+		var static_asset_id: String = resolve_configured_variant_asset_id(family, resolve_visual_variant(object_data), surface)
+		return static_asset_id if not static_asset_id.is_empty() else "object_generic"
 	var state: String = resolve_visual_state(object_data)
 	var config: Dictionary = get_visual_state_family_config(family)
 	var variant_mapping: Dictionary = resolve_direction_variant_mapping(config, get_logical_visual_variant(object_data, config)) if not config.is_empty() else {}
@@ -297,7 +369,7 @@ static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 		var configured_asset_id: String = resolve_configured_state_asset_id(family, candidate_state, surface, source_variant)
 		if not configured_asset_id.is_empty():
 			return configured_asset_id
-		for candidate in _state_candidates(family, str(candidate_state), surface):
+		for candidate in _state_candidates(family, str(candidate_state), surface, variant):
 			if VisualAssetCatalogRef.has_asset(candidate):
 				return candidate
 	var legacy_id: String = _legacy_asset_id(object_data)
