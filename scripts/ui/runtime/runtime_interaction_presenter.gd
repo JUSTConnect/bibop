@@ -4,6 +4,7 @@ class_name RuntimeInteractionPresenter
 const RuntimeInteractionPanelRef = preload("res://scripts/ui/runtime/runtime_interaction_panel.gd")
 const RuntimeHeavyClawPresenterRef = preload("res://scripts/ui/runtime/runtime_heavy_claw_presenter.gd")
 const BipobActionControllerRef = preload("res://scripts/bipob/bipob_action_controller.gd")
+const ActionIconAtlasServiceRef = preload("res://scripts/ui/action_icon_atlas_service.gd")
 
 const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
 
@@ -34,7 +35,8 @@ static func refresh(ui) -> void:
 	
 	if ui.runtime_action_button != null:
 		var action_channel_active: bool = ui.runtime_interaction_mode_active and active_channel == "action"
-		ui.runtime_action_button.text = "Cancel" if action_channel_active else "Act"
+		var action_button_label: String = "Cancel" if action_channel_active else "Act"
+		ui.runtime_action_button.text = action_button_label
 		ui.runtime_action_button.disabled = not (has_physical_interactable or action_channel_active)
 		ui.runtime_action_button.tooltip_text = "" if has_physical_interactable or action_channel_active else ""
 		ui._apply_action_button_style(
@@ -42,6 +44,7 @@ static func refresh(ui) -> void:
 			"danger" if action_channel_active else ("primary" if has_physical_interactable else "disabled"),
 			has_physical_interactable or action_channel_active
 		)
+		ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_action_button, "cancel" if action_channel_active else "manipulator_action", action_button_label)
 
 		if has_physical_interactable and not ui.runtime_interaction_mode_active:
 			ui._apply_selected_pulse(ui.runtime_action_button)
@@ -56,7 +59,8 @@ static func refresh(ui) -> void:
 		if not is_heavy_claw_movable_target:
 			connect_enabled = terminal_connected or terminal_reopen_enabled or connect_channel_active or (not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)) and has_actions_left)
 
-		ui.runtime_connect_button.text = "Cancel" if terminal_connected or connect_channel_active else "Connect"
+		var connect_button_label: String = "Cancel" if terminal_connected or connect_channel_active else "Connect"
+		ui.runtime_connect_button.text = connect_button_label
 		ui.runtime_connect_button.disabled = not connect_enabled
 		ui.runtime_connect_button.tooltip_text = "" if connect_enabled else str(connect_descriptor.get("label", "Connector jack unavailable."))
 		ui._apply_action_button_style(
@@ -64,12 +68,14 @@ static func refresh(ui) -> void:
 			"danger" if terminal_connected or connect_channel_active else ("primary" if connect_enabled else "disabled"),
 			connect_enabled
 		)
+		ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_connect_button, "cancel" if terminal_connected or connect_channel_active else "wired_connector", connect_button_label)
 	if ui.runtime_heavy_claw_button != null:
 		var heavy_claw_drag_active: bool = ui.bipob != null and ui.bipob.has_method("is_heavy_claw_drag_active") and bool(ui.bipob.call("is_heavy_claw_drag_active"))
 		var heavy_claw_channel_active: bool = ui.runtime_interaction_mode_active and active_channel == "heavy_claw"
 		var heavy_claw_enabled: bool = heavy_claw_drag_active or heavy_claw_channel_active or (not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left)
 
-		ui.runtime_heavy_claw_button.text = "Cancel" if heavy_claw_drag_active or heavy_claw_channel_active else "Claw"
+		var heavy_claw_button_label: String = "Cancel" if heavy_claw_drag_active or heavy_claw_channel_active else "Claw"
+		ui.runtime_heavy_claw_button.text = heavy_claw_button_label
 		ui.runtime_heavy_claw_button.disabled = not heavy_claw_enabled
 		ui.runtime_heavy_claw_button.tooltip_text = "" if heavy_claw_enabled else str(heavy_claw_descriptor.get("label", ""))
 		ui._apply_action_button_style(
@@ -77,6 +83,7 @@ static func refresh(ui) -> void:
 			"danger" if heavy_claw_drag_active or heavy_claw_channel_active else ("primary" if heavy_claw_enabled else "disabled"),
 			heavy_claw_enabled
 		)
+		ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_heavy_claw_button, "cancel" if heavy_claw_drag_active or heavy_claw_channel_active else "heavy_claw_action", heavy_claw_button_label)
 	if ui.runtime_cut_button != null:
 		var cutter_installed: bool = ui.bipob != null and ui.bipob.has_method("has_module_id") and bool(ui.bipob.call("has_module_id", "plasma_cutter_v1"))
 		var cut_context: Dictionary = BipobActionControllerRef.get_direct_cut_target_context(ui.bipob) if ui.bipob != null else {}
@@ -94,8 +101,10 @@ static func refresh(ui) -> void:
 		else:
 			ui.runtime_cut_button.tooltip_text = "Cut facing cable."
 		ui._apply_action_button_style(ui.runtime_cut_button, "primary" if cut_enabled else "disabled", cut_enabled)
+		ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_cut_button, "plasma_cutter", "Cut")
 	if ui.runtime_end_turn_button != null:
 		ui._apply_action_button_style(ui.runtime_end_turn_button, "reference", true)
+		ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_end_turn_button, "end_turn", "End Turn")
 
 	if RuntimeHeavyClawPresenterRef.is_drag_active(ui):
 		RuntimeHeavyClawPresenterRef.refresh(ui)
@@ -216,8 +225,9 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 		var action_reason: String = str(descriptor.get("reason", ""))
 		var button: Button = ui._create_runtime_control_button(button_label, Callable(ui, "_on_world_action_button_pressed").bind(action_id), "primary" if action_enabled else "disabled")
 		button.disabled = not action_enabled
-		button.tooltip_text = "" if action_enabled or action_reason.is_empty() else action_reason
-		button.custom_minimum_size = Vector2(0, 28)
+		button.tooltip_text = button_label if action_enabled or action_reason.is_empty() else "%s — %s" % [button_label, action_reason]
+		ActionIconAtlasServiceRef.apply_icon_to_button(button, action_id, button_label)
+		button.custom_minimum_size = Vector2(ActionIconAtlasServiceRef.ACTION_BUTTON_MIN_SIZE) if button.icon != null else Vector2(0, 28)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		if action_id == selected_action:
@@ -227,7 +237,8 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 			ui._clear_selected_pulse(button)
 		ui.runtime_world_actions_list.add_child(button)
 	var cancel_button: Button = ui._create_runtime_control_button("Cancel", Callable(ui, "_on_world_action_panel_cancel_pressed"), "danger")
-	cancel_button.custom_minimum_size = Vector2(0, 28)
+	ActionIconAtlasServiceRef.apply_icon_to_button(cancel_button, "cancel", "Cancel")
+	cancel_button.custom_minimum_size = Vector2(ActionIconAtlasServiceRef.ACTION_BUTTON_MIN_SIZE) if cancel_button.icon != null else Vector2(0, 28)
 	cancel_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cancel_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	ui.runtime_world_actions_list.add_child(cancel_button)
@@ -347,6 +358,7 @@ static func _refresh_action_row(ui, target_object: Dictionary, physical_actions:
 		if ui.bipob != null and ui.bipob.has_method("get_world_action_display_label"):
 			action_label = str(ui.bipob.call("get_world_action_display_label", action_id, target_object))
 		var button: Button = ui._create_runtime_control_button(action_label, Callable(ui, "_on_runtime_interaction_action_pressed").bind(action_id), "primary")
+		ActionIconAtlasServiceRef.apply_icon_to_button(button, action_id, action_label)
 		button.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
 		ui._apply_selected_pulse(button)
 		ui.runtime_interaction_actions_row.add_child(button)
@@ -377,7 +389,8 @@ static func _refresh_terminal_action_row(ui) -> void:
 	var scan_button: Button = ui._create_runtime_control_button("Scan", Callable(ui, "_on_scan_device_button_pressed"), "primary" if has_actions_left else "disabled")
 	scan_button.custom_minimum_size = ui.runtime_action_button.custom_minimum_size
 	scan_button.disabled = not has_actions_left
-	scan_button.tooltip_text = "" if has_actions_left else "No actions left. End turn."
+	scan_button.tooltip_text = "Scan" if has_actions_left else "Scan — No actions left. End turn."
+	ActionIconAtlasServiceRef.apply_icon_to_button(scan_button, "device_scanner", "Scan")
 	if has_actions_left:
 		ui._apply_selected_pulse(scan_button)
 	ui.runtime_interaction_actions_row.add_child(scan_button)
