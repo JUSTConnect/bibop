@@ -133,6 +133,33 @@ checks.update({
     "renderer does not hardcode air_cooling assets": all(token not in renderer for token in ['air_cooling_base_floor_ne_01', 'air_cooling_base_floor_sw_01', 'air_cooling_off_floor_ne_01', 'air_cooling_off_floor_sw_01', 'air_cooling_on_floor_ne_01', 'air_cooling_on_floor_sw_01']),
 })
 
+
+CABLE_REEL_ASSET_IDS = [
+    "cable_reel_base_floor_01",
+    "cable_reel_off_floor_01",
+    "cable_reel_on_floor_01",
+    "pulsar_overlay_cable_reel_off_floor_01",
+    "pulsar_overlay_cable_reel_on_floor_01",
+]
+cable_reel_helper_path = root / "scripts/game/cable/cable_reel_visual_state_service.gd"
+cable_reel_helper = cable_reel_helper_path.read_text() if cable_reel_helper_path.exists() else ""
+cable_reel_archetype = world_catalog.split('"power_cable_reel": {', 1)[1].split('\n\t"fuse": {', 1)[0]
+checks.update({
+    "cable reel asset ids exist": all(f'"{asset_id}"' in catalog for asset_id in CABLE_REEL_ASSET_IDS),
+    "cable reel aliases map to floor base asset": all(token in catalog for token in ['"cable_reel": "cable_reel_base_floor_01"', '"wire_reel": "cable_reel_base_floor_01"', '"reel": "cable_reel_base_floor_01"', '"cable_reel_base": "cable_reel_base_floor_01"', '"cable_reel_off": "cable_reel_off_floor_01"', '"cable_reel_on": "cable_reel_on_floor_01"']),
+    "cable reel canonical ids are included": all(re.search(r'CANONICAL_OBJECT_VISUAL_IDS.*?"%s"' % re.escape(token), catalog, re.S) is not None for token in CABLE_REEL_ASSET_IDS),
+    "cable reel family exists": re.search(r'"cable_reel"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,
+    "cable reel family uses connection policy": re.search(r'"cable_reel"\s*:\s*\{.*?"visual_state_policy"\s*:\s*"cable_reel_connection_state"', catalog, re.S) is not None,
+    "cable reel states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"base"\s*:\s*"cable_reel_base_floor_01"', r'"off"\s*:\s*"cable_reel_off_floor_01"', r'"on"\s*:\s*"cable_reel_on_floor_01"']),
+    "cable reel overlays map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"off"\s*:\s*\["pulsar_overlay_cable_reel_off_floor_01"\]', r'"on"\s*:\s*\["pulsar_overlay_cable_reel_on_floor_01"\]']),
+    "cable reel archetype opts into connection visual states": all(token in cable_reel_archetype for token in ['"visual_family":"cable_reel"', '"visual_surface":"floor"', '"visual_state_policy":"cable_reel_connection_state"', '"power_visual_state_enabled":false', '"connected_endpoint_count":0', '"socket_connected_endpoint_count":0']),
+    "cable reel helper exists and is read only resolver": all(token in cable_reel_helper for token in ["class_name CableReelVisualStateService", "static func resolve_visual_state", "connected_endpoint_count", "socket_connected_endpoint_count", "connected_socket_count", "connected_ends", "cable_endpoints", "wire_endpoints", "endpoints", "connections", "connected_objects", "connected_object_ids", "endpoint_connections"]),
+    "cable reel helper detects sockets without powered fallback": all(token in cable_reel_helper for token in ['"object_type"', '"type"', '"archetype_id"', '"visual_family"', '"socket_type"', '"is_socket"', '"is_power_socket"', '"group"', '"object_group"', '"power_socket"', '"outlet"', '"connector_socket"', '"cable_socket"']) and 'is_powered' not in cable_reel_helper and 'powered' not in cable_reel_helper,
+    "cable reel resolver behavior is connection driven": all(token in cable_reel_helper for token in ['connected_endpoint_count >= 2 and socket_connected_endpoint_count >= 1', 'connected_endpoint_count == 1 and socket_connected_endpoint_count == 1', 'return STATE_ON', 'return STATE_OFF', 'return STATE_BASE']),
+    "visual service supports cable reel custom policy": all(token in service for token in ["CableReelVisualStateService", "VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE", 'policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE', "CableReelVisualStateServiceRef.resolve_visual_state(object_data)"]),
+    "cable reel resolution is not renderer hardcoded": all(token not in renderer for token in CABLE_REEL_ASSET_IDS),
+})
+
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
     print("Visual state asset smoke checks failed:")
