@@ -188,6 +188,12 @@ const ASSET_PATHS: Dictionary = {
 	"barrel_01": "res://assets/visual/isometric/moovable/barrel_01.png",
 	"normal_barrel_floor_01": "res://assets/visual/isometric/moovable/normal_barrel_floor.png",
 	"case_01": "res://assets/visual/isometric/objects/case_01.png",
+	"case_locked_floor_01": "res://assets/visual/isometric/objects/case/case_locked_floor.png",
+	"case_class1_floor_01": "res://assets/visual/isometric/objects/case/case_class1_floor.png",
+	"case_class2_floor_01": "res://assets/visual/isometric/objects/case/case_class2_floor.png",
+	"case_class3_floor_01": "res://assets/visual/isometric/objects/case/case_class3_floor.png",
+	"case_not_empty_floor_01": "res://assets/visual/isometric/objects/case/case_not_empty_floor.png",
+	"case_empty_floor_01": "res://assets/visual/isometric/objects/case/case_empty_floor.png",
 	"steel_box_01": "res://assets/visual/isometric/moovable/steel_box_01.png",
 	"fire_barrel_01": "res://assets/visual/isometric/moovable/fire_barrel_01.png",
 	"fire_barrel_floor_01": "res://assets/visual/isometric/moovable/fire_barrel_floor.png",
@@ -394,7 +400,15 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"normal_crate": "normal_crate_floor_01",
 	"crate": "normal_crate_floor_01",
 	"heavy_crate": "heavy_crate_floor_01",
-	"case": "case_01",
+	"case": "case_locked_floor_01",
+	"loot_case": "case_locked_floor_01",
+	"loot_crate": "case_locked_floor_01",
+	"case_locked": "case_locked_floor_01",
+	"case_class1": "case_class1_floor_01",
+	"case_class2": "case_class2_floor_01",
+	"case_class3": "case_class3_floor_01",
+	"case_not_empty": "case_not_empty_floor_01",
+	"case_empty": "case_empty_floor_01",
 	"steel_box": "steel_box_01",
 	"light": "light_off_wall_01",
 	"station": "station_lab_floor_01",
@@ -604,6 +618,33 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 			"on": ["pulsar_overlay_firewall_on_floor_01"]
 		}
 	},
+	"case": {
+		"category": "objects",
+		"default_surface": "floor",
+		"visual_state_policy": "loot_case_state",
+		"variant_policy": "loot_case_class",
+		"default_variant": "class1",
+		"states": {
+			"class1": {
+				"locked": "case_locked_floor_01",
+				"unsearched": "case_class1_floor_01",
+				"partially_looted": "case_not_empty_floor_01",
+				"empty": "case_empty_floor_01"
+			},
+			"class2": {
+				"locked": "case_locked_floor_01",
+				"unsearched": "case_class2_floor_01",
+				"partially_looted": "case_not_empty_floor_01",
+				"empty": "case_empty_floor_01"
+			},
+			"class3": {
+				"locked": "case_locked_floor_01",
+				"unsearched": "case_class3_floor_01",
+				"partially_looted": "case_not_empty_floor_01",
+				"empty": "case_empty_floor_01"
+			}
+		}
+	},
 	"station": {
 		"category": "objects",
 		"surface": "floor",
@@ -716,6 +757,12 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"heavy_crate_floor_01",
 	"radiator_floor_01",
 	"case_01",
+	"case_locked_floor_01",
+	"case_class1_floor_01",
+	"case_class2_floor_01",
+	"case_class3_floor_01",
+	"case_not_empty_floor_01",
+	"case_empty_floor_01",
 	"steel_box_01",
 	"station_decrypt_floor_01",
 	"station_lab_floor_01",

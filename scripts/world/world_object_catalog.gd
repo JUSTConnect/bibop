@@ -435,8 +435,15 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"case": {
-		"archetype_id":"case", "object_group":"physical_object", "object_type":"case", "palette_label":"Case", "facing_side":"SW",
-		"placement_mode":"object", "display_name_template":"Case", "configurable":true, "blocks_movement":true, "property_schema":[FACING_SIDE_SCHEMA]
+		"archetype_id":"case", "object_group":"container", "object_type":"case", "palette_label":"Case",
+		"placement_mode":"object", "display_name_template":"Case", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
+		"locked":true, "loot_class":"class1", "opened":false, "searched":false, "remaining_loot_count":1,
+		"visual_family":"case", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class",
+		"property_schema":[
+			{"field":"locked", "type":"enum", "values":[true, false], "default":true, "labels":{"true":"Locked", "false":"Unlocked"}},
+			{"field":"loot_class", "type":"enum", "values":["class1", "class2", "class3"], "default":"class1", "labels":{"class1":"Class 1", "class2":"Class 2", "class3":"Class 3"}},
+			{"field":"case_loot_state", "type":"enum", "values":["unsearched", "partially_looted", "empty"], "default":"unsearched", "labels":{"unsearched":"Unsearched", "partially_looted":"Opened, not empty", "empty":"Empty"}}
+		]
 	},
 	"power_source": {
 		"archetype_id":"power_source", "object_group":"power", "object_type":"power_source", "palette_label":"Power Source",
