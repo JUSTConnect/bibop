@@ -400,8 +400,8 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"light_switcher": {
-		"archetype_id":"light_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Light Switcher", "facing_side":"SW",
-		"placement_mode":"wall_mounted", "display_name_template":"Light Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"light_switcher", "mount":"wall", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false, "visual_family":"light_switcher", "visual_surface":"wall", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[],
+		"archetype_id":"light_switcher", "object_group":"power", "object_type":"light_switcher", "palette_label":"Light Switcher", "facing_side":"SW",
+		"placement_mode":"wall_mounted", "display_name_template":"Light Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"light_switcher", "switcher_base_type":"power_switcher", "mount":"wall", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false, "visual_family":"light_switcher", "visual_surface":"wall", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[],
 		"property_schema":[
 			FACING_SIDE_SCHEMA,
 			{"field":"switch_state", "type":"enum", "values":["off", "on"], "default":"off", "labels":{"off":"Off", "on":"On"}},
@@ -473,15 +473,15 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"fuse": {
 		"archetype_id":"fuse", "object_group":"item", "object_type":"fuse", "palette_label":"Fuse",
-		"placement_mode":"item", "display_name_template":"Fuse", "configurable":false, "property_schema":[]
+		"placement_mode":"item", "display_name_template":"Fuse", "configurable":false, "visual_asset_id":"fuse_floor_01", "visual_family":"fuse", "visual_surface":"floor", "property_schema":[]
 	},
 	"repair_kit": {
 		"archetype_id":"repair_kit", "object_group":"item", "object_type":"repair_kit", "palette_label":"Repair Kit",
-		"placement_mode":"item", "display_name_template":"Repair Kit", "configurable":false, "property_schema":[]
+		"placement_mode":"item", "display_name_template":"Repair Kit", "configurable":false, "visual_asset_id":"repair_kit_floor_01", "visual_family":"repair_kit", "visual_surface":"floor", "property_schema":[]
 	},
 	"reinforcement": {
 		"archetype_id":"reinforcement", "object_group":"item", "object_type":"reinforcement", "palette_label":"Reinforcement Kit",
-		"placement_mode":"item", "display_name_template":"Reinforcement Kit", "configurable":false, "property_schema":[]
+		"placement_mode":"item", "display_name_template":"Reinforcement Kit", "configurable":false, "visual_asset_id":"reinforcement_floor_01", "visual_family":"reinforcement", "visual_surface":"floor", "property_schema":[]
 	},
 	"module_external": {
 		"archetype_id":"module_external", "object_group":"item", "object_type":"module_external", "palette_label":"External Module",
@@ -698,7 +698,7 @@ const OBJECT_LIBRARY := {
 	"power_source_class_3": {"group":"power","name":"Power Source C3","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":3,"outlet_capacity":6,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
 	"external_radiator": {"group":"cooling","name":"External Radiator","placeable_in_constructor":false,"state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
 	"external_air_cooler": {"group":"cooling","object_group":"cooling","object_type":"external_air_cooler","palette_label":"Air Cooling","name":"External Air Cooler","display_name_template":"Air Cooling","placement_mode":"object","configurable":true,"interactable":true,"state":"off","status":"active","is_powered":false,"power_mode":"external_power","control_mode":"internal_control","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"generic_airflow_role":"fan","airflow_roles":["fan","airflow_source"],"fan_enabled":false,"fan_speed":0,"airflow_range":0,"cooling_state":"uncooled","airflow_direction":"sw","facing_side":"SW","facing_dir":"SW","allowed_airflow_directions":["ne","nw","se","sw"],"visual_family":"air_cooling","visual_surface":"floor","visual_state_policy":"powered_three_state","variant_policy":"airflow_direction","visual_variant":"sw","power_visual_state_enabled":true,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20,"property_schema":[{"field":"airflow_direction","type":"enum","values":["ne","nw","se","sw"],"default":"sw","labels":{"ne":"NE","nw":"NW","se":"SE","sw":"SW"}},{"field":"state","type":"enum","values":["base","off","on"],"default":"off","labels":{"base":"Base","off":"Off","on":"On"}},{"field":"fan_enabled","type":"bool","default":false},{"field":"airflow_range","type":"int","default":0,"min":0}]},
-	"metal_cooling_block": {"group":"physical","name":"Metal Cooling Block","state":"active","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
+	"metal_cooling_block": {"group":"cooling","object_group":"cooling","object_type":"metal_cooling_block","palette_label":"Cooling block","name":"Cooling block","display_name_template":"Cooling block","placement_mode":"object","visual_family":"air_cooling","visual_surface":"floor","visual_asset_id":"air_cooling_base_floor_sw_01","state":"base","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
 	"external_water_pipe": {"group":"cooling","name":"External Water Pipe","state":"active","cooling_device_type":"water_pipe","cooling_output":2,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":15,"placement_mode":"wall_mounted"},
 	"external_air_duct": {"group":"cooling","name":"External Air Duct","state":"active","cooling_device_type":"air_duct","carries_airflow":true,"passive_cooling":true,"generic_airflow_role":"airflow_path_cell","airflow_roles":["airflow_path_cell"],"blocks_airflow":false,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":12,"placement_mode":"wall_mounted"},
 	"module_external": {"group":"item","name":"Module External","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
