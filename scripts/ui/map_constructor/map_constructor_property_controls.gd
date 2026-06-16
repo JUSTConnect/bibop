@@ -349,6 +349,12 @@ static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer,
 	for row_variant in schema_rows:
 		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
 		var field_name: String = MapConstructorUiSafe.safe_string(row.get("field", ""))
+		var visible_if: Dictionary = MapConstructorUiSafe.safe_dictionary(row.get("visible_if", {}))
+		if not visible_if.is_empty():
+			var visible_field: String = MapConstructorUiSafe.safe_string(visible_if.get("field", ""))
+			var expected_value: Variant = visible_if.get("equals", null)
+			if not visible_field.is_empty() and data.get(visible_field) != expected_value:
+				continue
 		if field_name == "controlled_target_type" and TerminalVisibilityServiceRef.is_information_terminal(data):
 			continue
 		var switcher_type: String = MapConstructorUiSafe.safe_string(data.get("switcher_type", "power_breaker")).strip_edges().to_lower()
