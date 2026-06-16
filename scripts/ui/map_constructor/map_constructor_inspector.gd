@@ -441,7 +441,13 @@ static func _get_tab_id_for_entity(ui: Variant, entity_kind: String, data: Dicti
 		return "items"
 	var object_type: String = ui._safe_ui_string(data.get("object_type", data.get("item_type", ""))).to_lower()
 	var object_group: String = ui._safe_ui_string(data.get("object_group", data.get("group", ""))).to_lower()
+	var constructor_group: String = ui._safe_ui_string(data.get("constructor_group", "")).to_lower()
+	var constructor_tab: String = ui._safe_ui_string(data.get("constructor_tab", "")).to_lower()
+	var routing_kind: String = ui._safe_ui_string(data.get("routing_kind", "")).to_lower()
+	var cooling_system_type: String = ui._safe_ui_string(data.get("cooling_system_type", "")).to_lower()
 	var joined: String = "%s %s %s" % [object_type, object_group, ui._safe_ui_string(data.get("map_constructor_prefab_id", "")).to_lower()]
+	if constructor_tab == "cooling_system" or constructor_group == "cooling_system" or object_group in ["cooling", "cooling_system"] and (object_type in ["external_air_duct", "external_water_pipe"] or routing_kind in ["air_duct", "water_pipe"] or cooling_system_type in ["air_duct", "water_pipe"]) or object_type in ["external_air_duct", "external_water_pipe"] or routing_kind in ["air_duct", "water_pipe"] or cooling_system_type in ["air_duct", "water_pipe"]:
+		return "cooling_system"
 	if object_group == "threat" or joined.contains("enemy") or joined.contains("bipob") or joined.contains("bipop"):
 		return "enemies"
 	if object_type in ["power_cable", "power_cable_reel"] or object_group == "cable" or joined.contains("power_cable"):
@@ -835,7 +841,9 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		var no_config_label: Label = Label.new()
 		no_config_label.text = "No configurable object-specific parameters."
 		configurable.add_child(no_config_label)
-	if rendered_cooling_schema or is_cooling_routing_object:
+	if is_cooling_routing_object:
+		parent.add_child(cooling_configurable)
+	elif rendered_cooling_schema:
 		var config_tabs := TabContainer.new()
 		config_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var object_scroll := ScrollContainer.new()

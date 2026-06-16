@@ -442,9 +442,15 @@ func _get_map_constructor_entity_inspection_tab_id(entity_kind: String, data: Di
 		return "items"
 	var object_type: String = str(data.get("object_type", data.get("item_type", ""))).to_lower().strip_edges()
 	var object_group: String = str(data.get("object_group", data.get("group", ""))).to_lower().strip_edges()
+	var constructor_group: String = str(data.get("constructor_group", "")).to_lower().strip_edges()
+	var constructor_tab: String = str(data.get("constructor_tab", "")).to_lower().strip_edges()
+	var routing_kind: String = str(data.get("routing_kind", "")).to_lower().strip_edges()
+	var cooling_system_type: String = str(data.get("cooling_system_type", "")).to_lower().strip_edges()
 	var category: String = str(data.get("category", "")).to_lower().strip_edges()
 	var prefab_id: String = str(data.get("map_constructor_prefab_id", "")).to_lower().strip_edges()
 	var joined: String = "%s %s %s %s" % [object_type, object_group, category, prefab_id]
+	if constructor_tab == "cooling_system" or constructor_group == "cooling_system" or object_group in ["cooling_system"] or object_type in ["external_air_duct", "external_water_pipe"] or routing_kind in ["air_duct", "water_pipe"] or cooling_system_type in ["air_duct", "water_pipe"]:
+		return "cooling_system"
 	if object_group == "threat" or joined.contains("enemy") or joined.contains("bipob") or joined.contains("bipop"):
 		return "enemies"
 	if object_type == "power_cable" or object_type == "power_cable_reel" or object_group == "cable" or joined.contains("power_cable"):
@@ -471,6 +477,7 @@ func get_map_constructor_cell_inspection_model(cell: Vector2i, preferred_entity_
 		{"id":"objects", "title":"Objects", "entities": []},
 		{"id":"enemies", "title":"Enemies", "entities": []},
 		{"id":"items", "title":"Items", "entities": []},
+		{"id":"cooling_system", "title":"Cooling System", "entities": []},
 		{"id":"cables", "title":"Cables", "entities": []},
 		{"id":"lighting", "title":"Lighting", "entities": []},
 		{"id":"walls", "title":"Walls", "entities": []},
