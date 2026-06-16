@@ -11,6 +11,15 @@ const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
 const ISO_PLACEHOLDER_ASSET_PACK_DIR: String = "res://assets/visual/isometric/placeholders/"
 const ISO_LIGHT_ASSET_PACK_DIR: String = "res://assets/visual/isometric/light/"
 
+
+const LEGACY_VISUAL_PATH_MIGRATIONS: Dictionary = {
+	"res://assets/visual/isometric/moovable/steel_box_01.png": "res://assets/visual/isometric/moovable/heavy_crate_floor.png",
+	"res://assets/visual/isometric/objects/power_switcher_off_01.png": "res://assets/visual/isometric/objects/power_swicher/power_swicher_off_floor.png",
+	"res://assets/visual/isometric/objects/power_switcher_on_01.png": "res://assets/visual/isometric/objects/power_swicher/power_swicher_on_floor.png",
+	"res://assets/visual/isometric/objects/power_switcher_off_wall_01.png": "res://assets/visual/isometric/objects/power_swicher/power_swicher_off_wall.png",
+	"res://assets/visual/isometric/objects/power_switcher_on_wall_01.png": "res://assets/visual/isometric/objects/power_swicher/power_swicher_on_wall.png"
+}
+
 const ASSET_PATHS: Dictionary = {
 	"floor_concrete": "res://assets/visual/isometric/floor/floor_concrete_01.png",
 	"floor_steel": "res://assets/visual/isometric/floor/floor_steel_01.png",
@@ -781,6 +790,18 @@ static func normalize_asset_id(asset_id: String) -> String:
 static func get_asset_path(asset_id: String) -> String:
 	var normalized_id: String = normalize_asset_id(asset_id)
 	return str(ASSET_PATHS.get(normalized_id, ""))
+
+static func migrate_legacy_visual_path(texture_path: String) -> String:
+	var normalized_path: String = str(texture_path).strip_edges()
+	return str(LEGACY_VISUAL_PATH_MIGRATIONS.get(normalized_path, normalized_path))
+
+
+static func resolve_visual_texture_path(visual_id: String, texture_path: String = "") -> String:
+	var normalized_id: String = normalize_asset_id(visual_id)
+	var catalog_path: String = get_asset_path(normalized_id)
+	if not catalog_path.is_empty() and catalog_path.ends_with(".png"):
+		return catalog_path
+	return migrate_legacy_visual_path(texture_path)
 
 static func has_asset(asset_id: String) -> bool:
 	return not get_asset_path(asset_id).is_empty()

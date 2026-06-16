@@ -2627,13 +2627,15 @@ func log_iso_object_asset_resolution(object_data: Dictionary, fallback_profile_k
 		str(diagnostic.get("used_svg_fallback", false))
 	])
 
-func get_iso_object_png_asset_path(asset_key: String) -> String:
+func get_iso_object_png_asset_path(asset_key: String, descriptor: Dictionary = {}) -> String:
 	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
-	if normalized_asset_key.is_empty():
+	if normalized_asset_key.is_empty() and descriptor.is_empty():
 		return ""
 
-	var catalog_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
-	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0 or catalog_path.find("/items/") >= 0):
+	var descriptor_visual_id: String = str(descriptor.get("visual_id", descriptor.get("visual_asset_id", descriptor.get("asset_id", normalized_asset_key)))).strip_edges()
+	var descriptor_path: String = str(descriptor.get("path", descriptor.get("texture_path", ""))).strip_edges()
+	var catalog_path: String = VisualAssetCatalogScript.resolve_visual_texture_path(descriptor_visual_id, descriptor_path)
+	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0):
 		return catalog_path
 
 	return ""
@@ -4375,21 +4377,30 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 	if not should_use_iso_tile_asset_hook_visuals():
 		return false
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
+	var local_object_data: Dictionary = object_data.duplicate(true)
 	var visual_state_descriptor: Dictionary = {}
-	if VisualStateAssetServiceRef.object_uses_visual_states(object_data):
-		visual_state_descriptor = VisualStateAssetServiceRef.resolve_visual_asset_descriptor(object_data)
+	if VisualStateAssetServiceRef.object_uses_visual_states(local_object_data):
+		visual_state_descriptor = VisualStateAssetServiceRef.resolve_visual_asset_descriptor(local_object_data).duplicate(true)
 		normalized_asset_key = str(visual_state_descriptor.get("asset_id", normalized_asset_key))
+	var path_descriptor: Dictionary = visual_state_descriptor.duplicate(true) if not visual_state_descriptor.is_empty() else local_object_data.duplicate(true)
+	if not path_descriptor.has("visual_id"):
+		path_descriptor["visual_id"] = normalized_asset_key
+	if not path_descriptor.has("visual_asset_id"):
+		path_descriptor["visual_asset_id"] = normalized_asset_key
 	if not is_iso_object_png_asset_key(normalized_asset_key):
 		return false
-	var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key)
+	var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key, path_descriptor)
+	if not texture_path.is_empty():
+		path_descriptor["texture_path"] = texture_path
+		path_descriptor["path"] = texture_path
 	if VisualAssetRenderContractServiceRef.is_pulsar_overlay(texture_path):
 		return true
 	var visual_center: Vector2 = grid_to_iso(cell)
 	if visual_center_override != Vector2.INF:
 		visual_center = visual_center_override
-	object_data = enrich_iso_object_surface_context_for_cell(object_data, cell)
-	if is_wall_procedural_routed_object(object_data):
-		return draw_wall_procedural_routed_object(cell, object_data, visual_center)
+	local_object_data = enrich_iso_object_surface_context_for_cell(local_object_data, cell)
+	if is_wall_procedural_routed_object(local_object_data):
+		return draw_wall_procedural_routed_object(cell, local_object_data, visual_center)
 	var texture: Texture2D = get_iso_object_png_texture_for_asset_key(normalized_asset_key)
 	if texture == null:
 		push_warning("[IsoObjectPNG] drawing missing fallback for visual_id=%s path=%s" % [normalized_asset_key, texture_path])
@@ -4397,12 +4408,12 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 		draw_missing_iso_asset_debug_fallback(cell, normalized_asset_key, fallback_rect)
 		return true
 	var render_contract: String = VisualAssetRenderContractServiceRef.get_render_contract(texture_path)
-	var descriptor: Dictionary = build_iso_object_visual_descriptor_for_contract(object_data, normalized_asset_key, texture_path, render_contract, visual_center, texture)
+	var descriptor: Dictionary = build_iso_object_visual_descriptor_for_contract(local_object_data, normalized_asset_key, texture_path, render_contract, visual_center, texture).duplicate(true)
 	if bool(visual_state_descriptor.get("mirror_x", false)):
 		descriptor["mirror_h"] = true
 		descriptor["mirror_x"] = true
 	draw_iso_object_png_texture_with_descriptor(texture, descriptor)
-	draw_visual_state_overlays_for_descriptor(object_data, descriptor)
+	draw_visual_state_overlays_for_descriptor(local_object_data, descriptor)
 	return true
 
 func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallback_callable_name: String = "", options: Dictionary = {}) -> bool:
