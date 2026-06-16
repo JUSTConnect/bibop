@@ -160,6 +160,39 @@ checks.update({
     "cable reel resolution is not renderer hardcoded": all(token not in renderer for token in CABLE_REEL_ASSET_IDS),
 })
 
+POWER_SOCKET_ASSET_IDS = [
+    "power_socket_base_floor_01",
+    "power_socket_base_wall_01",
+    "power_socket_off_floor_01",
+    "power_socket_off_wall_01",
+    "power_socket_on_floor_01",
+    "power_socket_on_wall_01",
+    "pulsar_overlay_power_socket_off_floor_01",
+    "pulsar_overlay_power_socket_off_wall_01",
+    "pulsar_overlay_power_socket_on_floor_01",
+    "pulsar_overlay_power_socket_on_wall_01",
+]
+power_socket_helper_path = root / "scripts/game/power/power_socket_visual_state_service.gd"
+power_socket_helper = power_socket_helper_path.read_text() if power_socket_helper_path.exists() else ""
+power_socket_archetype = world_catalog.split('"power_socket": {', 1)[1].split('\n\t"power_cable_reel": {', 1)[0]
+checks.update({
+    "power socket asset ids exist": all(f'"{asset_id}"' in catalog for asset_id in POWER_SOCKET_ASSET_IDS),
+    "power socket aliases map to authored base assets": all(token in catalog for token in ['"power_socket": "power_socket_base_floor_01"', '"socket": "power_socket_base_floor_01"', '"outlet": "power_socket_base_floor_01"', '"power_outlet": "power_socket_base_floor_01"', '"power_socket_base_wall": "power_socket_base_wall_01"', '"power_socket_off_wall": "power_socket_off_wall_01"', '"power_socket_on_wall": "power_socket_on_wall_01"']),
+    "power socket canonical ids are included": all(re.search(r'CANONICAL_OBJECT_VISUAL_IDS.*?"%s"' % re.escape(token), catalog, re.S) is not None for token in POWER_SOCKET_ASSET_IDS),
+    "power socket family exists": re.search(r'"power_socket"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"default_surface"\s*:\s*"floor"', catalog, re.S) is not None,
+    "power socket family uses connection policy": re.search(r'"power_socket"\s*:\s*\{.*?"visual_state_policy"\s*:\s*"power_socket_connection_state"', catalog, re.S) is not None,
+    "power socket floor states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"floor"\s*:\s*\{.*?"base"\s*:\s*"power_socket_base_floor_01"', r'"floor"\s*:\s*\{.*?"off"\s*:\s*"power_socket_off_floor_01"', r'"floor"\s*:\s*\{.*?"on"\s*:\s*"power_socket_on_floor_01"']),
+    "power socket wall states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"wall"\s*:\s*\{.*?"base"\s*:\s*"power_socket_base_wall_01"', r'"wall"\s*:\s*\{.*?"off"\s*:\s*"power_socket_off_wall_01"', r'"wall"\s*:\s*\{.*?"on"\s*:\s*"power_socket_on_wall_01"']),
+    "power socket floor overlays map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"floor"\s*:\s*\{.*?"off"\s*:\s*\["pulsar_overlay_power_socket_off_floor_01"\]', r'"floor"\s*:\s*\{.*?"on"\s*:\s*\["pulsar_overlay_power_socket_on_floor_01"\]']),
+    "power socket wall overlays map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"wall"\s*:\s*\{.*?"off"\s*:\s*\["pulsar_overlay_power_socket_off_wall_01"\]', r'"wall"\s*:\s*\{.*?"on"\s*:\s*\["pulsar_overlay_power_socket_on_wall_01"\]']),
+    "power socket archetype supports mount-driven surface": all(token in power_socket_archetype for token in ['"archetype_id":"power_socket"', '"visual_family":"power_socket"', '"visual_state_policy":"power_socket_connection_state"', '"mount":"floor"', '"field":"mount"']) and '"visual_surface"' not in power_socket_archetype,
+    "power socket helper exists and is read only resolver": all(token in power_socket_helper for token in ["class_name PowerSocketVisualStateService", "static func resolve_visual_state", '"upstream_powered"', '"source_powered"', '"has_source_power"', '"incoming_powered"', '"is_powered"', '"power_state"', '"status"', '"state"', '"has_connected_cable"', '"connected_endpoint_count"', '"socket_connected_endpoint_count"']),
+    "power socket resolver behavior prioritizes source power": re.search(r"if not _has_source_power\(object_data\):.*?return STATE_BASE.*?if _has_connected_cable\(object_data\):.*?return STATE_ON.*?return STATE_OFF", power_socket_helper, re.S) is not None,
+    "visual service supports power socket custom policy": all(token in service for token in ["PowerSocketVisualStateService", "VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE", 'policy == VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE', "PowerSocketVisualStateServiceRef.resolve_visual_state(object_data)"]),
+    "overlay resolver supports surface overlays": "overlays.has(normalized_surface)" in service and "Dictionary(overlays.get(normalized_surface)).get(normalized_state" in service,
+    "power socket resolution is not renderer hardcoded": all(token not in renderer for token in POWER_SOCKET_ASSET_IDS),
+})
+
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
     print("Visual state asset smoke checks failed:")
