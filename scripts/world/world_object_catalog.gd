@@ -205,6 +205,15 @@ const FACING_SIDE_SE := "SE"
 const FACING_SIDES: Array[String] = [FACING_SIDE_SW, FACING_SIDE_SE]
 const FACING_SIDE_SCHEMA: Dictionary = {"field":"facing_side", "type":"enum", "values":["SW", "SE"], "default":"SW", "labels":{"SW":"SW", "SE":"SE"}, "label":"Facing Side"}
 
+const COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA: Array[Dictionary] = [
+	{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},
+	{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},
+	{"field":"cooling_contour_id","type":"string","default":"","internal":true,"legacy":true,"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},
+	{"field":"cooling_contour_member_ids","type":"object_ref_array","target_group":"cooling","default":[],"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},
+	{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},
+	{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}
+]
+
 # Hidden compatibility mappings for historic terminal ids. Constructor palettes,
 # searches, kits, and templates must expose only the configurable terminal archetype.
 const LEGACY_TERMINAL_ALIAS_CONFIGS: Dictionary = {
@@ -235,6 +244,21 @@ const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 # Global authoring contract. Add the next migrations here (terminal, platform,
 # power_source, item, wall, cooling_device, data_device) without adding palette variants.
 const ARCHETYPE_REGISTRY: Dictionary = {
+
+	"external_air_duct": {
+		"archetype_id":"external_air_duct", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"external_air_duct", "palette_label":"External Air Duct",
+		"display_name_template":"External Air Duct", "name":"External Air Duct", "state":"active", "cooling_device_type":"air_duct", "carries_airflow":true, "passive_cooling":true, "generic_airflow_role":"airflow_path_cell", "airflow_roles":["airflow_path_cell"], "blocks_airflow":false,
+		"movable":false, "material":"metal", "blocks_movement":false, "blocks_vision":false, "durability":12, "placement_mode":"wall_mounted", "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
+		"route_mode":"inner", "wall_routing_mode":"inner", "routing_kind":"air_duct", "cooling_system_type":"air_duct", "cooling_contour_id":"", "cooling_contour_mode":"auto", "cooling_contour_member_ids":[], "cooling_system_tab":true, "routing_label":"Air Duct", "wall_side_1":"NW", "wall_side_2":"SE",
+		"visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA
+	},
+	"external_water_pipe": {
+		"archetype_id":"external_water_pipe", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"external_water_pipe", "palette_label":"External Water Pipe",
+		"display_name_template":"External Water Pipe", "name":"External Water Pipe", "state":"active", "cooling_device_type":"water_pipe", "cooling_output":2, "passive_cooling":true,
+		"movable":false, "material":"metal", "blocks_movement":false, "blocks_vision":false, "durability":15, "placement_mode":"wall_mounted", "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
+		"route_mode":"inner", "wall_routing_mode":"inner", "routing_kind":"water_pipe", "cooling_system_type":"water_pipe", "cooling_contour_id":"", "cooling_contour_mode":"auto", "cooling_contour_member_ids":[], "cooling_system_tab":true, "routing_label":"Water Pipe", "wall_side_1":"NW", "wall_side_2":"SE",
+		"visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA
+	},
 	"external_wall": {
 		"archetype_id":"external_wall", "object_group":"wall", "object_type":"external_wall", "palette_label":"External Wall", "show_in_palette":false,
 		"display_name_template":"External Wall", "material":"external_structural", "is_destructible":false, "supports_embedded_objects":true, "supports_cables":true, "configurable":false, "blocks_movement":true, "blocks_vision":true,
