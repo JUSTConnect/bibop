@@ -393,6 +393,77 @@ checks.update({
     "fuse box resolution is not renderer hardcoded": all(token not in renderer for token in FUSE_BOX_ASSET_IDS),
 })
 
+
+CASE_ASSET_IDS = [
+    "case_locked_floor_01",
+    "case_class1_floor_01",
+    "case_class2_floor_01",
+    "case_class3_floor_01",
+    "case_not_empty_floor_01",
+    "case_empty_floor_01",
+]
+case_helper_path = root / "scripts/game/loot/loot_case_visual_state_service.gd"
+case_helper = case_helper_path.read_text() if case_helper_path.exists() else ""
+case_archetype = world_catalog.split('"case": {', 1)[1].split('\n\t"power_source": {', 1)[0]
+
+def _norm_case(value):
+    return str(value).strip().lower().replace(" ", "_").replace("-", "_")
+
+def _py_case_variant(row):
+    for key in ["loot_class", "case_class", "loot_tier", "rarity_class", "class", "tier"]:
+        value = _norm_case(row.get(key, ""))
+        if value in {"class1", "class_1", "tier1", "tier_1", "green", "1"}:
+            return "class1"
+        if value in {"class2", "class_2", "tier2", "tier_2", "blue", "2"}:
+            return "class2"
+        if value in {"class3", "class_3", "tier3", "tier_3", "purple", "3"}:
+            return "class3"
+    return "class1"
+
+def _py_case_remaining(row):
+    for key in ["remaining_loot_count", "loot_count", "items_remaining", "remaining_items"]:
+        if key in row:
+            return int(row.get(key, 0))
+    for key in ["inventory", "loot_items"]:
+        if key in row and isinstance(row.get(key), (list, dict)):
+            return len(row.get(key))
+    return -1
+
+def _py_case_state(row):
+    if row.get("locked") is True or row.get("is_locked") is True or _norm_case(row.get("lock_state", "")) == "locked":
+        return "locked"
+    if row.get("is_unlocked") is True or row.get("unlocked") is True or _norm_case(row.get("lock_state", "")) == "unlocked":
+        pass
+    if any(row.get(key) is True for key in ["is_empty", "empty", "loot_empty"]) or _norm_case(row.get("case_loot_state", "")) == "empty" or _py_case_remaining(row) == 0:
+        return "empty"
+    opened = any(row.get(key) is True for key in ["opened", "is_opened", "searched", "is_searched", "has_been_opened", "was_opened", "loot_revealed"]) or _norm_case(row.get("case_loot_state", "")) == "partially_looted"
+    if opened and _py_case_remaining(row) != 0:
+        return "partially_looted"
+    return "unsearched"
+
+def _py_case_asset(row):
+    variant = _py_case_variant(row)
+    state = _py_case_state(row)
+    mapping = {
+        "class1": {"locked": "case_locked_floor_01", "unsearched": "case_class1_floor_01", "partially_looted": "case_not_empty_floor_01", "empty": "case_empty_floor_01"},
+        "class2": {"locked": "case_locked_floor_01", "unsearched": "case_class2_floor_01", "partially_looted": "case_not_empty_floor_01", "empty": "case_empty_floor_01"},
+        "class3": {"locked": "case_locked_floor_01", "unsearched": "case_class3_floor_01", "partially_looted": "case_not_empty_floor_01", "empty": "case_empty_floor_01"},
+    }
+    return mapping[variant][state]
+
+checks.update({
+    "case asset ids exist": all(f'"{asset_id}"' in catalog for asset_id in CASE_ASSET_IDS),
+    "case aliases map to floor state assets": all(token in catalog for token in ['"case": "case_locked_floor_01"', '"loot_case": "case_locked_floor_01"', '"loot_crate": "case_locked_floor_01"', '"case_locked": "case_locked_floor_01"', '"case_class1": "case_class1_floor_01"', '"case_class2": "case_class2_floor_01"', '"case_class3": "case_class3_floor_01"', '"case_not_empty": "case_not_empty_floor_01"', '"case_empty": "case_empty_floor_01"']),
+    "case canonical ids are included": all(re.search(r'CANONICAL_OBJECT_VISUAL_IDS.*?"%s"' % re.escape(token), catalog, re.S) is not None for token in CASE_ASSET_IDS),
+    "case family exists with loot policies": re.search(r'"case"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"default_surface"\s*:\s*"floor".*?"visual_state_policy"\s*:\s*"loot_case_state".*?"variant_policy"\s*:\s*"loot_case_class".*?"default_variant"\s*:\s*"class1"', catalog, re.S) is not None,
+    "case family maps class state assets": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"class1"\s*:\s*\{.*?"locked"\s*:\s*"case_locked_floor_01"', r'"class1"\s*:\s*\{.*?"unsearched"\s*:\s*"case_class1_floor_01"', r'"class2"\s*:\s*\{.*?"unsearched"\s*:\s*"case_class2_floor_01"', r'"class3"\s*:\s*\{.*?"unsearched"\s*:\s*"case_class3_floor_01"', r'"class1"\s*:\s*\{.*?"partially_looted"\s*:\s*"case_not_empty_floor_01"', r'"class2"\s*:\s*\{.*?"partially_looted"\s*:\s*"case_not_empty_floor_01"', r'"class3"\s*:\s*\{.*?"partially_looted"\s*:\s*"case_not_empty_floor_01"', r'"class1"\s*:\s*\{.*?"empty"\s*:\s*"case_empty_floor_01"', r'"class2"\s*:\s*\{.*?"empty"\s*:\s*"case_empty_floor_01"', r'"class3"\s*:\s*\{.*?"empty"\s*:\s*"case_empty_floor_01"']),
+    "case behavior smoke cases resolve correctly": all(_py_case_asset(data) == expected for data, expected in [({"locked": True, "loot_class": "class3"}, "case_locked_floor_01"), ({"locked": False, "loot_class": "class1", "opened": False, "remaining_loot_count": 1}, "case_class1_floor_01"), ({"locked": False, "loot_class": "class2", "opened": False, "remaining_loot_count": 1}, "case_class2_floor_01"), ({"locked": False, "loot_class": "class3", "opened": False, "remaining_loot_count": 1}, "case_class3_floor_01"), ({"locked": False, "opened": True, "remaining_loot_count": 1}, "case_not_empty_floor_01"), ({"locked": False, "remaining_loot_count": 0}, "case_empty_floor_01")]),
+    "case helper exists and is read only resolver": all(token in case_helper for token in ["class_name LootCaseVisualStateService", "static func resolve_visual_state", "static func resolve_variant", '"locked"', '"is_locked"', '"lock_state"', '"is_unlocked"', '"unlocked"', '"opened"', '"searched"', '"remaining_loot_count"', '"inventory"', '"loot_items"', '"loot_class"', '"case_class"', '"loot_tier"', '"rarity_class"']) and all(token not in case_helper for token in ["append(", "erase(", "generate", "remove_loot", "unlock_case"]),
+    "case archetype is configurable with visual policies": all(token in case_archetype for token in ['"archetype_id":"case"', '"object_group":"container"', '"interactable":true', '"blocks_movement":false', '"blocks_vision":false', '"locked":true', '"loot_class":"class1"', '"remaining_loot_count":1', '"visual_family":"case"', '"visual_state_policy":"loot_case_state"', '"variant_policy":"loot_case_class"', '"field":"locked"', '"field":"loot_class"', '"field":"case_loot_state"']),
+    "visual service supports case custom policy and variant": all(token in service for token in ["LootCaseVisualStateService", "VISUAL_STATE_POLICY_LOOT_CASE_STATE", 'policy == VISUAL_STATE_POLICY_LOOT_CASE_STATE', 'policy == "loot_case_class"']),
+    "case resolution is not renderer hardcoded": all(token not in renderer for token in CASE_ASSET_IDS),
+})
+
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
     print("Visual state asset smoke checks failed:")

@@ -5,6 +5,7 @@ const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog
 const CableReelVisualStateServiceRef = preload("res://scripts/game/cable/cable_reel_visual_state_service.gd")
 const PowerSocketVisualStateServiceRef = preload("res://scripts/game/power/power_socket_visual_state_service.gd")
 const FuseBoxVisualStateServiceRef = preload("res://scripts/game/power/fuse_box_visual_state_service.gd")
+const LootCaseVisualStateServiceRef = preload("res://scripts/game/loot/loot_case_visual_state_service.gd")
 
 const VISUAL_STATE_BASE := "base"
 const VISUAL_STATE_OFF := "off"
@@ -14,6 +15,7 @@ const VISUAL_STATE_POLICY_POWERED_THREE_STATE := "powered_three_state"
 const VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE := "cable_reel_connection_state"
 const VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE := "power_socket_connection_state"
 const VISUAL_STATE_POLICY_FUSE_BOX_LINE_POWER_STATE := "fuse_box_line_power_state"
+const VISUAL_STATE_POLICY_LOOT_CASE_STATE := "loot_case_state"
 
 const POWER_OFF_STATES: Array[String] = ["unpowered", "no_power", "disconnected", "offline"]
 const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "powered", "source_on", "switch_on"]
@@ -199,6 +201,8 @@ static func object_uses_visual_states(object_data: Dictionary) -> bool:
 		return true
 	if policy == VISUAL_STATE_POLICY_FUSE_BOX_LINE_POWER_STATE:
 		return true
+	if policy == VISUAL_STATE_POLICY_LOOT_CASE_STATE:
+		return true
 	if bool(object_data.get("power_visual_state_enabled", false)):
 		return true
 	return is_light_object(object_data)
@@ -262,6 +266,8 @@ static func resolve_visual_variant(object_data: Dictionary) -> String:
 		return _resolve_door_pose_variant(object_data, fallback)
 	if policy == "fuse_presence":
 		return FuseBoxVisualStateServiceRef.resolve_variant(object_data)
+	if policy == "loot_case_class":
+		return LootCaseVisualStateServiceRef.resolve_variant(object_data)
 	return fallback
 
 static func get_visual_variant(object_data: Dictionary) -> String:
@@ -400,6 +406,8 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 		return CableReelVisualStateServiceRef.resolve_visual_state(object_data)
 	if policy == VISUAL_STATE_POLICY_FUSE_BOX_LINE_POWER_STATE:
 		return FuseBoxVisualStateServiceRef.resolve_visual_state(object_data)
+	if policy == VISUAL_STATE_POLICY_LOOT_CASE_STATE:
+		return LootCaseVisualStateServiceRef.resolve_visual_state(object_data)
 	if _is_power_socket_object(object_data, family):
 		return _resolve_power_socket_visual_state(object_data)
 	var power_state: String = _normalized_text(object_data.get("power_state", ""))
