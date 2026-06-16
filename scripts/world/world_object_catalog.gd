@@ -317,6 +317,28 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"chain_output_ids", "type":"object_ref_array", "default":[]}
 		]
 	},
+	"station": {
+		"archetype_id":"station", "object_group":"station", "object_type":"station", "palette_label":"Station",
+		"placement_mode":"object", "display_name_template":"{station_type_label} Station", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
+		"station_type":"lab", "allowed_station_types":["decrypt", "lab", "recharge", "repair", "shop"],
+		"visual_family":"station", "visual_surface":"floor", "visual_state_policy":"static", "visual_variant":"lab",
+		"state":"active", "status":"active", "is_powered":true,
+		"property_schema":[
+			{
+				"field":"station_type",
+				"type":"enum",
+				"values":["decrypt", "lab", "recharge", "repair", "shop"],
+				"default":"lab",
+				"labels":{
+					"decrypt":"Decrypt",
+					"lab":"Research Lab",
+					"recharge":"Recharge",
+					"repair":"Repair",
+					"shop":"Shop"
+				}
+			}
+		]
+	},
 	"firewall": {
 		"archetype_id":"firewall", "object_group":"security", "object_type":"firewall", "palette_label":"Firewall",
 		"display_name_template":"Firewall", "placement_mode":"object", "facing_side":"SW", "configurable":true,
