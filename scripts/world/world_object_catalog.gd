@@ -252,6 +252,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"door": {
 		"archetype_id":"door", "object_group":"door", "object_type":"door", "palette_label":"Door", "facing_side":"SW",
+		"visual_family":"door", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true,
 		"configurable":true,
 		"display_name_template":"{material_label} {door_type_label} Door",
 		"property_schema":[

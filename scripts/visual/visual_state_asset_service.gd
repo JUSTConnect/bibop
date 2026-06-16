@@ -53,7 +53,7 @@ static func get_visual_state_family_config(family: String) -> Dictionary:
 static func has_visual_state_family(family: String) -> bool:
 	return not get_visual_state_family_config(family).is_empty()
 
-static func resolve_configured_state_asset_id(family: String, state: String, surface: String) -> String:
+static func resolve_configured_state_asset_id(family: String, state: String, surface: String, variant: String = "") -> String:
 	var config: Dictionary = get_visual_state_family_config(family)
 	if config.is_empty():
 		return ""
@@ -63,6 +63,12 @@ static func resolve_configured_state_asset_id(family: String, state: String, sur
 		return ""
 	var states: Dictionary = Dictionary(states_variant)
 	var normalized_surface: String = _normalized_text(surface)
+	var normalized_variant: String = _normalized_text(variant)
+	if not normalized_variant.is_empty() and states.has(normalized_variant) and typeof(states.get(normalized_variant)) == TYPE_DICTIONARY:
+		var variant_states: Dictionary = Dictionary(states.get(normalized_variant))
+		if variant_states.has(normalized_state):
+			var variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variant_states.get(normalized_state, "")))
+			return variant_asset_id if VisualAssetCatalogRef.has_asset(variant_asset_id) else ""
 	if states.has(normalized_surface) and typeof(states.get(normalized_surface)) == TYPE_DICTIONARY:
 		var surface_states: Dictionary = Dictionary(states.get(normalized_surface))
 		if surface_states.has(normalized_state):
@@ -145,6 +151,39 @@ static func get_visual_surface(object_data: Dictionary) -> String:
 		return "wall"
 	return "floor"
 
+
+static func _configured_default_variant(family: String) -> String:
+	var config: Dictionary = get_visual_state_family_config(family)
+	return _normalized_text(config.get("default_variant", ""))
+
+static func _resolve_door_pose_variant(object_data: Dictionary, fallback: String) -> String:
+	for key in ["is_open", "open", "opened", "door_open"]:
+		if object_data.has(key) and bool(object_data.get(key, false)):
+			return "open"
+	var open_values: Array[String] = ["open", "opened", "unsealed"]
+	var close_values: Array[String] = ["close", "closed", "sealed", "locked", "jammed", "unpowered"]
+	for key in ["open_state", "door_state", "state", "status"]:
+		var value: String = _normalized_text(object_data.get(key, ""))
+		if value in open_values:
+			return "open"
+		if value in close_values:
+			return "close"
+	return fallback if not fallback.is_empty() else "close"
+
+static func resolve_visual_variant(object_data: Dictionary) -> String:
+	var family: String = get_visual_family(object_data)
+	var config: Dictionary = get_visual_state_family_config(family)
+	var fallback: String = _configured_default_variant(family)
+	var explicit_variant: String = _first_text(object_data, ["visual_variant", "visual_pose", "variant", "pose"])
+	if not explicit_variant.is_empty():
+		return explicit_variant
+	var policy: String = _normalized_text(config.get("variant_policy", object_data.get("variant_policy", "")))
+	if policy == "door_pose":
+		return _resolve_door_pose_variant(object_data, fallback)
+	return fallback
+
+static func get_visual_variant(object_data: Dictionary) -> String:
+	return resolve_visual_variant(object_data)
 
 static func _is_hard_unavailable_state(value: String) -> bool:
 	return value in UNAVAILABLE_STATES and not POWER_FLAG_OVERRIDE_OFF_STATES.has(value)
@@ -256,12 +295,13 @@ static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 		var static_asset_id: String = resolve_configured_variant_asset_id(family, resolve_visual_variant(object_data), surface)
 		return static_asset_id if not static_asset_id.is_empty() else "object_generic"
 	var state: String = resolve_visual_state(object_data)
+	var variant: String = resolve_visual_variant(object_data)
 	var fallback_states: Array[String] = _fallback_state_order(state)
 	for candidate_state in fallback_states:
-		var configured_asset_id: String = resolve_configured_state_asset_id(family, candidate_state, surface)
+		var configured_asset_id: String = resolve_configured_state_asset_id(family, candidate_state, surface, variant)
 		if not configured_asset_id.is_empty():
 			return configured_asset_id
-		for candidate in _state_candidates(family, str(candidate_state), surface):
+		for candidate in _state_candidates(family, str(candidate_state), surface, variant):
 			if VisualAssetCatalogRef.has_asset(candidate):
 				return candidate
 	var legacy_id: String = _legacy_asset_id(object_data)

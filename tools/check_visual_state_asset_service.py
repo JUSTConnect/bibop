@@ -15,10 +15,29 @@ firewall_service = root / "scripts/game/firewall/firewall_service.gd"
 station_archetype = world_catalog.split('"station": {', 1)[1].split('\n\t"firewall": {', 1)[0]
 station_asset_ids = ["station_decrypt_floor_01", "station_lab_floor_01", "station_recharge_floor_01", "station_repair_floor_01", "station_shop_floor_01"]
 
+DOOR_ASSET_IDS = [
+    "door_close_base_floor_01",
+    "door_close_off_floor_01",
+    "door_close_on_floor_01",
+    "door_open_base_floor_01",
+    "door_open_off_floor_01",
+    "door_open_on_floor_01",
+]
+door_archetype = world_catalog.split('"door": {', 1)[1].split('\n\t"platform": {', 1)[0]
+
 checks = {
+
+    "door family exists in visual state catalog": re.search(r'"door"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,
+    "door family uses door pose variant policy": re.search(r'"door"\s*:\s*\{.*?"variant_policy"\s*:\s*"door_pose".*?"default_variant"\s*:\s*"close"', catalog, re.S) is not None,
+    "door close variant maps all powered states": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"close"\s*:\s*\{.*?"base"\s*:\s*"door_close_base_floor_01"', r'"close"\s*:\s*\{.*?"off"\s*:\s*"door_close_off_floor_01"', r'"close"\s*:\s*\{.*?"on"\s*:\s*"door_close_on_floor_01"']),
+    "door open variant maps all powered states": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"open"\s*:\s*\{.*?"base"\s*:\s*"door_open_base_floor_01"', r'"open"\s*:\s*\{.*?"off"\s*:\s*"door_open_off_floor_01"', r'"open"\s*:\s*\{.*?"on"\s*:\s*"door_open_on_floor_01"']),
+    "resolver supports variant-aware family mapping": "variant_policy" in service and "resolve_visual_variant" in service and "resolve_configured_state_asset_id(family: String, state: String, surface: String, variant: String = \"\")" in service and "states.has(normalized_variant)" in service,
+    "resolver supports variant naming convention fallback": '"%s_%s_%s_%s_01" % [family, normalized_variant, state, surface]' in service,
+    "door archetype opts into visual states": all(token in door_archetype for token in ['"visual_family":"door"', '"visual_surface":"floor"', '"visual_state_policy":"powered_three_state"', '"power_visual_state_enabled":true']),
+    "door resolution is not renderer hardcoded": all(token not in renderer for token in DOOR_ASSET_IDS),
     "service reads configured visual state families": "get_visual_state_asset_families()" in service and "get_visual_state_family_config" in service,
     "service exposes visual family helper": "static func has_visual_state_family" in service,
-    "configured state mapping is validated first": "resolve_configured_state_asset_id" in service and re.search(r"resolve_configured_state_asset_id\(family, candidate_state, surface\).*?if not configured_asset_id\.is_empty\(\):.*?return configured_asset_id.*?_state_candidates", service, re.S) is not None,
+    "configured state mapping is validated first": "resolve_configured_state_asset_id" in service and re.search(r"resolve_configured_state_asset_id\(family, candidate_state, surface, variant\).*?if not configured_asset_id\.is_empty\(\):.*?return configured_asset_id.*?_state_candidates", service, re.S) is not None,
     "light base fallback comes from catalog": re.search(r'"base"\s*:\s*"light_off_wall_01"', catalog) is not None and "Compatibility: no light_base_wall asset exists yet" not in service and "family == \"light\" and surface == \"wall\"" not in service,
     "overlay resolution reads configured overlays": "resolve_configured_overlay_asset_ids" in service and re.search(r'"overlays"\s*:\s*\{\s*"on"\s*:\s*\["light_on_wall_pulsar_overlay_01"\]', catalog, re.S) is not None,
     "convention fallback still exists": '"%s_%s_%s_01" % [family, state, surface]' in service and '"%s_%s_%s_pulsar_overlay_01" % [family, state, surface]' in service,
