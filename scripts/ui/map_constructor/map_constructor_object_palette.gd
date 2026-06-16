@@ -295,6 +295,8 @@ static func get_prefab_group_name(ui: Variant, entry: Dictionary) -> String:
 	var category_text: String = ui._safe_ui_string(entry.get("category", ""))
 	var placement_mode: String = ui._safe_ui_string(entry.get("placement_mode", ""))
 	if placement_mode == "wall_mounted":
+		if ui._safe_ui_string(entry.get("constructor_tab", "")).to_lower() == "cooling_system" or category_text == "Cooling System":
+			return "Cooling System"
 		return "Wall-mounted"
 	if ui.MAP_CONSTRUCTOR_POWER_PREFAB_IDS.has(prefab_id):
 		return "Power"

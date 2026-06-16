@@ -31,7 +31,8 @@ for token in [
     'static func _is_cooling_routing_object',
     'routing_kind", data.get("cooling_system_type"',
     'object_type in ["external_air_duct", "external_water_pipe"]',
-    'rendered_cooling_schema or is_cooling_routing_object',
+    'if is_cooling_routing_object:',
+    'elif rendered_cooling_schema:',
     '_render_cooling_system_controls',
     '"Route mode"',
     '"route_mode": "inner", "wall_routing_mode": "inner"',
@@ -62,6 +63,32 @@ for token in ['class_name CoolingRoutingContourService', 'build_contours', 'coll
     if token not in service: issues.append(f'missing service token {token}')
 if 'CoolingRoutingContourServiceRef.collect_contour_warnings' not in validation:
     issues.append('validation does not collect contour warnings')
+
+# Top-level Cooling System constructor category and selected-cell routing checks.
+game_ui = Path('scripts/ui/game_ui.gd').read_text()
+map_service = Path('scripts/game/map_constructor_service.gd').read_text()
+mission = Path('scripts/game/mission_manager.gd').read_text()
+object_palette = Path('scripts/ui/map_constructor/map_constructor_object_palette.gd').read_text()
+for text, source_name in [(game_ui, 'GameUI categories'), (map_service, 'inspection model')]:
+    if 'Cooling System' not in text:
+        issues.append(f'{source_name} missing top-level Cooling System tab/category')
+for oid in ['external_air_duct', 'external_water_pipe']:
+    idx = mission.find(f'"{oid}": {{"display_name":')
+    if idx < 0:
+        issues.append(f'missing {oid} constructor metadata')
+        continue
+    body = mission[idx:idx + 1800]
+    for token in ['"category":"Cooling System"', '"constructor_group":"cooling_system"', '"constructor_tab":"cooling_system"', '"placement_mode":"wall_mounted"', '"route_mode":"inner"', '"wall_routing_mode":"inner"']:
+        if token not in body:
+            issues.append(f'{oid} constructor metadata missing {token}')
+for token in ['object_type in ["external_air_duct", "external_water_pipe"]', 'routing_kind in ["air_duct", "water_pipe"]', 'cooling_system_type in ["air_duct", "water_pipe"]', 'return "cooling_system"']:
+    if token not in inspector or token not in map_service:
+        issues.append(f'missing cooling selected-cell routing token {token}')
+if 'parent.add_child(cooling_configurable)' not in inspector or 'elif rendered_cooling_schema:' not in inspector:
+    issues.append('cooling routing objects still appear to use the nested Object/Cooling System TabContainer path')
+if 'return "Cooling System"' not in object_palette:
+    issues.append('palette grouping does not expose Cooling System group')
+
 if issues:
     print('Cooling routing contour checks failed:')
     for issue in issues: print(' -', issue)
