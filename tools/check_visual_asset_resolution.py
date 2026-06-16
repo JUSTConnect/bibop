@@ -22,6 +22,13 @@ SYNTHETIC_DESCRIPTORS = [
     ({"visual_id": "power_switcher_off_01", "texture_path": "res://assets/visual/isometric/objects/power_switcher_off_01.png"}, "res://assets/visual/isometric/objects/power_swicher/power_swicher_off_floor.png"),
 ]
 
+ITEM_PATHS = {
+    "fuse_floor_01": "res://assets/visual/isometric/items/fuse_floor.png",
+    "repair_kit_floor_01": "res://assets/visual/isometric/items/repair_tool_floor.png",
+    "reinforcement_floor_01": "res://assets/visual/isometric/items/reinforce_floor.png",
+    "parts_floor_01": "res://assets/visual/isometric/items/ditales_floor.png",
+}
+
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
@@ -83,6 +90,12 @@ def main() -> int:
         resolved = _resolve_descriptor(asset_paths, descriptor)
         if resolved != expected:
             failures.append(f"synthetic-descriptor:{descriptor['visual_id']} -> resolved {resolved}, expected {expected}")
+    for item_id, expected_path in ITEM_PATHS.items():
+        resolved_path = asset_paths.get(item_id, "")
+        if resolved_path != expected_path:
+            failures.append(f"item-path:{item_id} -> resolved {resolved_path}, expected {expected_path}")
+        if not _repo_path(expected_path).is_file():
+            failures.append(f"item-path:{item_id} -> missing {expected_path}")
     runtime_files = [p for p in REPO_ROOT.rglob("*") if p.is_file() and ".git" not in p.parts and p.suffix in {".gd", ".tscn", ".tres", ".json", ".cfg"}]
     for path in runtime_files:
         text = _read(path)
@@ -91,6 +104,14 @@ def main() -> int:
                 failures.append(f"stale-runtime-reference:{path.relative_to(REPO_ROOT)} -> {legacy}")
     if "resolve_visual_texture_path" not in renderer or "duplicate(true)" not in renderer:
         failures.append("renderer: draw-time resolution guard must duplicate descriptors and call resolve_visual_texture_path")
+    if 'find("/items/")' not in renderer:
+        failures.append("renderer: object PNG resolver must accept authored /items/ PNG paths")
+    draw_match = re.search(r"func draw_iso_object_png_texture_asset\(.*?\nfunc ", renderer, re.S)
+    draw_body = draw_match.group(0) if draw_match else ""
+    if "get_iso_object_png_texture_for_asset_key(normalized_asset_key)" in draw_body:
+        failures.append("renderer: draw_iso_object_png_texture_asset must not load by asset key without descriptor/resolved path")
+    if "get_iso_object_png_texture_for_resolved_path(normalized_asset_key, texture_path)" not in draw_body:
+        failures.append("renderer: draw_iso_object_png_texture_asset must load from the resolved descriptor-aware texture_path")
     if '"power_switcher_off": "power_switcher_off_floor_01"' not in catalog:
         failures.append("alias:power_switcher_off -> not mapped to authored floor asset")
     if '"steel_box": "heavy_crate_floor_01"' not in catalog:

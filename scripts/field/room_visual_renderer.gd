@@ -2635,7 +2635,7 @@ func get_iso_object_png_asset_path(asset_key: String, descriptor: Dictionary = {
 	var descriptor_visual_id: String = str(descriptor.get("visual_id", descriptor.get("visual_asset_id", descriptor.get("asset_id", normalized_asset_key)))).strip_edges()
 	var descriptor_path: String = str(descriptor.get("path", descriptor.get("texture_path", ""))).strip_edges()
 	var catalog_path: String = VisualAssetCatalogScript.resolve_visual_texture_path(descriptor_visual_id, descriptor_path)
-	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0):
+	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0 or catalog_path.find("/items/") >= 0):
 		return catalog_path
 
 	return ""
@@ -2643,28 +2643,34 @@ func get_iso_object_png_asset_path(asset_key: String, descriptor: Dictionary = {
 func is_iso_object_png_asset_key(asset_key: String) -> bool:
 	return not get_iso_object_png_asset_path(asset_key).is_empty()
 
-func get_iso_object_png_texture_for_asset_key(asset_key: String) -> Texture2D:
+func get_iso_object_png_texture_for_resolved_path(asset_key: String, texture_path: String) -> Texture2D:
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
-	var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key)
-	if texture_path.is_empty():
+	var normalized_texture_path: String = texture_path.strip_edges()
+	if normalized_texture_path.is_empty():
 		return null
-	if _iso_object_png_texture_cache.has(normalized_asset_key):
-		var cached_value: Variant = _iso_object_png_texture_cache.get(normalized_asset_key)
+	var cache_key: String = "%s|%s" % [normalized_asset_key, normalized_texture_path]
+	if _iso_object_png_texture_cache.has(cache_key):
+		var cached_value: Variant = _iso_object_png_texture_cache.get(cache_key)
 		if cached_value is Texture2D:
 			return cached_value as Texture2D
 		return null
-	if not ResourceLoader.exists(texture_path, "Texture2D"):
-		push_warning("[IsoObjectPNG] missing object PNG for visual_id=%s path=%s" % [normalized_asset_key, texture_path])
-		_iso_object_png_texture_cache[normalized_asset_key] = null
+	if not ResourceLoader.exists(normalized_texture_path, "Texture2D"):
+		push_warning("[IsoObjectPNG] missing object PNG for visual_id=%s path=%s" % [normalized_asset_key, normalized_texture_path])
+		_iso_object_png_texture_cache[cache_key] = null
 		return null
-	var loaded_resource: Resource = ResourceLoader.load(texture_path)
+	var loaded_resource: Resource = ResourceLoader.load(normalized_texture_path)
 	if loaded_resource is Texture2D:
 		var loaded_texture: Texture2D = loaded_resource as Texture2D
-		_iso_object_png_texture_cache[normalized_asset_key] = loaded_texture
+		_iso_object_png_texture_cache[cache_key] = loaded_texture
 		return loaded_texture
-	push_warning("[IsoObjectPNG] failed to load object PNG as Texture2D for visual_id=%s path=%s" % [normalized_asset_key, texture_path])
-	_iso_object_png_texture_cache[normalized_asset_key] = null
+	push_warning("[IsoObjectPNG] failed to load object PNG as Texture2D for visual_id=%s path=%s" % [normalized_asset_key, normalized_texture_path])
+	_iso_object_png_texture_cache[cache_key] = null
 	return null
+
+func get_iso_object_png_texture_for_asset_key(asset_key: String, descriptor: Dictionary = {}) -> Texture2D:
+	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
+	var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key, descriptor)
+	return get_iso_object_png_texture_for_resolved_path(normalized_asset_key, texture_path)
 
 func get_iso_placeholder_asset_path(asset_key: String) -> String:
 	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
@@ -4401,7 +4407,7 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 	local_object_data = enrich_iso_object_surface_context_for_cell(local_object_data, cell)
 	if is_wall_procedural_routed_object(local_object_data):
 		return draw_wall_procedural_routed_object(cell, local_object_data, visual_center)
-	var texture: Texture2D = get_iso_object_png_texture_for_asset_key(normalized_asset_key)
+	var texture: Texture2D = get_iso_object_png_texture_for_resolved_path(normalized_asset_key, texture_path)
 	if texture == null:
 		push_warning("[IsoObjectPNG] drawing missing fallback for visual_id=%s path=%s" % [normalized_asset_key, texture_path])
 		var fallback_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key_with_size(normalized_asset_key, visual_center, get_iso_asset_alignment_expected_size(normalized_asset_key))
@@ -6519,7 +6525,12 @@ func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictiona
 			draw_line(jamb_center + Vector2(0.0, -10.0), jamb_center + Vector2(0.0, 13.0), frame_color.lightened(0.24), 3.0)
 	var door_kind: String = str(profile.get("door_kind", "mechanical_door"))
 	var door_state: String = str(profile.get("door_state", "closed"))
-	var used_texture_asset: bool = draw_iso_texture_asset(cell, "object_door", door_insert_center)
+	var door_visual_data: Dictionary = object_data.duplicate(true)
+	if not door_visual_data.has("visual_family") and not door_visual_data.has("visual_asset_family"):
+		door_visual_data["visual_family"] = "door"
+	if not door_visual_data.has("object_type") and not door_visual_data.has("type"):
+		door_visual_data["object_type"] = "door"
+	var used_texture_asset: bool = draw_iso_object_png_texture_asset(cell, "door", door_insert_center, door_visual_data)
 	if not used_texture_asset:
 		var axis_data: Dictionary = _get_door_axis_vectors(orientation)
 		var along_axis: Vector2 = Vector2(axis_data.get("along", Vector2(1.0, 0.0)))
