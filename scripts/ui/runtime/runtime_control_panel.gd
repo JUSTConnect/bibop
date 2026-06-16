@@ -2,6 +2,7 @@ extends RefCounted
 class_name RuntimeControlPanel
 
 const RuntimeInteractionPresenterRef = preload("res://scripts/ui/runtime/runtime_interaction_presenter.gd")
+const ActionIconAtlasServiceRef = preload("res://scripts/ui/action_icon_atlas_service.gd")
 
 
 static func build(ui, bridge = null) -> Control:
@@ -41,24 +42,33 @@ static func build(ui, bridge = null) -> Control:
 
 	var callback_owner: Object = bridge if bridge != null else ui
 	ui.runtime_move_forward_button = ui._create_runtime_control_button("Forward", Callable(callback_owner, "on_move_forward_pressed") if bridge != null else Callable(ui, "_on_move_forward_pressed"))
+	ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_move_forward_button, "move_forward", "Forward")
 	ui.runtime_move_forward_button.visible = false
 	grid.add_child(ui.runtime_move_forward_button)
 	ui.runtime_move_backward_button = ui._create_runtime_control_button("Back", Callable(callback_owner, "on_move_backward_pressed") if bridge != null else Callable(ui, "_on_move_backward_pressed"))
+	ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_move_backward_button, "move_backward", "Back")
 	ui.runtime_move_backward_button.visible = false
 	grid.add_child(ui.runtime_move_backward_button)
 	ui.runtime_turn_left_button = ui._create_runtime_control_button("L", Callable(callback_owner, "on_turn_left_pressed") if bridge != null else Callable(ui, "_on_turn_left_pressed"))
+	ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_turn_left_button, "rotate_bipob_left", "Turn left")
 	grid.add_child(ui.runtime_turn_left_button)
 	ui.runtime_turn_right_button = ui._create_runtime_control_button("R", Callable(callback_owner, "on_turn_right_pressed") if bridge != null else Callable(ui, "_on_turn_right_pressed"))
+	ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_turn_right_button, "rotate_bipob_right", "Turn right")
 	grid.add_child(ui.runtime_turn_right_button)
 	ui.runtime_action_button = ui._create_runtime_control_button("Act", Callable(callback_owner, "on_action_pressed") if bridge != null else Callable(ui, "_on_interact_pressed"), "primary")
+	ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_action_button, "manipulator_action", "Act")
 	grid.add_child(ui.runtime_action_button)
 	ui.runtime_connect_button = ui._create_runtime_control_button("Connect", Callable(callback_owner, "on_connect_pressed") if bridge != null else Callable(ui, "_on_connect_pressed"), "primary")
+	ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_connect_button, "wired_connector", "Connect")
 	grid.add_child(ui.runtime_connect_button)
 	ui.runtime_heavy_claw_button = ui._create_runtime_control_button("Claw", Callable(callback_owner, "on_heavy_claw_pressed") if bridge != null else Callable(ui, "_on_heavy_claw_pressed"), "primary")
+	ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_heavy_claw_button, "heavy_claw_action", "Claw")
 	grid.add_child(ui.runtime_heavy_claw_button)
 	ui.runtime_cut_button = ui._create_runtime_control_button("Cut", Callable(callback_owner, "on_cut_pressed") if bridge != null else Callable(ui, "_on_runtime_cut_pressed"), "primary")
+	ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_cut_button, "plasma_cutter", "Cut")
 	grid.add_child(ui.runtime_cut_button)
 	ui.runtime_end_turn_button = ui._create_runtime_control_button("End", Callable(callback_owner, "on_end_turn_pressed") if bridge != null else Callable(ui, "_on_end_turn_pressed"), "reference")
+	ActionIconAtlasServiceRef.apply_icon_to_button(ui.runtime_end_turn_button, "end_turn", "End Turn")
 	grid.add_child(ui.runtime_end_turn_button)
 	refresh(ui)
 
