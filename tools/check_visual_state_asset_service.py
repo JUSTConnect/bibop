@@ -310,6 +310,89 @@ checks.update({
     "power socket resolution is not renderer hardcoded": all(token not in renderer for token in POWER_SOCKET_ASSET_IDS),
 })
 
+
+FUSE_BOX_ASSET_IDS = [
+    "fuse_box_base_without_floor_01",
+    "fuse_box_base_without_wall_01",
+    "fuse_box_base_with_floor_01",
+    "fuse_box_base_with_wall_01",
+    "fuse_box_off_with_floor_01",
+    "fuse_box_off_with_wall_01",
+    "fuse_box_off_without_floor_01",
+    "fuse_box_off_without_wall_01",
+    "fuse_box_on_floor_01",
+    "fuse_box_on_wall_01",
+]
+fuse_box_helper_path = root / "scripts/game/power/fuse_box_visual_state_service.gd"
+fuse_box_helper = fuse_box_helper_path.read_text() if fuse_box_helper_path.exists() else ""
+fuse_box_archetype = world_catalog.split('"fuse_box": {', 1)[1].split('\n\t"barrel": {', 1)[0]
+
+def _py_fuse_box_has_fuse(row):
+    for key in ["has_fuse", "fuse_installed", "is_fuse_installed", "contains_fuse", "has_installed_fuse", "fuse_present", "inserted_fuse"]:
+        if key in row and bool(row.get(key)):
+            return True
+    for key in ["fuse_count", "inventory_fuse_count"]:
+        if key in row and int(row.get(key, 0)) > 0:
+            return True
+    return False
+
+def _py_fuse_box_has_power(row):
+    active = {"on", "active", "ready", "enabled", "powered", "source_on", "switch_on"}
+    off = {"unpowered", "no_power", "disconnected", "offline"}
+    norm = lambda value: str(value).strip().lower().replace(" ", "_").replace("-", "_")
+    for key in ["is_powered", "powered", "has_power", "receives_power", "upstream_powered", "source_powered", "has_source_power", "incoming_powered"]:
+        if key in row and bool(row.get(key)):
+            return True
+    for key in ["power_state", "status", "state"]:
+        if norm(row.get(key, "")) in active:
+            return True
+    for key in ["is_powered", "powered", "has_power", "receives_power", "upstream_powered", "source_powered", "has_source_power", "incoming_powered"]:
+        if key in row and not bool(row.get(key)):
+            return False
+    for key in ["power_state", "status", "state"]:
+        if norm(row.get(key, "")) in off:
+            return False
+    return False
+
+def _py_fuse_box_unavailable(row):
+    unavailable = {"off", "disabled", "error", "unavailable", "failed", "broken"}
+    norm = lambda value: str(value).strip().lower().replace(" ", "_").replace("-", "_")
+    for key in ["disabled", "unavailable", "error", "is_disabled", "is_unavailable", "has_error"]:
+        if key in row and bool(row.get(key)):
+            return True
+    return any(norm(row.get(key, "")) in unavailable for key in ["state", "status", "availability", "interaction_state"])
+
+def _py_fuse_box_state_variant(row):
+    has_fuse = _py_fuse_box_has_fuse(row)
+    if not _py_fuse_box_has_power(row):
+        return ("base", "with" if has_fuse else "without")
+    if not has_fuse:
+        return ("off", "without")
+    return ("off" if _py_fuse_box_unavailable(row) else "on", "with")
+
+FUSE_BOX_BEHAVIOR_CASES = [
+    ({"has_power": False, "has_fuse": False}, ("base", "without")),
+    ({"has_power": False, "has_fuse": True}, ("base", "with")),
+    ({"has_power": True, "has_fuse": False}, ("off", "without")),
+    ({"has_power": True, "has_fuse": True}, ("on", "with")),
+    ({"has_power": True, "has_fuse": True, "state": "disabled"}, ("off", "with")),
+    ({"is_powered": True, "power_state": "unpowered", "has_fuse": True}, ("on", "with")),
+]
+checks.update({
+    "fuse box asset ids exist": all(f'"{asset_id}"' in catalog for asset_id in FUSE_BOX_ASSET_IDS),
+    "fuse box aliases map to authored floor assets": all(token in catalog for token in ['"fuse_box": "fuse_box_base_without_floor_01"', '"fuse_box_base_with": "fuse_box_base_with_floor_01"', '"fuse_box_base_without": "fuse_box_base_without_floor_01"', '"fuse_box_off_with": "fuse_box_off_with_floor_01"', '"fuse_box_off_without": "fuse_box_off_without_floor_01"', '"fuse_box_on": "fuse_box_on_floor_01"', '"fuse_box_on_wall": "fuse_box_on_wall_01"']),
+    "fuse box canonical ids are included": all(re.search(r'CANONICAL_OBJECT_VISUAL_IDS.*?"%s"' % re.escape(token), catalog, re.S) is not None for token in FUSE_BOX_ASSET_IDS),
+    "fuse box family exists with policies": re.search(r'"fuse_box"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"default_surface"\s*:\s*"floor".*?"visual_state_policy"\s*:\s*"fuse_box_line_power_state".*?"variant_policy"\s*:\s*"fuse_presence"', catalog, re.S) is not None,
+    "fuse box floor surface variant state mappings": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"floor"\s*:\s*\{.*?"with"\s*:\s*\{.*?"base"\s*:\s*"fuse_box_base_with_floor_01"', r'"floor"\s*:\s*\{.*?"without"\s*:\s*\{.*?"base"\s*:\s*"fuse_box_base_without_floor_01"', r'"floor"\s*:\s*\{.*?"with"\s*:\s*\{.*?"off"\s*:\s*"fuse_box_off_with_floor_01"', r'"floor"\s*:\s*\{.*?"without"\s*:\s*\{.*?"off"\s*:\s*"fuse_box_off_without_floor_01"', r'"floor"\s*:\s*\{.*?"with"\s*:\s*\{.*?"on"\s*:\s*"fuse_box_on_floor_01"']),
+    "fuse box wall surface variant state mappings": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"wall"\s*:\s*\{.*?"with"\s*:\s*\{.*?"base"\s*:\s*"fuse_box_base_with_wall_01"', r'"wall"\s*:\s*\{.*?"without"\s*:\s*\{.*?"base"\s*:\s*"fuse_box_base_without_wall_01"', r'"wall"\s*:\s*\{.*?"with"\s*:\s*\{.*?"off"\s*:\s*"fuse_box_off_with_wall_01"', r'"wall"\s*:\s*\{.*?"without"\s*:\s*\{.*?"off"\s*:\s*"fuse_box_off_without_wall_01"', r'"wall"\s*:\s*\{.*?"with"\s*:\s*\{.*?"on"\s*:\s*"fuse_box_on_wall_01"']),
+    "fuse box behavior smoke cases resolve correctly": all(_py_fuse_box_state_variant(data) == expected for data, expected in FUSE_BOX_BEHAVIOR_CASES),
+    "fuse box helper exists and is read only resolver": all(token in fuse_box_helper for token in ["class_name FuseBoxVisualStateService", "static func resolve_visual_state", "static func resolve_variant", '"has_fuse"', '"fuse_installed"', '"source_powered"', '"incoming_powered"', '"power_state"', '"status"', '"state"']) and all(token not in fuse_box_helper for token in ["insert_fuse", "remove_fuse"]),
+    "fuse box archetype supports mount and visual policies": all(token in fuse_box_archetype for token in ['"archetype_id":"fuse_box"', '"mount":"floor"', '"visual_family":"fuse_box"', '"visual_state_policy":"fuse_box_line_power_state"', '"variant_policy":"fuse_presence"', '"field":"mount"']) and '"visual_surface"' not in fuse_box_archetype,
+    "visual service supports fuse box custom policy and variant": all(token in service for token in ["FuseBoxVisualStateService", "VISUAL_STATE_POLICY_FUSE_BOX_LINE_POWER_STATE", 'policy == VISUAL_STATE_POLICY_FUSE_BOX_LINE_POWER_STATE', 'policy == "fuse_presence"']),
+    "resolver supports states surface variant state mapping": all(token in service for token in ["surface_mapping.has(normalized_variant)", "surface_variant_states.has(normalized_state)"]),
+    "fuse box resolution is not renderer hardcoded": all(token not in renderer for token in FUSE_BOX_ASSET_IDS),
+})
+
 failed = [name for name, ok in checks.items() if not ok]
 if failed:
     print("Visual state asset smoke checks failed:")

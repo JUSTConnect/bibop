@@ -4,6 +4,7 @@ class_name VisualStateAssetService
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const CableReelVisualStateServiceRef = preload("res://scripts/game/cable/cable_reel_visual_state_service.gd")
 const PowerSocketVisualStateServiceRef = preload("res://scripts/game/power/power_socket_visual_state_service.gd")
+const FuseBoxVisualStateServiceRef = preload("res://scripts/game/power/fuse_box_visual_state_service.gd")
 
 const VISUAL_STATE_BASE := "base"
 const VISUAL_STATE_OFF := "off"
@@ -12,6 +13,7 @@ const VISUAL_STATE_POLICY_STATIC := "static"
 const VISUAL_STATE_POLICY_POWERED_THREE_STATE := "powered_three_state"
 const VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE := "cable_reel_connection_state"
 const VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE := "power_socket_connection_state"
+const VISUAL_STATE_POLICY_FUSE_BOX_LINE_POWER_STATE := "fuse_box_line_power_state"
 
 const POWER_OFF_STATES: Array[String] = ["unpowered", "no_power", "disconnected", "offline"]
 const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "powered", "source_on", "switch_on"]
@@ -120,12 +122,19 @@ static func resolve_configured_state_asset_id(family: String, state: String, sur
 		return ""
 	var states: Dictionary = Dictionary(states_variant)
 	var normalized_variant: String = _normalized_text(variant)
+	var normalized_surface: String = _normalized_text(surface)
+	if not normalized_surface.is_empty() and not normalized_variant.is_empty() and states.has(normalized_surface) and typeof(states.get(normalized_surface)) == TYPE_DICTIONARY:
+		var surface_mapping: Dictionary = Dictionary(states.get(normalized_surface))
+		if surface_mapping.has(normalized_variant) and typeof(surface_mapping.get(normalized_variant)) == TYPE_DICTIONARY:
+			var surface_variant_states: Dictionary = Dictionary(surface_mapping.get(normalized_variant))
+			if surface_variant_states.has(normalized_state):
+				var surface_variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(surface_variant_states.get(normalized_state, "")))
+				return surface_variant_asset_id if VisualAssetCatalogRef.has_asset(surface_variant_asset_id) else ""
 	if not normalized_variant.is_empty() and states.has(normalized_variant) and typeof(states.get(normalized_variant)) == TYPE_DICTIONARY:
 		var variant_states: Dictionary = Dictionary(states.get(normalized_variant))
 		if variant_states.has(normalized_state):
 			var variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variant_states.get(normalized_state, "")))
 			return variant_asset_id if VisualAssetCatalogRef.has_asset(variant_asset_id) else ""
-	var normalized_surface: String = _normalized_text(surface)
 	if states.has(normalized_surface) and typeof(states.get(normalized_surface)) == TYPE_DICTIONARY:
 		var surface_states: Dictionary = Dictionary(states.get(normalized_surface))
 		if surface_states.has(normalized_state):
@@ -147,6 +156,7 @@ static func resolve_configured_overlay_asset_ids(family: String, state: String, 
 		return resolved
 	var overlays: Dictionary = Dictionary(overlays_variant)
 	var configured_variant: Variant = null
+	var normalized_surface: String = _normalized_text(surface)
 	var normalized_source_variant: String = _normalized_text(source_variant)
 	if not normalized_source_variant.is_empty() and overlays.has(normalized_source_variant) and typeof(overlays.get(normalized_source_variant)) == TYPE_DICTIONARY:
 		configured_variant = Dictionary(overlays.get(normalized_source_variant)).get(normalized_state, [])
@@ -186,6 +196,8 @@ static func object_uses_visual_states(object_data: Dictionary) -> bool:
 	if policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE:
 		return true
 	if policy == VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE:
+		return true
+	if policy == VISUAL_STATE_POLICY_FUSE_BOX_LINE_POWER_STATE:
 		return true
 	if bool(object_data.get("power_visual_state_enabled", false)):
 		return true
@@ -248,6 +260,8 @@ static func resolve_visual_variant(object_data: Dictionary) -> String:
 	var policy: String = _normalized_text(config.get("variant_policy", object_data.get("variant_policy", "")))
 	if policy == "door_pose":
 		return _resolve_door_pose_variant(object_data, fallback)
+	if policy == "fuse_presence":
+		return FuseBoxVisualStateServiceRef.resolve_variant(object_data)
 	return fallback
 
 static func get_visual_variant(object_data: Dictionary) -> String:
@@ -257,14 +271,33 @@ static func _is_hard_unavailable_state(value: String) -> bool:
 	return value in UNAVAILABLE_STATES and not POWER_FLAG_OVERRIDE_OFF_STATES.has(value)
 
 static func _has_false_power_flag(object_data: Dictionary) -> bool:
-	for key in ["is_powered", "powered", "has_power", "receives_power", "upstream_powered"]:
+	for key in ["is_powered", "powered", "has_power", "receives_power", "upstream_powered", "source_powered", "has_source_power", "incoming_powered"]:
 		if object_data.has(key) and not bool(object_data.get(key, false)):
 			return true
 	return false
 
 static func _has_true_power_flag(object_data: Dictionary) -> bool:
-	for key in ["is_powered", "powered", "has_power", "receives_power", "upstream_powered"]:
+	for key in ["is_powered", "powered", "has_power", "receives_power", "upstream_powered", "source_powered", "has_source_power", "incoming_powered"]:
 		if object_data.has(key) and bool(object_data.get(key, false)):
+			return true
+	return false
+
+static func _has_fuse(object_data: Dictionary) -> bool:
+	for key in ["has_fuse", "fuse_installed", "is_fuse_installed", "contains_fuse", "has_installed_fuse", "fuse_present", "inserted_fuse"]:
+		if object_data.has(key) and bool(object_data.get(key, false)):
+			return true
+	for key in ["fuse_count", "inventory_fuse_count"]:
+		if object_data.has(key) and int(object_data.get(key, 0)) > 0:
+			return true
+	return false
+
+static func _is_explicitly_unavailable(object_data: Dictionary) -> bool:
+	for key in ["disabled", "unavailable", "error", "is_disabled", "is_unavailable", "has_error"]:
+		if object_data.has(key) and bool(object_data.get(key, false)):
+			return true
+	for key in ["state", "status", "availability", "interaction_state"]:
+		var value: String = _normalized_text(object_data.get(key, ""))
+		if value in ["off", "disabled", "error", "unavailable", "failed", "broken"]:
 			return true
 	return false
 
@@ -340,10 +373,18 @@ static func _has_source_power(object_data: Dictionary) -> bool:
 		return true
 	if power_state in ACTIVE_STATES:
 		return true
+	for key in ["status", "state"]:
+		var active_value: String = _normalized_text(object_data.get(key, ""))
+		if active_value in ACTIVE_STATES:
+			return true
 	if _has_false_power_flag(object_data):
 		return false
 	if power_state in POWER_OFF_STATES or power_state in UNAVAILABLE_STATES:
 		return false
+	for key in ["status", "state"]:
+		var value: String = _normalized_text(object_data.get(key, ""))
+		if value in POWER_OFF_STATES:
+			return false
 	return false
 
 static func _resolve_power_socket_visual_state(object_data: Dictionary) -> String:
@@ -357,6 +398,8 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 	var policy: String = _normalized_text(config.get("visual_state_policy", object_data.get("visual_state_policy", "")))
 	if policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE:
 		return CableReelVisualStateServiceRef.resolve_visual_state(object_data)
+	if policy == VISUAL_STATE_POLICY_FUSE_BOX_LINE_POWER_STATE:
+		return FuseBoxVisualStateServiceRef.resolve_visual_state(object_data)
 	if _is_power_socket_object(object_data, family):
 		return _resolve_power_socket_visual_state(object_data)
 	var power_state: String = _normalized_text(object_data.get("power_state", ""))
@@ -403,9 +446,6 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 
 static func _legacy_asset_id(object_data: Dictionary) -> String:
 	return _first_text(object_data, ["texture_asset_id", "visual_texture_asset_id", "visual_asset_id", "asset_id"])
-
-static func resolve_visual_variant(object_data: Dictionary) -> String:
-	return _first_text(object_data, ["station_type", "visual_variant", "variant"])
 
 static func _family_uses_static_visual_policy(config: Dictionary, object_data: Dictionary) -> bool:
 	return _normalized_text(config.get("visual_state_policy", object_data.get("visual_state_policy", ""))) == VISUAL_STATE_POLICY_STATIC
@@ -458,15 +498,16 @@ static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 		var static_asset_id: String = resolve_configured_variant_asset_id(family, resolve_visual_variant(object_data), surface)
 		return static_asset_id if not static_asset_id.is_empty() else "object_generic"
 	var state: String = resolve_visual_state(object_data)
-	var config: Dictionary = get_visual_state_family_config(family)
-	var variant_mapping: Dictionary = resolve_direction_variant_mapping(config, get_logical_visual_variant(object_data, config)) if not config.is_empty() else {}
-	var source_variant: String = str(variant_mapping.get("source_variant", ""))
+	var source_variant: String = resolve_visual_variant(object_data)
+	if source_variant.is_empty():
+		var variant_mapping: Dictionary = resolve_direction_variant_mapping(config, get_logical_visual_variant(object_data, config)) if not config.is_empty() else {}
+		source_variant = str(variant_mapping.get("source_variant", ""))
 	var fallback_states: Array[String] = _fallback_state_order(state)
 	for candidate_state in fallback_states:
 		var configured_asset_id: String = resolve_configured_state_asset_id(family, candidate_state, surface, source_variant)
 		if not configured_asset_id.is_empty():
 			return configured_asset_id
-		for candidate in _state_candidates(family, str(candidate_state), surface, variant):
+		for candidate in _state_candidates(family, str(candidate_state), surface, source_variant):
 			if VisualAssetCatalogRef.has_asset(candidate):
 				return candidate
 	var legacy_id: String = _legacy_asset_id(object_data)
