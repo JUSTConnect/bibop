@@ -98,7 +98,20 @@ static func build_contours(objects_by_id: Dictionary) -> Dictionary:
 	var manual_groups: Dictionary = {}
 	for object_id in routing.keys():
 		var data: Dictionary = Dictionary(routing[object_id])
-		if str(data.get("cooling_contour_mode", "auto")).strip_edges().to_lower() == "manual" and not str(data.get("cooling_contour_id", "")).strip_edges().is_empty():
+		if str(data.get("cooling_contour_mode", "auto")).strip_edges().to_lower() != "manual":
+			continue
+		var member_ids: Array = Array(data.get("cooling_contour_member_ids", []))
+		if not member_ids.is_empty():
+			var key: String = "%s|members:%s" % [_routing_kind(data), object_id]
+			manual_groups[key] = []
+			if not member_ids.has(object_id):
+				member_ids.append(object_id)
+			for member_variant in member_ids:
+				var member_id: String = str(member_variant).strip_edges()
+				if routing.has(member_id) and _routing_kind(Dictionary(routing[member_id])) == _routing_kind(data) and not Array(manual_groups[key]).has(member_id):
+					manual_groups[key].append(member_id)
+			continue
+		if not str(data.get("cooling_contour_id", "")).strip_edges().is_empty():
 			var key: String = "%s|%s" % [_routing_kind(data), str(data.get("cooling_contour_id", "")).strip_edges()]
 			if not manual_groups.has(key): manual_groups[key] = []
 			manual_groups[key].append(object_id)
@@ -125,6 +138,9 @@ static func build_contours(objects_by_id: Dictionary) -> Dictionary:
 
 static func get_object_contour_id(object_data: Dictionary, object_id: String, auto_contours: Dictionary) -> String:
 	if str(object_data.get("cooling_contour_mode", "auto")).strip_edges().to_lower() == "manual":
+		for contour_id in Dictionary(auto_contours.get(_routing_kind(object_data), {})).keys():
+			if Array(Dictionary(auto_contours[_routing_kind(object_data)][contour_id]).get("members", [])).has(object_id):
+				return str(contour_id)
 		return str(object_data.get("cooling_contour_id", "")).strip_edges()
 	var kind: String = _routing_kind(object_data)
 	for contour_id in Dictionary(auto_contours.get(kind, {})).keys():
@@ -159,6 +175,15 @@ static func collect_contour_warnings(objects_by_id: Dictionary) -> Dictionary:
 	for object_id in routing.keys():
 		var data: Dictionary = Dictionary(routing[object_id])
 		if str(data.get("cooling_contour_mode", "auto")).strip_edges().to_lower() != "manual": continue
+		var member_ids: Array = Array(data.get("cooling_contour_member_ids", []))
+		if not member_ids.is_empty():
+			var manual_id: String = "members:%s" % object_id
+			by_manual_id[manual_id] = []
+			if not member_ids.has(object_id): member_ids.append(object_id)
+			for member_variant in member_ids:
+				var member_id: String = str(member_variant).strip_edges()
+				if routing.has(member_id): by_manual_id[manual_id].append(member_id)
+			continue
 		var manual_id: String = str(data.get("cooling_contour_id", "")).strip_edges()
 		if manual_id.is_empty(): continue
 		if not by_manual_id.has(manual_id): by_manual_id[manual_id] = []

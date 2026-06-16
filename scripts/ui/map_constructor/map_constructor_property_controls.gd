@@ -2,6 +2,7 @@ extends RefCounted
 class_name MapConstructorPropertyControls
 
 const TerminalVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
+const ObjectRefListControlRef = preload("res://scripts/ui/map_constructor/map_constructor_object_ref_list_control.gd")
 
 static func add_map_constructor_description_editor(ui: Variant, section: VBoxContainer, data: Dictionary, entity_kind: String, entity_id: String) -> void:
 	var description_text: String = MapConstructorUiSafe.safe_string(data.get("description", data.get("custom_description", ""))).strip_edges()
@@ -80,6 +81,9 @@ static func add_text_property(ui: Variant, section: VBoxContainer, label: String
 	row_controls.add_child(line_edit)
 	row_controls.add_child(apply_button)
 	section.add_child(create_property_row(ui, label, row_controls))
+
+static func add_object_ref_array_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
+	ObjectRefListControlRef.add_object_ref_array_property(ui, section, label, entity_kind, entity_id, field_name, current_value)
 
 static func add_bool_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant) -> void:
 	var check: CheckBox = CheckBox.new()
@@ -397,7 +401,10 @@ static func add_archetype_schema_properties_for_tab(ui: Variant, section: VBoxCo
 		elif field_type == "enum_array":
 			add_enum_array_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_array(row.get("values", [])))
 		elif field_type == "object_ref_array":
-			add_text_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
+			if field_name == "cooling_contour_member_ids" and MapConstructorUiSafe.safe_string(row.get("target_group", "")).strip_edges().to_lower() == "cooling":
+				ObjectRefListControlRef.add_object_ref_array_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
+			else:
+				add_text_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		elif field_type == "bool":
 			add_bool_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		elif field_type == "int":

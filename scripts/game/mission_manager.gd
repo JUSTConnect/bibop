@@ -3254,8 +3254,8 @@ func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
 		"circuit_switch": {"display_name":"Circuit Switch","category":"Control","subcategory":"Power","placement_mode":"object","system_roles":["signal_control","power_network"],"tags":["switch","circuit","control"],"description":"Switch controlling power state.","placement_hint":"Configure links in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"circuit_breaker": {"display_name":"Circuit Breaker","category":"Power","subcategory":"Protection","placement_mode":"wall_mounted","system_roles":["power_network","signal_control"],"tags":["breaker","power","wall"],"description":"Wall-mounted power safety breaker.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"light": {"display_name":"Light","category":"Power","subcategory":"Lighting","placement_mode":"wall_mounted","system_roles":["lighting","power_consumer"],"tags":["light","lighting","wall"],"description":"Wall light linked logically to a power source.","placement_hint":"Requires a wall cell.","requires_wall":true,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"brightness":"1.0","color":"#ffffff"}},
-		"external_air_duct": {"display_name":"External Air Duct","category":"Cooling System","subcategory":"Wall-mounted","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","placement_mode":"wall_mounted","system_roles":["cooling","airflow"],"tags":["air","duct","wall"],"description":"Wall-mounted external air duct.","placement_hint":"Requires a wall cell.","requires_wall":true,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"air_duct","cooling_system_type":"air_duct","cooling_contour_mode":"auto","cooling_contour_id":"","wall_side_1":"NW","wall_side_2":"SE"}},
-		"external_water_pipe": {"display_name":"External Water Pipe","category":"Cooling System","subcategory":"Wall-mounted","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","placement_mode":"wall_mounted","system_roles":["cooling","water"],"tags":["water","pipe","wall"],"description":"Wall-mounted external water pipe.","placement_hint":"Requires a wall cell.","requires_wall":true,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"water_pipe","cooling_system_type":"water_pipe","cooling_contour_mode":"auto","cooling_contour_id":"","wall_side_1":"NW","wall_side_2":"SE"}},
+		"external_air_duct": {"display_name":"External Air Duct","category":"Cooling System","subcategory":"Wall-mounted","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","placement_mode":"wall_mounted","system_roles":["cooling","airflow"],"tags":["air","duct","wall"],"description":"Wall-mounted external air duct.","placement_hint":"Requires a wall cell.","requires_wall":true,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"air_duct","cooling_system_type":"air_duct","cooling_contour_mode":"auto","cooling_contour_id":"","cooling_contour_member_ids":[],"wall_side_1":"NW","wall_side_2":"SE"}},
+		"external_water_pipe": {"display_name":"External Water Pipe","category":"Cooling System","subcategory":"Wall-mounted","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","placement_mode":"wall_mounted","system_roles":["cooling","water"],"tags":["water","pipe","wall"],"description":"Wall-mounted external water pipe.","placement_hint":"Requires a wall cell.","requires_wall":true,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"water_pipe","cooling_system_type":"water_pipe","cooling_contour_mode":"auto","cooling_contour_id":"","cooling_contour_member_ids":[],"wall_side_1":"NW","wall_side_2":"SE"}},
 		"light_switch": {"display_name":"Light Switch","category":"Control","subcategory":"Lighting","placement_mode":"wall_mounted","system_roles":["signal_control","power_consumer"],"tags":["switch","light","wall"],"description":"Wall-mounted switch for lights/devices.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
 		"power_switcher": {"display_name":"Power Switcher","category":"Power","subcategory":"Control","placement_mode":"object","system_roles":["signal_control","power_network"],"tags":["switch","power","configurable"],"description":"Logical power switcher. Configure mount=floor/wall and switch_state=on/off in the inspector.","placement_hint":"Place on floor by default; set mount to wall for wall art and wall-mounted behavior.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"mount":"floor","switch_state":"off","state":"switch_off","is_on":false}},
 		"fuse_box": {"display_name":"Fuse Box","category":"Power","subcategory":"Protection","placement_mode":"object","system_roles":["power_network","power_consumer"],"tags":["fuse","power","configurable"],"description":"Logical fuse box. Configure mount=floor/wall and fuse_present=true/false in the inspector.","placement_hint":"Place on floor by default; set mount to wall for wall art and wall-mounted behavior.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"mount":"floor","fuse_present":true,"fuse_installed":true}},
@@ -4116,12 +4116,25 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 			"warnings": []
 		}
 
-	# Wall-only objects must never fall back to floor placement.
+	# Wall-only objects may attach from an adjacent floor cell, but never fall back to floor placement.
 	if is_wall_only_prefab:
+		var adjacent_attachment: Dictionary = _resolve_wall_mounted_attachment(cell, preferred_wall_side)
+		if bool(adjacent_attachment.get("ok", false)):
+			return {
+				"ok": true,
+				"reason": "adjacent_wall_attachment",
+				"message": "Wall-mounted object can attach to adjacent wall.",
+				"placement_mode": "wall_mounted",
+				"direct_wall_cell_mount": false,
+				"wall_side": str(adjacent_attachment.get("wall_side", "north")),
+				"anchor_floor_cell": cell,
+				"attached_wall_cell": Vector2i(adjacent_attachment.get("attached_wall_cell", Vector2i(-1, -1))),
+				"warnings": []
+			}
 		return {
 			"ok": false,
-			"reason": "wall_only_requires_wall_cell",
-			"message": "This object can be placed only on a wall cell.",
+			"reason": "wall_only_requires_wall_attachment",
+			"message": "This object can be placed only on or next to a wall cell.",
 			"warnings": []
 		}
 
@@ -5069,8 +5082,39 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
 		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string","mount":"string","switch_state":"string","switcher_type":"string","light_group_id":"string","light_enabled":"bool","target_light_ids":"array_string","linked_light_ids":"array_string","active_line_id":"string","switcher_lines":"array_dictionary","line_1_label":"string","line_1_direction":"string","line_1_color_id":"string","line_1_circuit_id":"string","line_2_label":"string","line_2_direction":"string","line_2_color_id":"string","line_2_circuit_id":"string","line_3_label":"string","line_3_direction":"string","line_3_color_id":"string","line_3_circuit_id":"string","fuse_present":"bool","variant":"string",
 		"platform_mode":"string","platform_level":"int","max_level":"int","mechanism_id":"string","mechanism_role":"string","activation_mode":"string","activation_delay_turns":"int","control_cell_x":"int","control_cell_y":"int",
-		"route_mode":"string","cooling_contour_mode":"string","cooling_contour_id":"string","wall_side_1":"string","wall_side_2":"string"
+		"route_mode":"string","cooling_contour_mode":"string","cooling_contour_id":"string","cooling_contour_member_ids":"array_string","wall_side_1":"string","wall_side_2":"string"
 	}
+
+
+func get_map_constructor_object_ref_options(entity_kind: String, entity_id: String, field_name: String) -> Array[Dictionary]:
+	if field_name != "cooling_contour_member_ids":
+		return []
+	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
+	if not bool(entity_info.get("ok", false)):
+		return []
+	var selected_data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
+	var selected_kind: String = str(selected_data.get("routing_kind", selected_data.get("cooling_system_type", ""))).strip_edges().to_lower()
+	var selected_members: Array = _safe_array(selected_data.get(field_name, []))
+	var options: Array[Dictionary] = []
+	for object_variant in mission_world_objects:
+		if not object_variant is Dictionary:
+			continue
+		var object_data: Dictionary = _safe_dictionary(object_variant)
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
+		if object_id.is_empty():
+			continue
+		if str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower() != "cooling":
+			continue
+		var routing_kind: String = str(object_data.get("routing_kind", object_data.get("cooling_system_type", ""))).strip_edges().to_lower()
+		if routing_kind != selected_kind:
+			continue
+		options.append({
+			"id": object_id,
+			"label": "%s (%s)" % [str(object_data.get("display_name", object_data.get("name", object_id))), object_id],
+			"checked": selected_members.has(object_id) or object_id == entity_id,
+			"disabled": object_id == entity_id
+		})
+	return options
 
 func get_map_constructor_archetype_property_schema(entity_kind: String, entity_id: String) -> Array[Dictionary]:
 	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)

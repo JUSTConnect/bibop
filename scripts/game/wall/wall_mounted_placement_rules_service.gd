@@ -34,8 +34,13 @@ static func is_wall_mounted_object(object_data: Dictionary) -> bool:
 		return true
 	if str(object_data.get("mount", object_data.get("install_mode", ""))).strip_edges().to_lower() == PLACEMENT_WALL:
 		return true
-	var kind: String = str(object_data.get("device_kind", object_data.get("kind", ""))).strip_edges().to_lower()
-	return kind in get_default_wall_mounted_kinds()
+	var tokens: Array[String] = []
+	for field_name in ["device_kind", "kind", "object_type", "cooling_system_type", "routing_kind"]:
+		tokens.append(str(object_data.get(field_name, "")).strip_edges().to_lower())
+	for token in tokens:
+		if token in get_default_wall_mounted_kinds():
+			return true
+	return false
 
 static func get_default_wall_mounted_kinds() -> Array[String]:
 	return [
@@ -44,7 +49,9 @@ static func get_default_wall_mounted_kinds() -> Array[String]:
 		DEVICE_LIGHT_SWITCH,
 		DEVICE_TERMINAL,
 		"external_air_duct",
-		"external_water_pipe"
+		"external_water_pipe",
+		"air_duct",
+		"water_pipe"
 	]
 
 static func can_place_in_wall_cell(object_data: Dictionary, wall_cell_data: Dictionary) -> Dictionary:
@@ -176,5 +183,7 @@ static func get_wall_mounted_dropdown_options() -> Array[Dictionary]:
 		{"id": DEVICE_POWER_SWITCHER, "label": "Power Switcher"},
 		{"id": DEVICE_CHAIN_SWITCHER, "label": "Chain Switcher"},
 		{"id": DEVICE_LIGHT_SWITCH, "label": "Light Switch"},
-		{"id": DEVICE_TERMINAL, "label": "Terminal"}
+		{"id": DEVICE_TERMINAL, "label": "Terminal"},
+		{"id": "air_duct", "label": "Air Duct"},
+		{"id": "water_pipe", "label": "Water Pipe"}
 	]
