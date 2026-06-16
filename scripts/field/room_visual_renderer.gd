@@ -4,6 +4,7 @@ class_name RoomVisualRenderer
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
+const WallRoutingValidationServiceRef = preload("res://scripts/game/routing/wall_routing_validation_service.gd")
 
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
@@ -3457,6 +3458,7 @@ func get_wall_mount_side_visual_offset(object_data: Dictionary) -> Vector2:
 
 func get_wall_routing_mode(object_data: Dictionary) -> String:
 	var candidates: Array[String] = [
+		str(object_data.get("route_mode", "")),
 		str(object_data.get("wall_routing_mode", "")),
 		str(object_data.get("routing_mode", "")),
 		str(object_data.get("routing_style", ""))
@@ -3974,6 +3976,74 @@ func draw_wall_procedural_water_pipe(segment: Dictionary, routing_mode: String) 
 		draw_circle(point, 3.3, Color(0.50, 0.76, 0.83, 0.98))
 	return true
 
+const OUTER_UTILITY_WIDTH_SCALE := 5.0
+const OUTER_UTILITY_HEIGHT_SCALE := 2.0
+const OUTER_UTILITY_VERTICAL_OFFSET_SCALE := 2.0
+
+func is_wall_routing_utility_object(object_data: Dictionary) -> bool:
+	return WallRoutingValidationServiceRef.is_wall_routing_utility_object(object_data)
+
+func _wall_route_side_to_visible_face(wall_side: String) -> String:
+	match wall_side.strip_edges().to_upper():
+		"NW", "SW":
+			return "sw"
+		"NE", "SE":
+			return "se"
+	return ""
+
+func draw_wall_routing_utility(cell: Vector2i, object_data: Dictionary, visual_center: Vector2) -> bool:
+	if not is_wall_routing_utility_object(object_data):
+		return false
+	if get_wall_routing_mode(object_data) == "inner":
+		for side_key in ["wall_side_1", "wall_side_2"]:
+			draw_inner_wall_route_port(cell, object_data, str(object_data.get(side_key, "")), visual_center)
+		return true
+	return draw_outer_wall_route_surface(cell, object_data, visual_center)
+
+func draw_inner_wall_route_port(cell: Vector2i, object_data: Dictionary, wall_side: String, _visual_center: Vector2) -> void:
+	var face: String = _wall_route_side_to_visible_face(wall_side)
+	if face.is_empty() or not _is_wall_cable_face_visible(cell, face):
+		return
+	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
+	var center: Vector2 = Vector2(segment.get("mid", grid_to_iso(cell)))
+	var axis: Vector2 = Vector2(segment.get("end_edge", center)) - Vector2(segment.get("start_edge", center))
+	if axis.length() <= 0.001:
+		return
+	axis = axis.normalized()
+	var normal: Vector2 = Vector2(segment.get("normal", Vector2.UP)).normalized()
+	var kind: String = str(object_data.get("routing_kind", _get_wall_routed_object_family(object_data))).strip_edges().to_lower()
+	if kind == "water_pipe":
+		draw_circle(center, 7.5, Color(0.02, 0.03, 0.035, 0.96))
+		draw_circle(center, 5.2, Color(0.005, 0.007, 0.010, 0.98))
+		draw_arc(center, 7.5, -0.8, 2.6, 14, Color(0.64, 0.86, 0.92, 0.55), 1.5, true)
+		return
+	var half_width: float = 12.0
+	var half_height: float = 5.5
+	var points: PackedVector2Array = PackedVector2Array([
+		center - axis * half_width - normal * half_height,
+		center + axis * half_width - normal * half_height,
+		center + axis * half_width + normal * half_height,
+		center - axis * half_width + normal * half_height
+	])
+	draw_colored_polygon(points, Color(0.005, 0.007, 0.010, 0.96))
+	draw_polyline(PackedVector2Array([points[0], points[1], points[2], points[3], points[0]]), Color(0.45, 0.52, 0.58, 0.55), 1.4, true)
+
+func draw_outer_wall_route_surface(cell: Vector2i, object_data: Dictionary, _visual_center: Vector2) -> bool:
+	var face: String = normalize_wall_visual_side(object_data)
+	if not _is_wall_cable_face_visible(cell, face):
+		return true
+	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
+	var center: Vector2 = Vector2(segment.get("mid", grid_to_iso(cell))) + Vector2(segment.get("normal", Vector2.UP)).normalized() * OUTER_UTILITY_VERTICAL_OFFSET_SCALE
+	var width: float = 4.0 * OUTER_UTILITY_WIDTH_SCALE
+	var kind: String = str(object_data.get("routing_kind", _get_wall_routed_object_family(object_data))).strip_edges().to_lower()
+	if kind == "water_pipe":
+		draw_line(Vector2(segment.get("start_edge", center)), Vector2(segment.get("end_edge", center)), Color(0.08, 0.11, 0.13, 0.98), width, true)
+		draw_line(Vector2(segment.get("start_edge", center)), Vector2(segment.get("end_edge", center)), Color(0.36, 0.70, 0.80, 0.98), width * 0.62, true)
+	else:
+		draw_line(Vector2(segment.get("start_edge", center)), Vector2(segment.get("end_edge", center)), Color(0.08, 0.09, 0.10, 0.98), width * OUTER_UTILITY_HEIGHT_SCALE, true)
+		draw_line(Vector2(segment.get("start_edge", center)), Vector2(segment.get("end_edge", center)), Color(0.47, 0.54, 0.60, 0.98), width * 1.55, true)
+	return true
+
 func draw_wall_procedural_routed_object(cell: Vector2i, object_data: Dictionary, visual_center: Vector2) -> bool:
 	if not is_wall_procedural_routed_object(object_data):
 		return false
@@ -3984,6 +4054,9 @@ func draw_wall_procedural_routed_object(cell: Vector2i, object_data: Dictionary,
 		# Кабель обрабатывается новым face-based renderer.
 		# Не даём ему падать в object PNG/SVG fallback.
 		return draw_wall_topology_cable(cell, object_data, visual_center, get_iso_object_profile("cable"))
+
+	if is_wall_routing_utility_object(object_data):
+		return draw_wall_routing_utility(cell, object_data, visual_center)
 
 	var routing_mode: String = get_wall_routing_mode(object_data)
 	var source_height_px: float = get_wall_routed_height_source_px(object_data)

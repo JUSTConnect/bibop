@@ -23,6 +23,7 @@ const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
+const WallRoutingValidationServiceRef = preload("res://scripts/game/routing/wall_routing_validation_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
@@ -3446,7 +3447,7 @@ func get_default_map_constructor_field_value(field_name: String, entity_kind: St
 		if entity_kind == "item":
 			return null
 		return []
-	if normalized_field in ["state", "power_network_id", "circuit_id", "power_circuit_id", "network_id", "power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit", "circuit_name", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids", "route_surface", "physical_connection_source_id", "input_wire_id", "input_direction", "output_1_wire_id", "output_2_wire_id", "output_3_wire_id", "output_1_direction", "output_2_direction", "output_3_direction", "brightness", "color", "wall_side", "interaction_side", "facing_side", "facing_dir", "platform_mode", "mechanism_id", "mechanism_role", "activation_mode"]:
+	if normalized_field in ["state", "power_network_id", "circuit_id", "power_circuit_id", "network_id", "power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit", "circuit_name", "required_key_id", "lock_type", "linked_terminal_id", "target_door_id", "target_platform_id", "control_source_id", "digital_state", "key_kind", "key_type", "display_name", "description", "custom_description", "linked_door_id", "power_mode", "power_source_id", "control_mode", "control_terminal_id", "access_type", "access_terminal_id", "access_code_value", "stored_key_ids", "route_surface", "physical_connection_source_id", "input_wire_id", "input_direction", "output_1_wire_id", "output_2_wire_id", "output_3_wire_id", "output_1_direction", "output_2_direction", "output_3_direction", "brightness", "color", "wall_side", "interaction_side", "facing_side", "facing_dir", "platform_mode", "mechanism_id", "mechanism_role", "activation_mode", "route_mode", "wall_side_1", "wall_side_2"]:
 		return ""
 	return null
 
@@ -6198,7 +6199,10 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 		"facing_side",
 		"facing_dir",
 		"mirror_visual_for_facing_side",
-		"wall_routing_mode"
+		"wall_routing_mode",
+		"route_mode",
+		"wall_side_1",
+		"wall_side_2"
 	]
 
 	var has_visual_wall_update: bool = false
@@ -6257,8 +6261,8 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 		if safe.has("mirror_visual_for_facing_side"):
 			data["mirror_visual_for_facing_side"] = bool(safe.get("mirror_visual_for_facing_side", true))
 
-		if safe.has("wall_routing_mode"):
-			var normalized_routing_mode: String = str(safe.get("wall_routing_mode", data.get("wall_routing_mode", "outer"))).strip_edges().to_lower()
+		if safe.has("wall_routing_mode") or safe.has("route_mode"):
+			var normalized_routing_mode: String = str(safe.get("route_mode", safe.get("wall_routing_mode", data.get("route_mode", data.get("wall_routing_mode", "outer"))))).strip_edges().to_lower()
 			normalized_routing_mode = normalized_routing_mode.replace("-", "_")
 			normalized_routing_mode = normalized_routing_mode.replace(" ", "_")
 			match normalized_routing_mode:
@@ -6269,6 +6273,16 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 				_:
 					normalized_routing_mode = "outer"
 			data["wall_routing_mode"] = normalized_routing_mode
+			data["route_mode"] = normalized_routing_mode
+
+		for route_side_field in ["wall_side_1", "wall_side_2"]:
+			if safe.has(route_side_field):
+				var route_side: String = str(safe.get(route_side_field, data.get(route_side_field, ""))).strip_edges().to_upper()
+				if route_side in ["NE", "NW", "SE", "SW"]:
+					data[route_side_field] = route_side
+
+		for routing_warning in WallRoutingValidationServiceRef.collect_warnings(data, _deserialize_cell_variant(data.get("position", data.get("cell", Vector2i(-1, -1)))), self):
+			warnings.append(str(routing_warning))
 
 		update_world_object_by_id(entity_id, data)
 
