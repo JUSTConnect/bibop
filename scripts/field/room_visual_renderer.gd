@@ -4370,8 +4370,10 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 	if not should_use_iso_tile_asset_hook_visuals():
 		return false
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
+	var visual_state_descriptor: Dictionary = {}
 	if VisualStateAssetServiceRef.object_uses_visual_states(object_data):
-		normalized_asset_key = VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
+		visual_state_descriptor = VisualStateAssetServiceRef.resolve_visual_asset_descriptor(object_data)
+		normalized_asset_key = str(visual_state_descriptor.get("asset_id", normalized_asset_key))
 	if not is_iso_object_png_asset_key(normalized_asset_key):
 		return false
 	var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key)
@@ -4391,6 +4393,9 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 		return true
 	var render_contract: String = VisualAssetRenderContractServiceRef.get_render_contract(texture_path)
 	var descriptor: Dictionary = build_iso_object_visual_descriptor_for_contract(object_data, normalized_asset_key, texture_path, render_contract, visual_center, texture)
+	if bool(visual_state_descriptor.get("mirror_x", false)):
+		descriptor["mirror_h"] = true
+		descriptor["mirror_x"] = true
 	draw_iso_object_png_texture_with_descriptor(texture, descriptor)
 	draw_visual_state_overlays_for_descriptor(object_data, descriptor)
 	return true
