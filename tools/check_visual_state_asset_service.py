@@ -157,6 +157,10 @@ checks.update({
     "cable reel helper detects sockets without powered fallback": all(token in cable_reel_helper for token in ['"object_type"', '"type"', '"archetype_id"', '"visual_family"', '"socket_type"', '"is_socket"', '"is_power_socket"', '"group"', '"object_group"', '"power_socket"', '"outlet"', '"connector_socket"', '"cable_socket"']) and 'is_powered' not in cable_reel_helper and 'powered' not in cable_reel_helper,
     "cable reel resolver behavior is connection driven": all(token in cable_reel_helper for token in ['connected_endpoint_count >= 2 and socket_connected_endpoint_count >= 1', 'connected_endpoint_count == 1 and socket_connected_endpoint_count == 1', 'return STATE_ON', 'return STATE_OFF', 'return STATE_BASE']),
     "visual service supports cable reel custom policy": all(token in service for token in ["CableReelVisualStateService", "VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE", 'policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE', "CableReelVisualStateServiceRef.resolve_visual_state(object_data)"]),
+    "power socket source power true flag overrides stale unpowered state": re.search(r"static func _has_source_power.*?_has_true_power_flag\(object_data\).*?return true.*?power_state in POWER_OFF_STATES", service, re.S) is not None,
+    "power socket visuals keep connection separate from source power": all(token in service for token in ["static func _resolve_power_socket_visual_state", "_has_source_power(object_data)", "_has_connected_cable(object_data)", "return VISUAL_STATE_ON if _has_connected_cable(object_data) else VISUAL_STATE_OFF", "return VISUAL_STATE_BASE"]),
+    "power socket connected false can override stale connection ids": re.search(r'static func _has_connected_cable.*?object_data.has\("connected"\).*?return false.*?connection_id', service, re.S) is not None,
+    "power socket stale unpowered smoke cases are represented": all(token in service for token in ["power_state", "is_powered", "connected"]),
     "cable reel resolution is not renderer hardcoded": all(token not in renderer for token in CABLE_REEL_ASSET_IDS),
 })
 

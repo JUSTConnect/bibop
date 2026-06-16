@@ -262,12 +262,51 @@ static func _has_true_power_flag(object_data: Dictionary) -> bool:
 			return true
 	return false
 
+static func _is_power_socket_object(object_data: Dictionary, family: String = "") -> bool:
+	if _normalized_text(family) == "power_socket":
+		return true
+	for key in ["object_type", "type", "archetype_id", "visual_family", "socket_type"]:
+		var value: String = _normalized_text(object_data.get(key, ""))
+		if value in ["power_socket", "outlet", "power_outlet"]:
+			return true
+	return bool(object_data.get("is_power_socket", false))
+
+static func _has_connected_cable(object_data: Dictionary) -> bool:
+	if object_data.has("connected") and not bool(object_data.get("connected", false)):
+		return false
+	if object_data.has("is_connected") and not bool(object_data.get("is_connected", false)):
+		return false
+	if bool(object_data.get("connected", false)) or bool(object_data.get("is_connected", false)):
+		return true
+	if _normalized_text(object_data.get("state", "")) == "connected":
+		return true
+	return not _normalized_text(object_data.get("connection_id", "")).is_empty()
+
+static func _has_source_power(object_data: Dictionary) -> bool:
+	var power_state: String = _normalized_text(object_data.get("power_state", ""))
+	if _has_true_power_flag(object_data):
+		return true
+	if power_state in ACTIVE_STATES:
+		return true
+	if _has_false_power_flag(object_data):
+		return false
+	if power_state in POWER_OFF_STATES or power_state in UNAVAILABLE_STATES:
+		return false
+	return false
+
+static func _resolve_power_socket_visual_state(object_data: Dictionary) -> String:
+	if not _has_source_power(object_data):
+		return VISUAL_STATE_BASE
+	return VISUAL_STATE_ON if _has_connected_cable(object_data) else VISUAL_STATE_OFF
+
 static func resolve_visual_state(object_data: Dictionary) -> String:
 	var family: String = get_visual_family(object_data)
 	var config: Dictionary = get_visual_state_family_config(family)
 	var policy: String = _normalized_text(config.get("visual_state_policy", object_data.get("visual_state_policy", "")))
 	if policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE:
 		return CableReelVisualStateServiceRef.resolve_visual_state(object_data)
+	if _is_power_socket_object(object_data, family):
+		return _resolve_power_socket_visual_state(object_data)
 	var power_state: String = _normalized_text(object_data.get("power_state", ""))
 	if power_state in POWER_OFF_STATES:
 		return VISUAL_STATE_BASE
