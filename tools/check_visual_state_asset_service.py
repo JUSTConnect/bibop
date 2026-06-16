@@ -197,14 +197,14 @@ checks = {
     "terminal states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"base"\s*:\s*"terminal_base_floor_01"', r'"off"\s*:\s*"terminal_off_floor_01"', r'"on"\s*:\s*"terminal_on_floor_01"']),
     "terminal overlays map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"off"\s*:\s*\["pulsar_overlay_terminal_off_floor_01"\]', r'"on"\s*:\s*\["pulsar_overlay_terminal_on_floor_01"\]']),
     "damaged and error are unavailable off states": re.search(r'UNAVAILABLE_STATES.*"damaged".*"error"', service) is not None,
-    "terminal aliases use new base asset while legacy id remains": '"terminal": "terminal_base_floor_01"' in catalog and '"terminal_01": "res://assets/visual/isometric/objects/terminal_01.png"' in catalog,
+    "terminal aliases use new base asset while legacy id remains": '"terminal": "terminal_base_floor_01"' in catalog and '"terminal_01": "res://assets/visual/isometric/objects/terminal/terminal_base_floor.png"' in catalog,
     "terminal resolution is not renderer hardcoded": all(token not in renderer for token in ["terminal_on_floor_01", "terminal_off_floor_01", "terminal_base_floor_01"]),
 
     "power_source family exists in visual state catalog": re.search(r'"power_source"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,
     "power_source states map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"base"\s*:\s*"power_source_base_floor_01"', r'"off"\s*:\s*"power_source_off_floor_01"', r'"on"\s*:\s*"power_source_on_floor_01"']),
     "power_source overlays map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"off"\s*:\s*\["pulsar_overlay_power_source_off_floor_01"\]', r'"on"\s*:\s*\["pulsar_overlay_power_source_on_floor_01"\]']),
     "power_source archetype opts into visual states": re.search(r'"power_source"\s*:\s*\{.*?"visual_family"\s*:\s*"power_source".*?"visual_surface"\s*:\s*"floor".*?"visual_state_policy"\s*:\s*"powered_three_state".*?"power_visual_state_enabled"\s*:\s*true', world_catalog, re.S) is not None,
-    "legacy power_source id remains available": '"power_source_01": "res://assets/visual/isometric/objects/power_source_01.png"' in catalog,
+    "legacy power_source id remains available": '"power_source_01": "res://assets/visual/isometric/objects/power_source/power_source_base_floor.png"' in catalog,
     "power_source resolution is not renderer hardcoded": all(token not in renderer for token in ["power_source_base_floor_01", "power_source_off_floor_01", "power_source_on_floor_01"]),
     "power source states include source aliases": '"source_on"' in service and '"source_off"' in service,
     "firewall family exists in visual state catalog": re.search(r'"firewall"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,
@@ -471,3 +471,31 @@ if failed:
         print(f"- {name}")
     sys.exit(1)
 print(f"Visual state asset smoke checks passed: {len(checks)} checks.")
+
+# BIP-Visual-Palette-Renderer-Bugfix-001 guardrails.
+def _asset_path_exists_for_id(asset_id):
+    match = re.search(r'"%s"\s*:\s*"res://([^"]+)"' % re.escape(asset_id), catalog)
+    return match is not None and (root / match.group(1)).exists()
+
+active_ids = re.findall(r'CANONICAL_OBJECT_VISUAL_IDS[^\]]*', catalog, re.S)
+active_ids_text = active_ids[0] if active_ids else ""
+extra_checks = {
+    "renderer duplicates const alignment dictionaries before mutation": "Dictionary(raw_rule).duplicate(true)" in renderer and "ISO_ASSET_ALIGNMENT_RULES.get(asset_key" in renderer,
+    "no VisualAssetCatalogRef preload shadow in touched files": "const VisualAssetCatalogRef = preload" not in renderer and "const VisualAssetCatalogRef = preload" not in service,
+    "canonical object ids have existing asset paths": all(_asset_path_exists_for_id(asset_id) for asset_id in re.findall(r'"([^"]+)"', active_ids_text)),
+    "power switcher legacy ids map to existing authored assets": all(_asset_path_exists_for_id(asset_id) for asset_id in ["power_switcher_off_01", "power_switcher_on_01", "power_switcher_off_wall_01", "power_switcher_on_wall_01"]),
+    "steel box legacy id maps to an existing authored asset": _asset_path_exists_for_id("steel_box_01"),
+    "active aliases avoid missing power switcher and steel box fallbacks": '"power_switcher_off": "power_switcher_off_floor_01"' in catalog and '"steel_box": "heavy_crate_floor_01"' in catalog,
+    "light switcher is wall-only with own object type": all(token in light_switcher_archetype for token in ['"object_type":"light_switcher"', '"switcher_base_type":"power_switcher"', '"placement_mode":"wall_mounted"', '"mount":"wall"', '"visual_surface":"wall"']),
+    "firewall remains floor object archetype": re.search(r'"firewall"\s*:\s*\{.*?"placement_mode":"object".*?"visual_surface":"floor"', world_catalog, re.S) is not None,
+    "items are item-only and mapped to floor assets": all(re.search(r'"%s"\s*:\s*\{.*?"object_group":"item".*?"placement_mode":"item".*?"visual_asset_id":"%s_floor_01"' % (item, "repair_kit" if item == "repair_kit" else item), world_catalog, re.S) is not None for item in ["fuse", "repair_kit", "reinforcement"]),
+    "case does not resolve to missing legacy path": '"case": "case_locked_floor_01"' in catalog and _asset_path_exists_for_id("case_01"),
+    "cooling block label and visual use cooler asset": '"metal_cooling_block": {"group":"cooling"' in world_catalog and '"name":"Cooling block"' in world_catalog and '"visual_asset_id":"air_cooling_base_floor_sw_01"' in world_catalog,
+}
+failed = [name for name, ok in extra_checks.items() if not ok]
+if failed:
+    print("BIP visual palette smoke checks failed:")
+    for name in failed:
+        print(f"- {name}")
+    sys.exit(1)
+print(f"BIP visual palette smoke checks passed: {len(extra_checks)} checks.")
