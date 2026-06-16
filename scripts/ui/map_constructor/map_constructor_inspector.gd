@@ -265,7 +265,8 @@ static func _render_cooling_system_controls(ui: Variant, parent: VBoxContainer, 
 			_add_cable_note(ui, parent, "Inner routing sides must be different.", true)
 	MapConstructorPropertyControls.add_enum_property(ui, parent, "Contour mode", entity_kind, entity_id, "cooling_contour_mode", _normalize_cooling_contour_mode(data), [{"label":"Auto", "value":"auto"}, {"label":"Manual", "value":"manual"}])
 	if _normalize_cooling_contour_mode(data) == "manual":
-		MapConstructorPropertyControls.add_text_property(ui, parent, "Manual contour id", entity_kind, entity_id, "cooling_contour_id", data.get("cooling_contour_id", ""))
+		MapConstructorPropertyControls.add_object_ref_array_property(ui, parent, "Contour members", entity_kind, entity_id, "cooling_contour_member_ids", data.get("cooling_contour_member_ids", []))
+		# "Manual contour id" is legacy-only; UI edits manual contour membership with checkboxes.
 	var objects_by_id: Dictionary = _get_cooling_objects_by_id(ui, entity_id, data)
 	var contours: Dictionary = CoolingRoutingContourServiceRef.build_contours(objects_by_id)
 	var contour_id: String = CoolingRoutingContourServiceRef.get_object_contour_id(Dictionary(objects_by_id.get(entity_id, data)), entity_id, contours)
