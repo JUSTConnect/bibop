@@ -1148,6 +1148,16 @@ func is_door_like_tile(tile_type: int) -> bool:
 		return true
 	return false
 
+func is_door_like_object_data(object_data: Dictionary) -> bool:
+	var profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "")
+	if profile_key == "door" or profile_key == "digital_door" or profile_key == "powered_gate":
+		return true
+	var object_type: String = str(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).strip_edges().to_lower()
+	var catalog_id: String = str(object_data.get("catalog_id", object_data.get("id", object_data.get("object_id", "")))).strip_edges().to_lower()
+	var prefab_id: String = str(object_data.get("map_constructor_prefab_id", object_data.get("prefab", object_data.get("profile", "")))).strip_edges().to_lower()
+	var blob: String = "%s %s %s %s" % [profile_key, object_type, catalog_id, prefab_id]
+	return blob.contains("door") or blob.contains("powered_gate")
+
 func _get_door_opening_polygon(center: Vector2, orientation: String, half_length: float, half_depth: float) -> PackedVector2Array:
 	if orientation == "axis_y":
 		return PackedVector2Array([
@@ -6733,11 +6743,11 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var object_meta: Dictionary = _get_iso_world_object_metadata_for_cell(cell)
 	if not override_object_data.is_empty():
 		object_meta = {"ok": true, "object_id": str(override_object_data.get("id", "")), "object_type": str(override_object_data.get("object_type", override_object_data.get("item_type", ""))), "data": override_object_data}
-	if is_door_like_tile(tile_type) and override_object_data.is_empty():
-		draw_iso_door_insert(cell, tile_type, Dictionary(object_meta.get("data", {})))
+	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
+	if is_door_like_tile(tile_type) and (override_object_data.is_empty() or is_door_like_object_data(object_data)):
+		draw_iso_door_insert(cell, tile_type, object_data)
 		return
 	var object_id: String = str(object_meta.get("object_id", ""))
-	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
 	var is_wall_mounted_object_visual: bool = is_wall_mounted_runtime_object(object_data)
 	var is_wall_routed_object_visual: bool = is_wall_procedural_routed_object(object_data)
 	var is_wall_visual: bool = is_wall_mounted_object_visual or is_wall_routed_object_visual
@@ -7009,6 +7019,7 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 				var item_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":get_iso_object_profile_key_for_object_data(item_data, "key"), "object_data":item_data}
 				draw_entries.append(make_iso_object_draw_entry(cell, "item", ISO_LAYER_BIAS_ITEM, float(item_index), item_payload))
 			var runtime_objects: Array = Array(runtime_objects_by_cell.get(cell, []))
+			var has_runtime_door_object_on_door_tile: bool = false
 			for object_index in range(runtime_objects.size()):
 				var object_data: Dictionary = Dictionary(runtime_objects[object_index])
 				var object_profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "generic_object")
@@ -7016,10 +7027,15 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 				var layer_bias: float = ISO_LAYER_BIAS_WALL_MOUNTED if layer_name == "wall_mounted" else (ISO_LAYER_BIAS_CABLE if layer_name == "cable" else (ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM))
 				var object_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":object_profile_key, "object_data":object_data}
 				draw_entries.append(make_iso_object_draw_entry(cell, layer_name, layer_bias, float(object_index), object_payload))
-				var tile_profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
-				var tile_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":tile_profile_key}
-				draw_entries.append(make_iso_object_draw_entry(cell, "item", ISO_LAYER_BIAS_ITEM, 0.0, tile_payload))
-			if not runtime_objects.is_empty() or not is_iso_object_tile(tile_type):
+				if is_door_like_tile(tile_type) and is_door_like_object_data(object_data):
+					has_runtime_door_object_on_door_tile = true
+			if not runtime_objects.is_empty():
+				if not has_runtime_door_object_on_door_tile and is_iso_object_tile(tile_type):
+					var tile_profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
+					var tile_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":tile_profile_key}
+					draw_entries.append(make_iso_object_draw_entry(cell, "item", ISO_LAYER_BIAS_ITEM, 0.0, tile_payload))
+				continue
+			if not is_iso_object_tile(tile_type):
 				continue
 			var profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
 			var fallback_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":profile_key}
