@@ -7,6 +7,7 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = REPO_ROOT / "scripts/visual/visual_asset_catalog.gd"
 WORLD_CATALOG_PATH = REPO_ROOT / "scripts/world/world_object_catalog.gd"
+RENDERER_PATH = REPO_ROOT / "scripts/field/room_visual_renderer.gd"
 
 
 def _read(path: Path) -> str:
@@ -31,6 +32,7 @@ def _active_palette_asset_ids(world_catalog: str) -> list[str]:
 def main() -> int:
     catalog = _read(CATALOG_PATH)
     world_catalog = _read(WORLD_CATALOG_PATH)
+    renderer = _read(RENDERER_PATH)
     asset_paths = _asset_paths(catalog)
     active_ids = sorted(set(_canonical_object_ids(catalog) + _active_palette_asset_ids(world_catalog)))
     failures: list[str] = []
@@ -41,6 +43,19 @@ def main() -> int:
             continue
         if not (REPO_ROOT / relative).is_file():
             failures.append(f"active:{asset_id} -> missing {relative}")
+    item_asset_ids = ["fuse_floor_01", "repair_kit_floor_01", "reinforcement_floor_01"]
+    for item_id in item_asset_ids:
+        relative = asset_paths.get(item_id, "")
+        if not relative or not relative.startswith("assets/visual/isometric/items/") or not relative.endswith(".png"):
+            failures.append(f"item:{item_id} -> not mapped to authored item png {relative}")
+        elif not (REPO_ROOT / relative).is_file():
+            failures.append(f"item:{item_id} -> missing {relative}")
+    renderer_png_resolver = renderer.split("func get_iso_object_png_asset_path", 1)[1].split("func is_iso_object_png_asset_key", 1)[0] if "func get_iso_object_png_asset_path" in renderer else ""
+    if '/items/' not in renderer_png_resolver:
+        failures.append("renderer:get_iso_object_png_asset_path -> does not accept authored /items/ png paths")
+    for placeholder_id in ["object_fuse", "object_repair_kit"]:
+        if f'return "{placeholder_id}"' in renderer:
+            failures.append(f"renderer:item-placeholder:{placeholder_id} -> item resolution still returns placeholder")
     for blocked_id in ["power_switcher_off_01", "steel_box_01"]:
         relative = asset_paths.get(blocked_id, "")
         if not relative or not (REPO_ROOT / relative).is_file():

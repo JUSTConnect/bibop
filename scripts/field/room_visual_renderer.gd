@@ -2633,7 +2633,7 @@ func get_iso_object_png_asset_path(asset_key: String) -> String:
 		return ""
 
 	var catalog_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
-	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0):
+	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0 or catalog_path.find("/items/") >= 0):
 		return catalog_path
 
 	return ""
