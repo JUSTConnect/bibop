@@ -3,6 +3,7 @@ class_name VisualStateAssetService
 
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const CableReelVisualStateServiceRef = preload("res://scripts/game/cable/cable_reel_visual_state_service.gd")
+const PowerSocketVisualStateServiceRef = preload("res://scripts/game/power/power_socket_visual_state_service.gd")
 
 const VISUAL_STATE_BASE := "base"
 const VISUAL_STATE_OFF := "off"
@@ -10,6 +11,7 @@ const VISUAL_STATE_ON := "on"
 const VISUAL_STATE_POLICY_STATIC := "static"
 const VISUAL_STATE_POLICY_POWERED_THREE_STATE := "powered_three_state"
 const VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE := "cable_reel_connection_state"
+const VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE := "power_socket_connection_state"
 
 const POWER_OFF_STATES: Array[String] = ["unpowered", "no_power", "disconnected", "offline"]
 const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "powered", "source_on", "switch_on"]
@@ -148,6 +150,8 @@ static func resolve_configured_overlay_asset_ids(family: String, state: String, 
 	var normalized_source_variant: String = _normalized_text(source_variant)
 	if not normalized_source_variant.is_empty() and overlays.has(normalized_source_variant) and typeof(overlays.get(normalized_source_variant)) == TYPE_DICTIONARY:
 		configured_variant = Dictionary(overlays.get(normalized_source_variant)).get(normalized_state, [])
+	elif not normalized_surface.is_empty() and overlays.has(normalized_surface) and typeof(overlays.get(normalized_surface)) == TYPE_DICTIONARY and Dictionary(overlays.get(normalized_surface)).has(normalized_state):
+		configured_variant = Dictionary(overlays.get(normalized_surface)).get(normalized_state, [])
 	elif overlays.has(normalized_state):
 		configured_variant = overlays.get(normalized_state, [])
 	else:
@@ -180,6 +184,8 @@ static func object_uses_visual_states(object_data: Dictionary) -> bool:
 	if policy == VISUAL_STATE_POLICY_POWERED_THREE_STATE:
 		return true
 	if policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE:
+		return true
+	if policy == VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE:
 		return true
 	if bool(object_data.get("power_visual_state_enabled", false)):
 		return true
@@ -268,6 +274,8 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 	var policy: String = _normalized_text(config.get("visual_state_policy", object_data.get("visual_state_policy", "")))
 	if policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE:
 		return CableReelVisualStateServiceRef.resolve_visual_state(object_data)
+	if policy == VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE:
+		return PowerSocketVisualStateServiceRef.resolve_visual_state(object_data)
 	var power_state: String = _normalized_text(object_data.get("power_state", ""))
 	if power_state in POWER_OFF_STATES:
 		return VISUAL_STATE_BASE
