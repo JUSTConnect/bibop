@@ -1,14 +1,15 @@
 extends RefCounted
 class_name ActionIconAtlasService
 
-const ATLAS_PATH := "res://assets/visual/isometric/icons/action/icon_menu_action.png"
-const ATLAS_COLUMNS := 8
-const ATLAS_ROWS := 8
-const SOURCE_ICON_SIZE := Vector2i(128, 128)
-const DISPLAY_ICON_SIZE := Vector2i(64, 64)
-const ACTION_BUTTON_MIN_SIZE := Vector2i(72, 72)
+const ATLAS_PATH: String = "res://assets/visual/isometric/icons/action/icon_menu_action.png"
+const ATLAS_COLUMNS: int = 8
+const ATLAS_ROWS: int = 8
+const SOURCE_ICON_SIZE: Vector2i = Vector2i(128, 128)
+const DISPLAY_ICON_SIZE: Vector2i = Vector2i(64, 64)
+const ACTION_BUTTON_MIN_SIZE: Vector2i = Vector2i(72, 72)
+const ICON_TEXTURE_RECT_NAME: String = "ActionIconAtlasTextureRect"
 
-const ACTION_ICON_CELLS := {
+const ACTION_ICON_CELLS: Dictionary = {
 	"physical_break_in": Vector2i(1, 1), "hack": Vector2i(1, 2), "unlock": Vector2i(1, 3), "lock": Vector2i(1, 4), "light_off": Vector2i(1, 5), "light_on": Vector2i(1, 6), "reinforcement_attack": Vector2i(1, 7), "flexible_manipulator_action": Vector2i(1, 8),
 	"platform_rotate_right": Vector2i(2, 1), "platform_rotate_left": Vector2i(2, 2), "door_close": Vector2i(2, 3), "door_open": Vector2i(2, 4), "platform_raise": Vector2i(2, 5), "platform_lower": Vector2i(2, 6), "extract_fuse": Vector2i(2, 7), "telescopic_manipulator_action": Vector2i(2, 8),
 	"manipulator_action": Vector2i(3, 1), "end_turn": Vector2i(3, 2), "drop_item": Vector2i(3, 3), "cancel": Vector2i(3, 4), "heavy_claw_break": Vector2i(3, 5), "sledgehammer_attack": Vector2i(3, 6), "insert_fuse": Vector2i(3, 7), "magnetic_manipulator_action": Vector2i(3, 8),
@@ -19,7 +20,7 @@ const ACTION_ICON_CELLS := {
 	"wireless_connector": Vector2i(8, 1), "optical_connector": Vector2i(8, 2), "saw": Vector2i(8, 3), "radar": Vector2i(8, 4)
 }
 
-const ACTION_ICON_ALIASES := {
+const ACTION_ICON_ALIASES: Dictionary = {
 	"act": "manipulator_action", "action": "manipulator_action", "interact": "manipulator_action", "break_in": "physical_break_in", "physical_hack": "physical_break_in", "breach": "physical_break_in", "break_breachable_wall": "heavy_claw_break", "force_open": "physical_break_in",
 	"digital_hack": "hack", "hack_terminal": "hack", "download": "hack", "unlock_door": "unlock", "unlock_lock": "unlock", "lock_door": "lock", "lock_lock": "lock", "turn_light_off": "light_off", "switch_light_off": "light_off", "turn_light_on": "light_on", "switch_light_on": "light_on", "switch": "switch_circuit_1",
 	"open": "door_open", "open_door": "door_open", "close": "door_close", "close_door": "door_close", "activate_platform": "turn_on_device", "raise_platform": "platform_raise", "lower_platform": "platform_lower", "rotate_platform_right": "platform_rotate_right", "rotate_platform_left": "platform_rotate_left",
@@ -37,11 +38,11 @@ static func atlas_region(row: int, col: int) -> Rect2:
 	return Rect2(float((col - 1) * SOURCE_ICON_SIZE.x), float((row - 1) * SOURCE_ICON_SIZE.y), SOURCE_ICON_SIZE.x, SOURCE_ICON_SIZE.y)
 
 static func canonical_action_id(action_id: String) -> String:
-	var normalized := action_id.strip_edges().to_lower()
+	var normalized: String = action_id.strip_edges().to_lower()
 	return str(ACTION_ICON_ALIASES.get(normalized, normalized))
 
 static func get_icon_texture(action_id: String) -> Texture2D:
-	var canonical_id := canonical_action_id(action_id)
+	var canonical_id: String = canonical_action_id(action_id)
 	if canonical_id.is_empty() or not ACTION_ICON_CELLS.has(canonical_id):
 		_log_missing_icon_once(action_id)
 		return null
@@ -52,7 +53,7 @@ static func get_icon_texture(action_id: String) -> Texture2D:
 	if _atlas_texture == null:
 		return null
 	var cell: Vector2i = ACTION_ICON_CELLS[canonical_id]
-	var icon := AtlasTexture.new()
+	var icon: AtlasTexture = AtlasTexture.new()
 	icon.atlas = _atlas_texture
 	icon.region = atlas_region(cell.x, cell.y)
 	_icon_cache[canonical_id] = icon
@@ -61,16 +62,43 @@ static func get_icon_texture(action_id: String) -> Texture2D:
 static func apply_icon_to_button(button: Button, action_id: String, fallback_label: String) -> void:
 	if button == null:
 		return
-	var icon := get_icon_texture(action_id)
-	if icon == null:
+	var icon_texture: Texture2D = get_icon_texture(action_id)
+	if icon_texture == null:
+		_remove_icon_rect(button)
 		button.icon = null
 		button.text = fallback_label
 		return
-	button.icon = icon
+	button.icon = null
 	button.text = ""
 	button.tooltip_text = fallback_label if button.tooltip_text.is_empty() else button.tooltip_text
 	button.custom_minimum_size = Vector2(ACTION_BUTTON_MIN_SIZE)
-	button.expand_icon = true
+	_ensure_icon_rect(button, icon_texture)
+
+static func _ensure_icon_rect(button: Button, icon_texture: Texture2D) -> void:
+	var icon_rect: TextureRect = button.get_node_or_null(ICON_TEXTURE_RECT_NAME) as TextureRect
+	if icon_rect == null:
+		icon_rect = TextureRect.new()
+		icon_rect.name = ICON_TEXTURE_RECT_NAME
+		icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(icon_rect)
+	icon_rect.texture = icon_texture
+	icon_rect.custom_minimum_size = Vector2(DISPLAY_ICON_SIZE)
+	icon_rect.size = Vector2(DISPLAY_ICON_SIZE)
+	icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon_rect.anchor_left = 0.5
+	icon_rect.anchor_top = 0.5
+	icon_rect.anchor_right = 0.5
+	icon_rect.anchor_bottom = 0.5
+	icon_rect.offset_left = -float(DISPLAY_ICON_SIZE.x) * 0.5
+	icon_rect.offset_top = -float(DISPLAY_ICON_SIZE.y) * 0.5
+	icon_rect.offset_right = float(DISPLAY_ICON_SIZE.x) * 0.5
+	icon_rect.offset_bottom = float(DISPLAY_ICON_SIZE.y) * 0.5
+
+static func _remove_icon_rect(button: Button) -> void:
+	var existing_icon_rect: Node = button.get_node_or_null(ICON_TEXTURE_RECT_NAME)
+	if existing_icon_rect != null:
+		existing_icon_rect.queue_free()
 
 static func _log_missing_icon_once(action_id: String) -> void:
 	if action_id.strip_edges().is_empty() or _logged_missing_ids.has(action_id):

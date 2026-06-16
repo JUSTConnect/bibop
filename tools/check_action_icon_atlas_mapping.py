@@ -24,17 +24,32 @@ def main() -> None:
     if not ATLAS.exists():
         fail("icon_menu_action.png atlas is missing")
 
+
+    png_bytes = ATLAS.read_bytes()
+    if not png_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        fail("atlas file is not a PNG")
+    width = int.from_bytes(png_bytes[16:20], "big")
+    height = int.from_bytes(png_bytes[20:24], "big")
+    if (width, height) != (1024, 1024):
+        fail(f"atlas dimensions must be 1024x1024 for an 8x8 grid of 128px cells, got {width}x{height}")
+
     text = SERVICE.read_text(encoding="utf-8")
-    if 'ATLAS_PATH := "res://assets/visual/isometric/icons/action/icon_menu_action.png"' not in text:
+    if 'ATLAS_PATH: String = "res://assets/visual/isometric/icons/action/icon_menu_action.png"' not in text:
         fail("atlas path is not referenced by ActionIconAtlasService")
-    if "SOURCE_ICON_SIZE := Vector2i(128, 128)" not in text:
+    if "SOURCE_ICON_SIZE: Vector2i = Vector2i(128, 128)" not in text:
         fail("source icon size must be 128x128")
-    if "DISPLAY_ICON_SIZE := Vector2i(64, 64)" not in text:
+    if "DISPLAY_ICON_SIZE: Vector2i = Vector2i(64, 64)" not in text:
         fail("display icon size must be 64x64")
+    if "ACTION_BUTTON_MIN_SIZE: Vector2i = Vector2i(72, 72)" not in text:
+        fail("action button minimum size must be 72x72")
+    if "TextureRect" not in text or "Vector2(DISPLAY_ICON_SIZE)" not in text:
+        fail("service must use a TextureRect sized to DISPLAY_ICON_SIZE for robust 64px icons")
+    if ":=" in text:
+        fail("ActionIconAtlasService must use explicit typed variables instead of :=")
     if "load(ATLAS_PATH)" not in text or "_icon_cache" not in text:
         fail("service must load the atlas once and cache generated icons")
 
-    canonical_block = re.search(r"const ACTION_ICON_CELLS := \{(?P<body>.*?)\n\}", text, re.S)
+    canonical_block = re.search(r"const ACTION_ICON_CELLS: Dictionary = \{(?P<body>.*?)\n\}", text, re.S)
     if not canonical_block:
         fail("ACTION_ICON_CELLS dictionary is missing")
     canonical_cells: dict[str, tuple[int, int]] = {}
@@ -46,7 +61,7 @@ def main() -> None:
             fail(f"{action_id} maps to an intentionally empty row 8 cell: col {col_i}")
         canonical_cells[action_id] = (row_i, col_i)
 
-    alias_block = re.search(r"const ACTION_ICON_ALIASES := \{(?P<body>.*?)\n\}", text, re.S)
+    alias_block = re.search(r"const ACTION_ICON_ALIASES: Dictionary = \{(?P<body>.*?)\n\}", text, re.S)
     if not alias_block:
         fail("ACTION_ICON_ALIASES dictionary is missing")
     for alias, target in re.findall(r'"([^"]+)":\s*"([^"]+)"', alias_block.group("body")):
