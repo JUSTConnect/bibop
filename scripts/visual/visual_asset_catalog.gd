@@ -84,6 +84,12 @@ const ASSET_PATHS: Dictionary = {
 	"breach_overlay_concrete_sw": "res://assets/visual/isometric/wall/overlay/wall_breach_overlay_concrete_sw_01.png",
 	"breach_overlay_brick_sw": "res://assets/visual/isometric/wall/overlay/wall_breach_overlay_brick_sw_01.png",
 
+	"door_close_base_floor_01": "res://assets/visual/isometric/objects/door/door_close_base_floor.png",
+	"door_close_off_floor_01": "res://assets/visual/isometric/objects/door/door_close_off_floor.png",
+	"door_close_on_floor_01": "res://assets/visual/isometric/objects/door/door_close_on_floor.png",
+	"door_open_base_floor_01": "res://assets/visual/isometric/objects/door/door_open_base_floor.png",
+	"door_open_off_floor_01": "res://assets/visual/isometric/objects/door/door_open_off_floor.png",
+	"door_open_on_floor_01": "res://assets/visual/isometric/objects/door/door_open_on_floor.png",
 	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
 	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
 	"object_key": "res://assets/visual/isometric/placeholders/iso_object_key.svg",
@@ -217,6 +223,15 @@ const WALL_ASSET_ALIASES: Dictionary = {
 }
 
 const OBJECT_ASSET_ALIASES: Dictionary = {
+	"door": "door_close_base_floor_01",
+	"door_close": "door_close_base_floor_01",
+	"door_open": "door_open_base_floor_01",
+	"door_close_base": "door_close_base_floor_01",
+	"door_close_off": "door_close_off_floor_01",
+	"door_close_on": "door_close_on_floor_01",
+	"door_open_base": "door_open_base_floor_01",
+	"door_open_off": "door_open_off_floor_01",
+	"door_open_on": "door_open_on_floor_01",
 	"door_state_generic": "object_door",
 	"terminal_state_generic": "object_terminal",
 	"item_generic_marker": "object_generic",
@@ -293,6 +308,24 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 			"on": ["light_on_wall_pulsar_overlay_01"]
 		}
 	},
+	"door": {
+		"category": "objects",
+		"surface": "floor",
+		"variant_policy": "door_pose",
+		"default_variant": "close",
+		"states": {
+			"close": {
+				"base": "door_close_base_floor_01",
+				"off": "door_close_off_floor_01",
+				"on": "door_close_on_floor_01"
+			},
+			"open": {
+				"base": "door_open_base_floor_01",
+				"off": "door_open_off_floor_01",
+				"on": "door_open_on_floor_01"
+			}
+		}
+	},
 	"power_source": {
 		"category": "objects",
 		"surface": "floor",
@@ -361,6 +394,12 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 }
 
 const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
+	"door_close_base_floor_01",
+	"door_close_off_floor_01",
+	"door_close_on_floor_01",
+	"door_open_base_floor_01",
+	"door_open_off_floor_01",
+	"door_open_on_floor_01",
 	"power_source_01",
 	"power_source_base_floor_01",
 	"power_source_off_floor_01",
