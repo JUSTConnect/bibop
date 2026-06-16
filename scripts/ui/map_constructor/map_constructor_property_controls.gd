@@ -343,11 +343,20 @@ static func get_display_label(field_name: String) -> String:
 	return label
 
 static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> bool:
+	return add_archetype_schema_properties_for_tab(ui, section, entity_kind, entity_id, data, "")
+
+static func add_archetype_schema_properties_for_tab(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary, tab_name: String) -> bool:
 	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("get_map_constructor_archetype_property_schema"):
 		return false
 	var schema_rows: Array = MapConstructorUiSafe.safe_array(ui.mission_manager_runtime.call("get_map_constructor_archetype_property_schema", entity_kind, entity_id))
+	var rendered_any: bool = false
 	for row_variant in schema_rows:
 		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
+		var row_tab: String = MapConstructorUiSafe.safe_string(row.get("tab", ""))
+		if tab_name.is_empty() and not row_tab.is_empty():
+			continue
+		if not tab_name.is_empty() and row_tab != tab_name:
+			continue
 		var field_name: String = MapConstructorUiSafe.safe_string(row.get("field", ""))
 		var visible_if: Dictionary = MapConstructorUiSafe.safe_dictionary(row.get("visible_if", {}))
 		if not visible_if.is_empty():
@@ -395,4 +404,5 @@ static func add_archetype_schema_properties(ui: Variant, section: VBoxContainer,
 			add_int_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		else:
 			add_text_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
-	return not schema_rows.is_empty()
+		rendered_any = true
+	return rendered_any

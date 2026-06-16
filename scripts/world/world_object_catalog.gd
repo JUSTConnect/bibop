@@ -699,8 +699,226 @@ const OBJECT_LIBRARY := {
 	"external_radiator": {"group":"cooling","name":"External Radiator","placeable_in_constructor":false,"state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
 	"external_air_cooler": {"group":"cooling","object_group":"cooling","object_type":"external_air_cooler","palette_label":"Air Cooling","name":"External Air Cooler","display_name_template":"Air Cooling","placement_mode":"object","configurable":true,"interactable":true,"state":"off","status":"active","is_powered":false,"power_mode":"external_power","control_mode":"internal_control","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"generic_airflow_role":"fan","airflow_roles":["fan","airflow_source"],"fan_enabled":false,"fan_speed":0,"airflow_range":0,"cooling_state":"uncooled","airflow_direction":"sw","facing_side":"SW","facing_dir":"SW","allowed_airflow_directions":["ne","nw","se","sw"],"visual_family":"air_cooling","visual_surface":"floor","visual_state_policy":"powered_three_state","variant_policy":"airflow_direction","visual_variant":"sw","power_visual_state_enabled":true,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20,"property_schema":[{"field":"airflow_direction","type":"enum","values":["ne","nw","se","sw"],"default":"sw","labels":{"ne":"NE","nw":"NW","se":"SE","sw":"SW"}},{"field":"state","type":"enum","values":["base","off","on"],"default":"off","labels":{"base":"Base","off":"Off","on":"On"}},{"field":"fan_enabled","type":"bool","default":false},{"field":"airflow_range","type":"int","default":0,"min":0}]},
 	"metal_cooling_block": {"group":"cooling","object_group":"cooling","object_type":"metal_cooling_block","palette_label":"Cooling block","name":"Cooling block","display_name_template":"Cooling block","placement_mode":"object","visual_family":"air_cooling","visual_surface":"floor","visual_asset_id":"air_cooling_base_floor_sw_01","state":"base","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
-	"external_water_pipe": {"group":"cooling","object_group":"cooling","object_type":"external_water_pipe","archetype_id":"external_water_pipe","palette_label":"External Water Pipe","name":"External Water Pipe","display_name_template":"External Water Pipe","state":"active","cooling_device_type":"water_pipe","cooling_output":2,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":15,"placement_mode":"wall_mounted","configurable":true,"route_mode":"inner","routing_kind":"water_pipe","routing_label":"Water Pipe","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"visible_if":{"field":"route_mode","equals":"inner"}}]},
-	"external_air_duct": {"group":"cooling","object_group":"cooling","object_type":"external_air_duct","archetype_id":"external_air_duct","palette_label":"External Air Duct","name":"External Air Duct","display_name_template":"External Air Duct","state":"active","cooling_device_type":"air_duct","carries_airflow":true,"passive_cooling":true,"generic_airflow_role":"airflow_path_cell","airflow_roles":["airflow_path_cell"],"blocks_airflow":false,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":12,"placement_mode":"wall_mounted","configurable":true,"route_mode":"inner","routing_kind":"air_duct","routing_label":"Air Duct","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"visible_if":{"field":"route_mode","equals":"inner"}}]},
+	"external_water_pipe": {"group":"cooling","object_group":"cooling","object_type":"external_water_pipe","archetype_id":"external_water_pipe","palette_label":"External Water Pipe","name":"External Water Pipe","display_name_template":"External Water Pipe","state":"active","cooling_device_type":"water_pipe","cooling_output":2,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":15,"placement_mode":"wall_mounted","configurable":true,"route_mode":"inner","routing_kind":"water_pipe","cooling_system_type":"water_pipe","cooling_contour_id":"","cooling_contour_mode":"auto","cooling_system_tab":true,"routing_label":"Water Pipe","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},{"field":"cooling_contour_id","type":"string","default":"","tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}]},
+	"external_air_duct": {"group":"cooling","object_group":"cooling","object_type":"external_air_duct","archetype_id":"external_air_duct","palette_label":"External Air Duct","name":"External Air Duct","display_name_template":"External Air Duct","state":"active","cooling_device_type":"air_duct","carries_airflow":true,"passive_cooling":true,"generic_airflow_role":"airflow_path_cell","airflow_roles":["airflow_path_cell"],"blocks_airflow":false,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":12,"placement_mode":"wall_mounted","configurable":true,"route_mode":"inner","routing_kind":"air_duct","cooling_system_type":"air_duct","cooling_contour_id":"","cooling_contour_mode":"auto","cooling_system_tab":true,"routing_label":"Air Duct","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},{"field":"cooling_contour_id","type":"string","default":"","tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}]},
+	"module_external": {
+		"archetype_id":"module_external", "object_group":"item", "object_type":"module_external", "palette_label":"External Module",
+		"placement_mode":"item", "display_name_template":"External Module", "configurable":false, "property_schema":[]
+	},
+	"module_internal": {
+		"archetype_id":"module_internal", "object_group":"item", "object_type":"module_internal", "palette_label":"Internal Module",
+		"placement_mode":"item", "display_name_template":"Internal Module", "configurable":false, "property_schema":[]
+	},
+	"floor": {
+		"archetype_id":"floor", "object_group":"floor", "object_type":"floor", "palette_label":"Floor",
+		"placement_mode":"object", "display_name_template":"{material_label} Floor",
+		"blocks_movement":false, "blocks_vision":false, "configurable":true, "replaces_tile_with":"floor",
+		"property_schema":[
+			{"field":"material", "type":"enum", "values":["concrete", "steel", "titan"], "default":"concrete", "labels":{"concrete":"Concrete", "steel":"Steel", "titan":"Titan"}},
+			{"field":"covering", "type":"enum", "values":["default", "dirt", "water", "debris", "oil"], "default":"default", "labels":{"default":"Default", "dirt":"Dirt", "water":"Water", "debris":"Debris", "oil":"Oil"}},
+			{"field":"visual_style", "type":"enum", "values":["default", "permission"], "default":"default", "labels":{"default":"Default", "permission":"Permission Tile"}},
+			{"field":"state", "type":"enum", "values":["normal", "damaged"], "default":"normal"},
+			{"field":"allowed_states", "type":"enum_array", "values":["normal", "damaged"], "default":["normal", "damaged"]}
+		]
+	}
+}
+
+const LEGACY_DOOR_IDS: Array[String] = ["steel_door", "reinforced_steel_door", "titanium_door", "energy_door", "grid_door", "mechanical_door", "digital_door", "powered_gate", "mechanical_steel_door", "mechanical_reinforced_steel_door", "mechanical_titanium_door", "mechanical_energy_door", "digital_steel_door", "digital_reinforced_steel_door", "digital_titanium_door", "digital_energy_door", "powered_steel_door", "powered_reinforced_steel_door", "powered_titanium_door", "powered_energy_door"]
+const LEGACY_FLOOR_IDS: Array[String] = ["steel_floor", "concrete_floor", "grate_floor", "permission_floor", "water_floor", "oil_floor", "dirty_floor", "debris_floor"]
+
+static func canonical_prefab_id(prefab_id: String) -> String:
+	var normalized_type: String = prefab_id.strip_edges().to_lower()
+	if PREFAB_ALIASES.has(normalized_type):
+		return str(PREFAB_ALIASES[normalized_type])
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {})))))
+	if preset_variant is Dictionary:
+		return str(preset_variant.get("object_type", "terminal" if LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_type) else normalized_type))
+	return normalized_type
+
+# Compatibility name retained for existing constructor and runtime callers.
+static func canonical_object_type(object_type: String) -> String:
+	return canonical_prefab_id(object_type)
+
+static func is_legacy_prefab_alias(value: String) -> bool:
+	var normalized_value: String = value.strip_edges().to_lower()
+	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_PLATFORM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
+
+static func is_legacy_door_object_type(value: String) -> bool:
+	var normalized_value: String = value.strip_edges().to_lower()
+	return LEGACY_DOOR_IDS.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value)
+
+static func is_material_named_door_object_type(value: String) -> bool:
+	return DOOR_MATERIAL_BY_OBJECT_TYPE.has(value.strip_edges().to_lower())
+
+static func get_legacy_source_id(object_data: Dictionary) -> String:
+	for field_name in LEGACY_SOURCE_METADATA_FIELDS:
+		var source_id: String = _normalized_contract_token(object_data.get(field_name, ""))
+		if not source_id.is_empty():
+			return source_id
+	return ""
+
+static func mark_legacy_source(object_data: Dictionary, source_id: String) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var normalized_source_id: String = _normalized_contract_token(source_id)
+	if normalized_source_id.is_empty():
+		return data
+	data["source_prefab_id"] = normalized_source_id
+	if is_legacy_prefab_alias(normalized_source_id):
+		data["legacy_prefab_id"] = normalized_source_id
+	return data
+
+static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	if data.is_empty():
+		return data
+	var original_object_type: String = _normalized_contract_token(data.get("object_type", ""))
+	var source_id: String = _normalized_contract_token(data.get("map_constructor_prefab_id", original_object_type))
+	if is_legacy_prefab_alias(original_object_type):
+		data = mark_legacy_source(data, original_object_type)
+		data["legacy_object_type"] = original_object_type
+		data["object_type"] = canonical_prefab_id(original_object_type)
+		for key_variant in get_prefab_alias_defaults(original_object_type).keys():
+			var key: String = str(key_variant)
+			if not data.has(key):
+				data[key] = get_prefab_alias_defaults(original_object_type)[key]
+		if data["object_type"] in ["floor", "item"]:
+			data["archetype_id"] = data["object_type"]
+	elif is_legacy_prefab_alias(source_id):
+		data = mark_legacy_source(data, source_id)
+	if data.has("access_type") or data.has("lock_type"):
+		data["access_type"] = normalize_access_type(data.get("access_type", data.get("lock_type", ACCESS_TYPE_NO_KEY)))
+	return data
+
+static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
+	var normalized_prefab_id: String = prefab_id.strip_edges().to_lower()
+	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
+	if raw_defaults is Dictionary and not raw_defaults.is_empty():
+		return raw_defaults.duplicate(true)
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, {})))))
+	if preset_variant is Dictionary:
+		var preset_defaults: Dictionary = preset_variant.duplicate(true)
+		preset_defaults.erase("object_type")
+		preset_defaults.erase("display_name")
+		return preset_defaults
+	return {}
+
+static func is_constructor_door_preset(prefab_id: String) -> bool:
+	return LEGACY_DOOR_ALIAS_CONFIGS.has(prefab_id.strip_edges().to_lower())
+
+static func get_wall_material_quick_presets() -> Array[Dictionary]:
+	return []
+
+static func get_constructor_palette_rows() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
+		var archetype_id: String = str(archetype_id_variant)
+		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
+		if not bool(definition.get("show_in_palette", true)):
+			continue
+		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":str(definition.get("object_type", archetype_id)), "display_name":str(definition.get("palette_label", archetype_id.capitalize())), "label":str(definition.get("palette_label", archetype_id.capitalize())), "category":str(definition.get("object_group", "Objects")).capitalize(), "object_group":str(definition.get("object_group", "physical_object")), "placement_mode":str(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
+	for object_type_variant in OBJECT_LIBRARY.keys():
+		var object_type: String = str(object_type_variant)
+		var definition: Dictionary = OBJECT_LIBRARY[object_type]
+		if ARCHETYPE_REGISTRY.has(object_type) or is_legacy_prefab_alias(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item", "platform"]:
+			continue
+		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("display_name", "")) < str(b.get("display_name", "")))
+	return rows
+
+static func _build_constructor_palette_row(prefab_id: String, canonical_type: String, definition: Dictionary, is_alias: bool) -> Dictionary:
+	var object_group: String = str(definition.get("group", definition.get("object_group", "physical_object")))
+	var category: String = str(definition.get("constructor_category", object_group.capitalize()))
+	var placement_mode: String = str(definition.get("placement_mode", "object"))
+	var row: Dictionary = {
+		"id": prefab_id,
+		"prefab_id": prefab_id,
+		"canonical_object_type": canonical_type,
+		"display_name": str(definition.get("name", prefab_id.capitalize())),
+		"label": str(definition.get("name", prefab_id.capitalize())),
+		"category": category,
+		"object_group": object_group,
+		"placement_mode": placement_mode,
+		"blocks_movement": bool(definition.get("blocks_movement", false)),
+		"is_alias": is_alias,
+		"alias_source_id": prefab_id if is_alias else ""
+	}
+	if object_group == "door":
+		for field_name in ["door_type", "material", "access_type", "door_class", "power_behavior"]:
+			row[field_name] = definition.get(field_name, "")
+	return row
+
+static func is_constructor_solid_prefab(prefab_id: String) -> bool:
+	var object_data: Dictionary = create_world_object(prefab_id, "constructor_solid_preview")
+	return not object_data.is_empty() and bool(object_data.get("blocks_movement", false))
+
+static func get_constructor_placeable_door_types() -> Array[String]:
+	var door_types: Array[String] = []
+	for object_type_variant in OBJECT_LIBRARY.keys():
+		var object_type: String = str(object_type_variant)
+		var definition: Dictionary = OBJECT_LIBRARY[object_type]
+		if str(definition.get("group", "")) == "door" and bool(definition.get("placeable_in_constructor", true)):
+			door_types.append(object_type)
+	door_types.sort()
+	return door_types
+
+static func apply_prefab_alias_defaults(canonical_type: String, original_type: String, object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var normalized_original_type: String = original_type.strip_edges().to_lower()
+	data["object_type"] = canonical_type
+	if is_legacy_prefab_alias(normalized_original_type):
+		data = mark_legacy_source(data, normalized_original_type)
+	var defaults: Dictionary = get_prefab_alias_defaults(normalized_original_type)
+	if defaults.is_empty():
+		return normalize_world_object_contract(data)
+	data["map_constructor_prefab_id"] = normalized_original_type
+	for key_variant in defaults.keys():
+		var key: String = str(key_variant)
+		if not data.has(key):
+			data[key] = defaults[key]
+	if normalized_original_type == "powered_gate":
+		data["requires_external_power"] = bool(data.get("requires_external_power", true))
+		data["power_mode"] = str(data.get("power_mode", "external_power"))
+	return normalize_world_object_contract(data)
+
+const OBJECT_LIBRARY := {
+	"terminal": {"group":"terminal","name":"Information Terminal","state":"active","status":"active","is_powered":true,"power_mode":"internal","control_mode":"internal","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","connection_type":"wired","terminal_class":1,"required_connector_level":1,"required_processor_level":1,"encrypts_data":false,"drain_pool":10,"durability":10,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"hack_heat":1,"overheated_state_before":"","placeable_in_constructor":false},
+	"steel_door": {"group":"door","name":"Steel Door","placeable_in_constructor":false,"door_type":"mechanical","material":"steel","access_type":"key_card","power_behavior":"none","durability":30,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":1,"lock_type":"mechanical_key","required_manipulator_level":1,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
+	"reinforced_steel_door": {"group":"door","name":"Reinforced Steel Door","placeable_in_constructor":false,"door_type":"digital","material":"reinforced_steel","access_type":"terminal","power_behavior":"none","durability":40,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":2,"lock_type":"terminal_lock","required_manipulator_level":2,"required_connector_level":0,"power_mode":"external_power","control_mode":"external_control"},
+	"titanium_door": {"group":"door","name":"Titanium Door","placeable_in_constructor":false,"door_type":"digital","material":"titanium","access_type":"access_code","power_behavior":"none","durability":100,"state":"closed","blocks_movement":true,"blocks_vision":true,"door_class":3,"lock_type":"password","required_manipulator_level":3,"required_connector_level":0},
+	"energy_door": {"group":"door","name":"Energy Door","placeable_in_constructor":false,"door_type":"digital","material":"energy","access_type":"digital_key","power_behavior":"none","durability":1,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"digital_key","required_manipulator_level":1,"required_connector_level":1,"invulnerable_while_powered":true,"power_mode":"external_power","control_mode":"external_control"},
+	"grid_door": {"group":"door","name":"Grid Door","placeable_in_constructor":false,"door_type":"mechanical","material":"steel","access_type":"no_key","power_behavior":"none","durability":15,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"none","required_manipulator_level":1,"required_connector_level":0},
+	"rotating_platform": {"group":"platform","name":"Rotating Platform","platform_type":"rotating","platform_id":"","platform_cells":[],"state":"active","is_powered":true,"power_type":"internal","control_type":"internal","requires_terminal_enabled":false,"linked_terminal_id":"","local_switch_cell":[0,0],"local_switch_facing_dir":"up","non_destructible":true,"destructible":false,"movable":false,"heavy_claw_movable":false,"activation_mode":"instant","timer_turns":0,"timer_remaining_turns":0,"period_turns":0,"periodic_active":false,"permanent_state":false,"pending_activation":false,"rotation_direction":"clockwise"},
+	"lifting_platform": {"group":"platform","name":"Lifting Platform","platform_type":"lifting","platform_id":"","platform_cells":[],"state":"active","is_powered":true,"power_type":"internal","control_type":"internal","requires_terminal_enabled":false,"linked_terminal_id":"","local_switch_cell":[0,0],"local_switch_facing_dir":"up","non_destructible":true,"destructible":false,"movable":false,"heavy_claw_movable":false,"height_level":0,"min_height_level":0,"max_height_level":1,"activation_mode":"instant","timer_turns":0,"timer_remaining_turns":0,"period_turns":0,"periodic_active":false,"permanent_state":false,"pending_activation":false},
+	"firewall": {"group":"terminal","name":"Firewall","placement_mode":"wall_mounted","state":"active","required_connector_level":1,"required_processor_level":1,"durability":10},
+	"external_wall": {"group":"wall","name":"External Wall","material":"external_structural","is_destructible":false,"supports_embedded_objects":true,"supports_cables":true,"configurable":false,"indestructible":true,"blocks_movement":true,"blocks_vision":true},
+	"wall": {"group":"wall","name":"Brick Wall","material":"brick","is_destructible":true,"supports_embedded_objects":true,"supports_cables":true,"configurable":true,"durability":10,"blocks_movement":true,"blocks_vision":true},
+	"outer_wall": {"group":"wall","name":"Outer Wall","material":"steel","durability":9999,"indestructible":true,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"grate_wall": {"group":"wall","name":"Grate Wall","material":"steel","durability":15,"blocks_movement":true,"blocks_vision":false,"placeable_in_constructor":false},
+	"damaged_wall": {"group":"wall","name":"Damaged Wall","material":"concrete","durability":3,"blocks_movement":true,"blocks_vision":false,"hidden_content":["secret_passage"],"placeable_in_constructor":false},
+	"brick_wall": {"group":"wall","name":"Brick Wall","material":"brick","durability":10,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"concrete_wall": {"group":"wall","name":"Concrete Wall","material":"concrete","durability":20,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"steel_wall": {"group":"wall","name":"Steel Wall","material":"steel","durability":30,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"reinforced_steel_wall": {"group":"wall","name":"Reinforced Steel Wall","material":"reinforced_steel","durability":40,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"titanium_wall": {"group":"wall","name":"Titanium Wall","material":"titanium","durability":100,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
+	"energy_wall": {"group":"wall","name":"Energy Wall","material":"energy_flow","durability":1,"blocks_movement":true,"blocks_vision":false,"invulnerable_while_powered":true,"power_mode":"external_power","placeable_in_constructor":false},
+	"power_cable": {"group":"power","name":"Power Cable","state":"ok","durability":5,"power_mode":"external_power","control_mode":"internal_control","generic_power_role":"cable_link","is_powered":false,"power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","power_source_id":"","physical_connection_source_id":"","is_connected":true,"connected":true,"disconnected":false,"connected_side":true,"cut":false,"damaged":false,"broken":false,"is_hidden":false,"hidden_installation":false,"route_surface":"floor","cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal","cable_path_cells":[],"cable_length":0},
+	"circuit_breaker": {"group":"power","name":"Circuit Breaker","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"switch_on","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"circuit_switch": {"group":"power","name":"Circuit Switch","placeable_in_constructor":false,"state":"switch_off","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"input_wire_id":"","output_1_wire_id":"","output_2_wire_id":"","output_3_wire_id":"","active_output_index":1},
+	"legacy_fuse_box_library": {"group":"power","name":"Fuse Box","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"installed","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"fuse_box_installed": {"group":"power","name":"Fuse Box Installed","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"installed","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"fuse_box_empty": {"group":"power","name":"Fuse Box Empty","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"empty","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"legacy_light_library": {"group":"power","name":"Light","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"active","durability":6,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"brightness":1.0,"color":"#ffffff"},
+	"light_switch": {"group":"power","name":"Light Switch","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"switch_off","durability":6,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":false,"can_be_switched":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
+	"power_socket": {"group":"power","object_group":"power","object_type":"power_socket","archetype_id":"power_socket","palette_label":"Power Socket","name":"Power Socket","display_name_template":"Power Socket","placement_mode":"object","configurable":true,"interactable":true,"blocks_movement":false,"blocks_vision":false,"state":"disconnected","status":"inactive","durability":8,"power_mode":"external_power","control_mode":"internal_control","generic_power_role":"socket_input","socket_role":"socket_input","visual_family":"power_socket","visual_state_policy":"power_socket_connection_state","power_visual_state_enabled":false,"has_connected_cable":false,"connected_endpoint_count":0,"socket_connected_endpoint_count":0,"is_powered":false,"power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","power_source_id":"","physical_connection_source_id":"","is_connected":false,"connected":false,"disconnected":true,"connected_side":false,"damaged":false,"broken":false,"can_connect_cable":true,"mount":"floor","install_mode":"floor","property_schema":[FACING_SIDE_SCHEMA,{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}}]},
+	"power_cable_reel": {"group":"item","name":"Power Cable Reel","placement_mode":"wall_mounted","state":"disconnected","generic_power_role":"cable_endpoint","power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5,"is_connected":false,"connected":false,"disconnected":true,"connected_side":false,"connected_side_1":false,"connected_side_2":false,"end_1_state":"on_reel","end_1_target_id":"","end_1_path_cells":[],"end_1_cable_length":0,"end_2_state":"on_reel","end_2_target_id":"","end_2_path_cells":[],"end_2_cable_length":0,"cable_endpoint_a_id":"","cable_endpoint_b_id":"","cable_path_cells":[],"cable_length":0,"cut":false,"damaged":false,"broken":false,"cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal"},
+	"power_source_class_1": {"group":"power","name":"Power Source C1","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":1,"outlet_capacity":4,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
+	"power_source_class_2": {"group":"power","name":"Power Source C2","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":2,"outlet_capacity":5,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
+	"power_source_class_3": {"group":"power","name":"Power Source C3","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":3,"outlet_capacity":6,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
+	"external_radiator": {"group":"cooling","name":"External Radiator","placeable_in_constructor":false,"state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
+	"external_air_cooler": {"group":"cooling","object_group":"cooling","object_type":"external_air_cooler","palette_label":"Air Cooling","name":"External Air Cooler","display_name_template":"Air Cooling","placement_mode":"object","configurable":true,"interactable":true,"state":"off","status":"active","is_powered":false,"power_mode":"external_power","control_mode":"internal_control","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"generic_airflow_role":"fan","airflow_roles":["fan","airflow_source"],"fan_enabled":false,"fan_speed":0,"airflow_range":0,"cooling_state":"uncooled","airflow_direction":"sw","facing_side":"SW","facing_dir":"SW","allowed_airflow_directions":["ne","nw","se","sw"],"visual_family":"air_cooling","visual_surface":"floor","visual_state_policy":"powered_three_state","variant_policy":"airflow_direction","visual_variant":"sw","power_visual_state_enabled":true,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20,"property_schema":[{"field":"airflow_direction","type":"enum","values":["ne","nw","se","sw"],"default":"sw","labels":{"ne":"NE","nw":"NW","se":"SE","sw":"SW"}},{"field":"state","type":"enum","values":["base","off","on"],"default":"off","labels":{"base":"Base","off":"Off","on":"On"}},{"field":"fan_enabled","type":"bool","default":false},{"field":"airflow_range","type":"int","default":0,"min":0}]},
+	"metal_cooling_block": {"group":"cooling","object_group":"cooling","object_type":"metal_cooling_block","palette_label":"Cooling block","name":"Cooling block","display_name_template":"Cooling block","placement_mode":"object","visual_family":"air_cooling","visual_surface":"floor","visual_asset_id":"air_cooling_base_floor_sw_01","state":"base","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
+	"external_water_pipe": {"group":"cooling","object_group":"cooling","object_type":"external_water_pipe","archetype_id":"external_water_pipe","palette_label":"External Water Pipe","name":"External Water Pipe","display_name_template":"External Water Pipe","state":"active","cooling_device_type":"water_pipe","cooling_output":2,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":15,"placement_mode":"wall_mounted","configurable":true,"route_mode":"inner","routing_kind":"water_pipe","cooling_system_type":"water_pipe","cooling_contour_id":"","cooling_contour_mode":"auto","cooling_system_tab":true,"routing_label":"Water Pipe","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},{"field":"cooling_contour_id","type":"string","default":"","tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}],"default":"inner","labels":{"inner":"Inner","outer":"Outer"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"visible_if":{"field":"route_mode","equals":"inner"}}]},
+	"external_air_duct": {"group":"cooling","object_group":"cooling","object_type":"external_air_duct","archetype_id":"external_air_duct","palette_label":"External Air Duct","name":"External Air Duct","display_name_template":"External Air Duct","state":"active","cooling_device_type":"air_duct","carries_airflow":true,"passive_cooling":true,"generic_airflow_role":"airflow_path_cell","airflow_roles":["airflow_path_cell"],"blocks_airflow":false,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":12,"placement_mode":"wall_mounted","configurable":true,"route_mode":"inner","routing_kind":"air_duct","cooling_system_type":"air_duct","cooling_contour_id":"","cooling_contour_mode":"auto","cooling_system_tab":true,"routing_label":"Air Duct","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},{"field":"cooling_contour_id","type":"string","default":"","tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}],"default":"inner","labels":{"inner":"Inner","outer":"Outer"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"visible_if":{"field":"route_mode","equals":"inner"}}]},
 	"module_external": {"group":"item","name":"Module External","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"module_internal": {"group":"item","name":"Module Internal","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"fuse": {"group":"item","name":"Fuse","visual_asset_id":"fuse_floor_01","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["fuse_box","fuse_box_empty"]},

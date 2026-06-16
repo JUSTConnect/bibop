@@ -607,7 +607,12 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	if object_is_configurable and object_archetype_id.is_empty():
 		if not (type_group == "power" and normalized_object_type in ["power_source", "power_cable"]):
 			ui._add_preset_buttons(configurable, entity_kind, entity_id)
-	var rendered_archetype_schema: bool = ui._add_archetype_schema_properties(configurable, entity_kind, entity_id, data) if object_is_configurable else false
+	var cooling_configurable: VBoxContainer = ui._create_inspector_section("Cooling System")
+	var rendered_archetype_schema: bool = false
+	var rendered_cooling_schema: bool = false
+	if object_is_configurable:
+		rendered_archetype_schema = MapConstructorPropertyControls.add_archetype_schema_properties_for_tab(ui, configurable, entity_kind, entity_id, data, "")
+		rendered_cooling_schema = MapConstructorPropertyControls.add_archetype_schema_properties_for_tab(ui, cooling_configurable, entity_kind, entity_id, data, "Cooling System")
 	if object_is_configurable and not rendered_archetype_schema:
 		ui._add_map_constructor_active_settings(configurable, entity_kind, entity_id, data, type_group)
 	if type_group == "terminal":
@@ -726,7 +731,22 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		var no_config_label: Label = Label.new()
 		no_config_label.text = "No configurable object-specific parameters."
 		configurable.add_child(no_config_label)
-	parent.add_child(configurable)
+	if rendered_cooling_schema:
+		var config_tabs := TabContainer.new()
+		config_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var object_scroll := ScrollContainer.new()
+		object_scroll.name = "Object"
+		object_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		object_scroll.add_child(configurable)
+		config_tabs.add_child(object_scroll)
+		var cooling_scroll := ScrollContainer.new()
+		cooling_scroll.name = "Cooling System"
+		cooling_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cooling_scroll.add_child(cooling_configurable)
+		config_tabs.add_child(cooling_scroll)
+		parent.add_child(config_tabs)
+	else:
+		parent.add_child(configurable)
 	var validation_result: Dictionary = {}
 	if not use_simple_movable_inspector and ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("validate_map_constructor_entity_links"):
 		validation_result = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("validate_map_constructor_entity_links", entity_kind, entity_id))
