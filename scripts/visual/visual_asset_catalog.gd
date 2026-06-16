@@ -10,6 +10,7 @@ const ISO_MOVABLE_ASSET_PACK_DIR: String = "res://assets/visual/isometric/moovab
 const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
 const ISO_PLACEHOLDER_ASSET_PACK_DIR: String = "res://assets/visual/isometric/placeholders/"
 const ISO_LIGHT_ASSET_PACK_DIR: String = "res://assets/visual/isometric/light/"
+const ISO_COOLING_SYSTEM_ASSET_PACK_DIR: String = "res://assets/visual/isometric/cooling system/"
 
 
 const LEGACY_VISUAL_PATH_MIGRATIONS: Dictionary = {
@@ -173,6 +174,8 @@ const ASSET_PATHS: Dictionary = {
 	"light_switcher_on_wall_01": "res://assets/visual/isometric/objects/light_swicher/light_swicher_on_wall.png",
 	"radiator_01": "res://assets/visual/isometric/moovable/radiator_floor.png",
 	"radiator_floor_01": "res://assets/visual/isometric/moovable/radiator_floor.png",
+	"air_duct_inner_wall_01": "res://assets/visual/isometric/cooling system/air_duct_wall.png",
+	"water_pipe_inner_wall_01": "res://assets/visual/isometric/cooling system/water_pipe_wall.png",
 	"air_cooling_base_floor_ne_01": "res://assets/visual/isometric/objects/cooling/air_cooling_base_floor_NE.png",
 	"air_cooling_base_floor_sw_01": "res://assets/visual/isometric/objects/cooling/air_cooling_base_floor_SW.png",
 	"air_cooling_off_floor_ne_01": "res://assets/visual/isometric/objects/cooling/air_cooling_off_floor_NE.png",
@@ -699,6 +702,8 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"pulsar_overlay_power_socket_off_wall_01",
 	"pulsar_overlay_power_socket_on_floor_01",
 	"pulsar_overlay_power_socket_on_wall_01",
+	"air_duct_inner_wall_01",
+	"water_pipe_inner_wall_01",
 	"air_cooling_base_floor_ne_01",
 	"air_cooling_base_floor_sw_01",
 	"air_cooling_off_floor_ne_01",
