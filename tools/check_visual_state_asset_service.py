@@ -12,6 +12,8 @@ world_catalog = (root / "scripts/world/world_object_catalog.gd").read_text()
 power_switcher_archetype = world_catalog.split('"power_switcher": {', 1)[1].split('\n\t"light_switcher": {', 1)[0]
 light_switcher_archetype = world_catalog.split('"light_switcher": {', 1)[1].split('\n\t"fuse_box": {', 1)[0]
 firewall_service = root / "scripts/game/firewall/firewall_service.gd"
+station_archetype = world_catalog.split('"station": {', 1)[1].split('\n\t"firewall": {', 1)[0]
+station_asset_ids = ["station_decrypt_floor_01", "station_lab_floor_01", "station_recharge_floor_01", "station_repair_floor_01", "station_shop_floor_01"]
 
 DOOR_ASSET_IDS = [
     "door_close_base_floor_01",
@@ -86,6 +88,18 @@ checks = {
     "firewall archetype opts into visual states": re.search(r'"firewall"\s*:\s*\{.*?"visual_family"\s*:\s*"firewall".*?"visual_surface"\s*:\s*"floor".*?"visual_state_policy"\s*:\s*"powered_three_state".*?"power_visual_state_enabled"\s*:\s*true', world_catalog, re.S) is not None,
     "firewall service stub exists": firewall_service.exists() and "class_name FirewallService" in firewall_service.read_text(),
     "firewall resolution is not renderer hardcoded": all(token not in renderer for token in ["firewall_on_floor_01", "firewall_off_floor_01", "firewall_base_floor_01"]),
+
+    "station assets exist in catalog": all(token in catalog for token in station_asset_ids),
+    "station aliases map variants": all(token in catalog for token in ['"station": "station_lab_floor_01"', '"station_decrypt": "station_decrypt_floor_01"', '"station_incrypt": "station_decrypt_floor_01"', '"station_lab": "station_lab_floor_01"', '"station_research": "station_lab_floor_01"', '"station_recharge": "station_recharge_floor_01"', '"station_repair": "station_repair_floor_01"', '"station_shop": "station_shop_floor_01"']),
+    "station canonical ids are included": all(re.search(r'CANONICAL_OBJECT_VISUAL_IDS.*?"%s"' % re.escape(token), catalog, re.S) is not None for token in station_asset_ids),
+    "station family exists in visual state catalog": re.search(r'"station"\s*:\s*\{.*?"category"\s*:\s*"objects".*?"surface"\s*:\s*"floor"', catalog, re.S) is not None,
+    "station family is static and variant based": re.search(r'"station"\s*:\s*\{.*?"visual_state_policy"\s*:\s*"static".*?"variant_policy"\s*:\s*"station_type".*?"default_variant"\s*:\s*"lab"', catalog, re.S) is not None,
+    "station variants map through catalog family": all(re.search(pattern, catalog, re.S) is not None for pattern in [r'"decrypt"\s*:\s*"station_decrypt_floor_01"', r'"incrypt"\s*:\s*"station_decrypt_floor_01"', r'"lab"\s*:\s*"station_lab_floor_01"', r'"research"\s*:\s*"station_lab_floor_01"', r'"recharge"\s*:\s*"station_recharge_floor_01"', r'"repair"\s*:\s*"station_repair_floor_01"', r'"shop"\s*:\s*"station_shop_floor_01"']),
+    "service supports static variant families": all(token in service for token in ["resolve_visual_variant", "resolve_configured_variant_asset_id", "visual_state_policy", "default_variant", "variants"]),
+    "station archetype exists": re.search(r'"station"\s*:\s*\{.*?"archetype_id"\s*:\s*"station"', world_catalog, re.S) is not None,
+    "station archetype exposes station_type enum": all(token in station_archetype for token in ['"field":"station_type"', '"type":"enum"', '"decrypt"', '"lab"', '"recharge"', '"repair"', '"shop"']),
+    "station archetype opts into static floor visual family": all(token in station_archetype for token in ['"visual_family":"station"', '"visual_surface":"floor"', '"visual_state_policy":"static"']),
+    "station resolution is not renderer hardcoded": all(token not in renderer for token in station_asset_ids),
 }
 
 failed = [name for name, ok in checks.items() if not ok]
