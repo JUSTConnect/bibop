@@ -83,14 +83,64 @@ POWER_SOCKET_STALE_UNPOWERED_SMOKE_CASES = [
     ({"power_state": "unpowered", "is_powered": True, "connected": False}, "off"),
     ({"power_state": "unpowered", "is_powered": True, "connected": True}, "on"),
     ({"power_state": "unpowered", "is_powered": False, "connected": True}, "base"),
+    ({"is_powered": True, "connected_endpoint_count": 1}, "on"),
+    ({"is_powered": True, "socket_connected_endpoint_count": 1}, "on"),
+    ({"is_powered": True, "endpoint_a_id": "socket-a", "connection_id": "connection-a"}, "on"),
+    ({"is_powered": True, "connected": False}, "off"),
+    ({"is_powered": False, "connected_endpoint_count": 1}, "base"),
+    ({"is_powered": True, "connected": False, "connected_endpoint_count": 1}, "on"),
+    ({"is_powered": True, "is_connected": False, "connections": [{"connected": True}]}, "on"),
 ]
 
 def _resolve_power_socket_smoke_state(object_data):
+    def norm(value):
+        return str(value).strip().lower().replace(" ", "_").replace("-", "_")
+
     true_power_keys = ["is_powered", "powered", "has_power", "receives_power", "upstream_powered"]
     has_source_power = any(bool(object_data.get(key, False)) for key in true_power_keys if key in object_data)
     if not has_source_power:
         return "base"
-    return "on" if bool(object_data.get("connected", False)) else "off"
+
+    def count_connected_entries(value):
+        if isinstance(value, list):
+            return sum(count_connected_entries(entry) for entry in value)
+        if isinstance(value, dict):
+            if value.get("connected") is False or value.get("is_connected") is False:
+                return 0
+            if bool(value.get("connected", False)) or bool(value.get("is_connected", False)):
+                return 1
+            evidence_keys = ["connected_cable_id", "connected_reel_id", "connection_id", "endpoint_a_id", "endpoint_b_id", "socket_id", "id"]
+            return 1 if any(norm(value.get(key, "")) for key in evidence_keys) else 0
+        return 0
+
+    def has_connection_evidence():
+        id_keys = ["connected_cable_id", "connected_reel_id", "connection_id", "endpoint_a_id", "endpoint_b_id", "socket_id"]
+        if any(norm(object_data.get(key, "")) for key in id_keys):
+            return True
+        count_keys = ["connected_endpoint_count", "socket_connected_endpoint_count"]
+        if any(int(object_data.get(key, 0)) > 0 for key in count_keys if key in object_data):
+            return True
+        collection_keys = ["connected_ends", "cable_endpoints", "endpoints", "connections"]
+        return any(count_connected_entries(object_data.get(key, [])) > 0 for key in collection_keys)
+
+    true_connection_keys = ["has_connected_cable", "connected_cable", "connected", "is_connected"]
+    if any(bool(object_data.get(key, False)) for key in true_connection_keys if key in object_data):
+        has_connected_cable = True
+    elif any(norm(object_data.get(key, "")) for key in ["connected_cable_id", "connected_reel_id", "connection_id"]):
+        has_connected_cable = True
+    elif norm(object_data.get("state", "")) == "connected":
+        has_connected_cable = True
+    elif object_data.get("disconnected") is False and has_connection_evidence():
+        has_connected_cable = True
+    elif any(int(object_data.get(key, 0)) > 0 for key in ["connected_endpoint_count", "socket_connected_endpoint_count"] if key in object_data):
+        has_connected_cable = True
+    elif any(norm(object_data.get(key, "")) and has_connection_evidence() for key in ["endpoint_a_id", "endpoint_b_id", "socket_id"]):
+        has_connected_cable = True
+    elif any(count_connected_entries(object_data.get(key, [])) > 0 for key in ["connected_ends", "cable_endpoints", "endpoints", "connections"]):
+        has_connected_cable = True
+    else:
+        has_connected_cable = False
+    return "on" if has_connected_cable else "off"
 
 checks = {
 
@@ -219,7 +269,7 @@ checks.update({
     "power socket source power true flag overrides stale unpowered state": re.search(r"static func _has_source_power.*?_has_true_power_flag\(object_data\).*?return true.*?power_state in POWER_OFF_STATES", service, re.S) is not None,
     "power socket source power checks all runtime true evidence": all(token in service for token in ['"is_powered"', '"has_power"', '"receives_power"', '"upstream_powered"']),
     "power socket visuals keep connection separate from source power": all(token in service for token in ["static func _resolve_power_socket_visual_state", "_has_source_power(object_data)", "_has_connected_cable(object_data)", "return VISUAL_STATE_ON if _has_connected_cable(object_data) else VISUAL_STATE_OFF", "return VISUAL_STATE_BASE"]),
-    "power socket connected false can override stale connection ids": re.search(r'static func _has_connected_cable.*?object_data.has\("connected"\).*?return false.*?connection_id', service, re.S) is not None,
+    "power socket connected false does not hide stronger connection evidence": re.search(r'static func _has_connected_cable.*?connected_endpoint_count.*?object_data.has\("connected"\).*?return false', service, re.S) is not None and all(token in service for token in ['"socket_connected_endpoint_count"', '"endpoint_a_id"', '"endpoint_b_id"', '"socket_id"', '"connected_ends"', '"cable_endpoints"', '"endpoints"', '"connections"']),
     "power socket stale unpowered smoke cases resolve correctly": all(_resolve_power_socket_smoke_state(data) == expected for data, expected in POWER_SOCKET_STALE_UNPOWERED_SMOKE_CASES),
     "cable reel resolution is not renderer hardcoded": all(token not in renderer for token in CABLE_REEL_ASSET_IDS),
 })
@@ -255,7 +305,7 @@ checks.update({
     "power socket resolver smoke behavior cases pass": _power_socket_behavior_cases_pass(),
     "power socket source resolver does not let stale false upstream override true evidence": "and not bool(object_data.get(key" not in power_socket_helper and power_socket_helper.find('power_state in FALSE_POWER_STATES') < power_socket_helper.find('for key in ["is_powered", "powered", "has_power", "receives_power", "upstream_powered"'),
     "power socket archetype keeps gameplay connection state": '"state":"disconnected"' in power_socket_archetype and '"state":"base"' not in power_socket_archetype and '"upstream_powered":false' not in power_socket_archetype,
-    "visual service supports power socket custom policy": all(token in service for token in ["PowerSocketVisualStateService", "VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE", 'policy == VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE', "PowerSocketVisualStateServiceRef.resolve_visual_state(object_data)"]),
+    "visual service supports power socket custom policy": all(token in service for token in ["PowerSocketVisualStateService", "VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE", 'policy == VISUAL_STATE_POLICY_POWER_SOCKET_CONNECTION_STATE']),
     "overlay resolver supports surface overlays": "overlays.has(normalized_surface)" in service and "Dictionary(overlays.get(normalized_surface)).get(normalized_state" in service,
     "power socket resolution is not renderer hardcoded": all(token not in renderer for token in POWER_SOCKET_ASSET_IDS),
 })

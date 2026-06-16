@@ -278,15 +278,61 @@ static func _is_power_socket_object(object_data: Dictionary, family: String = ""
 	return bool(object_data.get("is_power_socket", false))
 
 static func _has_connected_cable(object_data: Dictionary) -> bool:
+	for key in ["has_connected_cable", "connected_cable", "connected", "is_connected"]:
+		if object_data.has(key) and bool(object_data.get(key, false)):
+			return true
+	for key in ["connected_cable_id", "connected_reel_id", "connection_id"]:
+		if not _normalized_text(object_data.get(key, "")).is_empty():
+			return true
+	if _normalized_text(object_data.get("state", "")) == "connected":
+		return true
+	if object_data.has("disconnected") and not bool(object_data.get("disconnected", true)) and _has_connection_evidence(object_data):
+		return true
+	for key in ["connected_endpoint_count", "socket_connected_endpoint_count"]:
+		if object_data.has(key) and int(object_data.get(key, 0)) > 0:
+			return true
+	for key in ["endpoint_a_id", "endpoint_b_id", "socket_id"]:
+		if not _normalized_text(object_data.get(key, "")).is_empty() and _has_connection_evidence(object_data):
+			return true
+	for key in ["connected_ends", "cable_endpoints", "endpoints", "connections"]:
+		if _count_connected_entries(object_data.get(key, [])) > 0:
+			return true
 	if object_data.has("connected") and not bool(object_data.get("connected", false)):
 		return false
 	if object_data.has("is_connected") and not bool(object_data.get("is_connected", false)):
 		return false
-	if bool(object_data.get("connected", false)) or bool(object_data.get("is_connected", false)):
-		return true
-	if _normalized_text(object_data.get("state", "")) == "connected":
-		return true
-	return not _normalized_text(object_data.get("connection_id", "")).is_empty()
+	return false
+
+static func _has_connection_evidence(object_data: Dictionary) -> bool:
+	for key in ["connected_cable_id", "connected_reel_id", "connection_id", "endpoint_a_id", "endpoint_b_id", "socket_id"]:
+		if not _normalized_text(object_data.get(key, "")).is_empty():
+			return true
+	for key in ["connected_endpoint_count", "socket_connected_endpoint_count"]:
+		if object_data.has(key) and int(object_data.get(key, 0)) > 0:
+			return true
+	for key in ["connected_ends", "cable_endpoints", "endpoints", "connections"]:
+		if _count_connected_entries(object_data.get(key, [])) > 0:
+			return true
+	return false
+
+static func _count_connected_entries(value: Variant) -> int:
+	if typeof(value) == TYPE_ARRAY:
+		var count: int = 0
+		for entry in Array(value):
+			count += _count_connected_entries(entry)
+		return count
+	if typeof(value) == TYPE_DICTIONARY:
+		var dict: Dictionary = Dictionary(value)
+		if dict.has("connected") and not bool(dict.get("connected", false)):
+			return 0
+		if dict.has("is_connected") and not bool(dict.get("is_connected", false)):
+			return 0
+		if bool(dict.get("connected", false)) or bool(dict.get("is_connected", false)):
+			return 1
+		for key in ["connected_cable_id", "connected_reel_id", "connection_id", "endpoint_a_id", "endpoint_b_id", "socket_id", "id"]:
+			if not _normalized_text(dict.get(key, "")).is_empty():
+				return 1
+	return 0
 
 static func _has_source_power(object_data: Dictionary) -> bool:
 	var power_state: String = _normalized_text(object_data.get("power_state", ""))
