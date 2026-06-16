@@ -4,6 +4,7 @@ class_name MapConstructorInspector
 const MapConstructorPlatformControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_platform_controls.gd")
 const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
 const MapConstructorTerminalStoredDataControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_terminal_stored_data_controls.gd")
+const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cooling_routing_contour_service.gd")
 
 
 static func _is_simple_movable_object(data: Dictionary) -> bool:
@@ -168,7 +169,7 @@ static func _normalize_wall_side_value(data: Dictionary) -> String:
 
 
 static func _normalize_wall_routing_mode_for_inspector(data: Dictionary) -> String:
-	var routing_mode: String = MapConstructorUiSafe.safe_string(data.get("wall_routing_mode", "outer")).strip_edges().to_lower()
+	var routing_mode: String = MapConstructorUiSafe.safe_string(data.get("route_mode", data.get("wall_routing_mode", data.get("routing_mode", data.get("routing_style", "outer"))))).strip_edges().to_lower()
 	routing_mode = routing_mode.replace("-", "_")
 	routing_mode = routing_mode.replace(" ", "_")
 	if routing_mode in ["inner", "inside", "internal", "in_wall", "embedded"]:
@@ -178,6 +179,105 @@ static func _normalize_wall_routing_mode_for_inspector(data: Dictionary) -> Stri
 
 static func _normalize_wall_routing_mode_value(data: Dictionary) -> String:
 	return _normalize_wall_routing_mode_for_inspector(data)
+
+
+static func _is_cooling_routing_object(data: Dictionary) -> bool:
+	var kind: String = str(data.get("routing_kind", data.get("cooling_system_type", ""))).strip_edges().to_lower()
+	var object_type: String = str(data.get("object_type", data.get("type", ""))).strip_edges().to_lower()
+	return kind in ["air_duct", "water_pipe"] or object_type in ["external_air_duct", "external_water_pipe"]
+
+
+static func _normalize_cooling_routing_kind(data: Dictionary) -> String:
+	var kind: String = str(data.get("routing_kind", data.get("cooling_system_type", ""))).strip_edges().to_lower()
+	if kind in ["air_duct", "water_pipe"]:
+		return kind
+	var object_type: String = str(data.get("object_type", data.get("type", ""))).strip_edges().to_lower()
+	if object_type == "external_air_duct":
+		return "air_duct"
+	if object_type == "external_water_pipe":
+		return "water_pipe"
+	return ""
+
+
+static func _format_cooling_routing_kind(kind: String) -> String:
+	if kind == "air_duct":
+		return "air duct"
+	if kind == "water_pipe":
+		return "water pipe"
+	return "unknown"
+
+
+static func _normalize_cooling_wall_side(data: Dictionary, field_name: String, fallback: String) -> String:
+	var side: String = MapConstructorUiSafe.safe_string(data.get(field_name, fallback)).strip_edges().to_upper()
+	return side if side in ["NE", "NW", "SE", "SW"] else fallback
+
+
+static func _normalize_cooling_contour_mode(data: Dictionary) -> String:
+	var mode: String = MapConstructorUiSafe.safe_string(data.get("cooling_contour_mode", "auto")).strip_edges().to_lower()
+	return "manual" if mode == "manual" else "auto"
+
+
+static func _get_cooling_objects_by_id(ui: Variant, selected_entity_id: String, selected_data: Dictionary) -> Dictionary:
+	var objects_by_id: Dictionary = {}
+	if ui.mission_manager_runtime != null:
+		var mission_objects: Variant = ui.mission_manager_runtime.get("mission_world_objects")
+		if mission_objects is Array:
+			for object_variant in Array(mission_objects):
+				var object_data: Dictionary = ui._safe_ui_dictionary(object_variant)
+				var object_id: String = ui._safe_ui_string(object_data.get("id", object_data.get("object_id", ""))).strip_edges()
+				if object_id.is_empty() or not _is_cooling_routing_object(object_data):
+					continue
+				var preview_data: Dictionary = object_data.duplicate(true)
+				if not (str(preview_data.get("routing_kind", "")).strip_edges().to_lower() in ["air_duct", "water_pipe"]):
+					preview_data["routing_kind"] = _normalize_cooling_routing_kind(preview_data)
+				objects_by_id[object_id] = preview_data
+	var selected_preview: Dictionary = selected_data.duplicate(true)
+	if not (str(selected_preview.get("routing_kind", "")).strip_edges().to_lower() in ["air_duct", "water_pipe"]):
+		selected_preview["routing_kind"] = _normalize_cooling_routing_kind(selected_preview)
+	objects_by_id[selected_entity_id] = selected_preview
+	return objects_by_id
+
+
+static func _add_read_only_text_row(ui: Variant, section: VBoxContainer, label: String, text: String) -> void:
+	var value_label: Label = Label.new()
+	value_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	value_label.text = text
+	section.add_child(ui._create_property_row(label, value_label))
+
+
+static func _render_cooling_system_controls(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	MapConstructorPropertyControls.add_enum_updates_property(
+		ui,
+		parent,
+		"Route mode",
+		entity_kind,
+		entity_id,
+		_normalize_wall_routing_mode_value(data),
+		[
+			{"label": "Inner", "value": "inner", "updates": {"route_mode": "inner", "wall_routing_mode": "inner"}},
+			{"label": "Outer", "value": "outer", "updates": {"route_mode": "outer", "wall_routing_mode": "outer"}}
+		]
+	)
+	if _normalize_wall_routing_mode_value(data) == "inner":
+		MapConstructorPropertyControls.add_enum_property(ui, parent, "Wall side 1", entity_kind, entity_id, "wall_side_1", _normalize_cooling_wall_side(data, "wall_side_1", "NW"), [{"label":"NE", "value":"NE"}, {"label":"NW", "value":"NW"}, {"label":"SE", "value":"SE"}, {"label":"SW", "value":"SW"}])
+		MapConstructorPropertyControls.add_enum_property(ui, parent, "Wall side 2", entity_kind, entity_id, "wall_side_2", _normalize_cooling_wall_side(data, "wall_side_2", "SE"), [{"label":"NE", "value":"NE"}, {"label":"NW", "value":"NW"}, {"label":"SE", "value":"SE"}, {"label":"SW", "value":"SW"}])
+		if _normalize_cooling_wall_side(data, "wall_side_1", "NW") == _normalize_cooling_wall_side(data, "wall_side_2", "SE"):
+			_add_cable_note(ui, parent, "Inner routing sides must be different.", true)
+	MapConstructorPropertyControls.add_enum_property(ui, parent, "Contour mode", entity_kind, entity_id, "cooling_contour_mode", _normalize_cooling_contour_mode(data), [{"label":"Auto", "value":"auto"}, {"label":"Manual", "value":"manual"}])
+	if _normalize_cooling_contour_mode(data) == "manual":
+		MapConstructorPropertyControls.add_text_property(ui, parent, "Manual contour id", entity_kind, entity_id, "cooling_contour_id", data.get("cooling_contour_id", ""))
+	var objects_by_id: Dictionary = _get_cooling_objects_by_id(ui, entity_id, data)
+	var contours: Dictionary = CoolingRoutingContourServiceRef.build_contours(objects_by_id)
+	var contour_id: String = CoolingRoutingContourServiceRef.get_object_contour_id(Dictionary(objects_by_id.get(entity_id, data)), entity_id, contours)
+	var routing_kind: String = _normalize_cooling_routing_kind(data)
+	_add_read_only_text_row(ui, parent, "Routing kind", _format_cooling_routing_kind(routing_kind))
+	_add_read_only_text_row(ui, parent, "Computed contour id", contour_id if not contour_id.is_empty() else "none")
+	var contour_data: Dictionary = Dictionary(Dictionary(contours.get(routing_kind, {})).get(contour_id, {})) if not contour_id.is_empty() else {}
+	var members: Array = Array(contour_data.get("members", []))
+	_add_read_only_text_row(ui, parent, "Contour members", ", ".join(members) if not members.is_empty() else "0")
+	var warnings_by_id: Dictionary = CoolingRoutingContourServiceRef.collect_contour_warnings(objects_by_id)
+	var warnings: Array = Array(warnings_by_id.get(entity_id, []))
+	_add_read_only_text_row(ui, parent, "Contour warnings", "\n".join(warnings) if not warnings.is_empty() else "none")
 
 static func _is_wall_cable_constructor_object(data: Dictionary) -> bool:
 	var tokens: Array[String] = [
@@ -604,6 +704,7 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		configurable = ui._create_inspector_section("5. Configurable Parameters")
 	var object_is_configurable: bool = bool(data.get("configurable", true))
 	var object_archetype_id: String = ui._safe_ui_string(data.get("archetype_id", "")).strip_edges()
+	var is_cooling_routing_object: bool = entity_kind == "world_object" and _is_cooling_routing_object(data)
 	if object_is_configurable and object_archetype_id.is_empty():
 		if not (type_group == "power" and normalized_object_type in ["power_source", "power_cable"]):
 			ui._add_preset_buttons(configurable, entity_kind, entity_id)
@@ -612,7 +713,10 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	var rendered_cooling_schema: bool = false
 	if object_is_configurable:
 		rendered_archetype_schema = MapConstructorPropertyControls.add_archetype_schema_properties_for_tab(ui, configurable, entity_kind, entity_id, data, "")
-		rendered_cooling_schema = MapConstructorPropertyControls.add_archetype_schema_properties_for_tab(ui, cooling_configurable, entity_kind, entity_id, data, "Cooling System")
+		if not is_cooling_routing_object:
+			rendered_cooling_schema = MapConstructorPropertyControls.add_archetype_schema_properties_for_tab(ui, cooling_configurable, entity_kind, entity_id, data, "Cooling System")
+	if is_cooling_routing_object:
+		_render_cooling_system_controls(ui, cooling_configurable, entity_kind, entity_id, data)
 	if object_is_configurable and not rendered_archetype_schema:
 		ui._add_map_constructor_active_settings(configurable, entity_kind, entity_id, data, type_group)
 	if type_group == "terminal":
@@ -686,7 +790,7 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		
 	if entity_kind == "world_object" and _is_wall_cable_constructor_object(data) and _get_cable_install_type(data) == "wall":
 		_add_wall_routing_selector(ui, configurable, entity_kind, entity_id, data)
-	elif entity_kind == "world_object" and _is_wall_routed_constructor_object(data):
+	elif entity_kind == "world_object" and _is_wall_routed_constructor_object(data) and not is_cooling_routing_object:
 		_add_wall_side_selector(ui, configurable, entity_kind, entity_id, data)
 		_add_wall_routing_selector(ui, configurable, entity_kind, entity_id, data)
 	elif type_group == "lighting" or normalized_object_type == "light":
@@ -731,7 +835,7 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		var no_config_label: Label = Label.new()
 		no_config_label.text = "No configurable object-specific parameters."
 		configurable.add_child(no_config_label)
-	if rendered_cooling_schema:
+	if rendered_cooling_schema or is_cooling_routing_object:
 		var config_tabs := TabContainer.new()
 		config_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var object_scroll := ScrollContainer.new()
