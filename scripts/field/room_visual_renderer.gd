@@ -123,6 +123,7 @@ const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
 
 const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
 const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String = "res://assets/visual/isometric/wall/overlay/"
+const ISO_COOLING_SYSTEM_ASSET_PACK_DIR: String = "res://assets/visual/isometric/cooling system/"
 const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary = {
 	"breach_overlay_concrete_sw": "wall_breach_overlay_concrete_sw_01.png",
 	"breach_overlay_brick_sw": "wall_breach_overlay_brick_sw_01.png"
@@ -2636,7 +2637,7 @@ func get_iso_object_png_asset_path(asset_key: String, descriptor: Dictionary = {
 	var descriptor_visual_id: String = str(descriptor.get("visual_id", descriptor.get("visual_asset_id", descriptor.get("asset_id", normalized_asset_key)))).strip_edges()
 	var descriptor_path: String = str(descriptor.get("path", descriptor.get("texture_path", ""))).strip_edges()
 	var catalog_path: String = VisualAssetCatalogScript.resolve_visual_texture_path(descriptor_visual_id, descriptor_path)
-	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0 or catalog_path.find("/items/") >= 0):
+	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0 or catalog_path.find("/items/") >= 0 or catalog_path.find("/cooling system/") >= 0):
 		return catalog_path
 
 	return ""
@@ -4000,7 +4001,48 @@ func draw_wall_routing_utility(cell: Vector2i, object_data: Dictionary, visual_c
 		return true
 	return draw_outer_wall_route_surface(cell, object_data, visual_center)
 
+func get_inner_wall_route_asset_id(object_data: Dictionary) -> String:
+	var kind: String = str(object_data.get("routing_kind", _get_wall_routed_object_family(object_data))).strip_edges().to_lower()
+	match kind:
+		"air_duct":
+			return "air_duct_inner_wall_01"
+		"water_pipe":
+			return "water_pipe_inner_wall_01"
+	return ""
+
+func draw_inner_wall_route_asset(cell: Vector2i, object_data: Dictionary, wall_side: String) -> bool:
+	var asset_id: String = get_inner_wall_route_asset_id(object_data)
+	if asset_id.is_empty():
+		return false
+	var face: String = _wall_route_side_to_visible_face(wall_side)
+	if face.is_empty() or not _is_wall_cable_face_visible(cell, face):
+		return true
+	var texture_path: String = get_iso_object_png_asset_path(asset_id, {"visual_id": asset_id})
+	if texture_path.is_empty():
+		return false
+	var texture: Texture2D = get_iso_object_png_texture_for_resolved_path(asset_id, texture_path)
+	if texture == null:
+		return false
+	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
+	var anchor: Vector2 = Vector2(segment.get("mid", grid_to_iso(cell)))
+	var texture_size: Vector2 = texture.get_size()
+	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
+		return false
+	var scale_value: float = get_iso_tile_size().x / texture_size.x
+	var destination_size: Vector2 = texture_size * scale_value
+	var destination_rect: Rect2 = Rect2(anchor - Vector2(destination_size.x * 0.5, destination_size.y), destination_size)
+	if face == "se":
+		draw_set_transform(destination_rect.position + Vector2(destination_rect.size.x, 0.0), 0.0, Vector2(-1.0, 1.0))
+		draw_texture_rect_region(texture, Rect2(Vector2.ZERO, destination_rect.size), Rect2(Vector2.ZERO, texture_size))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	else:
+		draw_texture_rect_region(texture, destination_rect, Rect2(Vector2.ZERO, texture_size))
+	draw_iso_asset_alignment_overlay(asset_id, anchor, destination_rect)
+	return true
+
 func draw_inner_wall_route_port(cell: Vector2i, object_data: Dictionary, wall_side: String, _visual_center: Vector2) -> void:
+	if draw_inner_wall_route_asset(cell, object_data, wall_side):
+		return
 	var face: String = _wall_route_side_to_visible_face(wall_side)
 	if face.is_empty() or not _is_wall_cable_face_visible(cell, face):
 		return
