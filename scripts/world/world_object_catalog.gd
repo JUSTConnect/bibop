@@ -411,11 +411,12 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"fuse_box": {
 		"archetype_id":"fuse_box", "object_group":"power", "object_type":"fuse_box", "palette_label":"Fuse Box", "facing_side":"SW",
-		"placement_mode":"object", "display_name_template":"Fuse Box", "configurable":true, "state":"installed", "requires_fuse":true, "fuse_present":true, "fuse_installed":true, "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
+		"placement_mode":"object", "display_name_template":"Fuse Box", "configurable":true, "interactable":true, "state":"inactive", "requires_fuse":true, "has_fuse":false, "fuse_present":false, "fuse_installed":false, "mount":"floor", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
+		"visual_family":"fuse_box", "visual_state_policy":"fuse_box_line_power_state", "variant_policy":"fuse_presence",
 		"property_schema":[
 			FACING_SIDE_SCHEMA,
 			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
-			{"field":"fuse_present", "type":"bool", "default":true}
+			{"field":"has_fuse", "type":"bool", "default":false}
 		]
 	},
 	"barrel": {

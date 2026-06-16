@@ -120,6 +120,16 @@ const ASSET_PATHS: Dictionary = {
 	"fuse_box_out_01": "res://assets/visual/isometric/objects/fuse_box_out_01.png",
 	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box_in_wall_01.png",
 	"fuse_box_out_wall_01": "res://assets/visual/isometric/objects/fuse_box_out_wall_01.png",
+	"fuse_box_base_without_floor_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_base_without_floor.png",
+	"fuse_box_base_without_wall_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_base_without_wall.png",
+	"fuse_box_base_with_floor_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_base_with_floor.png",
+	"fuse_box_base_with_wall_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_base_with_wall.png",
+	"fuse_box_off_with_floor_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_off_with_floor.png",
+	"fuse_box_off_with_wall_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_off_with_wall.png",
+	"fuse_box_off_without_floor_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_off_without_floor.png",
+	"fuse_box_off_without_wall_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_off_without_wall.png",
+	"fuse_box_on_floor_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_on_floor.png",
+	"fuse_box_on_wall_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_on_wall.png",
 	"light_01": "res://assets/visual/isometric/objects/light_01.png",
 	"light_off_wall_01": "res://assets/visual/isometric/light/light_off_wall.png",
 	"light_on_wall_01": "res://assets/visual/isometric/light/light_on_wall.png",
@@ -291,10 +301,25 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"cable_reel_base": "cable_reel_base_floor_01",
 	"cable_reel_off": "cable_reel_off_floor_01",
 	"cable_reel_on": "cable_reel_on_floor_01",
-	"fuse_box": "fuse_box_out_01",
-	"fuse_box_empty": "fuse_box_out_01",
-	"fuse_box_installed": "fuse_box_in_01",
-	"wall_fuse_box": "fuse_box_out_wall_01",
+	"fuse_box": "fuse_box_base_without_floor_01",
+	"fuse_box_empty": "fuse_box_base_without_floor_01",
+	"fuse_box_installed": "fuse_box_base_with_floor_01",
+	"wall_fuse_box": "fuse_box_base_without_wall_01",
+	"fuse_box_base_with": "fuse_box_base_with_floor_01",
+	"fuse_box_base_without": "fuse_box_base_without_floor_01",
+	"fuse_box_off_with": "fuse_box_off_with_floor_01",
+	"fuse_box_off_without": "fuse_box_off_without_floor_01",
+	"fuse_box_on": "fuse_box_on_floor_01",
+	"fuse_box_base_with_floor": "fuse_box_base_with_floor_01",
+	"fuse_box_base_with_wall": "fuse_box_base_with_wall_01",
+	"fuse_box_base_without_floor": "fuse_box_base_without_floor_01",
+	"fuse_box_base_without_wall": "fuse_box_base_without_wall_01",
+	"fuse_box_off_with_floor": "fuse_box_off_with_floor_01",
+	"fuse_box_off_with_wall": "fuse_box_off_with_wall_01",
+	"fuse_box_off_without_floor": "fuse_box_off_without_floor_01",
+	"fuse_box_off_without_wall": "fuse_box_off_without_wall_01",
+	"fuse_box_on_floor": "fuse_box_on_floor_01",
+	"fuse_box_on_wall": "fuse_box_on_wall_01",
 	"power_source": "power_source_base_floor_01",
 	"power_source_base": "power_source_base_floor_01",
 	"power_source_off": "power_source_off_floor_01",
@@ -434,6 +459,37 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 		}
 	},
 
+	"fuse_box": {
+		"category": "objects",
+		"default_surface": "floor",
+		"visual_state_policy": "fuse_box_line_power_state",
+		"variant_policy": "fuse_presence",
+		"default_variant": "without",
+		"states": {
+			"floor": {
+				"with": {
+					"base": "fuse_box_base_with_floor_01",
+					"off": "fuse_box_off_with_floor_01",
+					"on": "fuse_box_on_floor_01"
+				},
+				"without": {
+					"base": "fuse_box_base_without_floor_01",
+					"off": "fuse_box_off_without_floor_01"
+				}
+			},
+			"wall": {
+				"with": {
+					"base": "fuse_box_base_with_wall_01",
+					"off": "fuse_box_off_with_wall_01",
+					"on": "fuse_box_on_wall_01"
+				},
+				"without": {
+					"base": "fuse_box_base_without_wall_01",
+					"off": "fuse_box_off_without_wall_01"
+				}
+			}
+		}
+	},
 	"power_socket": {
 		"category": "objects",
 		"default_surface": "floor",
@@ -630,6 +686,16 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"fuse_box_out_01",
 	"fuse_box_in_wall_01",
 	"fuse_box_out_wall_01",
+	"fuse_box_base_without_floor_01",
+	"fuse_box_base_without_wall_01",
+	"fuse_box_base_with_floor_01",
+	"fuse_box_base_with_wall_01",
+	"fuse_box_off_with_floor_01",
+	"fuse_box_off_with_wall_01",
+	"fuse_box_off_without_floor_01",
+	"fuse_box_off_without_wall_01",
+	"fuse_box_on_floor_01",
+	"fuse_box_on_wall_01",
 	"power_switcher_off_01",
 	"power_switcher_on_01",
 	"power_switcher_off_wall_01",
