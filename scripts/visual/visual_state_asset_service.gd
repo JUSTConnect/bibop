@@ -2,12 +2,14 @@ extends RefCounted
 class_name VisualStateAssetService
 
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
+const CableReelVisualStateServiceRef = preload("res://scripts/game/cable/cable_reel_visual_state_service.gd")
 
 const VISUAL_STATE_BASE := "base"
 const VISUAL_STATE_OFF := "off"
 const VISUAL_STATE_ON := "on"
 const VISUAL_STATE_POLICY_STATIC := "static"
 const VISUAL_STATE_POLICY_POWERED_THREE_STATE := "powered_three_state"
+const VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE := "cable_reel_connection_state"
 
 const POWER_OFF_STATES: Array[String] = ["unpowered", "no_power", "disconnected", "offline"]
 const ACTIVE_STATES: Array[String] = ["on", "active", "ready", "enabled", "powered", "source_on", "switch_on"]
@@ -106,7 +108,7 @@ static func get_visual_state_family_config(family: String) -> Dictionary:
 static func has_visual_state_family(family: String) -> bool:
 	return not get_visual_state_family_config(family).is_empty()
 
-static func resolve_configured_state_asset_id(family: String, state: String, surface: String, source_variant: String = "") -> String:
+static func resolve_configured_state_asset_id(family: String, state: String, surface: String, variant: String = "") -> String:
 	var config: Dictionary = get_visual_state_family_config(family)
 	if config.is_empty():
 		return ""
@@ -115,19 +117,13 @@ static func resolve_configured_state_asset_id(family: String, state: String, sur
 	if normalized_state.is_empty() or typeof(states_variant) != TYPE_DICTIONARY:
 		return ""
 	var states: Dictionary = Dictionary(states_variant)
-	var normalized_source_variant: String = _normalized_text(source_variant)
-	if not normalized_source_variant.is_empty() and states.has(normalized_source_variant) and typeof(states.get(normalized_source_variant)) == TYPE_DICTIONARY:
-		var variant_states: Dictionary = Dictionary(states.get(normalized_source_variant))
-		if variant_states.has(normalized_state):
-			var variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variant_states.get(normalized_state, "")))
-			return variant_asset_id if VisualAssetCatalogRef.has_asset(variant_asset_id) else ""
-	var normalized_surface: String = _normalized_text(surface)
 	var normalized_variant: String = _normalized_text(variant)
 	if not normalized_variant.is_empty() and states.has(normalized_variant) and typeof(states.get(normalized_variant)) == TYPE_DICTIONARY:
 		var variant_states: Dictionary = Dictionary(states.get(normalized_variant))
 		if variant_states.has(normalized_state):
 			var variant_asset_id: String = VisualAssetCatalogRef.normalize_asset_id(str(variant_states.get(normalized_state, "")))
 			return variant_asset_id if VisualAssetCatalogRef.has_asset(variant_asset_id) else ""
+	var normalized_surface: String = _normalized_text(surface)
 	if states.has(normalized_surface) and typeof(states.get(normalized_surface)) == TYPE_DICTIONARY:
 		var surface_states: Dictionary = Dictionary(states.get(normalized_surface))
 		if surface_states.has(normalized_state):
@@ -182,6 +178,8 @@ static func object_uses_visual_states(object_data: Dictionary) -> bool:
 	if policy == VISUAL_STATE_POLICY_STATIC:
 		return false
 	if policy == VISUAL_STATE_POLICY_POWERED_THREE_STATE:
+		return true
+	if policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE:
 		return true
 	if bool(object_data.get("power_visual_state_enabled", false)):
 		return true
@@ -265,6 +263,11 @@ static func _has_true_power_flag(object_data: Dictionary) -> bool:
 	return false
 
 static func resolve_visual_state(object_data: Dictionary) -> String:
+	var family: String = get_visual_family(object_data)
+	var config: Dictionary = get_visual_state_family_config(family)
+	var policy: String = _normalized_text(config.get("visual_state_policy", object_data.get("visual_state_policy", "")))
+	if policy == VISUAL_STATE_POLICY_CABLE_REEL_CONNECTION_STATE:
+		return CableReelVisualStateServiceRef.resolve_visual_state(object_data)
 	var power_state: String = _normalized_text(object_data.get("power_state", ""))
 	if power_state in POWER_OFF_STATES:
 		return VISUAL_STATE_BASE
@@ -339,7 +342,10 @@ static func resolve_configured_variant_asset_id(family: String, variant: String,
 		return resolve_configured_variant_asset_id(family, default_variant, surface)
 	return VisualAssetCatalogRef.resolve_object_asset_id(family)
 
-static func _state_candidates(family: String, state: String, surface: String) -> Array[String]:
+static func _state_candidates(family: String, state: String, surface: String, variant: String = "") -> Array[String]:
+	var normalized_variant: String = _normalized_text(variant)
+	if not normalized_variant.is_empty():
+		return ["%s_%s_%s_%s_01" % [family, normalized_variant, state, surface], "%s_%s_%s_01" % [family, state, surface]]
 	return ["%s_%s_%s_01" % [family, state, surface]]
 
 static func _fallback_state_order(state: String) -> Array[String]:

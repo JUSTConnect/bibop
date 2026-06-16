@@ -111,6 +111,11 @@ const ASSET_PATHS: Dictionary = {
 
 	"cable_reel_01": "res://assets/visual/isometric/objects/cable_reel_01.png",
 	"cable_reel_02": "res://assets/visual/isometric/objects/cable_reel_02.png",
+	"cable_reel_base_floor_01": "res://assets/visual/isometric/objects/cable_reel/cable_reel_base_floor.png",
+	"cable_reel_off_floor_01": "res://assets/visual/isometric/objects/cable_reel/cable_reel_off_floor.png",
+	"cable_reel_on_floor_01": "res://assets/visual/isometric/objects/cable_reel/cable_reel_on_floor.png",
+	"pulsar_overlay_cable_reel_off_floor_01": "res://assets/visual/isometric/objects/cable_reel/pulsar_overlay_cable_reel_off_floor.png",
+	"pulsar_overlay_cable_reel_on_floor_01": "res://assets/visual/isometric/objects/cable_reel/pulsar_overlay_cable_reel_on_floor.png",
 	"fuse_box_in_01": "res://assets/visual/isometric/objects/fuse_box_in_01.png",
 	"fuse_box_out_01": "res://assets/visual/isometric/objects/fuse_box_out_01.png",
 	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box_in_wall_01.png",
@@ -269,8 +274,13 @@ const OBJECT_ASSET_ALIASES: Dictionary = {
 	"repair_kit": "repair_kit_floor_01",
 	"repair_tool": "repair_kit_floor_01",
 	"repair_tool_one_use": "repair_kit_floor_01",
-	"cable_reel": "cable_reel_01",
-	"power_cable_reel": "cable_reel_01",
+	"cable_reel": "cable_reel_base_floor_01",
+	"wire_reel": "cable_reel_base_floor_01",
+	"reel": "cable_reel_base_floor_01",
+	"power_cable_reel": "cable_reel_base_floor_01",
+	"cable_reel_base": "cable_reel_base_floor_01",
+	"cable_reel_off": "cable_reel_off_floor_01",
+	"cable_reel_on": "cable_reel_on_floor_01",
 	"fuse_box": "fuse_box_out_01",
 	"fuse_box_empty": "fuse_box_out_01",
 	"fuse_box_installed": "fuse_box_in_01",
@@ -448,6 +458,20 @@ const VISUAL_STATE_ASSET_FAMILIES: Dictionary = {
 			"ne": {"off": ["pulsar_overlay_air_cooling_off_floor_ne_01"], "on": ["pulsar_overlay_air_cooling_on_floor_ne_01"]}
 		}
 	},
+	"cable_reel": {
+		"category": "objects",
+		"surface": "floor",
+		"visual_state_policy": "cable_reel_connection_state",
+		"states": {
+			"base": "cable_reel_base_floor_01",
+			"off": "cable_reel_off_floor_01",
+			"on": "cable_reel_on_floor_01"
+		},
+		"overlays": {
+			"off": ["pulsar_overlay_cable_reel_off_floor_01"],
+			"on": ["pulsar_overlay_cable_reel_on_floor_01"]
+		}
+	},
 	"terminal": {
 		"category": "objects",
 		"surface": "floor",
@@ -537,6 +561,11 @@ const CANONICAL_OBJECT_VISUAL_IDS: Array[String] = [
 	"light_on_wall_pulsar_overlay_01",
 	"cable_reel_01",
 	"cable_reel_02",
+	"cable_reel_base_floor_01",
+	"cable_reel_off_floor_01",
+	"cable_reel_on_floor_01",
+	"pulsar_overlay_cable_reel_off_floor_01",
+	"pulsar_overlay_cable_reel_on_floor_01",
 	"fuse_box_in_01",
 	"fuse_box_out_01",
 	"fuse_box_in_wall_01",

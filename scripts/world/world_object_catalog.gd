@@ -455,9 +455,12 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"power_cable_reel": {
 		"archetype_id":"power_cable_reel", "object_group":"power", "object_type":"power_cable_reel", "palette_label":"Cable Reel",
-		"placement_mode":"object", "display_name_template":"Cable Reel", "configurable":true, "blocks_movement":false, "blocks_vision":false, "cable_install_mode":"floor", "install_mode":"floor", "mount":"floor",
+		"placement_mode":"object", "display_name_template":"Cable Reel", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false, "cable_install_mode":"floor", "install_mode":"floor", "mount":"floor",
+		"cable_reel_state":"base", "connected_endpoint_count":0, "socket_connected_endpoint_count":0, "max_cable_endpoints":2,
+		"visual_family":"cable_reel", "visual_surface":"floor", "visual_state_policy":"cable_reel_connection_state", "power_visual_state_enabled":false,
 		"property_schema":[
-			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}}
+			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
+			{"field":"cable_reel_state", "type":"enum", "values":["base", "off", "on"], "default":"base", "labels":{"base":"Base", "off":"One socket endpoint", "on":"Socket-linked cable"}}
 		]
 	},
 	"fuse": {
