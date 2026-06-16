@@ -32,7 +32,29 @@ func _remove_world_object_record_by_id(entity_id: String) -> bool:
 		var lookup_data: Dictionary = manager._safe_dictionary(manager.world_objects_by_cell.get(cell_variant, {}))
 		if str(lookup_data.get("id", "")) == entity_id:
 			manager.world_objects_by_cell.erase(cell_variant)
+	for cell_variant in manager.wall_mounted_objects_by_cell.keys().duplicate():
+		var mounted_objects: Array = Array(manager.wall_mounted_objects_by_cell.get(cell_variant, []))
+		for index in range(mounted_objects.size() - 1, -1, -1):
+			var mounted_data: Dictionary = manager._safe_dictionary(mounted_objects[index])
+			if str(mounted_data.get("id", "")) == entity_id:
+				mounted_objects.remove_at(index)
+		if mounted_objects.is_empty():
+			manager.wall_mounted_objects_by_cell.erase(cell_variant)
+		else:
+			manager.wall_mounted_objects_by_cell[cell_variant] = mounted_objects
 	return removed
+
+func _add_map_constructor_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
+	if object_data.is_empty():
+		return
+	if str(object_data.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted" or bool(object_data.get("is_wall_mounted", false)):
+		object_data["position"] = cell
+		manager.mission_world_objects.append(object_data)
+		var mounted_objects_at_cell: Array = Array(manager.wall_mounted_objects_by_cell.get(cell, []))
+		mounted_objects_at_cell.append(object_data)
+		manager.wall_mounted_objects_by_cell[cell] = mounted_objects_at_cell
+		return
+	manager.set_world_object_at_cell(cell, object_data)
 
 func _set_wall_tile_for_constructor(cell: Vector2i, tile_type: int) -> void:
 	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
@@ -209,14 +231,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 			"placement_mode": str(object_data.get("placement_mode", "")), 
 			"is_wall_mounted": bool(object_data.get("is_wall_mounted", false))
 	})
-	if str(object_data.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted" or bool(object_data.get("is_wall_mounted", false)):
-		manager.mission_world_objects.append(object_data)
-
-		var mounted_objects_at_cell: Array = Array(manager.wall_mounted_objects_by_cell.get(cell, []))
-		mounted_objects_at_cell.append(object_data)
-		manager.wall_mounted_objects_by_cell[cell] = mounted_objects_at_cell
-	else:
-		manager.set_world_object_at_cell(cell, object_data)
+	_add_map_constructor_world_object_at_cell(cell, object_data)
 		
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(object_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
@@ -304,7 +319,7 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 	manager._record_map_constructor_change("delete", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":str(object_data.get("object_type", "")), "cell":object_cell, "summary":"Deleted %s %s" % [str(object_data.get("object_type", "object")), entity_id], "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
 	return {"ok": true, "message": "Removed object.", "object_id": entity_id, "warnings": []}
 
-func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Vector2i, preferred_wall_side: String, assign_new_id: bool) -> Dictionary:
+func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Vector2i, preferred_wall_side: String, assign_new_id: bool, placement_check: Dictionary = {}) -> Dictionary:
 	var clone_data: Dictionary = source_data.duplicate(true)
 	if assign_new_id:
 		var prefab_id: String = str(clone_data.get("map_constructor_prefab_id", clone_data.get("object_type", "object")))
@@ -319,17 +334,46 @@ func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Ve
 	clone_data.erase("map_constructor_previous_tile_type")
 	clone_data["position"] = target_cell
 	if str(clone_data.get("placement_mode", "")) == "wall_mounted":
-		var resolved_side: String = preferred_wall_side.strip_edges()
-		if resolved_side.is_empty():
-			resolved_side = str(source_data.get("wall_side", ""))
-		var attachment: Dictionary = manager._resolve_wall_mounted_attachment(target_cell, resolved_side)
-		if not bool(attachment.get("ok", false)):
-			return {"ok": false, "message": str(attachment.get("message", "Blocked: no adjacent wall."))}
-		clone_data["placement_mode"] = "wall_mounted"
-		clone_data["anchor_floor_cell"] = manager._serialize_cell_key(target_cell)
-		clone_data["attached_wall_cell"] = manager._serialize_cell_key(Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1))))
-		clone_data["wall_side"] = str(attachment.get("wall_side", "north"))
-		clone_data["interaction_side"] = clone_data["wall_side"]
+		if bool(placement_check.get("direct_wall_cell_mount", false)):
+			var direct_anchor_floor_cell: Vector2i = manager._deserialize_cell_variant(placement_check.get("anchor_floor_cell", Vector2i(-1, -1)))
+			var direct_attached_wall_cell: Vector2i = manager._deserialize_cell_variant(placement_check.get("attached_wall_cell", target_cell))
+			if not manager._is_valid_grid_cell(direct_attached_wall_cell):
+				direct_attached_wall_cell = target_cell
+			var direct_wall_side: String = str(placement_check.get("wall_side", preferred_wall_side)).strip_edges()
+			if direct_wall_side.is_empty():
+				direct_wall_side = str(source_data.get("wall_side", "south"))
+			clone_data = WallMountedPlacementRulesServiceRef.normalize_direct_wall_cell_mount_object(clone_data, direct_wall_side, direct_attached_wall_cell, direct_anchor_floor_cell)
+			clone_data["position"] = target_cell
+			clone_data["direct_wall_cell_mount"] = true
+			clone_data["anchor_floor_cell"] = manager._serialize_cell_key(direct_anchor_floor_cell)
+			clone_data["attached_wall_cell"] = manager._serialize_cell_key(direct_attached_wall_cell)
+			clone_data["wall_side"] = direct_wall_side
+			clone_data["interaction_side"] = direct_wall_side
+			clone_data["placement_mode"] = "wall_mounted"
+			clone_data["mount"] = "wall"
+			clone_data["install_mode"] = "wall"
+			clone_data["blocks_movement"] = false
+			clone_data["changes_passability"] = false
+			clone_data["does_not_block_movement"] = true
+		else:
+			var resolved_side: String = preferred_wall_side.strip_edges()
+			if resolved_side.is_empty():
+				resolved_side = str(source_data.get("wall_side", ""))
+			var attachment: Dictionary = manager._resolve_wall_mounted_attachment(target_cell, resolved_side)
+			if not bool(attachment.get("ok", false)):
+				return {"ok": false, "message": str(attachment.get("message", "Blocked: no adjacent wall."))}
+			clone_data["placement_mode"] = "wall_mounted"
+			clone_data["direct_wall_cell_mount"] = false
+			clone_data["anchor_floor_cell"] = manager._serialize_cell_key(target_cell)
+			clone_data["attached_wall_cell"] = manager._serialize_cell_key(Vector2i(attachment.get("attached_wall_cell", Vector2i(-1, -1))))
+			clone_data["wall_side"] = str(attachment.get("wall_side", "north"))
+			clone_data["interaction_side"] = clone_data["wall_side"]
+		clone_data["is_wall_mounted"] = true
+		clone_data["mount"] = "wall"
+		clone_data["install_mode"] = "wall"
+		clone_data["blocks_movement"] = false
+		clone_data["changes_passability"] = false
+		clone_data["does_not_block_movement"] = true
 		if CableTopologyServiceRef.is_cable_object(clone_data):
 			clone_data = _apply_wall_cable_placement_metadata(clone_data, clone_data.get("wall_side", preferred_wall_side))
 	return {"ok": true, "data": clone_data}
@@ -358,7 +402,7 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 	var place_check: Dictionary = manager.can_place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
 	if not bool(place_check.get("ok", false)):
 		return {"ok": false, "message": str(place_check.get("message", "Move failed."))}
-	var clone_result: Dictionary = _clone_map_constructor_entity_data(data, target_cell, preferred_wall_side, false)
+	var clone_result: Dictionary = _clone_map_constructor_entity_data(data, target_cell, preferred_wall_side, false, place_check)
 	if not bool(clone_result.get("ok", false)):
 		return {"ok": false, "message": str(clone_result.get("message", "Move failed."))}
 	var cloned_data: Dictionary = manager._safe_dictionary(clone_result.get("data", {}))
@@ -375,9 +419,10 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile"):
 		previous_tile_type = int(manager.grid_manager.call("get_tile", target_cell))
 	cloned_data["map_constructor_previous_tile_type"] = previous_tile_type
-	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
+	var is_cloned_wall_mounted: bool = str(cloned_data.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted" or bool(cloned_data.get("is_wall_mounted", false))
+	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile") and not is_cloned_wall_mounted:
 		manager.grid_manager.call("set_tile", target_cell, int(cloned_data.get("map_constructor_tile_type", previous_tile_type)))
-	manager.set_world_object_at_cell(target_cell, cloned_data)
+	_add_map_constructor_world_object_at_cell(target_cell, cloned_data)
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(cloned_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	manager._record_map_constructor_change("move", {"entity_kind":"world_object", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Moved object %s from %s to %s" % [str(cloned_data.get("id", "")), manager._format_map_constructor_cell(source_cell), manager._format_map_constructor_cell(target_cell)], "details":{"from_cell":source_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
@@ -405,7 +450,7 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 	var place_check: Dictionary = manager.can_place_map_constructor_prefab(prefab_id, target_cell, preferred_wall_side)
 	if not bool(place_check.get("ok", false)):
 		return {"ok": false, "message": str(place_check.get("message", "Duplicate failed."))}
-	var clone_result: Dictionary = _clone_map_constructor_entity_data(data, target_cell, preferred_wall_side, true)
+	var clone_result: Dictionary = _clone_map_constructor_entity_data(data, target_cell, preferred_wall_side, true, place_check)
 	if not bool(clone_result.get("ok", false)):
 		return {"ok": false, "message": str(clone_result.get("message", "Duplicate failed."))}
 	var cloned_data: Dictionary = manager._safe_dictionary(clone_result.get("data", {}))
@@ -419,9 +464,10 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile"):
 		previous_tile_type = int(manager.grid_manager.call("get_tile", target_cell))
 	cloned_data["map_constructor_previous_tile_type"] = previous_tile_type
-	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
+	var is_cloned_wall_mounted: bool = str(cloned_data.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted" or bool(cloned_data.get("is_wall_mounted", false))
+	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile") and not is_cloned_wall_mounted:
 		manager.grid_manager.call("set_tile", target_cell, int(cloned_data.get("map_constructor_tile_type", previous_tile_type)))
-	manager.set_world_object_at_cell(target_cell, cloned_data)
+	_add_map_constructor_world_object_at_cell(target_cell, cloned_data)
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(cloned_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	manager._record_map_constructor_change("duplicate", {"entity_kind":"world_object", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, manager._format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
