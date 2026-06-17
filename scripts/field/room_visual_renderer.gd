@@ -6965,6 +6965,8 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	if not used_texture_asset and has_terminal_visual:
 		used_texture_asset = draw_optional_visual_texture_asset(str(terminal_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
 	if used_texture_asset:
+		if is_case_visual:
+			return
 		draw_circle(visual_center + Vector2(0.0, -iso_object_marker_height - 8.0), 2.4, overlay_accent)
 		draw_line(
 			visual_center + Vector2(-4.0, -iso_object_marker_height - 3.0),
