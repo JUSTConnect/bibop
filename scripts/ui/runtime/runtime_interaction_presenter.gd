@@ -159,6 +159,8 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 		ui.runtime_interaction_mode_active = false
 		ui.runtime_interaction_active_channel = ""
 		ui.runtime_world_actions_panel.visible = false
+		if ui.has_method("clear_runtime_selected_interaction_target"):
+			ui.call("clear_runtime_selected_interaction_target")
 		_clear_runtime_world_actions_list(ui)
 		return
 		
@@ -185,6 +187,8 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	var is_open: bool = ui.runtime_interaction_mode_active
 	ui.runtime_world_actions_panel.visible = is_open
 	if not is_open:
+		if ui.has_method("clear_runtime_selected_interaction_target"):
+			ui.call("clear_runtime_selected_interaction_target")
 		return
 	var title_text: String = fallback_name if not fallback_name.is_empty() else "Interactable"
 	if not target_id.is_empty() and target_id != title_text:
@@ -193,6 +197,10 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	var cell_text: String = "Cell: -"
 	var target_cell_source: Variant = target_data.get("target_position", target_object.get("position", Vector2i(-1, -1)))
 	var target_cell: Vector2i = ui._safe_ui_vector2i(target_cell_source)
+	if ui.has_method("_make_runtime_selected_interaction_target") and ui.has_method("set_runtime_selected_interaction_target"):
+		var overlay_target: Dictionary = ui.call("_make_runtime_selected_interaction_target", target_object, "world_action_hud", target_cell)
+		if not overlay_target.is_empty():
+			ui.call("set_runtime_selected_interaction_target", overlay_target)
 	cell_text = "Cell: (%d, %d)" % [target_cell.x, target_cell.y]
 	var state_text: String = "State: %s" % str(target_object.get("state", "unknown"))
 	if str(target_object.get("power_state", "")).strip_edges() != "":

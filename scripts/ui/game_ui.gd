@@ -224,6 +224,7 @@ var last_world_action_target_id: String = ""
 var last_world_action_actions_key: String = ""
 var last_world_action_selected: String = ""
 var last_world_action_state_key: String = ""
+var runtime_selected_interaction_target: Dictionary = {}
 var debug_ui_layout_logs: bool = false
 var debug_world_logs: bool = false
 var runtime_key_slots: Array[Control] = []
@@ -9622,6 +9623,59 @@ func _process(delta: float) -> void:
 func _process_runtime_interaction_feedback(delta: float) -> void:
 	_ensure_runtime_action_panel_bridge()
 	runtime_action_panel_bridge.process_feedback(delta)
+
+
+func set_runtime_selected_interaction_target(target: Dictionary) -> void:
+	runtime_selected_interaction_target = target.duplicate(true)
+	_sync_runtime_selected_interaction_target_overlay()
+
+
+func clear_runtime_selected_interaction_target() -> void:
+	if runtime_selected_interaction_target.is_empty():
+		return
+	runtime_selected_interaction_target.clear()
+	_sync_runtime_selected_interaction_target_overlay()
+
+
+func _sync_runtime_selected_interaction_target_overlay() -> void:
+	if field_runtime == null or not is_instance_valid(field_runtime):
+		return
+	var renderer: Node = field_runtime.get_node_or_null("RoomVisualRenderer")
+	if renderer != null and renderer.has_method("set_selected_interaction_target"):
+		renderer.call("set_selected_interaction_target", runtime_selected_interaction_target)
+
+
+func _make_runtime_selected_interaction_target(target_object: Dictionary, source: String = "interaction", fallback_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
+	var cell: Vector2i = fallback_cell
+	if target_object.has("position"):
+		cell = _safe_ui_vector2i(target_object.get("position", fallback_cell))
+	elif target_object.has("cell"):
+		cell = _safe_ui_vector2i(target_object.get("cell", fallback_cell))
+	if cell.x < 0 or cell.y < 0:
+		return {}
+	var object_type: String = _safe_ui_string(target_object.get("object_type", target_object.get("type", ""))).strip_edges().to_lower()
+	var object_group: String = _safe_ui_string(target_object.get("object_group", target_object.get("group", ""))).strip_edges().to_lower()
+	var kind: String = "world_object"
+	if bool(target_object.get("is_breachable_wall", false)) or object_group == "wall" or object_type.contains("wall"):
+		kind = "wall"
+	elif object_group == "item" or target_object.has("item_id") or target_object.has("item_form"):
+		kind = "item"
+	elif object_type.contains("cable") or object_group == "cable" or object_group == "wire" or target_object.has("reel_id"):
+		kind = "cable"
+	var target_id: String = _safe_ui_string(target_object.get("id", target_object.get("item_id", ""))).strip_edges()
+	if target_id.is_empty():
+		target_id = "%s_%d_%d" % [kind, cell.x, cell.y]
+	var target: Dictionary = {
+		"kind": kind,
+		"id": target_id,
+		"cell": cell,
+		"object_type": object_type,
+		"source": source
+	}
+	var wall_side: String = _safe_ui_string(target_object.get("wall_side", target_object.get("breach_side", target_object.get("facing_side", "")))).strip_edges()
+	if not wall_side.is_empty():
+		target["wall_side"] = wall_side
+	return target
 
 # -----------------------------------------------------------------------------
 # Map Constructor root
