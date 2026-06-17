@@ -2371,7 +2371,7 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 	var normalized_profile_key: String = profile_key.strip_edges().to_lower()
 	match normalized_profile_key:
 		"door", "digital_door", "powered_gate":
-			return "object_door"
+			return VisualAssetCatalogScript.resolve_object_asset_id("door")
 		"terminal", "airflow_terminal", "door_terminal", "platform_terminal", "cooling_terminal":
 			return "terminal_01"
 		"key":
@@ -2574,7 +2574,7 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
 		return "terminal_01"
 	if blob.contains("door") or blob.contains("powered_gate"):
-		return "object_door"
+		return VisualAssetCatalogScript.resolve_object_asset_id("door")
 	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
 		return "object_terminal"
 	if blob.contains("keycard") or blob.contains("digital_key"):
@@ -6783,9 +6783,6 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	if not override_object_data.is_empty():
 		object_meta = {"ok": true, "object_id": str(override_object_data.get("id", "")), "object_type": str(override_object_data.get("object_type", override_object_data.get("item_type", ""))), "data": override_object_data}
 	var object_data: Dictionary = Dictionary(object_meta.get("data", {}))
-	if is_door_like_tile(tile_type) and (override_object_data.is_empty() or is_door_like_object_data(object_data)):
-		draw_iso_door_insert(cell, tile_type, object_data)
-		return
 	var object_id: String = str(object_meta.get("object_id", ""))
 	var is_wall_mounted_object_visual: bool = is_wall_mounted_runtime_object(object_data)
 	var is_wall_routed_object_visual: bool = is_wall_procedural_routed_object(object_data)
@@ -6794,6 +6791,21 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var visual_center: Vector2 = Vector2(profile_data.get("visual_center", get_world_object_visual_position(cell)))
 	if is_wall_visual:
 		visual_center = get_wall_mounted_visual_center(object_data, cell)
+	var is_door_floor_object_visual: bool = is_door_like_object_data(object_data) or (is_door_like_tile(tile_type) and not object_data.is_empty())
+	if is_door_floor_object_visual and not is_wall_visual:
+		var door_visual_data: Dictionary = object_data.duplicate(true)
+		if not door_visual_data.has("visual_family") and not door_visual_data.has("visual_asset_family"):
+			door_visual_data["visual_family"] = "door"
+		if not door_visual_data.has("object_type") and not door_visual_data.has("type"):
+			door_visual_data["object_type"] = "door"
+		var door_profile_data: Dictionary = get_iso_object_grounding_profile(door_visual_data, cell)
+		var door_visual_center: Vector2 = Vector2(door_profile_data.get("visual_center", visual_center))
+		var used_door_texture_asset: bool = draw_iso_object_png_texture_asset(cell, "door", door_visual_center, door_visual_data)
+		if show_object_grounding_overlay:
+			_draw_grounding_overlay(door_profile_data)
+		if used_door_texture_asset:
+			return
+		return
 	if not is_wall_visual:
 		var shadow_polygon: PackedVector2Array = PackedVector2Array(profile_data.get("shadow_polygon", PackedVector2Array()))
 		if shadow_polygon.size() >= 3:
