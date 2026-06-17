@@ -2616,10 +2616,11 @@ func get_wall_mounted_anchor(cell: Vector2i, wall_side: String, object_data: Dic
 		var side_data: Dictionary = object_data.duplicate(false)
 		side_data["wall_side"] = normalized_side
 		normalized_side = normalize_wall_visual_side(side_data)
-	var half_size: Vector2 = get_iso_tile_half_size()
-	var side_offset: Vector2 = Vector2(half_size.x * 0.36 if normalized_side == "se" else -half_size.x * 0.36, -half_size.y * 0.18)
+
+	var side_offset: Vector2 = WALL_MOUNT_SIDE_OFFSET_SE if normalized_side == "se" else WALL_MOUNT_SIDE_OFFSET_SW
+	var horizontal_offset: float = side_offset.x + WALL_MOUNTED_COMMON_X_OFFSET
 	var height_offset: float = WALL_MOUNTED_LIGHT_HEIGHT_OFFSET if LightVisualServiceRef.is_light_object(object_data) else WALL_MOUNTED_DEVICE_HEIGHT_OFFSET
-	return grid_to_iso(cell) + side_offset + Vector2(0.0, height_offset)
+	return grid_to_iso(cell) + Vector2(horizontal_offset, WALL_MOUNT_SIDE_SHARED_Y_OFFSET + height_offset)
 
 func _get_object_mount_mode(object_data: Dictionary) -> String:
 	var mount: String = str(object_data.get("mount", object_data.get("cable_install_mode", object_data.get("install_mode", object_data.get("placement_mode", object_data.get("placement", "floor")))))).to_lower().strip_edges()
@@ -3512,10 +3513,12 @@ const ISO_OBJECT_PNG_MAX_VISUAL_SCALE: float = 1.5
 const ISO_OBJECT_SOURCE_CANVAS_WIDTH := 512.0
 const WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX := 180.0
 const WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX := 330.0
+const WALL_MOUNT_SIDE_OFFSET_SW := Vector2(-18.0, 0.0)
+const WALL_MOUNT_SIDE_OFFSET_SE := Vector2(18.0, 0.0)
+const WALL_MOUNT_SIDE_SHARED_Y_OFFSET := -4.0
+const WALL_MOUNTED_COMMON_X_OFFSET := 0.0
 const WALL_MOUNTED_DEVICE_HEIGHT_OFFSET := -32.0
 const WALL_MOUNTED_LIGHT_HEIGHT_OFFSET := -48.0
-const WALL_MOUNT_SIDE_OFFSET_SW := Vector2(-12.0, -4.0)
-const WALL_MOUNT_SIDE_OFFSET_SE := Vector2(24.0, -4.0)
 const AUTHORED_WALL_CANVAS_SOURCE_WIDTH: float = 512.0
 const AUTHORED_WALL_CANVAS_ANCHOR_RATIO: Vector2 = Vector2(0.5, 0.75)
 const AUTHORED_FLOOR_CANVAS_SOURCE_WIDTH: float = 512.0
