@@ -20,6 +20,7 @@ func _run() -> void:
 	_check_dictionary_roundtrip()
 	_check_start_drag()
 	_check_extend_path()
+	_check_update_drag_path_for_actor_cell()
 	_check_connect()
 	_check_release()
 	_check_clear_path()
@@ -97,6 +98,43 @@ func _check_extend_path() -> void:
 	_expect(overflow_state.path_cells.size() == 2, "extend_path() should not add cells past max_length.")
 
 
+
+func _check_update_drag_path_for_actor_cell() -> void:
+	var state: BipobCableRuntimeState = CableRuntimeStateRef.new()
+	state.cable_id = "cable_test"
+	state.state = CableRuntimeStateRef.STATE_DRAGGING
+	state.reel_position = Vector2i(0, 0)
+
+	var forward_a: BipobCableRuntimeState = CableRuntimeServiceRef.update_drag_path_for_actor_cell(state, Vector2i(1, 0))
+	var forward_b: BipobCableRuntimeState = CableRuntimeServiceRef.update_drag_path_for_actor_cell(forward_a, Vector2i(2, 0))
+	_expect(forward_b.path_cells == _make_path3(Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)), "Drag path should append adjacent forward cells.")
+
+	var same_cell: BipobCableRuntimeState = CableRuntimeServiceRef.update_drag_path_for_actor_cell(forward_b, Vector2i(2, 0))
+	_expect(same_cell.path_cells == forward_b.path_cells, "Drag path should ignore the same actor cell.")
+
+	var backtracked: BipobCableRuntimeState = CableRuntimeServiceRef.update_drag_path_for_actor_cell(forward_b, Vector2i(1, 0))
+	_expect(backtracked.path_cells == _make_path(Vector2i(0, 0), Vector2i(1, 0)), "Drag path should retract when actor backs onto previous cable cell.")
+
+	var loop_state: BipobCableRuntimeState = CableRuntimeStateRef.new()
+	loop_state.cable_id = "cable_test"
+	loop_state.state = CableRuntimeStateRef.STATE_DRAGGING
+	loop_state.reel_position = Vector2i(0, 0)
+	loop_state.path_cells = _make_path5(Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(2, 1), Vector2i(1, 1))
+	var truncated: BipobCableRuntimeState = CableRuntimeServiceRef.update_drag_path_for_actor_cell(loop_state, Vector2i(2, 0))
+	_expect(truncated.path_cells == _make_path3(Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)), "Drag path should truncate loops to the re-entered cell.")
+
+	var max_state: BipobCableRuntimeState = CableRuntimeStateRef.new()
+	max_state.cable_id = "cable_test"
+	max_state.state = CableRuntimeStateRef.STATE_DRAGGING
+	max_state.reel_position = Vector2i(0, 0)
+	max_state.max_length = 3
+	max_state.path_cells = _make_path3(Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0))
+	var maxed: BipobCableRuntimeState = CableRuntimeServiceRef.update_drag_path_for_actor_cell(max_state, Vector2i(3, 0))
+	_expect(maxed.path_cells.size() == 3, "Drag path should not exceed max_length.")
+
+	var non_adjacent: BipobCableRuntimeState = CableRuntimeServiceRef.update_drag_path_for_actor_cell(backtracked, Vector2i(5, 5))
+	_expect(non_adjacent.path_cells == backtracked.path_cells, "Drag path should ignore non-adjacent actor jumps.")
+
 func _check_connect() -> void:
 	var source_state: BipobCableRuntimeState = CableRuntimeStateRef.new()
 	source_state.cable_id = "cable_test"
@@ -149,4 +187,22 @@ func _make_path(first_cell: Vector2i, second_cell: Vector2i) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
 	result.append(first_cell)
 	result.append(second_cell)
+	return result
+
+
+func _make_path3(a: Vector2i, b: Vector2i, c: Vector2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	result.append(a)
+	result.append(b)
+	result.append(c)
+	return result
+
+
+func _make_path5(a: Vector2i, b: Vector2i, c: Vector2i, d: Vector2i, e: Vector2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	result.append(a)
+	result.append(b)
+	result.append(c)
+	result.append(d)
+	result.append(e)
 	return result

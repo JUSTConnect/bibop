@@ -153,6 +153,8 @@ static func try_move_to(controller: BipobController, target_position: Vector2i) 
 			return false
 	
 	controller.grid_position = target_position
+	if controller.has_method("update_held_cable_reel_drag_path"):
+		controller.call("update_held_cable_reel_drag_path")
 	controller.refresh_platform_height_state_after_move()
 	controller.clear_selected_world_action_if_invalid({}, target_position)
 	update_world_position(controller)

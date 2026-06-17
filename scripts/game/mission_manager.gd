@@ -8526,6 +8526,14 @@ func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_
 	if _is_power_cable_unavailable(cable_reel):
 		return {"success": false, "reason": "cable_damaged", "message": "Cable reel must be repaired first."}
 	var can_connect := can_connect_cable_reel_to_target(cable_reel, target)
+	var dragged_path_variant: Variant = cable_reel.get("end_%d_path_cells" % end_index, [])
+	if str(cable_reel.get("end_%d_state" % end_index, "")).strip_edges().to_lower() == "dragging" and dragged_path_variant is Array and not Array(dragged_path_variant).is_empty():
+		var dragged_path: Array = Array(dragged_path_variant).duplicate(true)
+		var target_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(target.get("position", target.get("cell", Vector2i(-1, -1))), Vector2i(-1, -1))
+		var tail_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(dragged_path[dragged_path.size() - 1], Vector2i(-1, -1))
+		if target_cell.x >= 0 and target_cell.y >= 0 and tail_cell != target_cell and absi(tail_cell.x - target_cell.x) + absi(tail_cell.y - target_cell.y) == 1:
+			dragged_path.append(target_cell)
+		can_connect = validate_cable_path(cable_reel, target, dragged_path)
 	if not bool(can_connect.get("valid", false)):
 		return {"success": false, "reason": str(can_connect.get("reason", "target_not_connectable")), "message": str(can_connect.get("message", "Cable target is not connectable.")), "path": can_connect}
 	cable_reel["state"] = "connected"

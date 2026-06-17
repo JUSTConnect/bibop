@@ -7367,6 +7367,51 @@ func draw_floor_join_overlay() -> void:
 					edge_width = 1.35
 				draw_line(edge_points[0], edge_points[1], edge_color, edge_width)
 
+func draw_cable_reel_drag_trail() -> void:
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null:
+		return
+	var active_bipob: Node = mission_manager.get("active_bipob_ref")
+	if active_bipob == null or not is_instance_valid(active_bipob) or not active_bipob.has_method("_get_held_cable_end_metadata"):
+		return
+	var held: Dictionary = Dictionary(active_bipob.call("_get_held_cable_end_metadata"))
+	if not bool(held.get("held", false)):
+		return
+	if not mission_manager.has_method("get_world_object_by_id"):
+		return
+	var reel_id: String = str(held.get("reel_id", "")).strip_edges()
+	var end_index: int = int(held.get("end_index", 0))
+	if reel_id.is_empty() or end_index < 1 or end_index > 2:
+		return
+	var reel: Dictionary = Dictionary(mission_manager.call("get_world_object_by_id", reel_id))
+	if reel.is_empty() or str(reel.get("end_%d_state" % end_index, "")).strip_edges().to_lower() != "dragging":
+		return
+	var points: PackedVector2Array = PackedVector2Array()
+	for cell_variant in Array(reel.get("end_%d_path_cells" % end_index, [])):
+		var cell: Vector2i = _try_parse_cell_variant(cell_variant)
+		if cell.x < 0 or cell.y < 0:
+			continue
+		points.append(grid_to_iso(cell) + _get_cable_reel_trail_lane_offset(cell))
+	if active_bipob.has_method("get_grid_position"):
+		var actor_cell: Vector2i = active_bipob.call("get_grid_position")
+		var actor_point: Vector2 = grid_to_iso(actor_cell) + _get_cable_reel_trail_lane_offset(actor_cell)
+		if points.is_empty() or points[points.size() - 1].distance_to(actor_point) > 0.5:
+			points.append(actor_point)
+	if points.size() < 2:
+		return
+	var shadow_color: Color = Color(0.02, 0.03, 0.04, 0.64)
+	var trail_color: Color = Color(1.0, 0.62, 0.16, 0.96)
+	draw_polyline(points, shadow_color, 6.5, true)
+	draw_polyline(points, trail_color, 3.4, true)
+	for point in points:
+		draw_circle(point, 2.6, trail_color)
+	draw_circle(points[points.size() - 1], 4.0, Color(1.0, 0.88, 0.36, 0.98))
+
+
+func _get_cable_reel_trail_lane_offset(cell: Vector2i) -> Vector2:
+	# Dedicated transient reel-drag lane: offset below/right of the normal power-cable centerline.
+	return Vector2(0.0, iso_tile_height * 0.11)
+
 func _process(_delta: float) -> void:
 	if _iso_light_overlay_animation_requested:
 		queue_redraw()
@@ -7392,6 +7437,7 @@ func _draw() -> void:
 	if show_floor_join_overlay and should_render_iso_floor_visuals():
 		draw_floor_join_overlay()
 
+	draw_cable_reel_drag_trail()
 	draw_iso_mouse_selection_overlay()
 	draw_map_constructor_visual_overlay_passes()
 
