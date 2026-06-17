@@ -72,6 +72,9 @@ func _apply_runtime_resource_label_styles() -> void:
 func refresh_controls() -> void:
 	_apply_runtime_resource_label_styles()
 	RuntimeInteractionPresenterRef.refresh(ui)
+	if ui != null and ui.has_method("_update_runtime_bottom_left_layout"):
+		ui.call("_update_runtime_bottom_left_layout")
+		ui.call_deferred("_update_runtime_bottom_left_layout")
 
 
 func enter_interaction_mode() -> void:

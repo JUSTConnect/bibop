@@ -4549,6 +4549,32 @@ func _set_runtime_bottom_hud_visible(visible_state: bool) -> void:
 	RuntimeStoragePanelRef.set_visible(self, visible_state)
 
 
+func _update_runtime_bottom_left_layout() -> void:
+	if runtime_hud_root == null or not is_instance_valid(runtime_hud_root):
+		return
+	var bottom_left: Control = runtime_hud_root.get_node_or_null("RuntimeBottomLeft") as Control
+	if bottom_left == null or not is_instance_valid(bottom_left):
+		return
+	var margin_value: float = _get_runtime_margin()
+	var viewport: Vector2 = _get_viewport_size()
+	if runtime_hud_root.size.x > 0.0 and runtime_hud_root.size.y > 0.0:
+		viewport = Vector2(minf(viewport.x, runtime_hud_root.size.x), minf(viewport.y, runtime_hud_root.size.y))
+	var reserved_storage_width: float = RuntimeStoragePanelRef.get_reserved_bottom_width(self, margin_value)
+	var bottom_offset: float = -margin_value
+	if runtime_storage_panel != null and is_instance_valid(runtime_storage_panel):
+		bottom_offset = runtime_storage_panel.offset_bottom
+	var desired_height: float = maxf(_get_runtime_bottom_panel_height(), bottom_left.get_combined_minimum_size().y)
+	bottom_left.anchor_left = 0.0
+	bottom_left.anchor_right = 0.0
+	bottom_left.anchor_top = 1.0
+	bottom_left.anchor_bottom = 1.0
+	bottom_left.offset_left = margin_value
+	bottom_left.offset_right = margin_value + maxf(viewport.x - reserved_storage_width - margin_value * 2.0, 1.0)
+	bottom_left.offset_bottom = bottom_offset
+	bottom_left.offset_top = bottom_offset - desired_height
+	bottom_left.custom_minimum_size = Vector2(0.0, desired_height)
+
+
 func _toggle_map_constructor_inspector_expanded() -> void:
 	map_constructor_state.map_constructor_inspector_expanded = not map_constructor_state.map_constructor_inspector_expanded
 	_show_map_constructor_inspector(map_constructor_state.selected_map_constructor_entity_cell, map_constructor_state.selected_map_constructor_entity_kind, map_constructor_state.selected_map_constructor_entity_id)
@@ -4721,7 +4747,6 @@ func _apply_runtime_hud_layout() -> void:
 	var sidebar_width: float = _get_runtime_sidebar_width_adaptive()
 	var viewport: Vector2 = _get_viewport_size()
 	var stats_height: float = 34.0
-	var bottom_y: float = viewport.y - bottom_area_height - margin
 
 	var top_row := HBoxContainer.new()
 	top_row.name = "RuntimeTopNotificationRow"
@@ -4813,9 +4838,10 @@ func _apply_runtime_hud_layout() -> void:
 
 	var bottom_left_vbox := VBoxContainer.new()
 	bottom_left_vbox.name = "RuntimeBottomLeft"
-	bottom_left_vbox.position = Vector2(margin, bottom_y)
-	var reserved_storage_width: float = RuntimeStoragePanelRef.get_reserved_bottom_width(self, margin)
-	bottom_left_vbox.size = Vector2(maxf(viewport.x - reserved_storage_width - margin * 2.0, 1.0), bottom_area_height)
+	bottom_left_vbox.anchor_left = 0.0
+	bottom_left_vbox.anchor_right = 0.0
+	bottom_left_vbox.anchor_top = 1.0
+	bottom_left_vbox.anchor_bottom = 1.0
 	bottom_left_vbox.add_theme_constant_override("separation", 4)
 	root.add_child(bottom_left_vbox)
 
@@ -4827,6 +4853,7 @@ func _apply_runtime_hud_layout() -> void:
 	controls_panel.custom_minimum_size = Vector2(0, maxf(bottom_area_height - stats_height - 4.0, 88.0))
 	controls_panel.add_theme_stylebox_override("panel", _make_panel_style(UI_COLOR_PANEL, UI_COLOR_BORDER, 1, 8))
 	bottom_left_vbox.add_child(controls_panel)
+	_update_runtime_bottom_left_layout()
 
 	var world_actions_panel: PanelContainer = _create_runtime_world_actions_panel()
 	var wa_top: float = margin + top_panel_height + 8.0
