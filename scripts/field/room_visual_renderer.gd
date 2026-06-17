@@ -2418,6 +2418,13 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 	var prefab_value: String = str(object_data.get("map_constructor_prefab_id", "")).to_lower().strip_edges()
 	var key_kind: String = str(object_data.get("key_kind", object_data.get("key_type", ""))).to_lower().strip_edges()
 	var blob: String = "%s %s %s" % [type_value, prefab_value, key_kind]
+	if type_value == "enemy":
+		var enemy_type: String = str(object_data.get("enemy_type", object_data.get("enemy_kind", "vagus"))).to_lower().strip_edges()
+		match enemy_type:
+			"bug":
+				return "bug"
+			_:
+				return "vagus"
 	if blob.contains("digital_key") or blob.contains("keycard"):
 		return "keycard"
 	if blob.contains("key"):
@@ -5912,6 +5919,8 @@ func get_iso_object_visual_profiles() -> Dictionary:
 		"power_source": {"base": Color(0.25, 0.28, 0.2, 0.97), "accent": Color(0.95, 0.88, 0.34, 0.99), "outline": Color(0.14, 0.16, 0.1, 0.94), "label": "Power Source", "shape": "slab"},
 		"crate": {"base": Color(0.35, 0.23, 0.13, 0.97), "accent": Color(0.86, 0.62, 0.3, 0.99), "outline": Color(0.2, 0.12, 0.07, 0.94), "label": "Crate", "shape": "slab"},
 		"barrel": {"base": Color(0.2, 0.3, 0.34, 0.97), "accent": Color(0.57, 0.84, 0.92, 0.99), "outline": Color(0.1, 0.16, 0.19, 0.94), "label": "Barrel", "shape": "pillar"},
+		"vagus": {"base": Color(0.25, 0.12, 0.32, 0.97), "accent": Color(0.84, 0.38, 1.0, 0.99), "outline": Color(0.13, 0.06, 0.18, 0.94), "label": "Vagus", "shape": "pillar"},
+		"bug": {"base": Color(0.12, 0.32, 0.16, 0.97), "accent": Color(0.55, 0.95, 0.38, 0.99), "outline": Color(0.06, 0.18, 0.08, 0.94), "label": "Bug", "shape": "small_marker"},
 		"cable": {"base": Color(0.36, 0.04, 0.04, 0.95), "accent": Color(0.98, 0.12, 0.12, 0.99), "outline": Color(0.18, 0.02, 0.02, 0.92), "label": "Cable", "shape": "line"},
 		"generic_object": {"base": Color(0.24, 0.24, 0.28, 0.95), "accent": Color(0.78, 0.8, 0.9, 0.95), "outline": Color(0.14, 0.14, 0.17, 0.92), "label": "Generic Object", "shape": "small_marker"}
 	}
