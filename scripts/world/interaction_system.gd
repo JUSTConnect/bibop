@@ -29,13 +29,7 @@ static func _is_cable_reel_object(target_object: Dictionary) -> bool:
 	return false
 
 static func _object_supports_external_power_input(target_object: Dictionary) -> bool:
-	if bool(target_object.get("requires_external_power", false)):
-		return true
-	var power_mode: String = str(target_object.get("power_mode", "")).strip_edges().to_lower()
-	if power_mode in ["external", "external_power", "external power"]:
-		return true
-	var object_type: String = str(target_object.get("object_type", target_object.get("type", ""))).strip_edges().to_lower()
-	return object_type in ["power_socket", "outlet"]
+	return WorldObjectCatalogRef.object_accepts_runtime_power_plug(target_object)
 
 static func _is_broken_cable_object(target_object: Dictionary) -> bool:
 	return bool(target_object.get("broken", false)) or bool(target_object.get("is_broken", false)) or bool(target_object.get("damaged", false)) or str(target_object.get("state", "")).strip_edges().to_lower() == "broken" or str(target_object.get("cable_health_state", "")).strip_edges().to_lower() == "broken" or str(target_object.get("health_state", "")).strip_edges().to_lower() == "broken"
@@ -250,8 +244,6 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 	if action_type == "plug_in":
 		if not _object_supports_external_power_input(target_object):
 			return _result(false, "Target cannot receive external power.", [], "target_not_connectable")
-		if not _actor_has_valid_cable_reel_end(actor):
-			return _result(false, "Nothing to plug in.", [], "nothing_to_plug_in")
 	if action_type in ["connect_wire_end", "connect_wire_1", "connect_wire_2"]:
 		if not _actor_has_valid_cable_reel_end(actor):
 			return _result(false, "Nothing to plug in.", [], "cable_reel_end_required")
@@ -394,7 +386,7 @@ static func apply_action(actor: Dictionary, module: Dictionary, target_object: D
 			return _result(true, "Cable plugged in.", [{"type":"set_bool","field":"plugged","value":true},{"type":"connect_cable_end_to_target"},{"type":"power_recalc_needed"}])
 		"plug_out":
 			target_object["plugged"] = false
-			return _result(true, "Plug removed.", [{"type":"set_bool","field":"plugged","value":false},{"type":"disconnect_cable"},{"type":"power_recalc_needed"}])
+			return _result(true, "Plug removed.", [{"type":"set_bool","field":"plugged","value":false},{"type":"disconnect_cable_end_from_target"},{"type":"power_recalc_needed"}])
 		"take_end_1", "take_end_2":
 			if not _is_cable_reel_object(target_object):
 				return _result(false, "Cable reel required.", [], "cable_reel_required")

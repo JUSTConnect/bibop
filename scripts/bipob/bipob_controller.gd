@@ -7139,8 +7139,8 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"use_item": return "Use Item"
 		"insert_fuse": return "Insert Fuse"
 		"remove_fuse": return "Remove Fuse"
-		"plug_in": return "Plug In"
-		"plug_out": return "Plug Out"
+		"plug_in": return "Plug in"
+		"plug_out": return "Plug out"
 		"activate_platform":
 			var platform_operation: String = str(object_data.get("mechanism_operation", object_data.get("operation", object_data.get("platform_action", "")))).strip_edges().to_lower()
 			match platform_operation:
@@ -7152,12 +7152,12 @@ func get_world_action_display_label(action_id: String, object_data: Dictionary) 
 		"lower_platform", "lower": return "Lower Platform"
 		"rotate_platform_left", "rotate_left": return "Rotate Platform Left"
 		"rotate_platform_right", "rotate_right": return "Rotate Platform Right"
-		"take_end_1": return "Take End 1"
-		"take_end_2": return "Take End 2"
+		"take_end_1": return "Take cable end 1"
+		"take_end_2": return "Take cable end 2"
 		"connect_wire_end": return "Connect Wire End"
 		"connect_wire_1": return "Connect to Wire 1"
 		"connect_wire_2": return "Connect to Wire 2"
-		"disconnect_power_wire": return "Disconnect Power Wire"
+		"disconnect_power_wire": return "Plug out"
 		"disconnect_wire_1": return "Disconnect Wire 1"
 		"disconnect_wire_2": return "Disconnect Wire 2"
 		"circuit_1", "circuit_2", "circuit_3":
@@ -7779,13 +7779,7 @@ func return_held_cable_end_to_reel() -> Dictionary:
 	return {"success": true, "reason": "ok", "reel_id": reel_id, "end_index": end_index}
 
 func _object_supports_external_power_input(world_object: Dictionary) -> bool:
-	if bool(world_object.get("requires_external_power", false)):
-		return true
-	var power_mode: String = str(world_object.get("power_mode", "")).strip_edges().to_lower()
-	if power_mode in ["external", "external_power", "external power"]:
-		return true
-	var object_type: String = str(world_object.get("object_type", "")).strip_edges().to_lower()
-	return object_type in ["power_socket", "outlet"]
+	return WorldObjectCatalogRef.object_accepts_runtime_power_plug(world_object)
 func _is_platform_object_data(world_object: Dictionary) -> bool:
 	if world_object.is_empty():
 		return false
@@ -8069,6 +8063,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	
 	var group: String = str(world_object.get("object_group", ""))
 	var state: String = str(world_object.get("state", ""))
+	var has_runtime_cable_connection: bool = bool(world_object.get("cable_power_connected", false)) or bool(world_object.get("plugged", false)) or not str(world_object.get("connected_reel_id", "")).strip_edges().is_empty() or world_object.has("plugged_cable_end")
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	
 	if _is_platform_object_data(world_object):
@@ -8097,12 +8092,18 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 				actions.append("unlock")
 			if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
 				actions.append("force_open")
+			if has_runtime_cable_connection:
+				actions.append("plug_out")
+			elif _object_supports_external_power_input(world_object):
+				actions.append("plug_in")
 			return actions
 		var power_mode: String = str(world_object.get("power_mode", "internal")).strip_edges().to_lower()
 		if power_mode in ["external", "external_power", "external power"] and not bool(world_object.get("is_powered", true)) and state != "open":
 			if state == "locked" and access_type in [WorldObjectCatalog.ACCESS_TYPE_NO_KEY, WorldObjectCatalog.ACCESS_TYPE_KEY_CARD]:
 				actions.append("unlock")
-			if not actions.has("plug_in") and _object_supports_external_power_input(world_object):
+			if has_runtime_cable_connection:
+				actions.append("plug_out")
+			elif not actions.has("plug_in") and _object_supports_external_power_input(world_object):
 				actions.append("plug_in")
 			return actions
 		if state in ["damaged", "half_open", "jammed"] and has_heavy_claw():
@@ -8121,10 +8122,12 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 		if _is_runtime_object_unusable(world_object):
 			actions.append("repair")
 			return actions
-		if bool(world_object.get("cable_power_connected", false)):
+		if has_runtime_cable_connection:
 			actions.append("disconnect_power_wire")
 		elif _object_supports_external_power_input(world_object):
 			actions.append("plug_in")
+		if str(world_object.get("state", "")).strip_edges().to_lower() == "unpowered" or not bool(world_object.get("is_powered", true)):
+			return actions
 		if bool(world_object.get("has_connector_jack", false)):
 			if str(world_object.get("terminal_type", "")).strip_edges().to_lower() == "information" and _world_object_has_download_payload(world_object):
 				actions.append("download")
@@ -8240,6 +8243,12 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 			actions.append("push")
 	elif group == "item":
 		actions.append("pickup")
+	if not _is_runtime_object_unusable(world_object) and _object_supports_external_power_input(world_object):
+		if has_runtime_cable_connection:
+			if not actions.has("plug_out") and not actions.has("disconnect_power_wire"):
+				actions.append("plug_out")
+		elif not actions.has("plug_in"):
+			actions.append("plug_in")
 	return actions
 
 func _world_object_has_download_payload(world_object: Dictionary) -> bool:
@@ -8529,6 +8538,8 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 				world_object["wire_%d_reel_id" % disconnect_side] = ""
 				world_object["wire_%d_reel_end_index" % disconnect_side] = 0
 			world_object["cable_power_connected"] = false
+			world_object["external_power_reel_id"] = ""
+			world_object["external_power_end_index"] = 0
 			world_object["connected_reel_id"] = ""
 			world_object["connected_reel_end_index"] = 0
 			world_object.erase("plugged_cable_end")

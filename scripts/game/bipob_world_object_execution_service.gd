@@ -69,6 +69,58 @@ static func _build_power_cable_action_result(success: bool, message: String, upd
 	return result
 
 
+static func _get_actor_held_cable_end_metadata(actor: Dictionary) -> Dictionary:
+	var held_id: String = str(actor.get("held_item_id", "")).strip_edges()
+	var held_data: Dictionary = Dictionary(actor.get("held_item_data", {}))
+	var held_type: String = str(actor.get("held_item_type", held_data.get("item_type", held_data.get("object_type", "")))).strip_edges().to_lower()
+	var data_type: String = str(held_data.get("item_type", held_data.get("object_type", held_type))).strip_edges().to_lower()
+	var reel_id: String = str(held_data.get("reel_id", "")).strip_edges()
+	var end_index: int = int(held_data.get("end_index", 0))
+	var is_cable_end: bool = held_type in ["cable_reel_end", "cable_end", "wire_end"] or data_type in ["cable_reel_end", "cable_end", "wire_end"]
+	if not is_cable_end or reel_id.is_empty() or end_index < 1 or end_index > 2:
+		return {"held": false, "reel_id": "", "end_index": 0, "held_id": ""}
+	return {"held": true, "reel_id": reel_id, "end_index": end_index, "held_id": held_id}
+
+
+static func _execute_runtime_plug_in(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary) -> Dictionary:
+	if not WorldObjectCatalogRef.object_accepts_runtime_power_plug(world_object):
+		return _build_result(false, "Target cannot receive external power.", world_object, target_position, {"success": false}, "target_not_connectable")
+	var held_cable: Dictionary = _get_actor_held_cable_end_metadata(actor)
+	if not bool(held_cable.get("held", false)):
+		return _build_result(false, "No cable end in manipulator. Take a cable end from Cable Reel first.", world_object, target_position, {"success": false}, "cable_reel_end_required")
+	if controller == null or controller.mission_manager == null or not controller.mission_manager.has_method("connect_cable_reel_to_target"):
+		return _build_result(false, "Runtime world is unavailable.", world_object, target_position, {"success": false}, "runtime_unavailable")
+	if not InteractionActionCostServiceRef.can_commit_gameplay_action(controller):
+		return _build_result(false, "Not enough action/energy.", world_object, target_position, {"success": false}, "insufficient_resources")
+	var target_id: String = str(world_object.get("id", "")).strip_edges()
+	var reel_id: String = str(held_cable.get("reel_id", "")).strip_edges()
+	var end_index: int = int(held_cable.get("end_index", 0))
+	var connect_report: Dictionary = Dictionary(controller.mission_manager.call("connect_cable_reel_to_target", reel_id, target_id, end_index))
+	if not bool(connect_report.get("success", false)):
+		return _build_result(false, str(connect_report.get("message", "Cable target is not connectable.")), world_object, target_position, connect_report, str(connect_report.get("reason", "connect_failed")))
+	var updated: Dictionary = world_object.duplicate(true)
+	if controller.mission_manager.has_method("get_world_object_by_id"):
+		var persisted: Dictionary = Dictionary(controller.mission_manager.call("get_world_object_by_id", target_id))
+		if not persisted.is_empty():
+			updated = persisted
+	updated["cable_power_connected"] = true
+	updated["external_power_reel_id"] = reel_id
+	updated["external_power_end_index"] = end_index
+	updated["connected_reel_id"] = reel_id
+	updated["connected_reel_end_index"] = end_index
+	updated["plugged_cable_end"] = {"reel_id": reel_id, "end_index": end_index, "target_id": target_id}
+	if controller.mission_manager.has_method("clear_manipulator"):
+		controller.mission_manager.call("clear_manipulator")
+	var result: Dictionary = _build_result(true, "%s (%s): Cable plugged in. | Action: plug_in" % [updated.get("display_name", "Object"), updated.get("state", "unknown")], updated, target_position, connect_report, "ok")
+	result["refresh_overlay"] = true
+	result["refresh_threats"] = true
+	result["refresh_action_panel"] = true
+	result["emit_facing_hint"] = true
+	result["clear_selected_action"] = true
+	result["pending_paid_action"] = true
+	return result
+
+
 static func _execute_power_cable_state_action(controller: Variant, world_object: Dictionary, target_position: Vector2i, action_id: String) -> Dictionary:
 	if controller == null or controller.mission_manager == null:
 		return _build_result(false, "Runtime world is unavailable.", world_object, target_position, {"success": false}, "runtime_unavailable")
@@ -121,6 +173,9 @@ static func _execute_power_cable_state_action(controller: Variant, world_object:
 	return _build_result(false, "Unsupported cable action.", world_object, target_position, {"success": false}, "unsupported_cable_action")
 	
 static func execute_world_object_action(controller: Variant, world_object: Dictionary, target_position: Vector2i, actor: Dictionary, module: Dictionary, action_id: String) -> Dictionary:
+	if action_id == "plug_in":
+		return _execute_runtime_plug_in(controller, world_object, target_position, actor)
+
 	if str(world_object.get("object_group", "")) == "terminal" and action_id == "download" and InformationTerminalServiceRef.is_information_terminal(world_object):
 		return _execute_information_terminal_download(controller, world_object, target_position)
 

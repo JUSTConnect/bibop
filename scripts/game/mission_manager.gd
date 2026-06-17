@@ -8410,13 +8410,7 @@ func validate_cable_path(cable_reel: Dictionary, target: Dictionary, path_cells:
 	return {"valid": true, "reason": "ok", "length": length, "max_length": max_length, "path_cells": path_cells}
 
 func _object_supports_runtime_external_power_input(object_data: Dictionary) -> bool:
-	if bool(object_data.get("requires_external_power", false)):
-		return true
-	var power_mode: String = str(object_data.get("power_type", object_data.get("power_mode", ""))).strip_edges().to_lower().trim_suffix("_power")
-	if power_mode in ["external", "external_power", "external power"]:
-		return true
-	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
-	return object_type in ["power_socket", "outlet"]
+	return WorldObjectCatalogRef.object_accepts_runtime_power_plug(object_data)
 
 func _is_runtime_power_output_target(object_data: Dictionary) -> bool:
 	var object_type: String = str(object_data.get("object_type", "")).strip_edges().to_lower()
