@@ -3990,6 +3990,10 @@ func draw_wall_procedural_water_pipe(segment: Dictionary, routing_mode: String) 
 const OUTER_UTILITY_WIDTH_SCALE := 5.0
 const OUTER_UTILITY_HEIGHT_SCALE := 2.0
 const OUTER_UTILITY_VERTICAL_OFFSET_SCALE := 2.0
+const ISO_COOLING_WALL_CANVAS_FACE_REGIONS: Dictionary = {
+	"sw": Rect2(0.0, 0.0, 0.5, 1.0),
+	"se": Rect2(0.5, 0.0, 0.5, 1.0)
+}
 
 func is_wall_routing_utility_object(object_data: Dictionary) -> bool:
 	return WallRoutingValidationServiceRef.is_wall_routing_utility_object(object_data)
@@ -4006,7 +4010,8 @@ func draw_wall_routing_utility(cell: Vector2i, object_data: Dictionary, visual_c
 	if not is_wall_routing_utility_object(object_data):
 		return false
 	if is_authored_cooling_wall_canvas_object(object_data):
-		return draw_cooling_wall_canvas_asset(cell, object_data)
+		var faces: Array[String] = get_cooling_wall_canvas_visible_faces(object_data)
+		return draw_cooling_wall_canvas_asset_for_faces(cell, object_data, faces)
 	if get_wall_routing_mode(object_data) == "inner":
 		for side_key in ["wall_side_1", "wall_side_2"]:
 			draw_inner_wall_route_port(cell, object_data, str(object_data.get(side_key, "")), visual_center)
@@ -4037,6 +4042,66 @@ func get_wall_canvas_asset_key_for_cell(cell: Vector2i) -> String:
 	if use_gray_room_visual_test_assets:
 		return get_test_wall_height_asset_key(material_override, cell, get_iso_wall_depth_bounds())
 	return get_production_wall_asset_key(material_override, cell, wall_profile_key, get_iso_wall_depth_bounds())
+
+func get_cooling_wall_canvas_visible_faces(object_data: Dictionary) -> Array[String]:
+	var faces: Array[String] = []
+
+	if get_wall_routing_mode(object_data) == "inner":
+		for side_key in ["wall_side_1", "wall_side_2"]:
+			var face: String = _wall_route_side_to_visible_face(str(object_data.get(side_key, "")))
+			if not face.is_empty() and face not in faces:
+				faces.append(face)
+	else:
+		var fallback_face: String = normalize_wall_visual_side(object_data)
+		if not fallback_face.is_empty():
+			faces.append(fallback_face)
+
+	if faces.is_empty():
+		faces.append("sw")
+		faces.append("se")
+
+	return faces
+
+func _get_cooling_wall_canvas_region(region_key: String, full_size: Vector2) -> Rect2:
+	var normalized_region: Rect2 = Rect2(0.0, 0.0, 1.0, 1.0)
+	if ISO_COOLING_WALL_CANVAS_FACE_REGIONS.has(region_key):
+		normalized_region = Rect2(ISO_COOLING_WALL_CANVAS_FACE_REGIONS.get(region_key))
+	return Rect2(
+		Vector2(full_size.x * normalized_region.position.x, full_size.y * normalized_region.position.y),
+		Vector2(full_size.x * normalized_region.size.x, full_size.y * normalized_region.size.y)
+	)
+
+func draw_cooling_wall_canvas_asset_for_faces(cell: Vector2i, object_data: Dictionary, faces: Array[String]) -> bool:
+	var asset_id: String = get_inner_wall_route_asset_id(object_data)
+	if asset_id.is_empty():
+		return false
+	var texture_path: String = get_iso_object_png_asset_path(asset_id, {"visual_id": asset_id})
+	if texture_path.is_empty():
+		return false
+	var texture: Texture2D = get_iso_object_png_texture_for_resolved_path(asset_id, texture_path)
+	if texture == null:
+		return false
+	var texture_size: Vector2 = texture.get_size()
+	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
+		return false
+	var wall_canvas_asset_key: String = get_wall_canvas_asset_key_for_cell(cell)
+	var texture_rect: Rect2 = get_iso_wall_texture_draw_rect_for_cell(cell, texture, wall_canvas_asset_key, get_wall_render_topology(cell))
+	if texture_rect.size.x <= 0.0 or texture_rect.size.y <= 0.0:
+		return false
+
+	if "sw" in faces and "se" in faces:
+		draw_texture_rect_region(texture, texture_rect, Rect2(Vector2.ZERO, texture_size))
+	else:
+		for face in faces:
+			if face not in ISO_COOLING_WALL_CANVAS_FACE_REGIONS:
+				continue
+			var source_region: Rect2 = _get_cooling_wall_canvas_region(face, texture_size)
+			var destination_region: Rect2 = _get_cooling_wall_canvas_region(face, texture_rect.size)
+			destination_region.position += texture_rect.position
+			draw_texture_rect_region(texture, destination_region, source_region)
+
+	draw_iso_asset_alignment_overlay(asset_id, texture_rect.position + Vector2(texture_rect.size.x * 0.5, texture_rect.size.y), texture_rect)
+	return true
 
 func draw_cooling_wall_canvas_asset(cell: Vector2i, object_data: Dictionary) -> bool:
 	var asset_id: String = get_inner_wall_route_asset_id(object_data)
