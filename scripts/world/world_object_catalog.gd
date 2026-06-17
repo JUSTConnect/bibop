@@ -77,7 +77,9 @@ const PREFAB_ALIASES: Dictionary = {
 	"power_switcher_wall_on": "power_switcher",
 	"explosive_barrel": "barrel",
 	"fire_barrel": "barrel",
-	"heavy_crate": "steel_box",
+	"normal_crate": "crate",
+	"heavy_crate": "crate",
+	"steel_box": "crate",
 	"concrete_floor": "floor",
 	"steel_floor": "floor",
 	"titan_floor": "floor",
@@ -122,7 +124,9 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"power_switch": {"switcher_type":"power_breaker"},
 	"fire_barrel": {"variant":"fire"},
 	"explosive_barrel": {"variant":"fire"},
-	"heavy_crate": {"movable":true, "heavy_claw_movable":true, "weight_class":"heavy", "required_bipob_power_class":"engineer"},
+	"normal_crate": {"crate_type":"normal", "variant":"normal", "weight_class":"normal", "required_bipob_power_class":"scout"},
+	"heavy_crate": {"crate_type":"heavy", "variant":"heavy", "weight_class":"heavy", "required_bipob_power_class":"engineer", "heavy_claw_movable":true, "heavy_claw_mode":"push", "magnetic":true, "material_tags":["metal"]},
+	"steel_box": {"crate_type":"heavy", "variant":"heavy", "weight_class":"heavy", "required_bipob_power_class":"engineer", "heavy_claw_movable":true, "heavy_claw_mode":"push", "magnetic":true, "material_tags":["metal"]},
 	"concrete_floor": {"object_group":"floor", "material":"concrete"},
 	"steel_floor": {"object_group":"floor", "material":"steel"},
 	"titan_floor": {"object_group":"floor", "material":"titan"},
@@ -530,8 +534,15 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"variant", "type":"enum", "values":["normal", "fire"], "default":"normal", "labels":{"normal":"Normal", "fire":"Fire"}}
 		]
 	},
+	"crate": {
+		"archetype_id":"crate", "object_group":"physical_object", "object_type":"crate", "palette_label":"Crate",
+		"placement_mode":"object", "display_name_template":"{crate_type_label} Crate", "configurable":true, "blocks_movement":true, "blocks_vision":false, "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "crate_type":"normal", "variant":"normal", "weight_class":"normal", "required_bipob_power_class":"scout",
+		"property_schema":[
+			{"field":"crate_type", "type":"enum", "values":["normal", "heavy"], "default":"normal", "labels":{"normal":"Normal crate", "heavy":"Heavy crate"}}
+		]
+	},
 	"steel_box": {
-		"archetype_id":"steel_box", "object_group":"physical_object", "object_type":"steel_box", "palette_label":"Steel Box",
+		"archetype_id":"steel_box", "object_group":"physical_object", "object_type":"steel_box", "palette_label":"Steel Box", "show_in_palette":false,
 		"placement_mode":"object", "display_name_template":"Steel Box", "configurable":true, "weight_class":"heavy", "required_bipob_power_class":"engineer", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true, "magnetic":true, "material_tags":["metal"],
 		"property_schema":[
 			{"field":"movable", "type":"bool", "default":true},
@@ -674,6 +685,46 @@ static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictiona
 		data = mark_legacy_source(data, source_id)
 	if data.has("access_type") or data.has("lock_type"):
 		data["access_type"] = normalize_access_type(data.get("access_type", data.get("lock_type", ACCESS_TYPE_NO_KEY)))
+	if _normalized_contract_token(data.get("object_type", "")) == "crate" or _normalized_contract_token(data.get("archetype_id", "")) == "crate" or source_id in ["crate", "normal_crate", "heavy_crate", "steel_box"]:
+		data = normalize_crate_contract(data)
+	return data
+
+static func normalize_crate_contract(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var source_id := _normalized_contract_token(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+	var crate_type := _normalized_contract_token(data.get("crate_type", data.get("variant", "")))
+
+	if crate_type.is_empty():
+		if source_id in ["steel_box", "heavy_crate"]:
+			crate_type = "heavy"
+		elif source_id in ["normal_crate", "crate"]:
+			crate_type = "normal"
+
+	if crate_type in ["steel", "steel_box", "heavy_crate"]:
+		crate_type = "heavy"
+	if crate_type not in ["normal", "heavy"]:
+		crate_type = "normal"
+
+	data["archetype_id"] = "crate"
+	data["object_group"] = "physical_object"
+	data["object_type"] = "crate"
+	data["crate_type"] = crate_type
+	data["variant"] = crate_type
+
+	if crate_type == "heavy":
+		data["weight_class"] = "heavy"
+		data["required_bipob_power_class"] = "engineer"
+		data["heavy_claw_movable"] = true
+		data["heavy_claw_mode"] = "push"
+		data["magnetic"] = bool(data.get("magnetic", true))
+		if not data.has("material_tags"):
+			data["material_tags"] = ["metal"]
+	else:
+		data["weight_class"] = "normal"
+		data["required_bipob_power_class"] = "scout"
+		data["heavy_claw_movable"] = bool(data.get("heavy_claw_movable", true))
+		data["heavy_claw_mode"] = str(data.get("heavy_claw_mode", "push"))
+
 	return data
 
 static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
@@ -1317,6 +1368,8 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
 	data = normalize_archetype_object(data)
+	if _normalized_contract_token(data.get("object_type", "")) == "crate" or _normalized_contract_token(data.get("archetype_id", "")) == "crate":
+		data = normalize_crate_contract(data)
 	if _normalized_contract_token(data.get("object_type", "")) == "enemy" or _normalized_contract_token(data.get("archetype_id", "")) == "enemy":
 		data = normalize_enemy_contract(data)
 	data = normalize_bipob_config_fields(data)
