@@ -497,7 +497,11 @@ func _get_map_constructor_entity_inspection_tab_id(entity_kind: String, data: Di
 	var joined: String = "%s %s %s %s" % [object_type, object_group, category, prefab_id]
 	if constructor_tab == "cooling_system" or constructor_group == "cooling_system" or object_group in ["cooling_system"] or object_type in ["external_air_duct", "external_water_pipe"] or routing_kind in ["air_duct", "water_pipe"] or cooling_system_type in ["air_duct", "water_pipe"]:
 		return "cooling_system"
-	if object_group == "threat" or joined.contains("enemy") or joined.contains("bipob") or joined.contains("bipop"):
+	if entity_kind == "world_object" and (object_type == "bipob" or str(data.get("archetype_id", "")).to_lower().strip_edges() == "bipob" or object_group == "bipob"):
+		var bipob_status: String = str(data.get("bipob_status", data.get("status", data.get("state", "")))).to_lower().strip_edges()
+		var bipob_alignment: String = str(data.get("bipob_alignment", data.get("alignment", ""))).to_lower().strip_edges()
+		return "enemies" if bipob_status in ["infected", "corrupted"] or bipob_alignment == "hostile" else "characters"
+	if object_group == "threat" or joined.contains("enemy"):
 		return "enemies"
 	if object_type == "power_cable" or object_type == "power_cable_reel" or object_group == "cable" or joined.contains("power_cable"):
 		return "cables"
@@ -521,6 +525,7 @@ func _append_map_constructor_cell_inspection_entity(tabs_by_id: Dictionary, tab_
 func get_map_constructor_cell_inspection_model(cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> Dictionary:
 	var tab_order: Array[Dictionary] = [
 		{"id":"objects", "title":"Objects", "entities": []},
+		{"id":"characters", "title":"Characters", "entities": []},
 		{"id":"enemies", "title":"Enemies", "entities": []},
 		{"id":"items", "title":"Items", "entities": []},
 		{"id":"cooling_system", "title":"Cooling System", "entities": []},
@@ -568,7 +573,7 @@ func get_map_constructor_cell_inspection_model(cell: Vector2i, preferred_entity_
 	if manager.active_bipob_ref != null and is_instance_valid(manager.active_bipob_ref) and manager.active_bipob_ref.has_method("get_grid_position"):
 		var bipob_cell: Vector2i = Vector2i(manager.active_bipob_ref.call("get_grid_position"))
 		if bipob_cell == cell:
-			_append_map_constructor_cell_inspection_entity(tabs_by_id, "enemies", "bipob", "active_bipob", cell, {"id":"active_bipob", "display_name":"Active Bipob", "object_type":"bipob", "position":cell})
+			_append_map_constructor_cell_inspection_entity(tabs_by_id, "characters", "bipob", "active_bipob", cell, {"id":"active_bipob", "display_name":"Active Bipob", "object_type":"bipob", "position":cell})
 	var present_tabs: Array[Dictionary] = []
 	for tab in tab_order:
 		var tab_id: String = str(tab.get("id", ""))
@@ -918,9 +923,6 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
 	var result: Dictionary = {"ok": false, "message": "Update failed.", "entity_id": entity_id, "field": field_name, "value": raw_value}
 	var schema: Dictionary = manager._get_map_constructor_editable_field_schema()
-	if not schema.has(field_name):
-		result["message"] = "Unknown editable field."
-		return result
 	var resolved_kind: String = entity_kind.strip_edges()
 	if resolved_kind.is_empty():
 		var world_entity: Dictionary = get_map_constructor_entity_by_id("world_object", entity_id)
@@ -933,6 +935,24 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		result["message"] = "Entity not found."
 		return result
 	var data: Dictionary = manager._safe_dictionary(entity_info.get("data", {}))
+	if resolved_kind == "world_object":
+		for archetype_field_variant in WorldObjectCatalogRef.get_archetype_property_schema(str(data.get("archetype_id", ""))):
+			var archetype_field: Dictionary = Dictionary(archetype_field_variant)
+			var archetype_field_name: String = str(archetype_field.get("field", "")).strip_edges()
+			if archetype_field_name.is_empty():
+				continue
+			var archetype_field_type: String = str(archetype_field.get("type", "string")).strip_edges()
+			if archetype_field_type in ["enum", "string"]:
+				schema[archetype_field_name] = "string"
+			elif archetype_field_type == "bool":
+				schema[archetype_field_name] = "bool"
+			elif archetype_field_type == "int":
+				schema[archetype_field_name] = "int"
+			elif archetype_field_type in ["enum_array", "object_ref_array"]:
+				schema[archetype_field_name] = "array_string"
+	if not schema.has(field_name):
+		result["message"] = "Unknown editable field."
+		return result
 	if not data.has(field_name):
 		var default_value: Variant = manager.get_default_map_constructor_field_value(field_name, resolved_kind, data)
 		if default_value == null:

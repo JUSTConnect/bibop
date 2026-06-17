@@ -77,7 +77,9 @@ const PREFAB_ALIASES: Dictionary = {
 	"power_switcher_wall_on": "power_switcher",
 	"explosive_barrel": "barrel",
 	"fire_barrel": "barrel",
-	"heavy_crate": "steel_box",
+	"normal_crate": "crate",
+	"heavy_crate": "crate",
+	"steel_box": "crate",
 	"concrete_floor": "floor",
 	"steel_floor": "floor",
 	"titan_floor": "floor",
@@ -88,18 +90,43 @@ const PREFAB_ALIASES: Dictionary = {
 	"oil_floor": "floor",
 	"dirty_floor": "floor",
 	"debris_floor": "floor",
-	"breachable_wall": "wall"
+	"breachable_wall": "wall",
+	"loot_case": "case",
+	"loot_crate": "case",
+	"case_locked": "case",
+	"case_class1": "case",
+	"case_class2": "case",
+	"case_class3": "case",
+	"case_not_empty": "case",
+	"case_empty": "case",
+	"external_air_cooler": "metal_cooling_block",
+	"air_cooling": "metal_cooling_block",
+	"air_cooler": "metal_cooling_block",
+	"cooling_fan": "metal_cooling_block"
 }
 
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
 
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
+	"case": {"visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"loot_case": {"visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"loot_crate": {"visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_locked": {"locked":true, "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_class1": {"locked":false, "loot_class":"class1", "case_loot_state":"unsearched", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_class2": {"locked":false, "loot_class":"class2", "case_loot_state":"unsearched", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_class3": {"locked":false, "loot_class":"class3", "case_loot_state":"unsearched", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_not_empty": {"locked":false, "opened":true, "searched":true, "remaining_loot_count":1, "case_loot_state":"partially_looted", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_empty": {"locked":false, "opened":true, "searched":true, "remaining_loot_count":0, "case_loot_state":"empty", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"vagus": {"enemy_type":"vagus", "enemy_kind":"vagus"},
+	"bug": {"enemy_type":"bug", "enemy_kind":"bug"},
 	"light_switch": {"switcher_type":"light_switcher"},
 	"circuit_breaker": {"switcher_type":"power_breaker", "is_on":true, "switch_state":"on", "state":"switch_on"},
 	"power_switch": {"switcher_type":"power_breaker"},
 	"fire_barrel": {"variant":"fire"},
 	"explosive_barrel": {"variant":"fire"},
-	"heavy_crate": {"movable":true, "heavy_claw_movable":true, "weight_class":"heavy", "required_bipob_power_class":"engineer"},
+	"normal_crate": {"crate_type":"normal", "variant":"normal", "weight_class":"normal", "required_bipob_power_class":"scout"},
+	"heavy_crate": {"crate_type":"heavy", "variant":"heavy", "weight_class":"heavy", "required_bipob_power_class":"engineer", "heavy_claw_movable":true, "heavy_claw_mode":"push", "magnetic":true, "material_tags":["metal"]},
+	"steel_box": {"crate_type":"heavy", "variant":"heavy", "weight_class":"heavy", "required_bipob_power_class":"engineer", "heavy_claw_movable":true, "heavy_claw_mode":"push", "magnetic":true, "material_tags":["metal"]},
 	"concrete_floor": {"object_group":"floor", "material":"concrete"},
 	"steel_floor": {"object_group":"floor", "material":"steel"},
 	"titan_floor": {"object_group":"floor", "material":"titan"},
@@ -110,7 +137,11 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"oil_floor": {"object_group":"floor", "covering":"oil"},
 	"dirty_floor": {"object_group":"floor", "covering":"dirt"},
 	"debris_floor": {"object_group":"floor", "covering":"debris"},
-	"breachable_wall": {"object_group":"wall", "is_breachable_wall":true, "wall_archetype":"breachable", "material":"breachable_concrete", "breach_side":"sw", "breach_state":"intact", "supports_embedded_objects":false, "supports_cables":false}
+	"breachable_wall": {"object_group":"wall", "is_breachable_wall":true, "wall_archetype":"breachable", "material":"breachable_concrete", "breach_side":"sw", "breach_state":"intact", "supports_embedded_objects":false, "supports_cables":false},
+	"external_air_cooler": {"object_group":"cooling"},
+	"air_cooling": {"object_group":"cooling"},
+	"air_cooler": {"object_group":"cooling"},
+	"cooling_fan": {"object_group":"cooling"}
 }
 
 # Hidden compatibility mappings for loading old constructor/runtime data only.
@@ -386,6 +417,15 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"loadout_profile", "type":"enum", "values":["none", "light", "utility", "heavy"], "default":"none", "labels":{"none":"None", "light":"Light", "utility":"Utility", "heavy":"Heavy"}, "tab":"Bipob"}
 		]
 	},
+
+	"enemy": {
+		"archetype_id":"enemy", "object_group":"enemy", "object_type":"enemy", "palette_label":"Enemies",
+		"placement_mode":"object", "display_name_template":"{enemy_type_label}", "configurable":true, "interactable":false,
+		"blocks_movement":true, "blocks_vision":false, "enemy_type":"vagus", "enemy_kind":"vagus",
+		"property_schema":[
+			{"field":"enemy_type", "type":"enum", "values":["vagus", "bug"], "default":"vagus", "labels":{"vagus":"Vagus", "bug":"Bug"}}
+		]
+	},
 	"station": {
 		"archetype_id":"station", "object_group":"station", "object_type":"station", "palette_label":"Station",
 		"placement_mode":"object", "display_name_template":"{station_type_label} Station", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
@@ -494,8 +534,15 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"variant", "type":"enum", "values":["normal", "fire"], "default":"normal", "labels":{"normal":"Normal", "fire":"Fire"}}
 		]
 	},
+	"crate": {
+		"archetype_id":"crate", "object_group":"physical_object", "object_type":"crate", "palette_label":"Crate",
+		"placement_mode":"object", "display_name_template":"{crate_type_label} Crate", "configurable":true, "blocks_movement":true, "blocks_vision":false, "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "crate_type":"normal", "variant":"normal", "weight_class":"normal", "required_bipob_power_class":"scout",
+		"property_schema":[
+			{"field":"crate_type", "type":"enum", "values":["normal", "heavy"], "default":"normal", "labels":{"normal":"Normal crate", "heavy":"Heavy crate"}}
+		]
+	},
 	"steel_box": {
-		"archetype_id":"steel_box", "object_group":"physical_object", "object_type":"steel_box", "palette_label":"Steel Box",
+		"archetype_id":"steel_box", "object_group":"physical_object", "object_type":"steel_box", "palette_label":"Steel Box", "show_in_palette":false,
 		"placement_mode":"object", "display_name_template":"Steel Box", "configurable":true, "weight_class":"heavy", "required_bipob_power_class":"engineer", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true, "magnetic":true, "material_tags":["metal"],
 		"property_schema":[
 			{"field":"movable", "type":"bool", "default":true},
@@ -506,7 +553,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"archetype_id":"case", "object_group":"container", "object_type":"case", "palette_label":"Case",
 		"placement_mode":"object", "display_name_template":"Case", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
 		"locked":true, "loot_class":"class1", "opened":false, "searched":false, "remaining_loot_count":1,
-		"visual_family":"case", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class",
+		"visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class",
 		"property_schema":[
 			{"field":"locked", "type":"enum", "values":[true, false], "default":true, "labels":{"true":"Locked", "false":"Unlocked"}},
 			{"field":"loot_class", "type":"enum", "values":["class1", "class2", "class3"], "default":"class1", "labels":{"class1":"Class 1", "class2":"Class 2", "class3":"Class 3"}},
@@ -615,6 +662,7 @@ static func mark_legacy_source(object_data: Dictionary, source_id: String) -> Di
 	data["source_prefab_id"] = normalized_source_id
 	if is_legacy_prefab_alias(normalized_source_id):
 		data["legacy_prefab_id"] = normalized_source_id
+		data["map_constructor_prefab_id"] = normalized_source_id
 	return data
 
 static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictionary:
@@ -637,6 +685,46 @@ static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictiona
 		data = mark_legacy_source(data, source_id)
 	if data.has("access_type") or data.has("lock_type"):
 		data["access_type"] = normalize_access_type(data.get("access_type", data.get("lock_type", ACCESS_TYPE_NO_KEY)))
+	if _normalized_contract_token(data.get("object_type", "")) == "crate" or _normalized_contract_token(data.get("archetype_id", "")) == "crate" or source_id in ["crate", "normal_crate", "heavy_crate", "steel_box"]:
+		data = normalize_crate_contract(data)
+	return data
+
+static func normalize_crate_contract(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var source_id := _normalized_contract_token(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+	var crate_type := _normalized_contract_token(data.get("crate_type", data.get("variant", "")))
+
+	if crate_type.is_empty():
+		if source_id in ["steel_box", "heavy_crate"]:
+			crate_type = "heavy"
+		elif source_id in ["normal_crate", "crate"]:
+			crate_type = "normal"
+
+	if crate_type in ["steel", "steel_box", "heavy_crate"]:
+		crate_type = "heavy"
+	if crate_type not in ["normal", "heavy"]:
+		crate_type = "normal"
+
+	data["archetype_id"] = "crate"
+	data["object_group"] = "physical_object"
+	data["object_type"] = "crate"
+	data["crate_type"] = crate_type
+	data["variant"] = crate_type
+
+	if crate_type == "heavy":
+		data["weight_class"] = "heavy"
+		data["required_bipob_power_class"] = "engineer"
+		data["heavy_claw_movable"] = true
+		data["heavy_claw_mode"] = "push"
+		data["magnetic"] = bool(data.get("magnetic", true))
+		if not data.has("material_tags"):
+			data["material_tags"] = ["metal"]
+	else:
+		data["weight_class"] = "normal"
+		data["required_bipob_power_class"] = "scout"
+		data["heavy_claw_movable"] = bool(data.get("heavy_claw_movable", true))
+		data["heavy_claw_mode"] = str(data.get("heavy_claw_mode", "push"))
+
 	return data
 
 static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
@@ -768,8 +856,8 @@ const OBJECT_LIBRARY := {
 	"power_source_class_2": {"group":"power","name":"Power Source C2","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":2,"outlet_capacity":5,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
 	"power_source_class_3": {"group":"power","name":"Power Source C3","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":3,"outlet_capacity":6,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
 	"external_radiator": {"group":"cooling","name":"External Radiator","placeable_in_constructor":false,"state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
-	"external_air_cooler": {"group":"cooling","object_group":"cooling","object_type":"external_air_cooler","palette_label":"Air Cooling","name":"External Air Cooler","display_name_template":"Air Cooling","placement_mode":"object","configurable":true,"interactable":true,"state":"off","status":"active","is_powered":false,"power_mode":"external_power","control_mode":"internal_control","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"generic_airflow_role":"fan","airflow_roles":["fan","airflow_source"],"fan_enabled":false,"fan_speed":0,"airflow_range":0,"cooling_state":"uncooled","airflow_direction":"sw","facing_side":"SW","facing_dir":"SW","allowed_airflow_directions":["ne","nw","se","sw"],"visual_family":"air_cooling","visual_surface":"floor","visual_state_policy":"powered_three_state","variant_policy":"airflow_direction","visual_variant":"sw","power_visual_state_enabled":true,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20,"property_schema":[{"field":"airflow_direction","type":"enum","values":["ne","nw","se","sw"],"default":"sw","labels":{"ne":"NE","nw":"NW","se":"SE","sw":"SW"}},{"field":"state","type":"enum","values":["base","off","on"],"default":"off","labels":{"base":"Base","off":"Off","on":"On"}},{"field":"fan_enabled","type":"bool","default":false},{"field":"airflow_range","type":"int","default":0,"min":0}]},
-	"metal_cooling_block": {"group":"cooling","object_group":"cooling","object_type":"metal_cooling_block","palette_label":"Cooling block","name":"Cooling block","display_name_template":"Cooling block","placement_mode":"object","visual_family":"air_cooling","visual_surface":"floor","visual_asset_id":"air_cooling_base_floor_sw_01","state":"base","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
+	"external_air_cooler": {"group":"cooling","object_group":"cooling","object_type":"external_air_cooler","placeable_in_constructor":false,"palette_label":"Air Cooling","name":"External Air Cooler","display_name_template":"Air Cooling","placement_mode":"object","configurable":true,"interactable":true,"state":"off","status":"active","is_powered":false,"power_mode":"external_power","control_mode":"internal_control","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"generic_airflow_role":"fan","airflow_roles":["fan","airflow_source"],"fan_enabled":false,"fan_speed":0,"airflow_range":0,"cooling_state":"uncooled","airflow_direction":"sw","facing_side":"SW","facing_dir":"SW","allowed_airflow_directions":["ne","nw","se","sw"],"visual_family":"air_cooling","visual_surface":"floor","visual_state_policy":"powered_three_state","variant_policy":"airflow_direction","visual_variant":"sw","power_visual_state_enabled":true,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20,"property_schema":[{"field":"airflow_direction","type":"enum","values":["ne","nw","se","sw"],"default":"sw","labels":{"ne":"NE","nw":"NW","se":"SE","sw":"SW"}},{"field":"state","type":"enum","values":["base","off","on"],"default":"off","labels":{"base":"Base","off":"Off","on":"On"}},{"field":"fan_enabled","type":"bool","default":false},{"field":"airflow_range","type":"int","default":0,"min":0}]},
+	"metal_cooling_block": {"group":"cooling","object_group":"cooling","object_type":"metal_cooling_block","placeable_in_constructor":true,"palette_label":"Cooling block","name":"Cooling block","display_name_template":"Cooling block","placement_mode":"object","visual_family":"air_cooling","visual_surface":"floor","visual_asset_id":"air_cooling_base_floor_sw_01","state":"base","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
 	"external_water_pipe": {"group":"cooling","object_group":"cooling","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","object_type":"external_water_pipe","archetype_id":"external_water_pipe","palette_label":"External Water Pipe","name":"External Water Pipe","display_name_template":"External Water Pipe","state":"active","cooling_device_type":"water_pipe","cooling_output":2,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":15,"placement_mode":"wall_mounted","mount":"wall","install_mode":"wall","is_wall_mounted":true,"changes_passability":false,"configurable":true,"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"water_pipe","cooling_system_type":"water_pipe","cooling_contour_id":"","cooling_contour_mode":"auto","cooling_contour_member_ids":[],"cooling_system_tab":true,"routing_label":"Water Pipe","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},{"field":"cooling_contour_id","type":"string","default":"","internal":true,"legacy":true,"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"cooling_contour_member_ids","type":"object_ref_array","target_group":"cooling","default":[],"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}]},
 	"external_air_duct": {"group":"cooling","object_group":"cooling","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","object_type":"external_air_duct","archetype_id":"external_air_duct","palette_label":"External Air Duct","name":"External Air Duct","display_name_template":"External Air Duct","state":"active","cooling_device_type":"air_duct","carries_airflow":true,"passive_cooling":true,"generic_airflow_role":"airflow_path_cell","airflow_roles":["airflow_path_cell"],"blocks_airflow":false,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":12,"placement_mode":"wall_mounted","mount":"wall","install_mode":"wall","is_wall_mounted":true,"changes_passability":false,"configurable":true,"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"air_duct","cooling_system_type":"air_duct","cooling_contour_id":"","cooling_contour_mode":"auto","cooling_contour_member_ids":[],"cooling_system_tab":true,"routing_label":"Air Duct","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},{"field":"cooling_contour_id","type":"string","default":"","internal":true,"legacy":true,"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"cooling_contour_member_ids","type":"object_ref_array","target_group":"cooling","default":[],"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}]},
 	"module_external": {"group":"item","name":"Module External","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
@@ -793,8 +881,8 @@ const OBJECT_LIBRARY := {
 	"normal_crate": {"group":"physical_object","name":"Normal Crate","weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"heavy_crate": {"group":"physical_object","name":"Heavy Crate","placeable_in_constructor":false,"weight_class":"heavy","required_bipob_power_class":"engineer","durability":14,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"movable_platform_block": {"group":"physical_object","name":"Movable Platform Block","weight_class":"block","required_bipob_power_class":"juggernaut","durability":20,"blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"disabled_bipop_scout": {"group":"physical_object","name":"Disabled Bipop Scout","weight_class":"normal","required_bipob_power_class":"scout","durability":10},"disabled_bipop_engineer": {"group":"physical_object","name":"Disabled Bipop Engineer","weight_class":"heavy","required_bipob_power_class":"engineer","durability":15},"disabled_bipop_juggernaut": {"group":"physical_object","name":"Disabled Bipop Juggernaut","weight_class":"block","required_bipob_power_class":"juggernaut","durability":25},"legacy_barrel_library": {"group":"physical_object","name":"Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"explosive_barrel": {"group":"physical_object","name":"Explosive Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":6,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"on_destroy":"explode"},"debris": {"group":"physical_object","name":"Debris","weight_class":"normal","required_bipob_power_class":"scout","durability":1,"blocks_movement":false,"terrain_tag":"debris","movement_debuff":-1},
 	"enemy_robot": {"group":"threat","name":"Enemy Robot","state":"active","behavior_state":"patrolling","durability":20,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_light"],"heat_signature":true,"magnetic":true,"drain_energy_pool":20,"drained_this_turn":false,"detection_range":3,"vision_range":3,"radar_range":3,"thermal_range":0,"detection_modes":["vision","radar"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":5,"drops":["parts_medium"],"on_destroy":["drop_items","debris"]},
 	"turret": {"group":"threat","name":"Turret","state":"active","behavior_state":"idle","durability":15,"blocks_movement":true,"blocks_vision":false,"power_mode":"external_power","power_network_id":"power_net_A","is_powered":true,"control_mode":"external_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_light"],"heat_signature":true,"magnetic":true,"drain_energy_pool":15,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":0,"thermal_range":4,"detection_modes":["vision","thermal"],"detection_shape":"cardinal","detection_cone_enabled":false,"detection_direction":"forward","attack_range":4,"attack_damage":4,"can_be_controlled_by_terminal":true,"required_processor_level":1,"drops":["parts_medium"],"on_destroy":["drop_items","debris"]},
-	"bug": {"group":"threat","name":"Bug","state":"active","behavior_state":"patrolling","durability":8,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["organic"],"heat_signature":true,"magnetic":false,"drain_energy_pool":5,"drained_this_turn":false,"detection_range":2,"vision_range":2,"radar_range":0,"thermal_range":0,"detection_modes":["vision"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":2,"drops":["sample","parts_small"],"on_destroy":["drop_items"]},
-	"vagus": {"group":"threat","name":"Vagus","state":"active","behavior_state":"idle","durability":30,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_heavy"],"heat_signature":true,"magnetic":true,"drain_energy_pool":30,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":4,"thermal_range":4,"detection_modes":["vision","radar","thermal"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":2,"attack_damage":7,"drops":["mission_item","parts_large"],"on_destroy":["drop_items","debris"]}
+	"bug": {"group":"threat","name":"Bug","show_in_palette":false,"state":"active","behavior_state":"patrolling","durability":8,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["organic"],"heat_signature":true,"magnetic":false,"drain_energy_pool":5,"drained_this_turn":false,"detection_range":2,"vision_range":2,"radar_range":0,"thermal_range":0,"detection_modes":["vision"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":2,"drops":["sample","parts_small"],"on_destroy":["drop_items"]},
+	"vagus": {"group":"threat","name":"Vagus","show_in_palette":false,"state":"active","behavior_state":"idle","durability":30,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_heavy"],"heat_signature":true,"magnetic":true,"drain_energy_pool":30,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":4,"thermal_range":4,"detection_modes":["vision","radar","thermal"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":2,"attack_damage":7,"drops":["mission_item","parts_large"],"on_destroy":["drop_items","debris"]}
 }
 
 static func _safe_string(value: Variant, fallback: String = "") -> String:
@@ -1250,6 +1338,21 @@ static func resolve_facing_side_from_object_data(object_data: Dictionary) -> Str
 			return FACING_SIDE_SW
 	return FACING_SIDE_SW
 
+static func normalize_enemy_contract(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var source_type: String = _normalized_contract_token(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+	if source_type in ["vagus", "bug"]:
+		data["enemy_type"] = source_type
+	var enemy_type: String = _normalized_contract_token(data.get("enemy_type", data.get("enemy_kind", "vagus")))
+	if enemy_type not in ["vagus", "bug"]:
+		enemy_type = "vagus"
+	data["archetype_id"] = "enemy"
+	data["object_group"] = "enemy"
+	data["object_type"] = "enemy"
+	data["enemy_type"] = enemy_type
+	data["enemy_kind"] = enemy_type
+	return data
+
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = canonicalize_legacy_object_data(object_data)
 	if data.is_empty():
@@ -1265,6 +1368,10 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
 	data = normalize_archetype_object(data)
+	if _normalized_contract_token(data.get("object_type", "")) == "crate" or _normalized_contract_token(data.get("archetype_id", "")) == "crate":
+		data = normalize_crate_contract(data)
+	if _normalized_contract_token(data.get("object_type", "")) == "enemy" or _normalized_contract_token(data.get("archetype_id", "")) == "enemy":
+		data = normalize_enemy_contract(data)
 	data = normalize_bipob_config_fields(data)
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
@@ -1754,6 +1861,8 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 		var key: String = str(key_variant)
 		if not data.has(key):
 			data[key] = _schema_defaults(archetype_id)[key]
+	if archetype_id == "enemy":
+		data = normalize_enemy_contract(data)
 	if archetype_id == "wall":
 		data["material"] = _normalize_wall_material(data.get("material", WALL_MATERIAL_BRICK))
 		var breachable_by_material: bool = BREACHABLE_WALL_MATERIALS.has(str(data.get("material", "")))

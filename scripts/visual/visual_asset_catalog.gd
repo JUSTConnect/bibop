@@ -291,6 +291,7 @@ const WALL_ASSET_ALIASES: Dictionary = {
 }
 
 const OBJECT_ASSET_ALIASES: Dictionary = {
+	"bipob": "object_generic",
 	"door": "door_close_base_floor_01",
 	"door_close": "door_close_base_floor_01",
 	"door_open": "door_open_base_floor_01",

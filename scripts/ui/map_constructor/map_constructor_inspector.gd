@@ -217,6 +217,21 @@ static func _normalize_cooling_contour_mode(data: Dictionary) -> String:
 	return "manual" if mode == "manual" else "auto"
 
 
+static func _is_bipob_constructor_object(entity_kind: String, data: Dictionary) -> bool:
+	if entity_kind != "world_object":
+		return false
+	var object_type: String = MapConstructorUiSafe.safe_string(data.get("object_type", "")).strip_edges().to_lower()
+	var archetype_id: String = MapConstructorUiSafe.safe_string(data.get("archetype_id", "")).strip_edges().to_lower()
+	var object_group: String = MapConstructorUiSafe.safe_string(data.get("object_group", data.get("group", ""))).strip_edges().to_lower()
+	return object_type == "bipob" or archetype_id == "bipob" or object_group == "bipob"
+
+
+static func _is_hostile_bipob_constructor_object(data: Dictionary) -> bool:
+	var status: String = MapConstructorUiSafe.safe_string(data.get("bipob_status", data.get("status", data.get("state", "")))).strip_edges().to_lower()
+	var alignment: String = MapConstructorUiSafe.safe_string(data.get("bipob_alignment", data.get("alignment", ""))).strip_edges().to_lower()
+	return status in ["infected", "corrupted"] or alignment == "hostile"
+
+
 static func _get_cooling_objects_by_id(ui: Variant, selected_entity_id: String, selected_data: Dictionary) -> Dictionary:
 	var objects_by_id: Dictionary = {}
 	if ui.mission_manager_runtime != null:
@@ -449,7 +464,9 @@ static func _get_tab_id_for_entity(ui: Variant, entity_kind: String, data: Dicti
 	var joined: String = "%s %s %s" % [object_type, object_group, ui._safe_ui_string(data.get("map_constructor_prefab_id", "")).to_lower()]
 	if constructor_tab == "cooling_system" or constructor_group == "cooling_system" or object_group in ["cooling", "cooling_system"] and (object_type in ["external_air_duct", "external_water_pipe"] or routing_kind in ["air_duct", "water_pipe"] or cooling_system_type in ["air_duct", "water_pipe"]) or object_type in ["external_air_duct", "external_water_pipe"] or routing_kind in ["air_duct", "water_pipe"] or cooling_system_type in ["air_duct", "water_pipe"]:
 		return "cooling_system"
-	if object_group == "threat" or joined.contains("enemy") or joined.contains("bipob") or joined.contains("bipop"):
+	if _is_bipob_constructor_object(entity_kind, data):
+		return "enemies" if _is_hostile_bipob_constructor_object(data) else "characters"
+	if object_group == "threat" or joined.contains("enemy"):
 		return "enemies"
 	if object_type in ["power_cable", "power_cable_reel"] or object_group == "cable" or joined.contains("power_cable"):
 		return "cables"
@@ -716,12 +733,16 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		if not (type_group == "power" and normalized_object_type in ["power_source", "power_cable"]):
 			ui._add_preset_buttons(configurable, entity_kind, entity_id)
 	var cooling_configurable: VBoxContainer = ui._create_inspector_section("Cooling System")
+	var bipob_configurable: VBoxContainer = ui._create_inspector_section("Bipob")
 	var rendered_archetype_schema: bool = false
 	var rendered_cooling_schema: bool = false
+	var rendered_bipob_schema: bool = false
 	if object_is_configurable:
 		rendered_archetype_schema = MapConstructorPropertyControls.add_archetype_schema_properties_for_tab(ui, configurable, entity_kind, entity_id, data, "")
 		if not is_cooling_routing_object:
 			rendered_cooling_schema = MapConstructorPropertyControls.add_archetype_schema_properties_for_tab(ui, cooling_configurable, entity_kind, entity_id, data, "Cooling System")
+		if _is_bipob_constructor_object(entity_kind, data):
+			rendered_bipob_schema = MapConstructorPropertyControls.add_archetype_schema_properties_for_tab(ui, bipob_configurable, entity_kind, entity_id, data, "Bipob")
 	if is_cooling_routing_object:
 		_render_cooling_system_controls(ui, cooling_configurable, entity_kind, entity_id, data)
 	if object_is_configurable and not rendered_archetype_schema:
@@ -844,7 +865,7 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		configurable.add_child(no_config_label)
 	if is_cooling_routing_object:
 		parent.add_child(cooling_configurable)
-	elif rendered_cooling_schema:
+	elif rendered_cooling_schema or rendered_bipob_schema:
 		var config_tabs := TabContainer.new()
 		config_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var object_scroll := ScrollContainer.new()
@@ -852,11 +873,18 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		object_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		object_scroll.add_child(configurable)
 		config_tabs.add_child(object_scroll)
-		var cooling_scroll := ScrollContainer.new()
-		cooling_scroll.name = "Cooling System"
-		cooling_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		cooling_scroll.add_child(cooling_configurable)
-		config_tabs.add_child(cooling_scroll)
+		if rendered_bipob_schema:
+			var bipob_scroll := ScrollContainer.new()
+			bipob_scroll.name = "Bipob"
+			bipob_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			bipob_scroll.add_child(bipob_configurable)
+			config_tabs.add_child(bipob_scroll)
+		if rendered_cooling_schema:
+			var cooling_scroll := ScrollContainer.new()
+			cooling_scroll.name = "Cooling System"
+			cooling_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			cooling_scroll.add_child(cooling_configurable)
+			config_tabs.add_child(cooling_scroll)
 		parent.add_child(config_tabs)
 	else:
 		parent.add_child(configurable)

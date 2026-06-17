@@ -2406,7 +2406,9 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 			return "light_off_wall_01"
 		"barrel":
 			return "barrel_01"
-		"crate", "box", "steel_box":
+		"crate":
+			return "normal_crate_floor_01"
+		"box", "steel_box":
 			return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
 		"case":
 			return VisualAssetCatalogScript.resolve_object_asset_id("case")
@@ -2418,6 +2420,13 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 	var prefab_value: String = str(object_data.get("map_constructor_prefab_id", "")).to_lower().strip_edges()
 	var key_kind: String = str(object_data.get("key_kind", object_data.get("key_type", ""))).to_lower().strip_edges()
 	var blob: String = "%s %s %s" % [type_value, prefab_value, key_kind]
+	if type_value == "enemy":
+		var enemy_type: String = str(object_data.get("enemy_type", object_data.get("enemy_kind", "vagus"))).to_lower().strip_edges()
+		match enemy_type:
+			"bug":
+				return "bug"
+			_:
+				return "vagus"
 	if blob.contains("digital_key") or blob.contains("keycard"):
 		return "keycard"
 	if blob.contains("key"):
@@ -2453,6 +2462,8 @@ func get_iso_object_profile_key_for_object_data(object_data: Dictionary, fallbac
 		return "terminal"
 	if blob.contains("barrel"):
 		return "barrel"
+	if VisualStateAssetServiceRef.is_loot_case_object(object_data):
+		return "case"
 	if blob.contains("crate") or blob.contains("box"):
 		return "crate"
 	if fallback_profile_key.strip_edges().is_empty():
@@ -2557,14 +2568,17 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 		if barrel_variant == "fire" or type_value == "fire_barrel" or blob.contains("fire_barrel") or blob.contains("fire barrel") or blob.contains("flammable"):
 			return "fire_barrel_floor_01"
 		return "normal_barrel_floor_01"
-	if type_value == "heavy_crate" or blob.contains("heavy_crate") or blob.contains("heavy crate"):
-		return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
-	if type_value == "crate" or type_value == "normal_crate" or blob.contains("normal_crate") or blob.contains("normal crate"):
+	if VisualStateAssetServiceRef.is_loot_case_object(object_data):
+		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
+	if type_value == "crate":
+		var crate_type: String = str(object_data.get("crate_type", object_data.get("variant", "normal"))).to_lower().strip_edges()
+		if crate_type in ["heavy", "steel", "steel_box", "heavy_crate"]:
+			return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
 		return "normal_crate_floor_01"
-	if type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
+	if type_value == "heavy_crate" or blob.contains("heavy_crate") or blob.contains("heavy crate") or type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
 		return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
-	if type_value == "case" or blob.contains(" case"):
-		return VisualAssetCatalogScript.resolve_object_asset_id("case")
+	if type_value == "normal_crate" or blob.contains("normal_crate") or blob.contains("normal crate"):
+		return "normal_crate_floor_01"
 	if type_value == "cable_reel" or type_value == "power_cable_reel" or blob.contains("cable_reel") or blob.contains("cable reel"):
 		return "cable_reel_02" if _get_object_mount_mode(object_data) == "wall" else "cable_reel_01"
 	if type_value == "power_source" or blob.contains("power_source"):
@@ -2609,6 +2623,9 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 
 func get_iso_object_asset_resolution_diagnostic(object_data: Dictionary, fallback_profile_key: String, resolved_asset_key: String) -> Dictionary:
 	var normalized_asset_key: String = resolved_asset_key.strip_edges().to_lower()
+	var visual_family: String = VisualStateAssetServiceRef.get_visual_family(object_data)
+	var visual_state: String = VisualStateAssetServiceRef.resolve_visual_state(object_data) if VisualStateAssetServiceRef.object_uses_visual_states(object_data) else ""
+	var visual_variant: String = VisualStateAssetServiceRef.resolve_visual_variant(object_data) if VisualStateAssetServiceRef.object_uses_visual_states(object_data) else ""
 	var resolved_path: String = get_iso_object_png_asset_path(normalized_asset_key)
 	var used_png: bool = not resolved_path.is_empty()
 	var used_svg_fallback: bool = false
@@ -2618,6 +2635,14 @@ func get_iso_object_asset_resolution_diagnostic(object_data: Dictionary, fallbac
 	return {
 		"object_id": str(object_data.get("id", object_data.get("object_id", ""))),
 		"object_type": str(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))),
+		"map_constructor_prefab_id": str(object_data.get("map_constructor_prefab_id", "")),
+		"visual_family": str(object_data.get("visual_family", object_data.get("visual_asset_family", ""))),
+		"visual_state_policy": str(object_data.get("visual_state_policy", "")),
+		"resolved_family": visual_family,
+		"resolved_state": visual_state,
+		"resolved_variant": visual_variant,
+		"texture_path": resolved_path,
+		"texture_load_result": "png" if used_png else ("placeholder" if used_svg_fallback else "missing"),
 		"fallback_profile": fallback_profile_key,
 		"resolved_asset_key": normalized_asset_key,
 		"resolved_path": resolved_path,
@@ -2629,12 +2654,19 @@ func log_iso_object_asset_resolution(object_data: Dictionary, fallback_profile_k
 	if not debug_log_iso_object_asset_resolution:
 		return
 	var diagnostic: Dictionary = get_iso_object_asset_resolution_diagnostic(object_data, fallback_profile_key, resolved_asset_key)
-	print("[IsoObjectAsset] object_id=%s object_type=%s fallback_profile=%s resolved_asset_key=%s resolved_path=%s used_png=%s used_svg_fallback=%s" % [
+	print("[IsoObjectAsset] object_id=%s object_type=%s map_constructor_prefab_id=%s visual_family=%s visual_state_policy=%s resolved_family=%s resolved_state=%s resolved_variant=%s resolved_asset_id=%s texture_path=%s texture_load_result=%s fallback_profile=%s used_png=%s used_svg_fallback=%s" % [
 		str(diagnostic.get("object_id", "")),
 		str(diagnostic.get("object_type", "")),
-		str(diagnostic.get("fallback_profile", "")),
+		str(diagnostic.get("map_constructor_prefab_id", "")),
+		str(diagnostic.get("visual_family", "")),
+		str(diagnostic.get("visual_state_policy", "")),
+		str(diagnostic.get("resolved_family", "")),
+		str(diagnostic.get("resolved_state", "")),
+		str(diagnostic.get("resolved_variant", "")),
 		str(diagnostic.get("resolved_asset_key", "")),
-		str(diagnostic.get("resolved_path", "")),
+		str(diagnostic.get("texture_path", "")),
+		str(diagnostic.get("texture_load_result", "")),
+		str(diagnostic.get("fallback_profile", "")),
 		str(diagnostic.get("used_png", false)),
 		str(diagnostic.get("used_svg_fallback", false))
 	])
@@ -4638,7 +4670,7 @@ func draw_iso_object_png_texture_asset(cell: Vector2i, asset_key: String, visual
 		return draw_wall_procedural_routed_object(cell, local_object_data, visual_center)
 	var texture: Texture2D = get_iso_object_png_texture_for_resolved_path(normalized_asset_key, texture_path)
 	if texture == null:
-		push_warning("[IsoObjectPNG] drawing missing fallback for visual_id=%s path=%s" % [normalized_asset_key, texture_path])
+		push_warning("[IsoObjectPNG] drawing missing fallback for visual_id=%s path=%s object_id=%s object_type=%s map_constructor_prefab_id=%s" % [normalized_asset_key, texture_path, str(local_object_data.get("id", local_object_data.get("object_id", ""))), str(local_object_data.get("object_type", local_object_data.get("type", ""))), str(local_object_data.get("map_constructor_prefab_id", ""))])
 		var fallback_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key_with_size(normalized_asset_key, visual_center, get_iso_asset_alignment_expected_size(normalized_asset_key))
 		draw_missing_iso_asset_debug_fallback(cell, normalized_asset_key, fallback_rect)
 		return true
@@ -5892,6 +5924,8 @@ func get_iso_object_visual_profiles() -> Dictionary:
 		"power_source": {"base": Color(0.25, 0.28, 0.2, 0.97), "accent": Color(0.95, 0.88, 0.34, 0.99), "outline": Color(0.14, 0.16, 0.1, 0.94), "label": "Power Source", "shape": "slab"},
 		"crate": {"base": Color(0.35, 0.23, 0.13, 0.97), "accent": Color(0.86, 0.62, 0.3, 0.99), "outline": Color(0.2, 0.12, 0.07, 0.94), "label": "Crate", "shape": "slab"},
 		"barrel": {"base": Color(0.2, 0.3, 0.34, 0.97), "accent": Color(0.57, 0.84, 0.92, 0.99), "outline": Color(0.1, 0.16, 0.19, 0.94), "label": "Barrel", "shape": "pillar"},
+		"vagus": {"base": Color(0.25, 0.12, 0.32, 0.97), "accent": Color(0.84, 0.38, 1.0, 0.99), "outline": Color(0.13, 0.06, 0.18, 0.94), "label": "Vagus", "shape": "pillar"},
+		"bug": {"base": Color(0.12, 0.32, 0.16, 0.97), "accent": Color(0.55, 0.95, 0.38, 0.99), "outline": Color(0.06, 0.18, 0.08, 0.94), "label": "Bug", "shape": "small_marker"},
 		"cable": {"base": Color(0.36, 0.04, 0.04, 0.95), "accent": Color(0.98, 0.12, 0.12, 0.99), "outline": Color(0.18, 0.02, 0.02, 0.92), "label": "Cable", "shape": "line"},
 		"generic_object": {"base": Color(0.24, 0.24, 0.28, 0.95), "accent": Color(0.78, 0.8, 0.9, 0.95), "outline": Color(0.14, 0.14, 0.17, 0.92), "label": "Generic Object", "shape": "small_marker"}
 	}
@@ -6930,7 +6964,10 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	# cables share one continuous visual language instead of falling back to the old
 	# per-cell cable icon/marker texture.
 	var used_texture_asset: bool = false
-	if profile_key != "cable":
+	var is_case_visual: bool = VisualStateAssetServiceRef.is_loot_case_object(object_data)
+	if is_case_visual:
+		used_texture_asset = draw_iso_object_png_texture_asset(cell, VisualStateAssetServiceRef.resolve_visual_asset_id(object_data), visual_center, object_data)
+	elif profile_key != "cable":
 		if is_iso_object_png_asset_key(object_asset_key):
 			used_texture_asset = draw_iso_object_png_texture_asset(cell, object_asset_key, visual_center, object_data)
 		else:
@@ -6942,6 +6979,8 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	if not used_texture_asset and has_terminal_visual:
 		used_texture_asset = draw_optional_visual_texture_asset(str(terminal_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
 	if used_texture_asset:
+		if is_case_visual:
+			return
 		draw_circle(visual_center + Vector2(0.0, -iso_object_marker_height - 8.0), 2.4, overlay_accent)
 		draw_line(
 			visual_center + Vector2(-4.0, -iso_object_marker_height - 3.0),
