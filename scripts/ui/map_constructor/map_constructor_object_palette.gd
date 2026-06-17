@@ -102,6 +102,8 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		catalog_by_id[ui._safe_ui_string(entry.get("id", ""))] = entry
 	var grouped_entries: Dictionary = {}
 	for group_name in ui.MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
+		if group_name == "Recent":
+			continue
 		grouped_entries[group_name] = []
 	var selected_visible: bool = false
 	for entry in catalog:
@@ -115,17 +117,6 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		var group_entries: Array = grouped_entries[group_name]
 		group_entries.append(entry)
 		grouped_entries[group_name] = group_entries
-	var favorite_entries: Array[Dictionary] = []
-	for favorite_id_variant in ui.map_constructor_prefab_favorites.keys():
-		var favorite_id: String = str(favorite_id_variant)
-		if not bool(ui.map_constructor_prefab_favorites.get(favorite_id, false)) or not catalog_by_id.has(favorite_id):
-			continue
-		var favorite_entry: Dictionary = ui._safe_ui_dictionary(catalog_by_id[favorite_id])
-		if ui._map_constructor_prefab_matches_filters(favorite_entry):
-			favorite_entries.append(favorite_entry)
-	favorite_entries.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return str(a.get("label", a.get("id", ""))) < str(b.get("label", b.get("id", "")) )
-	)
 	var recent_entries: Array[Dictionary] = []
 	for recent_id in ui.map_constructor_prefab_recent_ids:
 		if not catalog_by_id.has(recent_id):
@@ -134,7 +125,7 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		if ui._map_constructor_prefab_matches_filters(recent_entry):
 			recent_entries.append(recent_entry)
 	var visible_prefab_card_count: int = 0
-	for section in [{"name":"Favorites","entries":favorite_entries},{"name":"Recent","entries":recent_entries}]:
+	for section in [{"name":"Recent","entries":recent_entries}]:
 		var section_entries: Array = ui._safe_ui_array(section.get("entries", []))
 		if section_entries.is_empty():
 			continue
@@ -148,6 +139,8 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 			visible_prefab_card_count += 1
 			list.add_child(card)
 	for group_name in ui.MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER:
+		if group_name == "Recent":
+			continue
 		var entries: Array = grouped_entries[group_name]
 		if entries.is_empty():
 			continue
@@ -292,6 +285,9 @@ static func prefab_matches_category_filter(ui: Variant, prefab_id: String, categ
 
 static func get_prefab_group_name(ui: Variant, entry: Dictionary) -> String:
 	var prefab_id: String = ui._safe_ui_string(entry.get("id", ""))
+	var palette_group: String = ui._safe_ui_string(entry.get("palette_group", entry.get("constructor_group", "")))
+	if ui.MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER.has(palette_group) and palette_group != "Recent":
+		return palette_group
 	var category_text: String = ui._safe_ui_string(entry.get("category", ""))
 	var placement_mode: String = ui._safe_ui_string(entry.get("placement_mode", ""))
 	if placement_mode == "wall_mounted":
@@ -309,9 +305,19 @@ static func get_prefab_group_name(ui: Variant, entry: Dictionary) -> String:
 
 
 static func mark_prefab_recent(ui: Variant, prefab_id: String) -> void:
-	var normalized_id: String = prefab_id.strip_edges()
+	var normalized_id: String = prefab_id.strip_edges().to_lower()
 	if normalized_id.is_empty():
 		return
+	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_prefab_palette_rows"):
+		var rows_result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_prefab_palette_rows", {}))
+		var visible_ids: Dictionary = {}
+		for row_variant in ui._safe_ui_array(rows_result.get("rows", [])):
+			if row_variant is Dictionary:
+				var row_id: String = ui._safe_ui_string((row_variant as Dictionary).get("id", "")).strip_edges().to_lower()
+				if not row_id.is_empty():
+					visible_ids[row_id] = true
+		if not visible_ids.has(normalized_id):
+			return
 	ui.map_constructor_prefab_recent_ids.erase(normalized_id)
 	ui.map_constructor_prefab_recent_ids.push_front(normalized_id)
 	if ui.map_constructor_prefab_recent_ids.size() > ui.MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT:
@@ -344,7 +350,6 @@ static func select_prefab(ui: Variant, prefab_id: String) -> void:
 	ui.pending_map_constructor_cell = Vector2i(-1, -1)
 	ui._clear_map_constructor_pending_placement()
 	ui._clear_map_constructor_preview_cell()
-	mark_prefab_recent(ui, prefab_id)
 
 static func get_variant_string_list(ui: Variant, value: Variant) -> Array[String]:
 	var items: Array[String] = []
