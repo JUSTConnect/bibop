@@ -58,6 +58,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 @export var debug_draw_iso_object_outlines: bool = false
 @export var debug_log_iso_object_asset_resolution: bool = false
 @export var debug_log_wall_mounted_positioning: bool = false
+@export var debug_log_cable_object_bridges: bool = false
 @export var use_iso_tile_asset_hooks: bool = false
 @export var use_iso_placeholder_asset_preset: bool = false
 @export var iso_placeholder_asset_preset_requires_preview: bool = true
@@ -6519,6 +6520,67 @@ func draw_iso_cable_wall_segment(start: Vector2, end: Vector2, profile: Dictiona
 	_draw_iso_cable_polyline([start, end], profile)
 	draw_line(start + Vector2(0.0, 2.0), end + Vector2(0.0, 2.0), Color(0.0, 0.0, 0.0, 0.18), 2.0, true)
 
+func get_cable_bridge_network_id(object_data: Dictionary) -> String:
+	for key in ["power_network_id", "cable_network_id", "network_id", "connection_id", "circuit_id", "cable_chain_id", "power_circuit_id", "chain_id", "link_group", "cable_group", "connected_circuit"]:
+		var value: String = str(object_data.get(key, "")).strip_edges()
+		if not value.is_empty():
+			return value
+	return ""
+
+func is_power_cable_bridge_connectable_object(object_data: Dictionary) -> bool:
+	if CableTopologyServiceRef.is_cable_object(object_data) and not CableTopologyServiceRef.is_circuit_switch_object(object_data):
+		return false
+	if CableTopologyServiceRef.is_circuit_connectable_object(object_data):
+		return true
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", object_data.get("item_type", "")))).strip_edges().to_lower()
+	return object_type in ["power_source", "power_socket", "socket", "fuse_box", "power_switcher", "light_switcher", "light", "terminal"]
+
+func should_draw_object_cable_bridge(object_data: Dictionary, object_cell: Vector2i, cable_data: Dictionary, cable_cell: Vector2i) -> bool:
+	var delta: Vector2i = cable_cell - object_cell
+	if abs(delta.x) + abs(delta.y) != 1:
+		return false
+	if not bool(cable_data.get("has_cable", false)) and not CableTopologyServiceRef.is_cable_object(cable_data):
+		return false
+	if not is_power_cable_bridge_connectable_object(object_data):
+		return false
+	var object_network_id: String = get_cable_bridge_network_id(object_data)
+	var cable_network_id: String = get_cable_bridge_network_id(cable_data)
+	if cable_network_id.is_empty() and cable_data.has("objects"):
+		for cable_object_variant in Array(cable_data.get("objects", [])):
+			if not cable_object_variant is Dictionary:
+				continue
+			cable_network_id = get_cable_bridge_network_id(Dictionary(cable_object_variant))
+			if not cable_network_id.is_empty():
+				break
+	if object_network_id.is_empty() or cable_network_id.is_empty():
+		return false
+	return object_network_id == cable_network_id
+
+func get_cell_edge_bridge_points(from_cell: Vector2i, to_cell: Vector2i) -> Dictionary:
+	var from_center: Vector2 = grid_to_iso(from_cell) + Vector2(0.0, -4.0)
+	var to_center: Vector2 = grid_to_iso(to_cell) + Vector2(0.0, -4.0)
+	var shared_edge: Vector2 = from_center.lerp(to_center, 0.5)
+	return {
+		"from_center": from_center,
+		"from_edge_towards_to": shared_edge,
+		"to_edge_towards_from": shared_edge,
+		"to_center": to_center
+	}
+
+func draw_object_cable_bridge(object_data: Dictionary, object_cell: Vector2i, cable_data: Dictionary, cable_cell: Vector2i, profile: Dictionary) -> void:
+	var points: Dictionary = get_cell_edge_bridge_points(object_cell, cable_cell)
+	draw_iso_cable_mode_segment(Vector2(points.get("from_center", Vector2.ZERO)), Vector2(points.get("from_edge_towards_to", Vector2.ZERO)), profile)
+	draw_iso_cable_mode_segment(Vector2(points.get("to_center", Vector2.ZERO)), Vector2(points.get("to_edge_towards_from", Vector2.ZERO)), profile)
+	if debug_log_cable_object_bridges:
+		print("[CableObjectBridge] object_id=%s object_type=%s object_cell=%s cable_id=%s cable_cell=%s same_chain=true direction=%s" % [
+			str(object_data.get("id", object_data.get("object_id", ""))),
+			str(object_data.get("object_type", object_data.get("type", object_data.get("item_type", "")))),
+			str(object_cell),
+			str(cable_data.get("id", cable_data.get("object_id", cable_data.get("circuit_id", "")))),
+			str(cable_cell),
+			str(cable_cell - object_cell)
+		])
+
 func draw_iso_cable_damage_marker(center: Vector2, health_state: String, _profile: Dictionary = {}) -> void:
 	var state: String = health_state.strip_edges().to_lower()
 	if state not in ["damaged", "broken", "cut"]:
@@ -7387,6 +7449,45 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 			draw_entries.append(make_iso_object_draw_entry(cell, "item", ISO_LAYER_BIAS_ITEM, 0.0, fallback_payload))
 	return draw_entries
 
+func build_iso_cable_object_bridge_draw_entries() -> Array[Dictionary]:
+	var world_objects: Array[Dictionary] = _get_runtime_world_objects_for_iso_render(true)
+	var cable_cells: Dictionary = CableTopologyServiceRef.build_cable_cell_map(world_objects)
+	if cable_cells.is_empty():
+		return []
+	var draw_entries: Array[Dictionary] = []
+	var emitted_pairs: Dictionary = {}
+	var cardinal_deltas: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	for object_data in world_objects:
+		if not is_power_cable_bridge_connectable_object(object_data):
+			continue
+		var object_cell: Vector2i = CableTopologyServiceRef.get_object_link_cell(object_data)
+		if object_cell.x < 0 or object_cell.y < 0:
+			continue
+		if cable_cells.has(object_cell):
+			continue
+		for delta in cardinal_deltas:
+			var cable_cell: Vector2i = object_cell + delta
+			if not cable_cells.has(cable_cell):
+				continue
+			var cable_data: Dictionary = Dictionary(cable_cells.get(cable_cell, {}))
+			if not should_draw_object_cable_bridge(object_data, object_cell, cable_data, cable_cell):
+				continue
+			var pair_key: String = "%s:%s" % [str(object_data.get("id", object_data.get("object_id", object_cell))), str(cable_cell)]
+			if emitted_pairs.has(pair_key):
+				continue
+			emitted_pairs[pair_key] = true
+			var payload: Dictionary = {"object_data": object_data, "object_cell": object_cell, "cable_data": cable_data, "cable_cell": cable_cell}
+			draw_entries.append({
+				"cell": cable_cell,
+				"layer": "cable",
+				"layer_bias": ISO_LAYER_BIAS_CABLE - 0.02,
+				"kind": "cable_bridge",
+				"depth_key": minf(get_iso_floor_depth_key(object_cell), get_iso_floor_depth_key(cable_cell)),
+				"sub_order": -0.5,
+				"payload": payload
+			})
+	return draw_entries
+
 func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool, include_floors: bool = false) -> Array[Dictionary]:
 	var draw_entries: Array[Dictionary] = []
 	if include_floors:
@@ -7395,6 +7496,7 @@ func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool,
 	if include_walls:
 		draw_entries.append_array(build_iso_wall_draw_entries())
 	if include_objects:
+		draw_entries.append_array(build_iso_cable_object_bridge_draw_entries())
 		draw_entries.append_array(build_iso_object_draw_entries())
 	draw_entries.sort_custom(sort_iso_draw_entries)
 	return draw_entries
@@ -7426,6 +7528,16 @@ func draw_iso_draw_entry(entry: Dictionary) -> void:
 		# callback so asset alignment, breach overlays, caps, and tops stay intact;
 		# the command itself is sorted by wall foot/base Y with wall-body sub-order.
 		draw_iso_wall_block(cell)
+		return
+	if kind == "cable_bridge":
+		var bridge_payload: Dictionary = Dictionary(entry.get("payload", {}))
+		var object_cell_for_bridge: Vector2i = Vector2i(bridge_payload.get("object_cell", Vector2i(-1, -1)))
+		var cable_cell_for_bridge: Vector2i = Vector2i(bridge_payload.get("cable_cell", Vector2i(-1, -1)))
+		if object_cell_for_bridge.x < 0 or object_cell_for_bridge.y < 0 or cable_cell_for_bridge.x < 0 or cable_cell_for_bridge.y < 0:
+			return
+		var bridge_profile: Dictionary = get_iso_object_profile("cable")
+		bridge_profile["install_mode"] = "floor"
+		draw_object_cable_bridge(Dictionary(bridge_payload.get("object_data", {})), object_cell_for_bridge, Dictionary(bridge_payload.get("cable_data", {})), cable_cell_for_bridge, bridge_profile)
 		return
 	if kind == "object" or kind == "door" or kind == "wall_mounted" or kind == "cable":
 		var payload: Dictionary = Dictionary(entry.get("payload", {}))
