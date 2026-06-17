@@ -288,6 +288,13 @@ static func _has_true_power_flag(object_data: Dictionary) -> bool:
 			return true
 	return false
 
+static func _has_no_power_state(object_data: Dictionary) -> bool:
+	for key in ["power_state", "power_status", "power", "state", "status", "availability", "interaction_state"]:
+		var value: String = _normalized_text(object_data.get(key, ""))
+		if value in POWER_OFF_STATES:
+			return true
+	return _has_false_power_flag(object_data)
+
 static func _has_fuse(object_data: Dictionary) -> bool:
 	for key in ["has_fuse", "fuse_installed", "is_fuse_installed", "contains_fuse", "has_installed_fuse", "fuse_present", "inserted_fuse"]:
 		if object_data.has(key) and bool(object_data.get(key, false)):
@@ -411,7 +418,7 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 	if _is_power_socket_object(object_data, family):
 		return _resolve_power_socket_visual_state(object_data)
 	var power_state: String = _normalized_text(object_data.get("power_state", ""))
-	if power_state in POWER_OFF_STATES:
+	if _has_no_power_state(object_data):
 		return VISUAL_STATE_BASE
 	if _is_hard_unavailable_state(power_state):
 		return VISUAL_STATE_OFF
@@ -419,8 +426,6 @@ static func resolve_visual_state(object_data: Dictionary) -> String:
 		var value: String = _normalized_text(object_data.get(key, ""))
 		if _is_hard_unavailable_state(value):
 			return VISUAL_STATE_OFF
-	if _has_false_power_flag(object_data):
-		return VISUAL_STATE_BASE
 	if object_data.has("fan_enabled"):
 		return VISUAL_STATE_ON if bool(object_data.get("fan_enabled", false)) else VISUAL_STATE_OFF
 	if power_state in ACTIVE_STATES:
