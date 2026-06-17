@@ -16,6 +16,7 @@ const DEVICE_FUSE_BOX: String = "fuse_box"
 const DEVICE_POWER_SWITCHER: String = "power_switcher"
 const DEVICE_CHAIN_SWITCHER: String = "chain_switcher"
 const DEVICE_LIGHT_SWITCH: String = "light_switch"
+const DEVICE_LIGHT_SWITCHER: String = "light_switcher"
 const DEVICE_TERMINAL: String = "terminal"
 
 const HEIGHT_LOW: String = "low"
@@ -47,6 +48,7 @@ static func get_default_wall_mounted_kinds() -> Array[String]:
 		DEVICE_LIGHT,
 		DEVICE_CHAIN_SWITCHER,
 		DEVICE_LIGHT_SWITCH,
+		DEVICE_LIGHT_SWITCHER,
 		DEVICE_TERMINAL,
 		"external_air_duct",
 		"external_water_pipe",
@@ -90,7 +92,7 @@ static func infer_default_mount_height(object_data: Dictionary) -> String:
 			return HEIGHT_HIGH
 		DEVICE_POWER_SOCKET:
 			return HEIGHT_LOW
-		DEVICE_FUSE_BOX, DEVICE_POWER_SWITCHER, DEVICE_CHAIN_SWITCHER, DEVICE_LIGHT_SWITCH, DEVICE_TERMINAL:
+		DEVICE_FUSE_BOX, DEVICE_POWER_SWITCHER, DEVICE_CHAIN_SWITCHER, DEVICE_LIGHT_SWITCH, DEVICE_LIGHT_SWITCHER, DEVICE_TERMINAL:
 			return HEIGHT_MID
 		_:
 			return HEIGHT_UNSPECIFIED
@@ -156,7 +158,7 @@ static func build_placement_payload(object_data: Dictionary, wall_cell_data: Dic
 static func build_interaction_payload(object_data: Dictionary, approach_direction: Vector2i) -> Dictionary:
 	var normalized_object: Dictionary = normalize_wall_mounted_object(object_data)
 	var object_type: String = str(normalized_object.get("object_type", normalized_object.get("device_kind", normalized_object.get("kind", "")))).strip_edges().to_lower()
-	if object_type in [DEVICE_FUSE_BOX, DEVICE_POWER_SWITCHER, DEVICE_POWER_SOCKET]:
+	if object_type in [DEVICE_FUSE_BOX, DEVICE_POWER_SWITCHER, DEVICE_POWER_SOCKET, DEVICE_LIGHT_SWITCHER]:
 		return {
 			"can_interact": true,
 			"message": "Interaction available.",
@@ -183,6 +185,7 @@ static func get_wall_mounted_dropdown_options() -> Array[Dictionary]:
 		{"id": DEVICE_POWER_SWITCHER, "label": "Power Switcher"},
 		{"id": DEVICE_CHAIN_SWITCHER, "label": "Chain Switcher"},
 		{"id": DEVICE_LIGHT_SWITCH, "label": "Light Switch"},
+		{"id": DEVICE_LIGHT_SWITCHER, "label": "Light Switcher"},
 		{"id": DEVICE_TERMINAL, "label": "Terminal"},
 		{"id": "air_duct", "label": "Air Duct"},
 		{"id": "water_pipe", "label": "Water Pipe"}
