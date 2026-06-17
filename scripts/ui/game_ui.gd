@@ -9665,6 +9665,9 @@ func _make_runtime_selected_interaction_target(target_object: Dictionary, source
 		"object_type": object_type,
 		"source": source
 	}
+	var action_id: String = _safe_ui_string(target_object.get("action_id", "")).strip_edges().to_lower()
+	if not action_id.is_empty():
+		target["action_id"] = action_id
 	var wall_side: String = _safe_ui_string(target_object.get("wall_side", target_object.get("breach_side", target_object.get("facing_side", "")))).strip_edges()
 	if not wall_side.is_empty():
 		target["wall_side"] = wall_side
