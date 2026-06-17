@@ -550,6 +550,14 @@ func _get_map_constructor_entity_inspection_tab_id(entity_kind: String, data: Di
 	return "objects"
 
 
+
+
+func _is_map_constructor_item_like_data(data: Dictionary) -> bool:
+	var object_group: String = str(data.get("object_group", data.get("group", ""))).to_lower().strip_edges()
+	var object_type: String = str(data.get("object_type", "")).to_lower().strip_edges()
+	var placement_mode: String = str(data.get("placement_mode", "")).to_lower().strip_edges()
+	return object_group == "item" or object_type == "item" or placement_mode == "item"
+
 func _append_map_constructor_cell_inspection_entity(tabs_by_id: Dictionary, tab_id: String, entity_kind: String, entity_id: String, cell: Vector2i, data: Dictionary) -> void:
 	if not tabs_by_id.has(tab_id):
 		return
@@ -600,7 +608,11 @@ func get_map_constructor_cell_inspection_model(cell: Vector2i, preferred_entity_
 		if not matches_cell:
 			continue
 		var object_id: String = str(object_data.get("id", ""))
-		_append_map_constructor_cell_inspection_entity(tabs_by_id, _get_map_constructor_entity_inspection_tab_id("world_object", object_data), "world_object", object_id, object_cell if object_cell.x >= 0 and object_cell.y >= 0 else cell, manager._normalize_map_constructor_active_object_fields(object_data))
+		var normalized_object_data: Dictionary = manager._normalize_map_constructor_active_object_fields(object_data)
+		if _is_map_constructor_item_like_data(normalized_object_data):
+			_append_map_constructor_cell_inspection_entity(tabs_by_id, "items", "item", object_id, object_cell if object_cell.x >= 0 and object_cell.y >= 0 else cell, normalized_object_data)
+			continue
+		_append_map_constructor_cell_inspection_entity(tabs_by_id, _get_map_constructor_entity_inspection_tab_id("world_object", normalized_object_data), "world_object", object_id, object_cell if object_cell.x >= 0 and object_cell.y >= 0 else cell, normalized_object_data)
 	for cell_variant in manager.cell_items.keys():
 		var item_cell: Vector2i = Vector2i(cell_variant)
 		if item_cell != cell:
@@ -619,6 +631,8 @@ func get_map_constructor_cell_inspection_model(cell: Vector2i, preferred_entity_
 		if tab_id == "floor" or not Array(resolved_tab.get("entities", [])).is_empty():
 			present_tabs.append(resolved_tab)
 	var preferred_tab: String = "floor"
+	if preferred_entity_kind == "item" and not Array(Dictionary(tabs_by_id.get("items", {})).get("entities", [])).is_empty():
+		preferred_tab = "items"
 	if not preferred_entity_id.is_empty():
 		var preferred_entity: Dictionary = get_map_constructor_entity_by_id(preferred_entity_kind, preferred_entity_id)
 		if bool(preferred_entity.get("ok", false)):
