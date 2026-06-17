@@ -5110,7 +5110,8 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
 		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string","mount":"string","switch_state":"string","switcher_type":"string","light_group_id":"string","light_enabled":"bool","target_light_ids":"array_string","linked_light_ids":"array_string","active_line_id":"string","switcher_lines":"array_dictionary","line_1_label":"string","line_1_direction":"string","line_1_color_id":"string","line_1_circuit_id":"string","line_2_label":"string","line_2_direction":"string","line_2_color_id":"string","line_2_circuit_id":"string","line_3_label":"string","line_3_direction":"string","line_3_color_id":"string","line_3_circuit_id":"string","fuse_present":"bool","variant":"string",
 		"platform_mode":"string","platform_level":"int","max_level":"int","mechanism_id":"string","mechanism_role":"string","activation_mode":"string","activation_delay_turns":"int","control_cell_x":"int","control_cell_y":"int",
-		"route_mode":"string","cooling_contour_mode":"string","cooling_contour_id":"string","cooling_contour_member_ids":"array_string","wall_side_1":"string","wall_side_2":"string"
+		"route_mode":"string","cooling_contour_mode":"string","cooling_contour_id":"string","cooling_contour_member_ids":"array_string","wall_side_1":"string","wall_side_2":"string",
+		"bipob_type":"string","bipob_status":"string","bipob_alignment":"string","chassis_type":"string","visor_type":"string","loadout_profile":"string"
 	}
 
 
@@ -5178,6 +5179,20 @@ func get_map_constructor_editable_fields_for_entity(entity_id: String, entity_ki
 	schema["mirror_visual_for_facing_side"] = "bool"
 	if resolved_kind == "world_object":
 		schema["wall_routing_mode"] = "string"
+		for archetype_field_variant in WorldObjectCatalogRef.get_archetype_property_schema(str(data.get("archetype_id", ""))):
+			var archetype_field: Dictionary = Dictionary(archetype_field_variant)
+			var archetype_field_name: String = str(archetype_field.get("field", "")).strip_edges()
+			if archetype_field_name.is_empty():
+				continue
+			var archetype_field_type: String = str(archetype_field.get("type", "string")).strip_edges()
+			if archetype_field_type in ["enum", "string"]:
+				schema[archetype_field_name] = "string"
+			elif archetype_field_type == "bool":
+				schema[archetype_field_name] = "bool"
+			elif archetype_field_type == "int":
+				schema[archetype_field_name] = "int"
+			elif archetype_field_type in ["enum_array", "object_ref_array"]:
+				schema[archetype_field_name] = "array_string"
 
 	for field_name_variant in schema.keys():
 		var field_name: String = str(field_name_variant)
