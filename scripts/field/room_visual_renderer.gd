@@ -1127,6 +1127,7 @@ const ISO_LAYER_BIAS_OVERLAY: float = 1.0
 
 const ISO_DRAW_SUB_ORDER_FLOOR: float = 0.0
 const ISO_DRAW_SUB_ORDER_GROUND: float = 0.02
+const ISO_DRAW_SUB_ORDER_PLATFORM_SURFACE: float = 0.05
 const ISO_DRAW_SUB_ORDER_CABLE: float = 0.08
 const ISO_DRAW_SUB_ORDER_ITEM: float = 0.14
 const ISO_DRAW_SUB_ORDER_DOOR: float = 0.22
@@ -1879,11 +1880,69 @@ func draw_platform_floor_visual_for_cell(cell: Vector2i, platform_data: Dictiona
 	return true
 
 func get_platform_data_for_floor_cell(cell: Vector2i) -> Dictionary:
+	return _get_platform_data_for_cell(cell)
+
+func _get_platform_data_for_cell(cell: Vector2i) -> Dictionary:
 	var mission_manager: Node = get_mission_manager_ref()
-	if mission_manager == null or not mission_manager.has_method("get_world_object_at_cell"):
+	if mission_manager == null:
 		return {}
-	var object_data: Dictionary = Dictionary(mission_manager.call("get_world_object_at_cell", cell))
-	return object_data if PlatformTypesRef.is_platform_data(object_data) else {}
+	for object_variant in Array(mission_manager.get("mission_world_objects")):
+		if not (object_variant is Dictionary):
+			continue
+		var object_data: Dictionary = Dictionary(object_variant)
+		if not PlatformTypesRef.is_platform_data(object_data):
+			continue
+		for platform_cell_variant in Array(object_data.get("platform_cells", [object_data.get("position", Vector2i(-1, -1))])):
+			if _try_parse_cell_variant(platform_cell_variant, Vector2i(-1, -1)) == cell:
+				return object_data
+		if _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1)) == cell:
+			return object_data
+	return {}
+
+func _get_platform_visual_y_offset_for_cell(cell: Vector2i) -> float:
+	var platform_data: Dictionary = _get_platform_data_for_cell(cell)
+	if platform_data.is_empty():
+		return 0.0
+	var ground_asset_key: String = get_ground_asset_key_for_cell(cell)
+	var ground_y_offset: float = get_ground_surface_y_offset_for_asset_key(ground_asset_key)
+	var descriptor: Dictionary = PlatformVisualServiceRef.get_platform_draw_descriptor(platform_data)
+	return ground_y_offset + float(descriptor.get("visual_y_offset", 0.0))
+
+func _with_platform_visual_surface_context(object_data: Dictionary, cell: Vector2i) -> Dictionary:
+	if object_data.is_empty() or PlatformTypesRef.is_platform_data(object_data):
+		return object_data
+	var platform_data: Dictionary = _get_platform_data_for_cell(cell)
+	if platform_data.is_empty():
+		return object_data
+	var enriched: Dictionary = object_data.duplicate(true)
+	if bool(enriched.get("on_platform", false)) or not str(enriched.get("platform_id", enriched.get("carried_by_platform_id", ""))).strip_edges().is_empty() or _try_parse_cell_variant(enriched.get("platform_cell", cell), cell) == cell:
+		var descriptor: Dictionary = PlatformVisualServiceRef.get_platform_draw_descriptor(platform_data)
+		enriched["explicit_surface_y_offset"] = _get_platform_visual_y_offset_for_cell(cell)
+		enriched["platform_height_level"] = int(round(float(descriptor.get("visual_level", enriched.get("platform_height_level", 0)))))
+	return enriched
+
+func _get_platform_occupants_for_cell(cell: Vector2i) -> Array[Dictionary]:
+	var occupants: Array[Dictionary] = []
+	var mission_manager: Node = get_mission_manager_ref()
+	if mission_manager == null:
+		return occupants
+	var platform_data: Dictionary = _get_platform_data_for_cell(cell)
+	if platform_data.is_empty():
+		return occupants
+	var platform_id: String = str(platform_data.get("platform_id", platform_data.get("id", ""))).strip_edges()
+	for object_variant in Array(mission_manager.get("mission_world_objects")):
+		if not (object_variant is Dictionary):
+			continue
+		var object_data: Dictionary = Dictionary(object_variant)
+		if object_data.is_empty() or PlatformTypesRef.is_platform_data(object_data):
+			continue
+		if _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1)) != cell:
+			continue
+		var object_platform_id: String = str(object_data.get("platform_id", object_data.get("carried_by_platform_id", ""))).strip_edges()
+		var object_platform_cell: Vector2i = _try_parse_cell_variant(object_data.get("platform_cell", cell), cell)
+		if bool(object_data.get("on_platform", false)) or (not platform_id.is_empty() and object_platform_id == platform_id) or object_platform_cell == cell:
+			occupants.append(_with_platform_visual_surface_context(object_data, cell))
+	return occupants
 
 func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
 	return normalize_wall_asset_key(profile_key)
@@ -5871,11 +5930,6 @@ func draw_iso_floor_cell(cell: Vector2i, tile_type: int) -> void:
 	var surface_y_offset: float = get_ground_surface_y_offset_for_asset_key(ground_asset_key)
 	if not ground_asset_key.is_empty():
 		draw_iso_ground_asset_texture_for_cell(cell, ground_asset_key)
-	var platform_data: Dictionary = get_platform_data_for_floor_cell(cell)
-	if draw_platform_floor_visual_for_cell(cell, platform_data, surface_y_offset):
-		if debug_floor_tile_bounds:
-			draw_floor_tile_bounds_debug(cell)
-		return
 	if use_procedural_floor_debug_tiles:
 		draw_procedural_floor_debug_tile(cell, fill_color)
 		return
@@ -7139,6 +7193,31 @@ func build_iso_wall_draw_entries() -> Array[Dictionary]:
 			})
 	return wall_entries
 
+func build_iso_platform_surface_draw_entries() -> Array[Dictionary]:
+	if _grid_manager == null:
+		return []
+	var map_width: int = _grid_manager.get_map_width()
+	var map_height: int = _grid_manager.get_map_height()
+	if map_width <= 0 or map_height <= 0:
+		return []
+
+	var platform_entries: Array[Dictionary] = []
+	for y in range(map_height):
+		for x in range(map_width):
+			var cell: Vector2i = Vector2i(x, y)
+			var platform_data: Dictionary = _get_platform_data_for_cell(cell)
+			if platform_data.is_empty():
+				continue
+			platform_entries.append({
+				"cell": cell,
+				"layer": "platform_surface",
+				"kind": "platform_surface",
+				"depth_key": get_iso_floor_depth_key(cell),
+				"sub_order": ISO_DRAW_SUB_ORDER_PLATFORM_SURFACE,
+				"payload": {"platform_data": platform_data}
+			})
+	return platform_entries
+
 func _get_runtime_items_for_cell(cell: Vector2i) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var mission_manager: Node = get_mission_manager_ref()
@@ -7256,6 +7335,9 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 			var has_runtime_door_object_on_door_tile: bool = false
 			for object_index in range(runtime_objects.size()):
 				var object_data: Dictionary = Dictionary(runtime_objects[object_index])
+				if PlatformTypesRef.is_platform_data(object_data):
+					continue
+				object_data = _with_platform_visual_surface_context(object_data, cell)
 				var object_profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "generic_object")
 				var layer_name: String = "wall_mounted" if is_wall_mounted_runtime_object(object_data) or is_wall_procedural_routed_object(object_data) else ("cable" if CableTopologyServiceRef.is_cable_object(object_data) else ("terminal" if is_terminal_like_profile(object_profile_key) else "item"))
 				var layer_bias: float = ISO_LAYER_BIAS_WALL_MOUNTED if layer_name == "wall_mounted" else (ISO_LAYER_BIAS_CABLE if layer_name == "cable" else (ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM))
@@ -7280,6 +7362,7 @@ func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool,
 	var draw_entries: Array[Dictionary] = []
 	if include_floors:
 		draw_entries.append_array(build_iso_floor_draw_entries())
+		draw_entries.append_array(build_iso_platform_surface_draw_entries())
 	if include_walls:
 		draw_entries.append_array(build_iso_wall_draw_entries())
 	if include_objects:
@@ -7296,6 +7379,15 @@ func draw_iso_draw_entry(entry: Dictionary) -> void:
 		var floor_payload: Dictionary = Dictionary(entry.get("payload", {}))
 		var floor_tile_type: int = int(floor_payload.get("tile_type", _grid_manager.get_tile(floor_cell)))
 		draw_iso_floor_cell(floor_cell, floor_tile_type)
+		return
+	if kind == "platform_surface":
+		var platform_cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
+		if platform_cell.x < 0 or platform_cell.y < 0:
+			return
+		var platform_payload: Dictionary = Dictionary(entry.get("payload", {}))
+		var ground_asset_key: String = get_ground_asset_key_for_cell(platform_cell)
+		var surface_y_offset: float = get_ground_surface_y_offset_for_asset_key(ground_asset_key)
+		draw_platform_floor_visual_for_cell(platform_cell, Dictionary(platform_payload.get("platform_data", {})), surface_y_offset)
 		return
 	if kind == "wall" or kind == "wall_body" or kind == "wall_top":
 		var cell: Vector2i = Vector2i(entry.get("cell", Vector2i(-1, -1)))
