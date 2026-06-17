@@ -36,7 +36,7 @@ static func _first_text(object_data: Dictionary, keys: Array[String], fallback: 
 
 static func _identity_blob(object_data: Dictionary) -> String:
 	var parts: Array[String] = []
-	for key in ["object_type", "type", "archetype_id", "catalog_id", "prefab", "prefab_id", "map_constructor_prefab_id", "id", "object_id", "visual_family", "visual_asset_family"]:
+	for key in ["object_type", "type", "archetype_id", "catalog_id", "prefab", "prefab_id", "map_constructor_prefab_id", "id", "object_id", "visual_family", "visual_asset_family", "visual_asset_id", "visual_texture_asset_id", "texture_asset_id", "asset_id"]:
 		parts.append(_normalized_text(object_data.get(key, "")))
 	var blob: String = ""
 	for part in parts:
@@ -185,7 +185,13 @@ static func is_light_object(object_data: Dictionary) -> bool:
 		return false
 	return blob.contains("light")
 
+static func is_loot_case_object(object_data: Dictionary) -> bool:
+	var blob: String = _identity_blob(object_data)
+	return blob.contains("case") or blob.contains("loot_case") or blob.contains("loot_crate")
+
 static func object_uses_visual_states(object_data: Dictionary) -> bool:
+	if is_loot_case_object(object_data):
+		return true
 	var policy: String = _normalized_text(object_data.get("visual_state_policy", ""))
 	for key in ["visual_family", "visual_asset_family"]:
 		var family: String = _normalized_text(object_data.get(key, ""))
@@ -211,6 +217,8 @@ static func get_visual_family(object_data: Dictionary) -> String:
 	var family: String = _first_text(object_data, ["visual_family", "visual_asset_family"])
 	if not family.is_empty():
 		return family
+	if is_loot_case_object(object_data):
+		return "case"
 	if is_light_object(object_data):
 		return "light"
 	return _first_text(object_data, ["object_type", "type"], "object")
@@ -498,7 +506,9 @@ static func _fallback_state_order(state: String) -> Array[String]:
 		return [VISUAL_STATE_ON, VISUAL_STATE_OFF, VISUAL_STATE_BASE]
 	if normalized_state == VISUAL_STATE_OFF:
 		return [VISUAL_STATE_OFF, VISUAL_STATE_BASE]
-	return [VISUAL_STATE_BASE]
+	if normalized_state.is_empty() or normalized_state == VISUAL_STATE_BASE:
+		return [VISUAL_STATE_BASE]
+	return [normalized_state, VISUAL_STATE_BASE]
 
 static func resolve_visual_asset_id(object_data: Dictionary) -> String:
 	if not object_uses_visual_states(object_data):
