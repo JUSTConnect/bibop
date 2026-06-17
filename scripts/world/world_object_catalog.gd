@@ -115,6 +115,8 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"case_class3": {"locked":false, "loot_class":"class3", "case_loot_state":"unsearched", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
 	"case_not_empty": {"locked":false, "opened":true, "searched":true, "remaining_loot_count":1, "case_loot_state":"partially_looted", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
 	"case_empty": {"locked":false, "opened":true, "searched":true, "remaining_loot_count":0, "case_loot_state":"empty", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"vagus": {"enemy_type":"vagus", "enemy_kind":"vagus"},
+	"bug": {"enemy_type":"bug", "enemy_kind":"bug"},
 	"light_switch": {"switcher_type":"light_switcher"},
 	"circuit_breaker": {"switcher_type":"power_breaker", "is_on":true, "switch_state":"on", "state":"switch_on"},
 	"power_switch": {"switcher_type":"power_breaker"},
@@ -411,6 +413,15 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"loadout_profile", "type":"enum", "values":["none", "light", "utility", "heavy"], "default":"none", "labels":{"none":"None", "light":"Light", "utility":"Utility", "heavy":"Heavy"}, "tab":"Bipob"}
 		]
 	},
+
+	"enemy": {
+		"archetype_id":"enemy", "object_group":"enemy", "object_type":"enemy", "palette_label":"Enemies",
+		"placement_mode":"object", "display_name_template":"{enemy_type_label}", "configurable":true, "interactable":false,
+		"blocks_movement":true, "blocks_vision":false, "enemy_type":"vagus", "enemy_kind":"vagus",
+		"property_schema":[
+			{"field":"enemy_type", "type":"enum", "values":["vagus", "bug"], "default":"vagus", "labels":{"vagus":"Vagus", "bug":"Bug"}}
+		]
+	},
 	"station": {
 		"archetype_id":"station", "object_group":"station", "object_type":"station", "palette_label":"Station",
 		"placement_mode":"object", "display_name_template":"{station_type_label} Station", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
@@ -640,6 +651,7 @@ static func mark_legacy_source(object_data: Dictionary, source_id: String) -> Di
 	data["source_prefab_id"] = normalized_source_id
 	if is_legacy_prefab_alias(normalized_source_id):
 		data["legacy_prefab_id"] = normalized_source_id
+		data["map_constructor_prefab_id"] = normalized_source_id
 	return data
 
 static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictionary:
@@ -818,8 +830,8 @@ const OBJECT_LIBRARY := {
 	"normal_crate": {"group":"physical_object","name":"Normal Crate","weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"heavy_crate": {"group":"physical_object","name":"Heavy Crate","placeable_in_constructor":false,"weight_class":"heavy","required_bipob_power_class":"engineer","durability":14,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"movable_platform_block": {"group":"physical_object","name":"Movable Platform Block","weight_class":"block","required_bipob_power_class":"juggernaut","durability":20,"blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"disabled_bipop_scout": {"group":"physical_object","name":"Disabled Bipop Scout","weight_class":"normal","required_bipob_power_class":"scout","durability":10},"disabled_bipop_engineer": {"group":"physical_object","name":"Disabled Bipop Engineer","weight_class":"heavy","required_bipob_power_class":"engineer","durability":15},"disabled_bipop_juggernaut": {"group":"physical_object","name":"Disabled Bipop Juggernaut","weight_class":"block","required_bipob_power_class":"juggernaut","durability":25},"legacy_barrel_library": {"group":"physical_object","name":"Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"explosive_barrel": {"group":"physical_object","name":"Explosive Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":6,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"on_destroy":"explode"},"debris": {"group":"physical_object","name":"Debris","weight_class":"normal","required_bipob_power_class":"scout","durability":1,"blocks_movement":false,"terrain_tag":"debris","movement_debuff":-1},
 	"enemy_robot": {"group":"threat","name":"Enemy Robot","state":"active","behavior_state":"patrolling","durability":20,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_light"],"heat_signature":true,"magnetic":true,"drain_energy_pool":20,"drained_this_turn":false,"detection_range":3,"vision_range":3,"radar_range":3,"thermal_range":0,"detection_modes":["vision","radar"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":5,"drops":["parts_medium"],"on_destroy":["drop_items","debris"]},
 	"turret": {"group":"threat","name":"Turret","state":"active","behavior_state":"idle","durability":15,"blocks_movement":true,"blocks_vision":false,"power_mode":"external_power","power_network_id":"power_net_A","is_powered":true,"control_mode":"external_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_light"],"heat_signature":true,"magnetic":true,"drain_energy_pool":15,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":0,"thermal_range":4,"detection_modes":["vision","thermal"],"detection_shape":"cardinal","detection_cone_enabled":false,"detection_direction":"forward","attack_range":4,"attack_damage":4,"can_be_controlled_by_terminal":true,"required_processor_level":1,"drops":["parts_medium"],"on_destroy":["drop_items","debris"]},
-	"bug": {"group":"threat","name":"Bug","state":"active","behavior_state":"patrolling","durability":8,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["organic"],"heat_signature":true,"magnetic":false,"drain_energy_pool":5,"drained_this_turn":false,"detection_range":2,"vision_range":2,"radar_range":0,"thermal_range":0,"detection_modes":["vision"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":2,"drops":["sample","parts_small"],"on_destroy":["drop_items"]},
-	"vagus": {"group":"threat","name":"Vagus","state":"active","behavior_state":"idle","durability":30,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_heavy"],"heat_signature":true,"magnetic":true,"drain_energy_pool":30,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":4,"thermal_range":4,"detection_modes":["vision","radar","thermal"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":2,"attack_damage":7,"drops":["mission_item","parts_large"],"on_destroy":["drop_items","debris"]}
+	"bug": {"group":"threat","name":"Bug","show_in_palette":false,"state":"active","behavior_state":"patrolling","durability":8,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["organic"],"heat_signature":true,"magnetic":false,"drain_energy_pool":5,"drained_this_turn":false,"detection_range":2,"vision_range":2,"radar_range":0,"thermal_range":0,"detection_modes":["vision"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":2,"drops":["sample","parts_small"],"on_destroy":["drop_items"]},
+	"vagus": {"group":"threat","name":"Vagus","show_in_palette":false,"state":"active","behavior_state":"idle","durability":30,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_heavy"],"heat_signature":true,"magnetic":true,"drain_energy_pool":30,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":4,"thermal_range":4,"detection_modes":["vision","radar","thermal"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":2,"attack_damage":7,"drops":["mission_item","parts_large"],"on_destroy":["drop_items","debris"]}
 }
 
 static func _safe_string(value: Variant, fallback: String = "") -> String:
@@ -1275,6 +1287,21 @@ static func resolve_facing_side_from_object_data(object_data: Dictionary) -> Str
 			return FACING_SIDE_SW
 	return FACING_SIDE_SW
 
+static func normalize_enemy_contract(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var source_type: String = _normalized_contract_token(data.get("map_constructor_prefab_id", data.get("object_type", "")))
+	if source_type in ["vagus", "bug"]:
+		data["enemy_type"] = source_type
+	var enemy_type: String = _normalized_contract_token(data.get("enemy_type", data.get("enemy_kind", "vagus")))
+	if enemy_type not in ["vagus", "bug"]:
+		enemy_type = "vagus"
+	data["archetype_id"] = "enemy"
+	data["object_group"] = "enemy"
+	data["object_type"] = "enemy"
+	data["enemy_type"] = enemy_type
+	data["enemy_kind"] = enemy_type
+	return data
+
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = canonicalize_legacy_object_data(object_data)
 	if data.is_empty():
@@ -1290,6 +1317,8 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
 	data = normalize_archetype_object(data)
+	if _normalized_contract_token(data.get("object_type", "")) == "enemy" or _normalized_contract_token(data.get("archetype_id", "")) == "enemy":
+		data = normalize_enemy_contract(data)
 	data = normalize_bipob_config_fields(data)
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
@@ -1779,6 +1808,8 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 		var key: String = str(key_variant)
 		if not data.has(key):
 			data[key] = _schema_defaults(archetype_id)[key]
+	if archetype_id == "enemy":
+		data = normalize_enemy_contract(data)
 	if archetype_id == "wall":
 		data["material"] = _normalize_wall_material(data.get("material", WALL_MATERIAL_BRICK))
 		var breachable_by_material: bool = BREACHABLE_WALL_MATERIALS.has(str(data.get("material", "")))
