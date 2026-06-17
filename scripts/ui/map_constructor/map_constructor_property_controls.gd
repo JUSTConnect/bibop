@@ -35,7 +35,7 @@ static func is_link_field(field_name: String, row: Dictionary) -> bool:
 		return true
 	return normalized.ends_with("_ids") or (normalized.ends_with("_id") and not is_internal_id_field(normalized))
 
-static func should_hide_raw_field_from_normal_ui(field_name: String, row: Dictionary) -> bool:
+static func should_hide_raw_field_from_normal_ui(field_name: String, _row: Dictionary) -> bool:
 	if is_internal_id_field(field_name):
 		return true
 	return false
