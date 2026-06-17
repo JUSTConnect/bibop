@@ -266,10 +266,13 @@ static func resolve_visual_variant(object_data: Dictionary) -> String:
 	var family: String = get_visual_family(object_data)
 	var config: Dictionary = get_visual_state_family_config(family)
 	var fallback: String = _configured_default_variant(family)
+	var policy: String = _normalized_text(config.get("variant_policy", object_data.get("variant_policy", "")))
+	if policy == "airflow_direction":
+		var mapping: Dictionary = resolve_direction_variant_mapping(config, get_logical_visual_variant(object_data, config)) if not config.is_empty() else {}
+		return str(mapping.get("source_variant", fallback))
 	var explicit_variant: String = _first_text(object_data, ["visual_variant", "visual_pose", "variant", "pose"])
 	if not explicit_variant.is_empty():
 		return explicit_variant
-	var policy: String = _normalized_text(config.get("variant_policy", object_data.get("variant_policy", "")))
 	if policy == "door_pose":
 		return _resolve_door_pose_variant(object_data, fallback)
 	if policy == "fuse_presence":
