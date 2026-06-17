@@ -430,7 +430,7 @@ const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(110, 74)
 const MENU_TOP_BUTTON_HEIGHT := 56
 const BOX_TOP_BUTTON_HEIGHT := 56.0
 const MENU_BACK_BUTTON_SIZE: Vector2 = Vector2(120, 56)
-const PROGRAMMER_BACK_BUTTON_MIN_SIZE: Vector2 = Vector2(120, MENU_TOP_BUTTON_HEIGHT)
+const PROGRAMMER_BACK_BUTTON_MIN_SIZE: Vector2 = Vector2(120, 64)
 const REPAIR_BIPOB_CARD_SIZE: Vector2 = Vector2(120, 56)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
 const MODULE_TYPE_ICON_BASE_PATH: String = "res://assets/visual/isometric/icons/modules/base_icon_inext.webp"
@@ -7746,6 +7746,14 @@ func _set_menu_top_button_height(button: Button) -> void:
 		return
 	button.custom_minimum_size.y = MENU_TOP_BUTTON_HEIGHT
 
+func _configure_programmer_back_button(button: Button) -> void:
+	if button == null:
+		return
+	button.text = "Back\nMenu"
+	button.custom_minimum_size = PROGRAMMER_BACK_BUTTON_MIN_SIZE
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	button.clip_text = false
+
 func _build_mission_result_data(success: bool, mission_index: int = -1) -> Dictionary:
 	var resolved_index: int = mission_index if mission_index > 0 else _get_current_mission_index_safe()
 	var turns_used: int = _get_turns_used_safe()
@@ -8755,7 +8763,9 @@ func show_programmer_menu() -> void:
 	var top_spacer: Control = Control.new()
 	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(top_spacer)
-	top_row.add_child(_create_menu_button("Back", Callable(self, "_on_programmer_back_pressed"), PROGRAMMER_BACK_BUTTON_MIN_SIZE))
+	var programmer_back_button := _create_menu_button("Back", Callable(self, "_on_programmer_back_pressed"), PROGRAMMER_BACK_BUTTON_MIN_SIZE)
+	_configure_programmer_back_button(programmer_back_button)
+	top_row.add_child(programmer_back_button)
 	programmer_message_label = Label.new()
 	programmer_message_label.text = "Manage files and bipobs."
 	programmer_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
