@@ -495,6 +495,46 @@ static func _find_tab_index_by_id(tabs: Array, tab_id: String) -> int:
 	return -1
 
 
+
+
+static func _is_item_like_inspection_entity(entity: Dictionary) -> bool:
+	if str(entity.get("entity_kind", "")) == "item":
+		return true
+	var data: Dictionary = Dictionary(entity.get("data", {}))
+	var object_group: String = str(data.get("object_group", data.get("group", ""))).to_lower().strip_edges()
+	var object_type: String = str(data.get("object_type", "")).to_lower().strip_edges()
+	var placement_mode: String = str(data.get("placement_mode", "")).to_lower().strip_edges()
+	return object_group == "item" or object_type == "item" or placement_mode == "item"
+
+
+static func _filter_inspection_tabs(ui: Variant, tabs: Array) -> Array:
+	var filtered: Array = []
+	for tab_variant in tabs:
+		var tab: Dictionary = Dictionary(tab_variant).duplicate(true)
+		var tab_id: String = ui._safe_ui_string(tab.get("id", "")).to_lower().strip_edges()
+		var tab_title: String = ui._safe_ui_string(tab.get("title", "")).to_lower().strip_edges()
+		var entities: Array = Array(tab.get("entities", []))
+		if tab_id == "objects" or tab_title == "objects":
+			var real_object_entities: Array = []
+			for entity_variant in entities:
+				var entity: Dictionary = Dictionary(entity_variant)
+				if str(entity.get("entity_kind", "")) == "world_object" and not _is_item_like_inspection_entity(entity):
+					real_object_entities.append(entity)
+			if real_object_entities.is_empty():
+				continue
+			tab["entities"] = real_object_entities
+		elif tab_id == "items" or tab_title == "items":
+			var item_entities: Array = []
+			for entity_variant in entities:
+				var entity: Dictionary = Dictionary(entity_variant)
+				if str(entity.get("entity_kind", "")) == "item":
+					item_entities.append(entity)
+			if item_entities.is_empty():
+				continue
+			tab["entities"] = item_entities
+		filtered.append(tab)
+	return filtered
+
 static func _choose_preferred_tab_id(ui: Variant, tabs: Array, model_preferred_tab: String, preferred_entity_kind: String, preferred_entity_id: String) -> String:
 	var remembered_tab: String = ui._safe_ui_string(ui.map_constructor_active_inspector_tab_id, "")
 
@@ -930,7 +970,7 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 		return
 	var selected_cell: Vector2i = ui._safe_ui_vector2i(model.get("cell", cell))
 	ui.pending_map_constructor_cell = selected_cell
-	var tabs: Array = ui._safe_ui_array(model.get("tabs", []))
+	var tabs: Array = _filter_inspection_tabs(ui, ui._safe_ui_array(model.get("tabs", [])))
 	var preferred_tab_id: String = _choose_preferred_tab_id(ui, tabs, ui._safe_ui_string(model.get("preferred_tab", "floor"), "floor"), preferred_entity_kind, preferred_entity_id)
 	if preferred_tab_id.is_empty() and not preferred_entity_id.is_empty():
 		var preferred_entity: Dictionary = _find_entity_in_tabs(tabs, preferred_entity_kind, preferred_entity_id)
