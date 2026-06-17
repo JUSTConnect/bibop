@@ -18,19 +18,58 @@ static func render(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, 
 	ui.selected_map_constructor_entity_kind = entity_kind
 	ui.selected_map_constructor_entity_id = entity_id
 	ui.selected_map_constructor_entity_cell = cell
-	_add_identity(ui, parent, entity_id, data)
-	_add_placement(ui, parent, entity_kind, entity_id, cell, data)
-	_add_configuration(ui, parent, entity_kind, entity_id, data)
-	_add_mechanism(ui, parent, entity_kind, entity_id, cell, data)
-	_add_control(ui, parent, entity_kind, entity_id, cell, data)
-	_add_power(ui, parent, entity_kind, entity_id, data)
-	_add_warnings(ui, parent, entity_id, data)
+	var tabs: TabContainer = TabContainer.new()
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var general_tab: Dictionary = _make_scroll_tab("General")
+	var general_content: VBoxContainer = general_tab["content"]
+	_add_identity(ui, general_content, entity_id, data)
+	_add_placement(ui, general_content, entity_kind, entity_id, cell, data)
+	tabs.add_child(general_tab["scroll"])
+
+	var platform_tab: Dictionary = _make_scroll_tab("Platform")
+	var platform_content: VBoxContainer = platform_tab["content"]
+	_add_configuration(ui, platform_content, entity_kind, entity_id, data)
+	_add_mechanism(ui, platform_content, entity_kind, entity_id, cell, data)
+	_add_control_settings(ui, platform_content, entity_kind, entity_id, cell, data)
+	_add_power_settings(ui, platform_content, entity_kind, entity_id, data)
+	tabs.add_child(platform_tab["scroll"])
+
+	var occupants_tab: Dictionary = _make_scroll_tab("Occupants")
+	var occupants_content: VBoxContainer = occupants_tab["content"]
+	_add_occupants(ui, occupants_content, entity_id, data)
+	tabs.add_child(occupants_tab["scroll"])
+
+	var links_tab: Dictionary = _make_scroll_tab("Links")
+	var links_content: VBoxContainer = links_tab["content"]
+	_add_platform_links(ui, links_content, entity_kind, entity_id, data)
+	tabs.add_child(links_tab["scroll"])
+
+	var warnings_tab: Dictionary = _make_scroll_tab("Warnings")
+	var warnings_content: VBoxContainer = warnings_tab["content"]
+	_add_warnings(ui, warnings_content, entity_id, data)
+	tabs.add_child(warnings_tab["scroll"])
+
+	parent.add_child(tabs)
+
+static func _make_scroll_tab(tab_name: String) -> Dictionary:
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.name = tab_name
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var content: VBoxContainer = VBoxContainer.new()
+	content.add_theme_constant_override("separation", 8)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	scroll.add_child(content)
+	return {"scroll": scroll, "content": content}
 
 static func _add_identity(ui: Variant, parent: VBoxContainer, entity_id: String, data: Dictionary) -> void:
-	var section: VBoxContainer = ui._create_inspector_section("1. Identity")
-	var id_label: Label = Label.new()
-	id_label.text = entity_id
-	section.add_child(ui._create_property_row("ID", id_label))
+	var section: VBoxContainer = ui._create_inspector_section("Identity")
+	section.tooltip_text = "Entity ID: %s" % entity_id
 	var type_label: Label = Label.new()
 	type_label.text = "platform"
 	section.add_child(ui._create_property_row("Object type", type_label))
@@ -38,7 +77,7 @@ static func _add_identity(ui: Variant, parent: VBoxContainer, entity_id: String,
 	parent.add_child(section)
 
 static func _add_placement(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, cell: Vector2i, data: Dictionary) -> void:
-	var section: VBoxContainer = ui._create_inspector_section("2. Placement")
+	var section: VBoxContainer = ui._create_inspector_section("Placement")
 	var cell_label: Label = Label.new()
 	cell_label.text = str(cell)
 	section.add_child(ui._create_property_row("Cell", cell_label))
@@ -70,14 +109,14 @@ static func _add_placement(ui: Variant, parent: VBoxContainer, entity_kind: Stri
 	parent.add_child(section)
 
 static func _add_configuration(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
-	var section: VBoxContainer = ui._create_inspector_section("3. Platform Configuration")
+	var section: VBoxContainer = ui._create_inspector_section("Platform Configuration")
 	ui._add_enum_property(section, "Mode", entity_kind, entity_id, "platform_mode", data.get("platform_mode", "elevator"), _options(["elevator", "rotate"]))
-	ui._add_text_property(section, "Platform level", entity_kind, entity_id, "platform_level", data.get("platform_level", 0))
-	ui._add_text_property(section, "Max level", entity_kind, entity_id, "max_level", data.get("max_level", 1))
+	_add_int_property(ui, section, "Platform level", entity_kind, entity_id, "platform_level", data.get("platform_level", 0), 0, 2)
+	_add_int_property(ui, section, "Max level", entity_kind, entity_id, "max_level", data.get("max_level", 1), 0, 2)
 	parent.add_child(section)
 
 static func _add_mechanism(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, cell: Vector2i, data: Dictionary) -> void:
-	var section: VBoxContainer = ui._create_inspector_section("4. Platform Mechanism")
+	var section: VBoxContainer = ui._create_inspector_section("Platform Mechanism")
 	ui._add_text_property(section, "Mechanism ID", entity_kind, entity_id, "mechanism_id", data.get("mechanism_id", ""))
 	var summary: Dictionary = _get_mechanism_summary(ui, entity_id, data)
 	var summary_label: Label = Label.new()
@@ -140,8 +179,8 @@ static func _add_platform_member_checklist(ui: Variant, section: VBoxContainer, 
 		)
 		section.add_child(check)
 
-static func _add_control(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, cell: Vector2i, data: Dictionary) -> void:
-	var section: VBoxContainer = ui._create_inspector_section("5. Control")
+static func _add_control_settings(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, cell: Vector2i, data: Dictionary) -> void:
+	var section: VBoxContainer = ui._create_inspector_section("Control")
 	ui._add_enum_property(section, "Control type", entity_kind, entity_id, "control_type", data.get("control_type", "internal"), _options(["internal", "external"]))
 	if MapConstructorInspectorVisibilityServiceRef.should_show_internal_control_settings(data, "platform"):
 		ui._add_enum_property(section, "Activation", entity_kind, entity_id, "activation_mode", data.get("activation_mode", "instant"), _options(["instant", "delayed"]))
@@ -154,8 +193,6 @@ static func _add_control(ui: Variant, parent: VBoxContainer, entity_kind: String
 		action_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		action_label.text = _format_action_labels(Array(actions.get("actions", [])))
 		section.add_child(ui._create_property_row("Actions", action_label))
-	elif MapConstructorInspectorVisibilityServiceRef.should_show_external_control_selector(data):
-		MapConstructorLinkControlsRef.add_link_picker(ui, section, entity_kind, entity_id, "control_terminal", "Control Terminal Binding")
 	parent.add_child(section)
 
 static func _add_control_cell_checkbox(ui: Variant, section: VBoxContainer, entity_kind: String, entity_id: String, cell: Vector2i, data: Dictionary) -> void:
@@ -176,23 +213,111 @@ static func _add_control_cell_checkbox(ui: Variant, section: VBoxContainer, enti
 	)
 	section.add_child(ui._create_property_row("Control Cell", checkbox))
 
-static func _add_power(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
-	var section: VBoxContainer = ui._create_inspector_section("6. Power")
+static func _add_power_settings(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	var section: VBoxContainer = ui._create_inspector_section("Power")
 	ui._add_enum_property(section, "Power type", entity_kind, entity_id, "power_type", data.get("power_type", "none"), _options(["none", "internal", "external"]))
-	if MapConstructorInspectorVisibilityServiceRef.should_show_external_power_source_selector(data):
-		MapConstructorLinkControlsRef.add_link_picker(ui, section, entity_kind, entity_id, "power_source", "Power Source Binding")
-		if MapConstructorInspectorVisibilityServiceRef.should_show_external_circuit_selector(data):
-			MapConstructorLinkControlsRef.add_link_picker(ui, section, entity_kind, entity_id, "power_network", "Power Network")
 	var note: Label = Label.new()
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.text = "Power controls availability only. Motion and rotation still require explicit actions."
 	section.add_child(note)
 	parent.add_child(section)
 
+static func _add_platform_links(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	var section: VBoxContainer = ui._create_inspector_section("Platform Links")
+	var added_link: bool = false
+	if MapConstructorInspectorVisibilityServiceRef.should_show_external_control_selector(data):
+		MapConstructorLinkControlsRef.add_link_picker(ui, section, entity_kind, entity_id, "control_terminal", "Control Terminal Binding")
+		added_link = true
+	if MapConstructorInspectorVisibilityServiceRef.should_show_external_power_source_selector(data):
+		MapConstructorLinkControlsRef.add_link_picker(ui, section, entity_kind, entity_id, "power_source", "Power Source Binding")
+		added_link = true
+		if MapConstructorInspectorVisibilityServiceRef.should_show_external_circuit_selector(data):
+			MapConstructorLinkControlsRef.add_link_picker(ui, section, entity_kind, entity_id, "power_network", "Power Network")
+			added_link = true
+	if not added_link:
+		var empty_label: Label = Label.new()
+		empty_label.text = "No external platform links for the current settings."
+		section.add_child(empty_label)
+	parent.add_child(section)
+
+static func _add_occupants(ui: Variant, parent: VBoxContainer, platform_id: String, _platform_data: Dictionary) -> void:
+	var section: VBoxContainer = ui._create_inspector_section("Platform Occupants")
+	var rows: Array = _get_platform_occupant_rows(ui, platform_id)
+	if rows.is_empty():
+		var empty_label: Label = Label.new()
+		empty_label.text = "No platform occupants."
+		section.add_child(empty_label)
+	else:
+		for row_variant in rows:
+			var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
+			var occupant_id: String = MapConstructorUiSafe.safe_string(row.get("entity_id", row.get("id", "")))
+			var object_type: String = MapConstructorUiSafe.safe_string(row.get("object_type", row.get("type", "object")), "object")
+			var display_name: String = MapConstructorUiSafe.safe_string(row.get("display_name", occupant_id), occupant_id)
+			var cell_text: String = str(row.get("cell", ""))
+			var level_text: String = str(row.get("platform_height_level", row.get("surface_level", "?")))
+			var label: Label = Label.new()
+			label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			label.text = "%s — %s — %s at %s, level %s" % [display_name, occupant_id, object_type, cell_text, level_text]
+			section.add_child(label)
+			if not occupant_id.is_empty() and ui.has_method("_show_map_constructor_inspector"):
+				var jump_button: Button = Button.new()
+				jump_button.text = "Jump / Select"
+				jump_button.pressed.connect(func() -> void:
+					var occupant_cell: Vector2i = ui._safe_ui_vector2i(row.get("cell", ui.selected_map_constructor_entity_cell))
+					ui._show_map_constructor_inspector(occupant_cell, "world_object", occupant_id)
+				)
+				section.add_child(jump_button)
+	parent.add_child(section)
+
+static func _get_platform_occupant_rows(ui: Variant, platform_id: String) -> Array:
+	if ui.mission_manager_runtime == null:
+		return []
+	if ui.mission_manager_runtime.has_method("get_map_constructor_platform_occupants"):
+		return Array(ui.mission_manager_runtime.call("get_map_constructor_platform_occupants", platform_id))
+	if ui.mission_manager_runtime.has_method("get_platform_occupants"):
+		return Array(ui.mission_manager_runtime.call("get_platform_occupants", platform_id))
+	return []
+
+static func _add_int_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, min_value: int, max_value: int) -> void:
+	var spin: SpinBox = SpinBox.new()
+	spin.step = 1
+	spin.min_value = min_value
+	spin.max_value = max_value
+	spin.value = float(current_value)
+	spin.value_changed.connect(func(value: float) -> void:
+		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name:int(value)})
+	)
+	section.add_child(ui._create_property_row(label, spin))
+
+static func _get_occupant_warnings(ui: Variant, platform_id: String, platform_data: Dictionary) -> Array[String]:
+	var warnings: Array[String] = []
+	var rows: Array = _get_platform_occupant_rows(ui, platform_id)
+	var blocking_by_cell: Dictionary = {}
+	var platform_level: int = int(platform_data.get("platform_height_level", platform_data.get("surface_level", platform_data.get("platform_level", 0))))
+	for row_variant in rows:
+		var row: Dictionary = MapConstructorUiSafe.safe_dictionary(row_variant)
+		var occupant_id: String = MapConstructorUiSafe.safe_string(row.get("entity_id", row.get("id", "occupant")), "occupant")
+		var occupant_platform_id: String = MapConstructorUiSafe.safe_string(row.get("platform_id", platform_id), platform_id).strip_edges()
+		if occupant_platform_id.is_empty():
+			warnings.append("Occupant %s has missing platform_id." % occupant_id)
+		elif occupant_platform_id != platform_id:
+			warnings.append("Occupant %s is bound to platform_id %s instead of %s." % [occupant_id, occupant_platform_id, platform_id])
+		var occupant_level: int = int(row.get("platform_height_level", row.get("surface_level", platform_level)))
+		if occupant_level != platform_level:
+			warnings.append("Occupant %s level mismatch (%d != %d)." % [occupant_id, occupant_level, platform_level])
+		if bool(row.get("blocks_movement", row.get("blocking", false))):
+			var cell_key: String = str(row.get("cell", ""))
+			blocking_by_cell[cell_key] = int(blocking_by_cell.get(cell_key, 0)) + 1
+	for cell_key in blocking_by_cell.keys():
+		if int(blocking_by_cell[cell_key]) > 1:
+			warnings.append("Multiple blocking occupants in platform cell %s." % cell_key)
+	return warnings
+
 static func _add_warnings(ui: Variant, parent: VBoxContainer, entity_id: String, data: Dictionary) -> void:
-	var section: VBoxContainer = ui._create_inspector_section("7. Warnings")
+	var section: VBoxContainer = ui._create_inspector_section("Warnings")
 	var validation: Dictionary = _validate_mechanism(ui, entity_id, data)
 	var warnings: Array = Array(validation.get("warnings", []))
+	warnings.append_array(_get_occupant_warnings(ui, entity_id, data))
 	if warnings.is_empty():
 		var ok_label: Label = Label.new()
 		ok_label.text = "No platform warnings."
