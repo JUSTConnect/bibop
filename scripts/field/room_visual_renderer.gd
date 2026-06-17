@@ -2406,7 +2406,9 @@ func get_iso_object_asset_key_for_profile(profile_key: String) -> String:
 			return "light_off_wall_01"
 		"barrel":
 			return "barrel_01"
-		"crate", "box", "steel_box":
+		"crate":
+			return "normal_crate_floor_01"
+		"box", "steel_box":
 			return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
 		"case":
 			return VisualAssetCatalogScript.resolve_object_asset_id("case")
@@ -2568,12 +2570,15 @@ func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_
 		return "normal_barrel_floor_01"
 	if VisualStateAssetServiceRef.is_loot_case_object(object_data):
 		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
-	if type_value == "heavy_crate" or blob.contains("heavy_crate") or blob.contains("heavy crate"):
-		return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
-	if type_value == "crate" or type_value == "normal_crate" or blob.contains("normal_crate") or blob.contains("normal crate"):
+	if type_value == "crate":
+		var crate_type: String = str(object_data.get("crate_type", object_data.get("variant", "normal"))).to_lower().strip_edges()
+		if crate_type in ["heavy", "steel", "steel_box", "heavy_crate"]:
+			return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
 		return "normal_crate_floor_01"
-	if type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
+	if type_value == "heavy_crate" or blob.contains("heavy_crate") or blob.contains("heavy crate") or type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
 		return VisualAssetCatalogScript.resolve_object_asset_id("steel_box")
+	if type_value == "normal_crate" or blob.contains("normal_crate") or blob.contains("normal crate"):
+		return "normal_crate_floor_01"
 	if type_value == "cable_reel" or type_value == "power_cable_reel" or blob.contains("cable_reel") or blob.contains("cable reel"):
 		return "cable_reel_02" if _get_object_mount_mode(object_data) == "wall" else "cable_reel_01"
 	if type_value == "power_source" or blob.contains("power_source"):
