@@ -119,18 +119,21 @@ func validate_constructor_palette_contract() -> Array[String]:
 	var visible_wall_prefabs: Array[String] = []
 	var visible_floor_prefabs: Array[String] = []
 	var visible_item_prefabs: Array[String] = []
+	var visible_bipob_prefabs: Array[String] = []
 	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
 		var prefab_id: String = _safe_string(row.get("prefab_id", row.get("id", ""))).strip_edges()
 		var archetype_id: String = _safe_string(row.get("archetype_id", "")).strip_edges()
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
-		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_PLATFORM_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(prefab_id):
+		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_PLATFORM_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_BIPOB_ALIAS_CONFIGS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
 		if archetype_id == "floor" or prefab_id == "floor":
 			visible_floor_prefabs.append(prefab_id)
 		if archetype_id == "item" or prefab_id == "item":
 			visible_item_prefabs.append(prefab_id)
+		if archetype_id == "bipob" or prefab_id == "bipob":
+			visible_bipob_prefabs.append(prefab_id)
 		if WorldObjectCatalogRef.LEGACY_ITEM_ALIAS_CONFIGS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_item_alias_%s" % prefab_id)
 		if prefab_id == "stepped_floor" or WorldObjectCatalogRef.LEGACY_FLOOR_IDS.has(prefab_id):
@@ -150,7 +153,8 @@ func validate_constructor_palette_contract() -> Array[String]:
 		"wall":"constructor_palette_requires_exactly_one_wall",
 		"platform":"constructor_palette_requires_exactly_one_platform",
 		"terminal":"constructor_palette_requires_exactly_one_terminal",
-		"item":"constructor_palette_requires_exactly_one_item"
+		"item":"constructor_palette_requires_exactly_one_item",
+		"bipob":"constructor_palette_requires_exactly_one_bipob"
 	}
 	for required_archetype in required_archetype_warning_ids:
 		if int(archetype_counts.get(required_archetype, 0)) != 1:
@@ -161,6 +165,12 @@ func validate_constructor_palette_contract() -> Array[String]:
 		warnings.append("constructor_palette_missing_terminal_archetype")
 	if WorldObjectCatalogRef.get_archetype_property_schema("terminal").is_empty():
 		warnings.append("terminal_archetype_missing_property_schema")
+	var bipob_schema_fields: Dictionary = {}
+	for bipob_field in WorldObjectCatalogRef.get_archetype_property_schema("bipob"):
+		bipob_schema_fields[_safe_string(bipob_field.get("field", ""))] = true
+	for required_bipob_field in ["bipob_type", "bipob_status", "bipob_alignment", "chassis_type", "visor_type", "loadout_profile"]:
+		if not bipob_schema_fields.has(required_bipob_field):
+			warnings.append("bipob_archetype_missing_property_%s" % required_bipob_field)
 	if visible_wall_prefabs != ["wall"]:
 		warnings.append("constructor_palette_wall_entries_must_be_exactly_wall")
 	if archetype_counts.has("external_wall"):
@@ -171,6 +181,8 @@ func validate_constructor_palette_contract() -> Array[String]:
 		warnings.append("constructor_palette_floor_entries_must_be_exactly_floor")
 	if visible_item_prefabs != ["item"]:
 		warnings.append("constructor_palette_item_entries_must_be_exactly_item")
+	if visible_bipob_prefabs != ["bipob"]:
+		warnings.append("constructor_palette_bipob_entries_must_be_exactly_bipob")
 	if WorldObjectCatalogRef.get_archetype_property_schema("item").is_empty():
 		warnings.append("item_archetype_missing_property_schema")
 	var external_wall: Dictionary = WorldObjectCatalogRef.create_world_object("external_wall", "validation_external_wall")
