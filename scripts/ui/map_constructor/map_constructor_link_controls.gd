@@ -65,7 +65,7 @@ static func add_link_picker(ui: Variant, section: VBoxContainer, entity_kind: St
 	actions.add_child(jump_button)
 	section.add_child(actions)
 
-static func add_single_link_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, target_group: String = "", options: Dictionary = {}) -> void:
+static func add_single_link_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, target_group: String = "", _options: Dictionary = {}) -> void:
 	var model: Dictionary = MapConstructorLinkReadModelServiceRef.get_link_options_for_field(ui.mission_manager_runtime, entity_kind, entity_id, field_name, target_group)
 	var current_id: String = ui._safe_ui_string(current_value).strip_edges()
 	if current_id.is_empty():
@@ -123,7 +123,7 @@ static func add_single_link_property(ui: Variant, section: VBoxContainer, label:
 				return
 	)
 	row_box.add_child(jump_button)
-	section.add_child(ui._create_property_row(label, row_box, true))
+	section.add_child(ui._create_property_row(label, row_box))
 
 static func get_map_constructor_key_entity_by_id(ui: Variant, key_id: String) -> Dictionary:
 	var normalized_key_id: String = key_id.strip_edges()

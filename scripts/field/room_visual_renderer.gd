@@ -7504,7 +7504,7 @@ func draw_cable_reel_drag_trail() -> void:
 	draw_circle(points[points.size() - 1], 4.0, Color(1.0, 0.88, 0.36, 0.98))
 
 
-func _get_cable_reel_trail_lane_offset(cell: Vector2i) -> Vector2:
+func _get_cable_reel_trail_lane_offset(_cell: Vector2i) -> Vector2:
 	# Dedicated transient reel-drag lane: offset below/right of the normal power-cable centerline.
 	return Vector2(0.0, iso_tile_height * 0.11)
 

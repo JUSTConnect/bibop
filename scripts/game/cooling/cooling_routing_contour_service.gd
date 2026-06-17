@@ -177,17 +177,17 @@ static func collect_contour_warnings(objects_by_id: Dictionary) -> Dictionary:
 		if str(data.get("cooling_contour_mode", "auto")).strip_edges().to_lower() != "manual": continue
 		var member_ids: Array = Array(data.get("cooling_contour_member_ids", []))
 		if not member_ids.is_empty():
-			var manual_id: String = "members:%s" % object_id
-			by_manual_id[manual_id] = []
+			var members_manual_id: String = "members:%s" % object_id
+			by_manual_id[members_manual_id] = []
 			if not member_ids.has(object_id): member_ids.append(object_id)
 			for member_variant in member_ids:
 				var member_id: String = str(member_variant).strip_edges()
-				if routing.has(member_id): by_manual_id[manual_id].append(member_id)
+				if routing.has(member_id): by_manual_id[members_manual_id].append(member_id)
 			continue
-		var manual_id: String = str(data.get("cooling_contour_id", "")).strip_edges()
-		if manual_id.is_empty(): continue
-		if not by_manual_id.has(manual_id): by_manual_id[manual_id] = []
-		by_manual_id[manual_id].append(object_id)
+		var explicit_manual_id: String = str(data.get("cooling_contour_id", "")).strip_edges()
+		if explicit_manual_id.is_empty(): continue
+		if not by_manual_id.has(explicit_manual_id): by_manual_id[explicit_manual_id] = []
+		by_manual_id[explicit_manual_id].append(object_id)
 	var components: Array[Array] = _build_physical_components(routing)
 	for manual_id in by_manual_id.keys():
 		var kinds: Dictionary = {}; var component_indexes: Dictionary = {}

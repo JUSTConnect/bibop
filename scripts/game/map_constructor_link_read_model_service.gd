@@ -15,7 +15,7 @@ const LINK_FIELD_NAMES: Dictionary = {
 	"access_terminal": "access_terminal_id"
 }
 
-static func get_link_options_for_field(mission_manager: Variant, entity_kind: String, entity_id: String, field_name: String, target_group: String = "") -> Dictionary:
+static func get_link_options_for_field(mission_manager: Variant, entity_kind: String, entity_id: String, field_name: String, _target_group: String = "") -> Dictionary:
 	var model: Dictionary = {"ok": false, "field_name": field_name, "current_target_id": "", "current_label": "(none)", "targets": [], "message": "Link targets unavailable."}
 	if mission_manager == null:
 		return model
