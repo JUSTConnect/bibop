@@ -142,12 +142,21 @@ static func refresh_controls(ui) -> void:
 static func enter_mode(ui, channel: String = "action") -> void:
 	ui.runtime_interaction_mode_active = true
 	ui.runtime_interaction_active_channel = channel
+	var target_data: Dictionary = get_target_data(ui)
+	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
+	var target_position: Vector2i = ui._safe_ui_vector2i(target_data.get("target_position", target_object.get("position", Vector2i(-1, -1))))
+	if ui.has_method("_make_runtime_selected_interaction_target") and ui.has_method("set_runtime_selected_interaction_target"):
+		var target: Dictionary = ui.call("_make_runtime_selected_interaction_target", target_object, "interaction", target_position)
+		if not target.is_empty():
+			ui.call("set_runtime_selected_interaction_target", target)
 	refresh_controls(ui)
 
 
 static func exit_mode(ui) -> void:
 	ui.runtime_interaction_mode_active = false
 	ui.runtime_interaction_active_channel = ""
+	if ui.has_method("clear_runtime_selected_interaction_target"):
+		ui.call("clear_runtime_selected_interaction_target")
 	refresh_controls(ui)
 
 
@@ -193,6 +202,8 @@ static func press_interact(ui) -> void:
 
 	if is_heavy_claw_movable_target(target_object):
 		ui.runtime_interaction_mode_active = false
+		if ui.has_method("clear_runtime_selected_interaction_target"):
+			ui.call("clear_runtime_selected_interaction_target")
 		if ui.runtime_world_actions_panel != null and is_instance_valid(ui.runtime_world_actions_panel):
 			ui.runtime_world_actions_panel.visible = false
 		refresh_controls(ui)
@@ -212,6 +223,8 @@ static func press_interact(ui) -> void:
 
 	if physical_actions.is_empty():
 		ui.runtime_interaction_mode_active = false
+		if ui.has_method("clear_runtime_selected_interaction_target"):
+			ui.call("clear_runtime_selected_interaction_target")
 		if ui.runtime_world_actions_panel != null and is_instance_valid(ui.runtime_world_actions_panel):
 			ui.runtime_world_actions_panel.visible = false
 		ui.show_hint("")

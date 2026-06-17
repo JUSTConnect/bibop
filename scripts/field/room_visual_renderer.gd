@@ -355,6 +355,8 @@ const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 var _iso_placeholder_texture_cache: Dictionary = {}
 var _iso_object_png_texture_cache: Dictionary = {}
 var _iso_light_overlay_animation_requested: bool = false
+var selected_interaction_target: Dictionary = {}
+var selected_interaction_overlay_time: float = 0.0
 var _iso_wall_asset_texture_cache: Dictionary = {}
 var _iso_wall_breach_overlay_texture_cache: Dictionary = {}
 var _iso_floor_asset_texture_cache: Dictionary = {}
@@ -576,6 +578,61 @@ func get_object_visual_center(cell: Vector2i, object_data: Dictionary = {}) -> V
 	if hint_blob.contains("wall") or hint_blob.contains("door") or hint_blob.contains("terminal"):
 		return center + Vector2(0.0, -6.0)
 	return center
+
+
+func set_selected_interaction_target(target: Dictionary) -> void:
+	selected_interaction_target = target.duplicate(true)
+	queue_redraw()
+
+
+func _get_selected_interaction_target_cell() -> Vector2i:
+	if selected_interaction_target.is_empty():
+		return Vector2i(-1, -1)
+	return _try_parse_cell_variant(selected_interaction_target.get("cell", Vector2i(-1, -1)))
+
+
+func _get_selected_interaction_overlay_rect(cell: Vector2i) -> Rect2:
+	var kind: String = str(selected_interaction_target.get("kind", "world_object")).strip_edges().to_lower()
+	var object_type: String = str(selected_interaction_target.get("object_type", "")).strip_edges().to_lower()
+	var center: Vector2 = get_object_visual_center(cell, selected_interaction_target)
+	var half: Vector2 = get_iso_tile_half_size()
+	var size: Vector2 = Vector2(half.x * 0.72, half.y * 1.05)
+	if kind == "wall" or object_type.contains("wall"):
+		center = grid_to_iso(cell) + Vector2(0.0, -iso_wall_height * 0.35)
+		size = Vector2(half.x * 0.95, half.y * 1.2 + iso_wall_height * 0.35)
+	elif kind == "cable" or object_type.contains("cable"):
+		size = Vector2(half.x * 0.86, half.y * 0.58)
+	elif kind == "item":
+		size = Vector2(half.x * 0.52, half.y * 0.62)
+	else:
+		size = Vector2(half.x * 0.72, half.y * 0.92 + iso_object_marker_height * 0.45)
+	return Rect2(center - size * 0.5, size)
+
+
+func draw_selected_interaction_target_overlay() -> void:
+	var cell: Vector2i = _get_selected_interaction_target_cell()
+	if cell.x < 0 or cell.y < 0:
+		return
+	var rect: Rect2 = _get_selected_interaction_overlay_rect(cell).grow(6.0)
+	var pulse: float = 0.65 + 0.35 * sin(selected_interaction_overlay_time * 5.0)
+	var color: Color = Color(0.2, 0.9, 1.0, 0.45 + 0.35 * pulse)
+	var shadow: Color = Color(0.02, 0.05, 0.07, color.a * 0.72)
+	var corner: float = maxf(10.0, minf(rect.size.x, rect.size.y) * 0.24)
+	var width: float = 2.0 + pulse
+	var points: Array[Vector2] = [
+		rect.position,
+		rect.position + Vector2(rect.size.x, 0.0),
+		rect.position + rect.size,
+		rect.position + Vector2(0.0, rect.size.y)
+	]
+	for idx in range(points.size()):
+		var point: Vector2 = points[idx]
+		var sx: float = 1.0 if idx == 0 or idx == 3 else -1.0
+		var sy: float = 1.0 if idx == 0 or idx == 1 else -1.0
+		draw_line(point, point + Vector2(corner * sx, 0.0), shadow, width + 2.0, true)
+		draw_line(point, point + Vector2(0.0, corner * sy), shadow, width + 2.0, true)
+		draw_line(point, point + Vector2(corner * sx, 0.0), color, width, true)
+		draw_line(point, point + Vector2(0.0, corner * sy), color, width, true)
 
 func iso_to_grid(iso_position: Vector2) -> Vector2i:
 	# Converts visual isometric position back to an approximate gameplay cell.
@@ -7451,7 +7508,10 @@ func _get_cable_reel_trail_lane_offset(cell: Vector2i) -> Vector2:
 	# Dedicated transient reel-drag lane: offset below/right of the normal power-cable centerline.
 	return Vector2(0.0, iso_tile_height * 0.11)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if not selected_interaction_target.is_empty():
+		selected_interaction_overlay_time += delta
+		queue_redraw()
 	if _iso_light_overlay_animation_requested:
 		queue_redraw()
 
@@ -7479,6 +7539,7 @@ func _draw() -> void:
 	draw_cable_reel_drag_trail()
 	draw_iso_mouse_selection_overlay()
 	draw_map_constructor_visual_overlay_passes()
+	draw_selected_interaction_target_overlay()
 
 	if should_render_iso_fog_visuals():
 		draw_iso_fog_overlay()

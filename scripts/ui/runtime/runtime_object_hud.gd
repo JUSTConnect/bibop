@@ -77,6 +77,8 @@ static func hide(ui) -> void:
 		ui.runtime_object_info_panel.queue_free()
 	ui.runtime_object_info_panel = null
 	ui.runtime_object_info_cell = Vector2i(-1, -1)
+	if ui != null and ui.has_method("clear_runtime_selected_interaction_target"):
+		ui.call("clear_runtime_selected_interaction_target")
 
 
 static func clear(ui) -> void:
@@ -118,6 +120,10 @@ static func build(ui, cell: Vector2i) -> Control:
 			object_data = ui._safe_ui_dictionary(items[0])
 	if object_data.is_empty():
 		return null
+	if ui.has_method("_make_runtime_selected_interaction_target") and ui.has_method("set_runtime_selected_interaction_target"):
+		var target: Dictionary = ui.call("_make_runtime_selected_interaction_target", object_data, "object_hud", cell)
+		if not target.is_empty():
+			ui.call("set_runtime_selected_interaction_target", target)
 	var scan_level: int = int(object_data.get("scan_level", 0))
 	var known_details: bool = scan_level >= 1 or bool(object_data.get("scanned", false)) or bool(object_data.get("visible", false))
 	var lines: Array[String] = []
