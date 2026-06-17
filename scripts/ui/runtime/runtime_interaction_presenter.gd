@@ -24,6 +24,7 @@ static func refresh(ui) -> void:
 	var is_heavy_claw_movable_target: bool = RuntimeInteractionPanelRef.is_heavy_claw_movable_target(target_object)
 	var has_interactable: bool = not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false))
 	var has_physical_interactable: bool = has_interactable and not is_heavy_claw_movable_target and not physical_actions.is_empty()
+	_refresh_available_action_target_overlay(ui, target_data, target_object, physical_actions, connect_descriptor, heavy_claw_descriptor)
 
 	if is_heavy_claw_movable_target:
 		ui.runtime_interaction_mode_active = false
@@ -118,6 +119,61 @@ static func refresh(ui) -> void:
 		return
 
 	_refresh_action_row(ui, target_object, physical_actions)
+
+
+static func _refresh_available_action_target_overlay(ui, target_data: Dictionary, target_object: Dictionary, physical_actions: Array[String], connect_descriptor: Dictionary, heavy_claw_descriptor: Dictionary) -> void:
+	if ui == null or ui.runtime_interaction_mode_active:
+		return
+	if not ui.has_method("_make_runtime_selected_interaction_target") or not ui.has_method("set_runtime_selected_interaction_target") or not ui.has_method("clear_runtime_selected_interaction_target"):
+		return
+	if ui.bipob == null:
+		ui.call("clear_runtime_selected_interaction_target")
+		return
+	var has_actions_left: bool = int(ui.bipob.actions_left) > 0
+	if not has_actions_left:
+		ui.call("clear_runtime_selected_interaction_target")
+		return
+
+	var overlay_object: Dictionary = target_object.duplicate(true)
+	var action_id: String = _get_default_available_overlay_action_id(ui, target_data, physical_actions, connect_descriptor, heavy_claw_descriptor)
+	if action_id.is_empty():
+		var cut_context: Dictionary = BipobActionControllerRef.get_direct_cut_target_context(ui.bipob)
+		if bool(cut_context.get("available", false)):
+			action_id = "cut"
+			overlay_object = Dictionary(cut_context.get("target_object", {})).duplicate(true)
+			target_data["target_position"] = cut_context.get("target_position", target_data.get("target_position", Vector2i(-1, -1)))
+	if action_id.is_empty() or overlay_object.is_empty():
+		ui.call("clear_runtime_selected_interaction_target")
+		return
+
+	overlay_object["action_id"] = action_id
+	var target_cell: Vector2i = ui._safe_ui_vector2i(target_data.get("target_position", overlay_object.get("position", overlay_object.get("cell", Vector2i(-1, -1)))))
+	var overlay_target: Dictionary = ui.call("_make_runtime_selected_interaction_target", overlay_object, "available_action", target_cell)
+	if overlay_target.is_empty():
+		ui.call("clear_runtime_selected_interaction_target")
+		return
+	ui.call("set_runtime_selected_interaction_target", overlay_target)
+
+
+static func _get_default_available_overlay_action_id(ui, target_data: Dictionary, physical_actions: Array[String], connect_descriptor: Dictionary, heavy_claw_descriptor: Dictionary) -> String:
+	var available_action_ids: Array[String] = []
+	for action_variant in Array(target_data.get("available_action_ids", [])):
+		var action_id: String = str(action_variant).strip_edges().to_lower()
+		if not action_id.is_empty() and not available_action_ids.has(action_id):
+			available_action_ids.append(action_id)
+	var selected_action: String = ""
+	if ui.bipob != null:
+		selected_action = str(ui.bipob.get("selected_world_action")).strip_edges().to_lower()
+	if not selected_action.is_empty() and available_action_ids.has(selected_action):
+		return selected_action
+	for action_id in physical_actions:
+		if available_action_ids.is_empty() or available_action_ids.has(action_id):
+			return action_id
+	if not connect_descriptor.is_empty() and bool(connect_descriptor.get("enabled", false)):
+		return str(connect_descriptor.get("id", "connect")).strip_edges().to_lower()
+	if not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)):
+		return str(heavy_claw_descriptor.get("id", "push")).strip_edges().to_lower()
+	return ""
 	
 static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	var rebuild_world_actions_panel: bool = false
@@ -179,6 +235,8 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	clear_selected_action_if_stale(ui, target_id, actions_key, state_key)
 	if selected_action.is_empty() or not action_ids.has(selected_action):
 		selected_action = str(ui.last_world_action_selected)
+	if selected_action.is_empty() or not action_ids.has(selected_action):
+		selected_action = action_ids[0]
 	ui.last_world_action_target_id = target_id
 	ui.last_world_action_actions_key = actions_key
 	ui.last_world_action_selected = selected_action
@@ -198,7 +256,9 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	var target_cell_source: Variant = target_data.get("target_position", target_object.get("position", Vector2i(-1, -1)))
 	var target_cell: Vector2i = ui._safe_ui_vector2i(target_cell_source)
 	if ui.has_method("_make_runtime_selected_interaction_target") and ui.has_method("set_runtime_selected_interaction_target"):
-		var overlay_target: Dictionary = ui.call("_make_runtime_selected_interaction_target", target_object, "world_action_hud", target_cell)
+		var selected_overlay_object: Dictionary = target_object.duplicate(true)
+		selected_overlay_object["action_id"] = selected_action
+		var overlay_target: Dictionary = ui.call("_make_runtime_selected_interaction_target", selected_overlay_object, "world_action_hud", target_cell)
 		if not overlay_target.is_empty():
 			ui.call("set_runtime_selected_interaction_target", overlay_target)
 	cell_text = "Cell: (%d, %d)" % [target_cell.x, target_cell.y]
