@@ -200,6 +200,37 @@ const TERMINAL_POWER_TYPES: Array[String] = ["internal", "external"]
 const TERMINAL_CONTROL_TYPES: Array[String] = ["internal", "external"]
 const TERMINAL_STATUSES: Array[String] = ["active", "damaged", "unpowered", "locked", "disabled", "error"]
 
+const BIPOB_TYPES: Array[String] = ["scout", "engineer", "heavy"]
+const BIPOB_STATUSES: Array[String] = ["active", "disabled", "broken", "infected"]
+const BIPOB_ALIGNMENTS: Array[String] = ["friendly", "hostile"]
+const BIPOB_CHASSIS_TYPES: Array[String] = ["wheels", "legs", "tracks", "hover"]
+const BIPOB_VISOR_TYPES: Array[String] = ["basic", "radar", "thermal", "xray"]
+const BIPOB_LOADOUT_PROFILES: Array[String] = ["none", "light", "utility", "heavy"]
+
+# Hidden compatibility mappings for historic Map Constructor Bipob prefab ids.
+# Constructor palettes must expose only the canonical configurable `bipob` archetype.
+const LEGACY_BIPOB_ALIAS_CONFIGS: Dictionary = {
+	"disabled_bipop_scout": {"object_type":"bipob", "bipob_type":"scout", "bipob_status":"disabled", "bipob_alignment":"friendly", "weight_class":"normal", "required_bipob_power_class":"scout"},
+	"disabled_bipop_engineer": {"object_type":"bipob", "bipob_type":"engineer", "bipob_status":"disabled", "bipob_alignment":"friendly", "weight_class":"heavy", "required_bipob_power_class":"engineer"},
+	"disabled_bipop_juggernaut": {"object_type":"bipob", "bipob_type":"heavy", "bipob_status":"disabled", "bipob_alignment":"friendly", "weight_class":"heavy", "required_bipob_power_class":"heavy"},
+	"disabled_bipob_scout": {"object_type":"bipob", "bipob_type":"scout", "bipob_status":"disabled", "bipob_alignment":"friendly"},
+	"disabled_bipob_engineer": {"object_type":"bipob", "bipob_type":"engineer", "bipob_status":"disabled", "bipob_alignment":"friendly"},
+	"disabled_bipob_heavy": {"object_type":"bipob", "bipob_type":"heavy", "bipob_status":"disabled", "bipob_alignment":"friendly"},
+	"bipob_scout": {"object_type":"bipob", "bipob_type":"scout"},
+	"bipob_engineer": {"object_type":"bipob", "bipob_type":"engineer"},
+	"bipob_heavy": {"object_type":"bipob", "bipob_type":"heavy"},
+	"bipob_disabled": {"object_type":"bipob", "bipob_status":"disabled", "bipob_alignment":"friendly"},
+	"bipob_found": {"object_type":"bipob", "bipob_status":"disabled", "bipob_alignment":"friendly"},
+	"bipob_broken": {"object_type":"bipob", "bipob_status":"broken", "bipob_alignment":"friendly"},
+	"broken_bipob": {"object_type":"bipob", "bipob_status":"broken", "bipob_alignment":"friendly"},
+	"bipob_infected": {"object_type":"bipob", "bipob_status":"infected", "bipob_alignment":"hostile"},
+	"infected_bipob": {"object_type":"bipob", "bipob_status":"infected", "bipob_alignment":"hostile"},
+	"corrupted_bipob": {"object_type":"bipob", "bipob_status":"infected", "bipob_alignment":"hostile"},
+	"bipob_corrupted": {"object_type":"bipob", "bipob_status":"infected", "bipob_alignment":"hostile"},
+	"hostile_bipob": {"object_type":"bipob", "bipob_alignment":"hostile"},
+	"bipob_hostile": {"object_type":"bipob", "bipob_alignment":"hostile"}
+}
+
 const FACING_SIDE_SW := "SW"
 const FACING_SIDE_SE := "SE"
 const FACING_SIDES: Array[String] = [FACING_SIDE_SW, FACING_SIDE_SE]
@@ -340,6 +371,19 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 			{"field":"linked_lighting_ids", "type":"object_ref_array", "target_group":"lighting", "default":[]},
 			{"field":"chain_input_ids", "type":"object_ref_array", "default":[]},
 			{"field":"chain_output_ids", "type":"object_ref_array", "default":[]}
+		]
+	},
+	"bipob": {
+		"archetype_id":"bipob", "object_group":"bipob", "group":"bipob", "constructor_group":"characters", "constructor_category":"Characters", "constructor_tab":"characters", "object_type":"bipob", "palette_label":"Bipob",
+		"placement_mode":"object", "display_name_template":"Bipob", "configurable":true, "blocks_movement":true, "blocks_vision":false, "visual_family":"bipob", "visual_surface":"floor", "state":"disabled",
+		"bipob_type":"scout", "bipob_status":"disabled", "bipob_alignment":"friendly", "chassis_type":"wheels", "visor_type":"basic", "loadout_profile":"none",
+		"property_schema":[
+			{"field":"bipob_type", "type":"enum", "values":["scout", "engineer", "heavy"], "default":"scout", "labels":{"scout":"Scout", "engineer":"Engineer", "heavy":"Heavy"}, "tab":"Bipob"},
+			{"field":"bipob_status", "type":"enum", "values":["active", "disabled", "broken", "infected"], "default":"disabled", "labels":{"active":"Active", "disabled":"Disabled", "broken":"Broken", "infected":"Infected"}, "tab":"Bipob"},
+			{"field":"bipob_alignment", "type":"enum", "values":["friendly", "hostile"], "default":"friendly", "labels":{"friendly":"Friendly", "hostile":"Hostile"}, "tab":"Bipob"},
+			{"field":"chassis_type", "type":"enum", "values":["wheels", "legs", "tracks", "hover"], "default":"wheels", "labels":{"wheels":"Wheels", "legs":"Legs", "tracks":"Tracks", "hover":"Hover"}, "tab":"Bipob"},
+			{"field":"visor_type", "type":"enum", "values":["basic", "radar", "thermal", "xray"], "default":"basic", "labels":{"basic":"Basic", "radar":"Radar", "thermal":"Thermal", "xray":"X-Ray"}, "tab":"Bipob"},
+			{"field":"loadout_profile", "type":"enum", "values":["none", "light", "utility", "heavy"], "default":"none", "labels":{"none":"None", "light":"Light", "utility":"Utility", "heavy":"Heavy"}, "tab":"Bipob"}
 		]
 	},
 	"station": {
@@ -536,7 +580,7 @@ static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
 	if PREFAB_ALIASES.has(normalized_type):
 		return str(PREFAB_ALIASES[normalized_type])
-	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, {})))))
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, LEGACY_BIPOB_ALIAS_CONFIGS.get(normalized_type, {}))))))
 	if preset_variant is Dictionary:
 		return str(preset_variant.get("object_type", "terminal" if LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_type) else normalized_type))
 	return normalized_type
@@ -547,7 +591,7 @@ static func canonical_object_type(object_type: String) -> String:
 
 static func is_legacy_prefab_alias(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
-	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_PLATFORM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value)
+	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_PLATFORM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_BIPOB_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_legacy_door_object_type(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
@@ -600,7 +644,7 @@ static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
 	if raw_defaults is Dictionary and not raw_defaults.is_empty():
 		return raw_defaults.duplicate(true)
-	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, {})))))
+	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_prefab_id, LEGACY_BIPOB_ALIAS_CONFIGS.get(normalized_prefab_id, {}))))))
 	if preset_variant is Dictionary:
 		var preset_defaults: Dictionary = preset_variant.duplicate(true)
 		preset_defaults.erase("object_type")
@@ -1221,6 +1265,7 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
 	data = normalize_archetype_object(data)
+	data = normalize_bipob_config_fields(data)
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
 	data = normalize_cable_contract(data)
@@ -1242,6 +1287,44 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 		data["can_interact"] = true
 	if normalized_object_type in ["terminal", "fuse_box", "power_switcher", "light_switcher", "light_switch", "case", "door"] or str(data.get("object_group", "")) in ["terminal", "door"]:
 		data["facing_side"] = resolve_facing_side_from_object_data(object_data)
+	return data
+
+static func normalize_bipob_config_fields(object_data: Dictionary) -> Dictionary:
+	var data: Dictionary = object_data.duplicate(true)
+	var object_type: String = _normalized_contract_token(data.get("object_type", data.get("archetype_id", "")))
+	var archetype_id: String = _normalized_contract_token(data.get("archetype_id", ""))
+	if object_type != "bipob" and archetype_id != "bipob":
+		return data
+	data["object_type"] = "bipob"
+	data["archetype_id"] = "bipob"
+	data["map_constructor_prefab_id"] = "bipob"
+	data["object_group"] = "bipob"
+	data["configurable"] = true
+	data["blocks_movement"] = true
+	data["blocks_vision"] = bool(data.get("blocks_vision", false))
+	data["visual_family"] = str(data.get("visual_family", "bipob"))
+	data["visual_surface"] = str(data.get("visual_surface", "floor"))
+	var bipob_type: String = _normalized_contract_token(data.get("bipob_type", data.get("type", "scout")))
+	data["bipob_type"] = bipob_type if BIPOB_TYPES.has(bipob_type) else "scout"
+	var status: String = _normalized_contract_token(data.get("bipob_status", data.get("status", data.get("state", "disabled"))))
+	if status in ["corrupted", "corrupt"]:
+		status = "infected"
+	if status in ["damaged", "destroyed"]:
+		status = "broken"
+	data["bipob_status"] = status if BIPOB_STATUSES.has(status) else "disabled"
+	var alignment: String = _normalized_contract_token(data.get("bipob_alignment", data.get("alignment", "friendly")))
+	data["bipob_alignment"] = alignment if BIPOB_ALIGNMENTS.has(alignment) else "friendly"
+	if data["bipob_status"] == "infected":
+		data["bipob_alignment"] = "hostile"
+	var chassis_type: String = _normalized_contract_token(data.get("chassis_type", "wheels"))
+	data["chassis_type"] = chassis_type if BIPOB_CHASSIS_TYPES.has(chassis_type) else "wheels"
+	var visor_type: String = _normalized_contract_token(data.get("visor_type", "basic"))
+	data["visor_type"] = visor_type if BIPOB_VISOR_TYPES.has(visor_type) else "basic"
+	var loadout_profile: String = _normalized_contract_token(data.get("loadout_profile", "none"))
+	data["loadout_profile"] = loadout_profile if BIPOB_LOADOUT_PROFILES.has(loadout_profile) else "none"
+	data["status"] = data["bipob_status"]
+	data["state"] = data["bipob_status"]
+	data["display_name"] = "Bipob"
 	return data
 
 static func _contains_cyrillic(value: Variant) -> bool:
@@ -1760,6 +1843,8 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 		data["walkable"] = true
 	elif archetype_id == "item":
 		data = normalize_item_contract(data)
+	elif archetype_id == "bipob":
+		data = normalize_bipob_config_fields(data)
 	data["display_name"] = generate_display_name(data)
 	data["normalized_by_archetype_catalog"] = true
 	return data
