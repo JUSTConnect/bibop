@@ -4005,6 +4005,8 @@ func _wall_route_side_to_visible_face(wall_side: String) -> String:
 func draw_wall_routing_utility(cell: Vector2i, object_data: Dictionary, visual_center: Vector2) -> bool:
 	if not is_wall_routing_utility_object(object_data):
 		return false
+	if is_authored_cooling_wall_canvas_object(object_data):
+		return draw_cooling_wall_canvas_asset(cell, object_data)
 	if get_wall_routing_mode(object_data) == "inner":
 		for side_key in ["wall_side_1", "wall_side_2"]:
 			draw_inner_wall_route_port(cell, object_data, str(object_data.get(side_key, "")), visual_center)
@@ -4019,6 +4021,43 @@ func get_inner_wall_route_asset_id(object_data: Dictionary) -> String:
 		"water_pipe":
 			return "water_pipe_inner_wall_01"
 	return ""
+
+func is_authored_cooling_wall_canvas_object(object_data: Dictionary) -> bool:
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var routing_kind: String = str(object_data.get("routing_kind", _get_wall_routed_object_family(object_data))).strip_edges().to_lower()
+	var asset_id: String = get_inner_wall_route_asset_id(object_data)
+	return (
+		(object_type == "external_air_duct" and routing_kind == "air_duct" and asset_id == "air_duct_inner_wall_01")
+		or (object_type == "external_water_pipe" and routing_kind == "water_pipe" and asset_id == "water_pipe_inner_wall_01")
+	)
+
+func get_wall_canvas_asset_key_for_cell(cell: Vector2i) -> String:
+	var material_override: Dictionary = _get_wall_material_override_for_cell(cell)
+	var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
+	if use_gray_room_visual_test_assets:
+		return get_test_wall_height_asset_key(material_override, cell, get_iso_wall_depth_bounds())
+	return get_production_wall_asset_key(material_override, cell, wall_profile_key, get_iso_wall_depth_bounds())
+
+func draw_cooling_wall_canvas_asset(cell: Vector2i, object_data: Dictionary) -> bool:
+	var asset_id: String = get_inner_wall_route_asset_id(object_data)
+	if asset_id.is_empty():
+		return false
+	var texture_path: String = get_iso_object_png_asset_path(asset_id, {"visual_id": asset_id})
+	if texture_path.is_empty():
+		return false
+	var texture: Texture2D = get_iso_object_png_texture_for_resolved_path(asset_id, texture_path)
+	if texture == null:
+		return false
+	var texture_size: Vector2 = texture.get_size()
+	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
+		return false
+	var wall_canvas_asset_key: String = get_wall_canvas_asset_key_for_cell(cell)
+	var texture_rect: Rect2 = get_iso_wall_texture_draw_rect_for_cell(cell, texture, wall_canvas_asset_key, get_wall_render_topology(cell))
+	if texture_rect.size.x <= 0.0 or texture_rect.size.y <= 0.0:
+		return false
+	draw_texture_rect_region(texture, texture_rect, Rect2(Vector2.ZERO, texture_size))
+	draw_iso_asset_alignment_overlay(asset_id, texture_rect.position + Vector2(texture_rect.size.x * 0.5, texture_rect.size.y), texture_rect)
+	return true
 
 func draw_inner_wall_route_asset(cell: Vector2i, object_data: Dictionary, wall_side: String) -> bool:
 	var asset_id: String = get_inner_wall_route_asset_id(object_data)
