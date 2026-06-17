@@ -80,6 +80,10 @@ func has_connected_cable() -> bool:
 	return connected or state == STATE_CONNECTED
 
 
+func is_cable_connected() -> bool:
+	return has_connected_cable()
+
+
 func has_cable() -> bool:
 	return not cable_id.is_empty()
 

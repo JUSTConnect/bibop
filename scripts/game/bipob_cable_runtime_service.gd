@@ -65,6 +65,42 @@ static func extend_path(state: BipobCableRuntimeState, next_cell: Vector2i) -> B
 	return result
 
 
+static func update_drag_path_for_actor_cell(state: BipobCableRuntimeState, actor_cell: Vector2i) -> BipobCableRuntimeState:
+	var result: BipobCableRuntimeState = _duplicate_state_or_empty(state)
+	if result == null or not result.is_dragging():
+		return result
+
+	if result.path_cells.is_empty():
+		result.path_cells.append(result.reel_position)
+
+	var next_cell: Vector2i = actor_cell
+	var tail_index: int = result.path_cells.size() - 1
+	var tail_cell: Vector2i = result.path_cells[tail_index]
+
+	if tail_cell == next_cell:
+		return result
+
+	if result.path_cells.size() >= 2 and result.path_cells[result.path_cells.size() - 2] == next_cell:
+		result.path_cells.pop_back()
+		return result
+
+	var existing_index: int = result.path_cells.find(next_cell)
+	if existing_index >= 0:
+		result.path_cells = result.path_cells.slice(0, existing_index + 1)
+		return result
+
+	if _are_grid_adjacent(tail_cell, next_cell):
+		if result.max_length <= 0 or result.path_cells.size() < result.max_length:
+			result.path_cells.append(next_cell)
+		return result
+
+	return result
+
+
+static func _are_grid_adjacent(a: Vector2i, b: Vector2i) -> bool:
+	return absi(a.x - b.x) + absi(a.y - b.y) == 1
+
+
 static func can_connect_to_socket(state: BipobCableRuntimeState, socket_id: String = "", power_filter: String = "") -> bool:
 	if state == null:
 		return false

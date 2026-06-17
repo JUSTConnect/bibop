@@ -60,6 +60,8 @@ const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_c
 const HeavyClawDragServiceRef = preload("res://scripts/game/heavy_claw/heavy_claw_drag_service.gd")
 const BipobInventoryControllerRef = preload("res://scripts/bipob/bipob_inventory_controller.gd")
 const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
+const BipobCableRuntimeStateRef = preload("res://scripts/game/bipob_cable_runtime_state.gd")
+const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const PlatformMechanismRulesServiceRef = preload("res://scripts/game/platform/platform_mechanism_rules_service.gd")
 const PlatformMechanismServiceRef = preload("res://scripts/game/platform/platform_mechanism_service.gd")
@@ -7720,6 +7722,45 @@ func _get_held_cable_end_metadata() -> Dictionary:
 func _has_manipulator_cable_end() -> bool:
 	return bool(_get_held_cable_end_metadata().get("held", false))
 
+func update_held_cable_reel_drag_path() -> void:
+	var held: Dictionary = _get_held_cable_end_metadata()
+	if not bool(held.get("held", false)) or mission_manager == null or not mission_manager.has_method("get_world_object_by_id"):
+		return
+	var reel_id: String = str(held.get("reel_id", "")).strip_edges()
+	var end_index: int = int(held.get("end_index", 0))
+	if reel_id.is_empty() or end_index < 1 or end_index > 2:
+		return
+	var reel: Dictionary = Dictionary(mission_manager.call("get_world_object_by_id", reel_id))
+	if reel.is_empty():
+		return
+	var state: BipobCableRuntimeState = _build_held_cable_runtime_state(reel, end_index)
+	var updated: BipobCableRuntimeState = BipobCableRuntimeServiceRef.update_drag_path_for_actor_cell(state, grid_position)
+	reel["end_%d_state" % end_index] = updated.state
+	reel["end_%d_path_cells" % end_index] = updated.path_cells.duplicate()
+	reel["end_%d_cable_length" % end_index] = updated.path_cells.size()
+	_request_cable_reel_trail_redraw()
+
+
+func _build_held_cable_runtime_state(reel: Dictionary, end_index: int) -> BipobCableRuntimeState:
+	var state: BipobCableRuntimeState = BipobCableRuntimeStateRef.new()
+	state.cable_id = str(reel.get("id", "")).strip_edges()
+	state.reel_id = state.cable_id
+	state.state = BipobCableRuntimeStateRef.STATE_DRAGGING
+	state.max_length = maxi(0, int(reel.get("max_cable_length", reel.get("cable_max_length", 0))))
+	state.path_cells = BipobCableRuntimeStateRef._variant_to_vector2i_array(reel.get("end_%d_path_cells" % end_index, []))
+	state.reel_position = WorldObjectCatalogRef.to_world_cell(reel.get("position", reel.get("cell", Vector2i.ZERO)), Vector2i.ZERO)
+	if state.path_cells.is_empty():
+		state.path_cells.append(state.reel_position)
+	return state
+
+
+func _request_cable_reel_trail_redraw() -> void:
+	var room_visual_renderer: RoomVisualRenderer = get_room_visual_renderer()
+	if room_visual_renderer != null:
+		room_visual_renderer.queue_redraw()
+	elif grid_manager != null:
+		grid_manager.queue_redraw()
+
 func return_held_cable_end_to_reel() -> Dictionary:
 	var held: Dictionary = _get_held_cable_end_metadata()
 	if not bool(held.get("held", false)):
@@ -8445,8 +8486,10 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 			var cable_item: Dictionary = {"id":cable_end_id, "item_type":"cable_reel_end", "object_type":"cable_reel_end", "display_name":"Cable end %d" % end_index, "item_form":"physical", "reel_id":reel_id, "end_index":end_index}
 			var cable_route: Dictionary = route_runtime_item(cable_item, "manipulator") if has_method("route_runtime_item") else {"success": false, "message": "Runtime storage unavailable."}
 			if bool(cable_route.get("success", false)):
-				world_object["end_%d_state" % end_index] = "held"
+				world_object["end_%d_state" % end_index] = "dragging"
 				world_object["end_%d_target_id" % end_index] = ""
+				world_object["end_%d_path_cells" % end_index] = [WorldObjectCatalogRef.to_world_cell(world_object.get("position", world_object.get("cell", grid_position)), grid_position)]
+				update_held_cable_reel_drag_path()
 			else:
 				hint_requested.emit(str(cable_route.get("message", "No free manipulator slot.")))
 		elif effect_type == "connect_cable_end_to_target":
