@@ -361,12 +361,12 @@ var charging_active_tab: String = "supercharger"
 var tasks_validation_label: Label
 var tasks_start_button: Button
 var tasks_claim_button: Button
-const MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT: int = 8
+const MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT: int = 5
 const MAP_CONSTRUCTOR_ISSUE_FILTER_OPTIONS: Array[String] = ["All", "Errors", "Warnings", "Info"]
 const MAP_CONSTRUCTOR_HISTORY_FILTER_OPTIONS: Array[String] = ["All", "Placement", "Edit", "Cleanup", "Auto-fix", "Patch", "Reset"]
 const MAP_CONSTRUCTOR_OVERVIEW_FILTER_OPTIONS: Array[String] = ["All", "Issues", "Errors", "Warnings", "Expected Invalid", "Objects", "Items", "Power", "Terminals", "Doors", "Wall-mounted", "History", "Selected"]
 
-const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Structural", "Door", "Terminal", "Power", "Control", "Item", "Cooling System", "Wall-mounted", "Diagnostic", "Expected Invalid", "Utility"]
+const MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES: Array[String] = ["All", "Power", "Cooling system", "Movable", "Environments", "Item", "Traps", "Robots", "Control", "Other"]
 const MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES: Array[String] = ["All", "navigation", "blocking", "access_control", "power_source", "power_consumer", "power_network", "signal_control", "terminal_interaction", "key_item", "diagnostics", "readiness_test", "expected_invalid_test"]
 const MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES: Array[String] = ["All", "tile", "object", "item", "wall_mounted"]
 const MAP_CONSTRUCTOR_CONTROL_PREFAB_IDS: Array[String] = [
@@ -383,17 +383,16 @@ const MAP_CONSTRUCTOR_POWER_PREFAB_IDS: Array[String] = [
 	"power_cable_reel"
 ]
 const MAP_CONSTRUCTOR_PREFAB_CATEGORY_GROUP_ORDER: Array[String] = [
-	"Structural",
-	"Door",
-	"Terminal",
+	"Recent",
 	"Power",
-	"Control",
+	"Cooling system",
+	"Movable",
+	"Environments",
 	"Item",
-	"Cooling System",
-	"Wall-mounted",
-	"Diagnostic",
-	"Expected Invalid",
-	"Utility"
+	"Traps",
+	"Robots",
+	"Control",
+	"Other"
 ]
 var edge_scroll_enabled: bool = true
 var edge_scroll_margin_px: float = 28.0

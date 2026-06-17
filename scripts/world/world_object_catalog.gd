@@ -118,8 +118,90 @@ const PREFAB_ALIASES: Dictionary = {
 	"parts_medium": "physical_item",
 	"parts_large": "physical_item",
 	"module_internal": "module_item",
-	"module_external": "module_item"
+	"module_external": "module_item",
+	"vagus": "enemy",
+	"bug": "enemy",
+	"enemy_robot": "enemy"
 }
+
+const CONSTRUCTOR_PALETTE_GROUP_ORDER: Array[String] = [
+	"Recent",
+	"Power",
+	"Cooling system",
+	"Movable",
+	"Environments",
+	"Item",
+	"Traps",
+	"Robots",
+	"Control",
+	"Other"
+]
+
+const CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB: Dictionary = {
+	"power_cable_reel": "Power",
+	"power_source": "Power",
+	"power_cable": "Power",
+	"power_socket": "Power",
+	"fuse_box": "Power",
+	"power_switcher": "Power",
+	"light": "Power",
+	"light_switcher": "Power",
+	"radiator": "Cooling system",
+	"external_water_pipe": "Cooling system",
+	"external_air_duct": "Cooling system",
+	"metal_cooling_block": "Cooling system",
+	"crate": "Movable",
+	"barrel": "Movable",
+	"wall": "Environments",
+	"floor": "Environments",
+	"platform": "Environments",
+	"station": "Environments",
+	"digital_item": "Item",
+	"access_item": "Item",
+	"physical_item": "Item",
+	"module_item": "Item",
+	"turret": "Traps",
+	"enemy": "Robots",
+	"bipob": "Robots",
+	"terminal": "Control",
+	"door": "Control",
+	"firewall": "Control",
+	"debris": "Other",
+	"case": "Other"
+}
+
+const CONSTRUCTOR_PALETTE_PREFAB_ORDER: Array[String] = [
+	"power_cable_reel",
+	"power_source",
+	"power_cable",
+	"power_socket",
+	"fuse_box",
+	"power_switcher",
+	"light",
+	"light_switcher",
+	"radiator",
+	"external_water_pipe",
+	"external_air_duct",
+	"metal_cooling_block",
+	"crate",
+	"barrel",
+	"wall",
+	"floor",
+	"platform",
+	"station",
+	"digital_item",
+	"access_item",
+	"physical_item",
+	"module_item",
+	"turret",
+	"enemy",
+	"bipob",
+	"terminal",
+	"door",
+	"firewall",
+	"debris",
+	"case"
+]
 
 static func object_accepts_runtime_power_plug(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
@@ -216,7 +298,8 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"parts_medium": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":10},
 	"parts_large": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":20},
 	"module_internal": {"module_item_type":"module_internal", "item_type":"module_internal"},
-	"module_external": {"module_item_type":"module_external", "item_type":"module_external"}
+	"module_external": {"module_item_type":"module_external", "item_type":"module_external"},
+	"enemy_robot": {"enemy_type":"vagus", "enemy_kind":"vagus"}
 }
 
 # Hidden compatibility mappings for loading old constructor/runtime data only.
@@ -845,20 +928,50 @@ static func get_wall_material_quick_presets() -> Array[Dictionary]:
 
 static func get_constructor_palette_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
+	var rows_by_prefab: Dictionary = {}
 	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
 		var archetype_id: String = str(archetype_id_variant)
 		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
 		if not bool(definition.get("show_in_palette", true)):
 			continue
-		rows.append({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":str(definition.get("object_type", archetype_id)), "display_name":str(definition.get("palette_label", archetype_id.capitalize())), "label":str(definition.get("palette_label", archetype_id.capitalize())), "category":str(definition.get("object_group", "Objects")).capitalize(), "object_group":str(definition.get("object_group", "physical_object")), "placement_mode":str(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
+		if not CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.has(archetype_id):
+			continue
+		rows_by_prefab[archetype_id] = _normalize_constructor_palette_row({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":str(definition.get("object_type", archetype_id)), "display_name":str(definition.get("palette_label", archetype_id.capitalize())), "label":str(definition.get("palette_label", archetype_id.capitalize())), "category":str(definition.get("object_group", "Objects")).capitalize(), "object_group":str(definition.get("object_group", "physical_object")), "placement_mode":str(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
 	for object_type_variant in OBJECT_LIBRARY.keys():
 		var object_type: String = str(object_type_variant)
 		var definition: Dictionary = OBJECT_LIBRARY[object_type]
 		if ARCHETYPE_REGISTRY.has(object_type) or is_legacy_prefab_alias(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item", "platform"]:
 			continue
-		rows.append(_build_constructor_palette_row(object_type, object_type, definition, false))
-	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("display_name", "")) < str(b.get("display_name", "")))
+		if not CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.has(object_type):
+			continue
+		rows_by_prefab[object_type] = _normalize_constructor_palette_row(_build_constructor_palette_row(object_type, object_type, definition, false))
+	for prefab_id in CONSTRUCTOR_PALETTE_PREFAB_ORDER:
+		if rows_by_prefab.has(prefab_id):
+			rows.append(rows_by_prefab[prefab_id])
 	return rows
+
+static func get_constructor_palette_group_order() -> Array[String]:
+	return CONSTRUCTOR_PALETTE_GROUP_ORDER.duplicate()
+
+static func get_constructor_palette_group_for_prefab(prefab_id: String) -> String:
+	return str(CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.get(canonical_prefab_id(prefab_id), ""))
+
+static func is_visible_constructor_palette_prefab(prefab_id: String) -> bool:
+	return CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.has(canonical_prefab_id(prefab_id))
+
+static func _normalize_constructor_palette_row(row: Dictionary) -> Dictionary:
+	var normalized_row: Dictionary = row.duplicate(true)
+	var canonical_prefab_id_value: String = canonical_prefab_id(str(normalized_row.get("prefab_id", normalized_row.get("id", ""))))
+	var palette_group: String = str(CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.get(canonical_prefab_id_value, "Other"))
+	normalized_row["id"] = canonical_prefab_id_value
+	normalized_row["prefab_id"] = canonical_prefab_id_value
+	normalized_row["category"] = palette_group
+	normalized_row["constructor_group"] = palette_group
+	normalized_row["constructor_tab"] = palette_group
+	normalized_row["palette_group"] = palette_group
+	normalized_row["is_alias"] = false
+	normalized_row["alias_source_id"] = ""
+	return normalized_row
 
 static func _build_constructor_palette_row(prefab_id: String, canonical_type: String, definition: Dictionary, is_alias: bool) -> Dictionary:
 	var object_group: String = str(definition.get("group", definition.get("object_group", "physical_object")))

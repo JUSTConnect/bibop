@@ -3336,12 +3336,24 @@ func get_map_constructor_prefab_metadata(prefab_id: String) -> Dictionary:
 	if metadata_catalog.has(id):
 		var explicit_row: Dictionary = Dictionary(metadata_catalog[id]).duplicate(true)
 		explicit_row["id"] = id
-		return {"ok": true, "prefab": explicit_row, "message": "OK"}
+		return {"ok": true, "prefab": _normalize_map_constructor_prefab_palette_metadata(explicit_row), "message": "OK"}
 	for entry in get_map_constructor_prefab_catalog():
 		var catalog_entry: Dictionary = Dictionary(entry)
 		if str(catalog_entry.get("id", "")).strip_edges() == id:
-			return {"ok": true, "prefab": _build_map_constructor_prefab_fallback_metadata(id, catalog_entry), "message": "OK"}
+			return {"ok": true, "prefab": _normalize_map_constructor_prefab_palette_metadata(_build_map_constructor_prefab_fallback_metadata(id, catalog_entry)), "message": "OK"}
 	return {"ok": false, "prefab": {}, "message": "Unknown prefab id."}
+
+func _normalize_map_constructor_prefab_palette_metadata(metadata: Dictionary) -> Dictionary:
+	var row: Dictionary = metadata.duplicate(true)
+	var prefab_id: String = str(row.get("id", row.get("prefab_id", ""))).strip_edges().to_lower()
+	var palette_group: String = WorldObjectCatalogRef.get_constructor_palette_group_for_prefab(prefab_id)
+	if not palette_group.is_empty():
+		row["category"] = palette_group
+		row["constructor_group"] = palette_group
+		row["constructor_tab"] = palette_group
+		row["palette_group"] = palette_group
+	row["prefab_id"] = prefab_id
+	return row
 
 func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictionary:
 	var search: String = str(options.get("search", "")).strip_edges().to_lower()
@@ -3393,7 +3405,18 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 		rows.append(row)
 	categories.sort()
 	roles.sort()
-	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("display_name", a.get("id", ""))) < str(b.get("display_name", b.get("id", ""))))
+	var prefab_order: Array[String] = WorldObjectCatalogRef.CONSTRUCTOR_PALETTE_PREFAB_ORDER
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_index: int = prefab_order.find(str(a.get("id", "")))
+		var b_index: int = prefab_order.find(str(b.get("id", "")))
+		if a_index != b_index:
+			if a_index < 0:
+				return false
+			if b_index < 0:
+				return true
+			return a_index < b_index
+		return str(a.get("display_name", a.get("id", ""))) < str(b.get("display_name", b.get("id", "")))
+	)
 	return {"ok": true, "rows": rows, "categories": categories, "roles": roles, "message": "OK"}
 
 func is_map_constructor_item_prefab(prefab_id: String) -> bool:
