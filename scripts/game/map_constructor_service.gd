@@ -56,6 +56,35 @@ func _add_map_constructor_world_object_at_cell(cell: Vector2i, object_data: Dict
 		return
 	manager.set_world_object_at_cell(cell, object_data)
 
+func snapshot_wall_cell_authoring_state(cell: Vector2i) -> Dictionary:
+	var snapshot: Dictionary = {
+		"cell": cell,
+		"has_grid_tile": false,
+		"grid_tile": GridManager.TILE_FLOOR,
+		"wall_material_overrides": {},
+		"has_world_object_lookup": false,
+		"world_object_lookup": {}
+	}
+	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile"):
+		snapshot["has_grid_tile"] = true
+		snapshot["grid_tile"] = int(manager.grid_manager.call("get_tile", cell))
+	snapshot["wall_material_overrides"] = manager._map_constructor_wall_material_overrides.duplicate(true)
+	if manager.world_objects_by_cell.has(cell):
+		snapshot["has_world_object_lookup"] = true
+		snapshot["world_object_lookup"] = manager._safe_dictionary(manager.world_objects_by_cell.get(cell, {})).duplicate(true)
+	return snapshot
+
+func restore_wall_cell_authoring_state(cell: Vector2i, snapshot: Dictionary) -> void:
+	if snapshot.is_empty():
+		return
+	if bool(snapshot.get("has_grid_tile", false)) and manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
+		manager.grid_manager.call("set_tile", cell, int(snapshot.get("grid_tile", GridManager.TILE_FLOOR)))
+	manager._map_constructor_wall_material_overrides = Dictionary(snapshot.get("wall_material_overrides", {})).duplicate(true)
+	if bool(snapshot.get("has_world_object_lookup", false)):
+		manager.world_objects_by_cell[cell] = Dictionary(snapshot.get("world_object_lookup", {})).duplicate(true)
+	else:
+		manager.world_objects_by_cell.erase(cell)
+
 func _set_wall_tile_for_constructor(cell: Vector2i, tile_type: int) -> void:
 	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
 		manager.grid_manager.call("set_tile", cell, tile_type)
@@ -76,6 +105,10 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	var previous_tile_type: int = GridManager.TILE_FLOOR
 	if manager.grid_manager != null and manager.grid_manager.has_method("get_tile"):
 		previous_tile_type = int(manager.grid_manager.call("get_tile", cell))
+	var is_wall_mounted_placement: bool = str(check.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted"
+	var wall_authoring_snapshot: Dictionary = {}
+	if is_wall_mounted_placement:
+		wall_authoring_snapshot = snapshot_wall_cell_authoring_state(cell)
 	if prefab_id == "stepped_floor":
 		manager.grid_manager.call("set_tile", cell, GridManager.TILE_STEPPED_FLOOR)
 		manager._record_map_constructor_change("place", {"entity_kind":"tile", "object_type":"stepped_floor", "cell":cell, "summary":"Placed stepped_floor at %s" % manager._format_map_constructor_cell(cell), "undo_hint":"Use constructor cleanup/reset tools if needed."})
@@ -108,7 +141,9 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	var requested_object_group: String = str(constructor_preview.get("object_group", ""))
 	var requested_material: String = str(constructor_preview.get("material", ""))
 	var placed_tile_type: int = previous_tile_type
-	if str(constructor_preview.get("replaces_tile_with", "")) == "floor":
+	if is_wall_mounted_placement:
+		placed_tile_type = previous_tile_type
+	elif str(constructor_preview.get("replaces_tile_with", "")) == "floor":
 		placed_tile_type = GridManager.TILE_FLOOR
 		manager.grid_manager.call("set_tile", cell, placed_tile_type)
 	elif requested_object_group == "wall":
@@ -232,6 +267,8 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 			"is_wall_mounted": bool(object_data.get("is_wall_mounted", false))
 	})
 	_add_map_constructor_world_object_at_cell(cell, object_data)
+	if is_wall_mounted_placement:
+		restore_wall_cell_authoring_state(cell, wall_authoring_snapshot)
 		
 	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(object_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
@@ -308,7 +345,8 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 		return {"ok": false, "message": "Cannot remove non-constructor object.", "object_id": entity_id, "warnings": []}
 	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
 	var removed_network_id: String = str(object_data.get("power_network_id", ""))
-	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile") and not CableTopologyServiceRef.is_cable_object(object_data):
+	var is_removed_wall_mounted: bool = str(object_data.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted" or bool(object_data.get("is_wall_mounted", false))
+	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile") and not CableTopologyServiceRef.is_cable_object(object_data) and not is_removed_wall_mounted:
 		var restore_tile_type: int = GridManager.TILE_FLOOR
 		if object_data.has("map_constructor_previous_tile_type"):
 			restore_tile_type = int(object_data.get("map_constructor_previous_tile_type", GridManager.TILE_FLOOR))
