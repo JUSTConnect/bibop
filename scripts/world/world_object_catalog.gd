@@ -88,12 +88,29 @@ const PREFAB_ALIASES: Dictionary = {
 	"oil_floor": "floor",
 	"dirty_floor": "floor",
 	"debris_floor": "floor",
-	"breachable_wall": "wall"
+	"breachable_wall": "wall",
+	"loot_case": "case",
+	"loot_crate": "case",
+	"case_locked": "case",
+	"case_class1": "case",
+	"case_class2": "case",
+	"case_class3": "case",
+	"case_not_empty": "case",
+	"case_empty": "case"
 }
 
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
 
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
+	"case": {"visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"loot_case": {"visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"loot_crate": {"visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_locked": {"locked":true, "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_class1": {"locked":false, "loot_class":"class1", "case_loot_state":"unsearched", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_class2": {"locked":false, "loot_class":"class2", "case_loot_state":"unsearched", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_class3": {"locked":false, "loot_class":"class3", "case_loot_state":"unsearched", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_not_empty": {"locked":false, "opened":true, "searched":true, "remaining_loot_count":1, "case_loot_state":"partially_looted", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
+	"case_empty": {"locked":false, "opened":true, "searched":true, "remaining_loot_count":0, "case_loot_state":"empty", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
 	"light_switch": {"switcher_type":"light_switcher"},
 	"circuit_breaker": {"switcher_type":"power_breaker", "is_on":true, "switch_state":"on", "state":"switch_on"},
 	"power_switch": {"switcher_type":"power_breaker"},
@@ -506,7 +523,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"archetype_id":"case", "object_group":"container", "object_type":"case", "palette_label":"Case",
 		"placement_mode":"object", "display_name_template":"Case", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
 		"locked":true, "loot_class":"class1", "opened":false, "searched":false, "remaining_loot_count":1,
-		"visual_family":"case", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class",
+		"visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class",
 		"property_schema":[
 			{"field":"locked", "type":"enum", "values":[true, false], "default":true, "labels":{"true":"Locked", "false":"Unlocked"}},
 			{"field":"loot_class", "type":"enum", "values":["class1", "class2", "class3"], "default":"class1", "labels":{"class1":"Class 1", "class2":"Class 2", "class3":"Class 3"}},
