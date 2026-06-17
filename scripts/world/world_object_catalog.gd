@@ -120,8 +120,7 @@ const PREFAB_ALIASES: Dictionary = {
 	"module_internal": "module_item",
 	"module_external": "module_item",
 	"vagus": "enemy",
-	"bug": "enemy",
-	"enemy_robot": "enemy"
+	"bug": "enemy"
 }
 
 const CONSTRUCTOR_PALETTE_GROUP_ORDER: Array[String] = [
@@ -417,7 +416,8 @@ const LEGACY_BIPOB_ALIAS_CONFIGS: Dictionary = {
 	"corrupted_bipob": {"object_type":"bipob", "bipob_status":"infected", "bipob_alignment":"hostile"},
 	"bipob_corrupted": {"object_type":"bipob", "bipob_status":"infected", "bipob_alignment":"hostile"},
 	"hostile_bipob": {"object_type":"bipob", "bipob_alignment":"hostile"},
-	"bipob_hostile": {"object_type":"bipob", "bipob_alignment":"hostile"}
+	"bipob_hostile": {"object_type":"bipob", "bipob_alignment":"hostile"},
+	"enemy_robot": {"object_type":"bipob", "bipob_type":"scout", "bipob_status":"infected", "bipob_alignment":"hostile"}
 }
 
 const FACING_SIDE_SW := "SW"
@@ -1040,7 +1040,7 @@ const OBJECT_LIBRARY := {
 	"grid_door": {"group":"door","name":"Grid Door","placeable_in_constructor":false,"door_type":"mechanical","material":"steel","access_type":"no_key","power_behavior":"none","durability":15,"state":"closed","blocks_movement":true,"blocks_vision":false,"door_class":1,"lock_type":"none","required_manipulator_level":1,"required_connector_level":0},
 	"rotating_platform": {"group":"platform","name":"Rotating Platform","platform_type":"rotating","platform_id":"","platform_cells":[],"state":"active","is_powered":true,"power_type":"internal","control_type":"internal","requires_terminal_enabled":false,"linked_terminal_id":"","local_switch_cell":[0,0],"local_switch_facing_dir":"up","non_destructible":true,"destructible":false,"movable":false,"heavy_claw_movable":false,"activation_mode":"instant","timer_turns":0,"timer_remaining_turns":0,"period_turns":0,"periodic_active":false,"permanent_state":false,"pending_activation":false,"rotation_direction":"clockwise"},
 	"lifting_platform": {"group":"platform","name":"Lifting Platform","platform_type":"lifting","platform_id":"","platform_cells":[],"state":"active","is_powered":true,"power_type":"internal","control_type":"internal","requires_terminal_enabled":false,"linked_terminal_id":"","local_switch_cell":[0,0],"local_switch_facing_dir":"up","non_destructible":true,"destructible":false,"movable":false,"heavy_claw_movable":false,"height_level":0,"min_height_level":0,"max_height_level":1,"activation_mode":"instant","timer_turns":0,"timer_remaining_turns":0,"period_turns":0,"periodic_active":false,"permanent_state":false,"pending_activation":false},
-	"firewall": {"group":"terminal","name":"Firewall","placement_mode":"wall_mounted","state":"active","required_connector_level":1,"required_processor_level":1,"durability":10},
+	"firewall": {"group":"security","object_group":"security","object_type":"firewall","archetype_id":"firewall","palette_label":"Firewall","name":"Firewall Node","placement_mode":"object","state":"active","required_connector_level":1,"required_processor_level":1,"durability":10,"blocks_movement":false,"blocks_vision":false,"visual_surface":"floor","mount":"floor","install_mode":"floor"},
 	"external_wall": {"group":"wall","name":"External Wall","material":"external_structural","is_destructible":false,"supports_embedded_objects":true,"supports_cables":true,"configurable":false,"indestructible":true,"blocks_movement":true,"blocks_vision":true},
 	"wall": {"group":"wall","name":"Brick Wall","material":"brick","is_destructible":true,"supports_embedded_objects":true,"supports_cables":true,"configurable":true,"durability":10,"blocks_movement":true,"blocks_vision":true},
 	"outer_wall": {"group":"wall","name":"Outer Wall","material":"steel","durability":9999,"indestructible":true,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
