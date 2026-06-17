@@ -430,6 +430,7 @@ const STORAGE_CARD_MIN_SIZE: Vector2 = Vector2(110, 74)
 const MENU_TOP_BUTTON_HEIGHT := 56
 const BOX_TOP_BUTTON_HEIGHT := 56.0
 const MENU_BACK_BUTTON_SIZE: Vector2 = Vector2(120, 56)
+const PROGRAMMER_BACK_BUTTON_MIN_SIZE: Vector2 = Vector2(120, 56)
 const REPAIR_BIPOB_CARD_SIZE: Vector2 = Vector2(120, 56)
 const STORAGE_CARD_ICON_SIZE: Vector2 = Vector2(26, 26)
 const MODULE_TYPE_ICON_BASE_PATH: String = "res://assets/visual/isometric/icons/modules/base_icon_inext.webp"
@@ -8754,7 +8755,7 @@ func show_programmer_menu() -> void:
 	var top_spacer: Control = Control.new()
 	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(top_spacer)
-	top_row.add_child(_create_menu_button("Back", Callable(self, "_on_programmer_back_pressed"), Vector2(120, MENU_TOP_BUTTON_HEIGHT)))
+	top_row.add_child(_create_menu_button("Back", Callable(self, "_on_programmer_back_pressed"), PROGRAMMER_BACK_BUTTON_MIN_SIZE))
 	programmer_message_label = Label.new()
 	programmer_message_label.text = "Decrypt/recover files and reprogram found or damaged bipobs."
 	programmer_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -8786,17 +8787,17 @@ func _refresh_programmer_menu() -> void:
 		var child: Node = child_variant
 		if child != null and is_instance_valid(child):
 			child.queue_free()
-	rows_vbox.add_child(_create_programmer_section_header("Files for decryption or recovery"))
+	rows_vbox.add_child(_create_programmer_section_header("Files"))
 	if programmer_pending_files.is_empty() and programmer_completed_files.is_empty():
-		rows_vbox.add_child(_create_programmer_empty_label("No files in inventory or on the field."))
+		rows_vbox.add_child(_create_programmer_empty_label("No files."))
 	else:
 		for file_record in programmer_pending_files:
 			rows_vbox.add_child(_create_programmer_file_row(file_record, false))
 		for file_record in programmer_completed_files:
 			rows_vbox.add_child(_create_programmer_file_row(file_record, true))
-	rows_vbox.add_child(_create_programmer_section_header("Damaged / found bipobs"))
+	rows_vbox.add_child(_create_programmer_section_header("Bipobs"))
 	if programmer_pending_bipobs.is_empty() and programmer_reprogrammed_bipobs.is_empty():
-		rows_vbox.add_child(_create_programmer_empty_label("No damaged or found bipobs available."))
+		rows_vbox.add_child(_create_programmer_empty_label("No bipobs."))
 	else:
 		for bipob_record in programmer_pending_bipobs:
 			rows_vbox.add_child(_create_programmer_bipob_row(bipob_record, false))
