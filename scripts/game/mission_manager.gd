@@ -3994,6 +3994,7 @@ func _is_map_constructor_wall_cell_share_prefab(prefab_id: String) -> bool:
 		"fuse_box",
 		"power_socket",
 		"power_switcher",
+		"light_switcher",
 		"power_cable",
 		"power_cable_reel",
 		"light",
@@ -4037,6 +4038,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 
 	var wall_only_prefabs: Array[String] = [
 		"light",
+		"light_switcher",
 		"external_air_duct",
 		"external_water_pipe"
 	]
@@ -6608,7 +6610,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 		data["outlet_capacity"] = source_class + 3
 	if type_group == "terminal" and not data.has("is_powered"):
 		data["is_powered"] = true
-	if object_type_normalized in ["power_cable", "power_socket", "circuit_breaker", "circuit_switch", "fuse_box", "fuse_box_installed", "fuse_box_empty", "light", "light_switch", "power_switcher"]:
+	if object_type_normalized in ["power_cable", "power_socket", "circuit_breaker", "circuit_switch", "fuse_box", "fuse_box_installed", "fuse_box_empty", "light", "light_switch", "light_switcher", "power_switcher"]:
 		if not data.has("is_powered"):
 			data["is_powered"] = false
 		if not data.has("physical_connection_source_id"):
@@ -6640,7 +6642,7 @@ func _normalize_map_constructor_active_object_fields(object_data: Dictionary) ->
 			data["cable_path_cells"] = []
 		if not data.has("cable_length"):
 			data["cable_length"] = 0
-	if object_type_normalized in ["circuit_breaker", "circuit_switch", "light_switch", "power_switcher"]:
+	if object_type_normalized in ["circuit_breaker", "circuit_switch", "light_switch", "light_switcher", "power_switcher"]:
 		if object_type_normalized == "power_switcher":
 			data["switcher_type"] = WorldObjectCatalogRef.normalize_switcher_type(data)
 			data["switcher_lines"] = WorldObjectCatalogRef.normalize_switcher_lines(data)
