@@ -57,6 +57,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 @export var debug_draw_iso_wall_outlines: bool = false
 @export var debug_draw_iso_object_outlines: bool = false
 @export var debug_log_iso_object_asset_resolution: bool = false
+@export var debug_log_wall_mounted_positioning: bool = false
 @export var use_iso_tile_asset_hooks: bool = false
 @export var use_iso_placeholder_asset_preset: bool = false
 @export var iso_placeholder_asset_preset_requires_preview: bool = true
@@ -2622,6 +2623,21 @@ func get_wall_mounted_anchor(cell: Vector2i, wall_side: String, object_data: Dic
 	var height_offset: float = WALL_MOUNTED_LIGHT_HEIGHT_OFFSET if LightVisualServiceRef.is_light_object(object_data) else WALL_MOUNTED_DEVICE_HEIGHT_OFFSET
 	return grid_to_iso(cell) + Vector2(horizontal_offset, WALL_MOUNT_SIDE_SHARED_Y_OFFSET + height_offset)
 
+func log_wall_mounted_positioning(object_data: Dictionary, render_path_name: String, wall_side: String, normalized_side: String, final_anchor: Vector2, final_destination_rect: Rect2, used_wall_mounted_anchor: bool) -> void:
+	if not debug_log_wall_mounted_positioning:
+		return
+	print("[WallMountedPositioning] object_id=%s object_type=%s prefab_id=%s render_path=%s wall_side=%s normalized_side=%s final_anchor=%s final_destination_rect=%s used_get_wall_mounted_anchor=%s" % [
+		str(object_data.get("id", object_data.get("object_id", ""))),
+		str(object_data.get("object_type", object_data.get("type", ""))),
+		str(object_data.get("prefab_id", object_data.get("map_constructor_prefab_id", object_data.get("visual_id", "")))),
+		render_path_name,
+		wall_side,
+		normalized_side,
+		str(final_anchor),
+		str(final_destination_rect),
+		str(used_wall_mounted_anchor)
+	])
+
 func _get_object_mount_mode(object_data: Dictionary) -> String:
 	var mount: String = str(object_data.get("mount", object_data.get("cable_install_mode", object_data.get("install_mode", object_data.get("placement_mode", object_data.get("placement", "floor")))))).to_lower().strip_edges()
 	if mount in ["wall", "wall_mounted"] or bool(object_data.get("is_wall_mounted", false)):
@@ -3519,6 +3535,8 @@ const WALL_MOUNT_SIDE_SHARED_Y_OFFSET := -4.0
 const WALL_MOUNTED_COMMON_X_OFFSET := 0.0
 const WALL_MOUNTED_DEVICE_HEIGHT_OFFSET := -32.0
 const WALL_MOUNTED_LIGHT_HEIGHT_OFFSET := -48.0
+const COOLING_WALL_CANVAS_COMMON_X_OFFSET := 0.0
+const COOLING_WALL_CANVAS_COMMON_Y_OFFSET := 0.0
 const AUTHORED_WALL_CANVAS_SOURCE_WIDTH: float = 512.0
 const AUTHORED_WALL_CANVAS_ANCHOR_RATIO: Vector2 = Vector2(0.5, 0.75)
 const AUTHORED_FLOOR_CANVAS_SOURCE_WIDTH: float = 512.0
@@ -4244,8 +4262,10 @@ func draw_cooling_wall_canvas_asset_for_faces(cell: Vector2i, object_data: Dicti
 	var texture_rect: Rect2 = get_iso_wall_texture_draw_rect_for_cell(cell, texture, wall_canvas_asset_key, get_wall_render_topology(cell))
 	if texture_rect.size.x <= 0.0 or texture_rect.size.y <= 0.0:
 		return false
+	texture_rect.position += Vector2(COOLING_WALL_CANVAS_COMMON_X_OFFSET, COOLING_WALL_CANVAS_COMMON_Y_OFFSET)
 
 	if "sw" in faces and "se" in faces:
+		log_wall_mounted_positioning(object_data, "cooling_wall_canvas_whole", str(object_data.get("wall_side", object_data.get("interaction_side", ""))), "sw,se", texture_rect.position + Vector2(texture_rect.size.x * 0.5, texture_rect.size.y), texture_rect, false)
 		draw_texture_rect_region(texture, texture_rect, Rect2(Vector2.ZERO, texture_size))
 	else:
 		for face in faces:
@@ -4254,6 +4274,7 @@ func draw_cooling_wall_canvas_asset_for_faces(cell: Vector2i, object_data: Dicti
 			var source_region: Rect2 = _get_cooling_wall_canvas_region(face, texture_size)
 			var destination_region: Rect2 = _get_cooling_wall_canvas_region(face, texture_rect.size)
 			destination_region.position += texture_rect.position
+			log_wall_mounted_positioning(object_data, "cooling_wall_canvas_face_region", str(object_data.get("wall_side", object_data.get("interaction_side", ""))), face, destination_region.position + Vector2(destination_region.size.x * 0.5, destination_region.size.y), destination_region, false)
 			draw_texture_rect_region(texture, destination_region, source_region)
 
 	draw_iso_asset_alignment_overlay(asset_id, texture_rect.position + Vector2(texture_rect.size.x * 0.5, texture_rect.size.y), texture_rect)
@@ -4276,6 +4297,8 @@ func draw_cooling_wall_canvas_asset(cell: Vector2i, object_data: Dictionary) -> 
 	var texture_rect: Rect2 = get_iso_wall_texture_draw_rect_for_cell(cell, texture, wall_canvas_asset_key, get_wall_render_topology(cell))
 	if texture_rect.size.x <= 0.0 or texture_rect.size.y <= 0.0:
 		return false
+	texture_rect.position += Vector2(COOLING_WALL_CANVAS_COMMON_X_OFFSET, COOLING_WALL_CANVAS_COMMON_Y_OFFSET)
+	log_wall_mounted_positioning(object_data, "cooling_wall_canvas_legacy_whole", str(object_data.get("wall_side", object_data.get("interaction_side", ""))), normalize_wall_visual_side(object_data), texture_rect.position + Vector2(texture_rect.size.x * 0.5, texture_rect.size.y), texture_rect, false)
 	draw_texture_rect_region(texture, texture_rect, Rect2(Vector2.ZERO, texture_size))
 	draw_iso_asset_alignment_overlay(asset_id, texture_rect.position + Vector2(texture_rect.size.x * 0.5, texture_rect.size.y), texture_rect)
 	return true
@@ -4465,6 +4488,9 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 	var final_draw_position: Vector2 = visual_center + surface_offset - visual_pivot + configured_offset
 	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
 	var wall_visual_side: String = normalize_wall_visual_side(object_data) if wall_mounted else ""
+	if wall_mounted:
+		var raw_wall_side: String = str(object_data.get("wall_side", object_data.get("interaction_side", ""))).strip_edges().to_lower()
+		log_wall_mounted_positioning(object_data, "iso_object_png_descriptor", raw_wall_side, wall_visual_side, visual_center, destination_rect, true)
 	return {
 		"visual_asset_key": asset_key,
 		"texture": texture,
