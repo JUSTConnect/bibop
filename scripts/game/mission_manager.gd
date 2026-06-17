@@ -19,6 +19,7 @@ const PlatformMechanismServiceRef = preload("res://scripts/game/platform/platfor
 const PlatformControlServiceRef = preload("res://scripts/game/platform/platform_control_service.gd")
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
 const PlatformMotionServiceRef = preload("res://scripts/game/platform/platform_motion_service.gd")
+const PlatformOccupancyServiceRef = preload("res://scripts/game/platform/platform_occupancy_service.gd")
 const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform_rotation_service.gd")
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
@@ -2538,6 +2539,10 @@ func _select_world_object_for_cell(cell: Vector2i) -> Dictionary:
 		if object_cell != cell:
 			continue
 		var object_score: int = _get_world_object_lookup_priority(object_data)
+		if PlatformOccupancyServiceRef.is_platform_data(object_data):
+			object_score -= 100
+		elif PlatformOccupancyServiceRef.is_platform_placeable_object(object_data):
+			object_score += 20
 		if selected_object.is_empty() or object_score > selected_score:
 			selected_object = object_data
 			selected_score = object_score
@@ -2657,6 +2662,37 @@ func get_world_object_at_cell(cell: Vector2i, include_lookup_metadata: bool = fa
 		"position": position,
 		"data": selected_object.duplicate(true)
 	}
+
+func get_platform_at_cell(cell: Vector2i) -> Dictionary:
+	return PlatformOccupancyServiceRef.get_platform_for_cell(cell, mission_world_objects)
+
+func get_platform_occupant_at_cell(cell: Vector2i) -> Dictionary:
+	var occupants: Array[Dictionary] = PlatformOccupancyServiceRef.get_platform_occupants_for_cell(cell, mission_world_objects)
+	for occupant in occupants:
+		if bool(occupant.get("blocks_movement", true)):
+			return occupant
+	return occupants[0] if not occupants.is_empty() else {}
+
+func get_blocking_object_at_cell_for_actor(cell: Vector2i) -> Dictionary:
+	var occupant: Dictionary = get_platform_occupant_at_cell(cell)
+	if not occupant.is_empty():
+		return occupant
+	var object_data: Dictionary = get_world_object_at_cell(cell)
+	if PlatformOccupancyServiceRef.is_platform_data(object_data):
+		return {}
+	return object_data
+
+func get_blocking_object_at_cell_for_push(cell: Vector2i) -> Dictionary:
+	return get_blocking_object_at_cell_for_actor(cell)
+
+func get_renderable_objects_at_cell(cell: Vector2i) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for object_variant in mission_world_objects:
+		if object_variant is Dictionary:
+			var object_data: Dictionary = Dictionary(object_variant)
+			if _get_world_object_cell_from_data(object_data) == cell:
+				result.append(object_data)
+	return result
 
 func _surface_height_from_variant(value: Variant, fallback: int = 0) -> int:
 	match typeof(value):
@@ -3114,6 +3150,8 @@ func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 	if incoming_is_wall_mounted:
 		if current_lookup.is_empty() or _is_wall_mounted_world_object(current_lookup):
 			world_objects_by_cell[cell] = object_data
+	elif PlatformOccupancyServiceRef.is_platform_placeable_object(object_data) and PlatformOccupancyServiceRef.is_platform_data(current_lookup):
+		pass
 	elif not incoming_is_cable_layer or current_lookup.is_empty() or CableTopologyServiceRef.is_cable_object(current_lookup):
 		world_objects_by_cell[cell] = object_data
 	mission_world_objects.append(object_data)
@@ -4220,6 +4258,13 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		}
 
 	var existing_object: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
+	var platform_at_cell: Dictionary = PlatformOccupancyServiceRef.get_platform_for_cell(cell, mission_world_objects)
+	if not platform_at_cell.is_empty():
+		if not PlatformOccupancyServiceRef.is_platform_placeable_object(constructor_preview):
+			return {"ok": false, "reason": "platform_requires_placeable", "message": "Only movable/platform-placeable objects can be placed on a platform.", "warnings": []}
+		if not PlatformOccupancyServiceRef.get_platform_occupants_for_cell(cell, mission_world_objects).is_empty():
+			return {"ok": false, "reason": "platform_cell_occupied", "message": "Platform cell already has an occupant.", "warnings": []}
+		return {"ok": true, "reason": "platform_surface_placeable", "message": "Object can be placed on platform.", "placement_mode": "object", "surface_context": PlatformOccupancyServiceRef.get_surface_context_for_cell(cell, mission_world_objects), "warnings": []}
 	if not existing_object.is_empty():
 		return {
 			"ok": false,
@@ -7339,9 +7384,11 @@ func update_world_object_by_id(id: String, data: Dictionary) -> void:
 		mission_world_objects[index] = object_data
 		var new_position := Vector2i(object_data.get("position", old_position))
 		var updated_lookup: Dictionary = Dictionary(world_objects_by_cell.get(new_position, {}))
-		if old_position != new_position:
+		if old_position != new_position and str(Dictionary(world_objects_by_cell.get(old_position, {})).get("id", "")) == id:
 			world_objects_by_cell.erase(old_position)
-		if not _is_wall_mounted_world_object(object_data) or updated_lookup.is_empty() or _is_wall_mounted_world_object(updated_lookup):
+		if PlatformOccupancyServiceRef.is_platform_placeable_object(object_data) and PlatformOccupancyServiceRef.is_platform_data(updated_lookup):
+			pass
+		elif not _is_wall_mounted_world_object(object_data) or updated_lookup.is_empty() or _is_wall_mounted_world_object(updated_lookup):
 			world_objects_by_cell[new_position] = object_data
 		_rebuild_wall_mounted_world_object_lookup()
 		refresh_generic_cable_runtime_state(str(object_data.get("power_network_id", "")))
@@ -7367,19 +7414,30 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 		result["message"] = "Object already there."
 		return result
 	var target_cell_state: Dictionary = get_runtime_cell_state(target_cell)
-	if not bool(target_cell_state.get("in_bounds", false)) or not bool(target_cell_state.get("is_passable", false)):
+	if not bool(target_cell_state.get("in_bounds", false)):
+		result["message"] = "Target cell is blocked."
+		return result
+	var from_surface: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(from_cell, mission_world_objects)
+	var target_surface: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(target_cell, mission_world_objects)
+	if not PlatformOccupancyServiceRef.is_surface_move_allowed(from_surface, target_surface):
+		result["message"] = "surface_level_mismatch"
+		return result
+	if not bool(target_cell_state.get("is_passable", false)) and PlatformOccupancyServiceRef.get_platform_for_cell(target_cell, mission_world_objects).is_empty():
 		result["message"] = "Target cell is blocked."
 		return result
 	if from_cell.x < 0 or from_cell.y < 0:
 		result["message"] = "Object not found."
 		return result
-	var target_object := get_world_object_at_cell(target_cell)
+	var target_object := get_blocking_object_at_cell_for_push(target_cell)
 	if not target_object.is_empty():
 		result["message"] = "Target cell is occupied."
 		return result
-	world_objects_by_cell.erase(from_cell)
+	if str(Dictionary(world_objects_by_cell.get(from_cell, {})).get("id", "")) == object_id:
+		world_objects_by_cell.erase(from_cell)
 	object_data["position"] = target_cell
-	world_objects_by_cell[target_cell] = object_data
+	object_data = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
+	if not PlatformOccupancyServiceRef.is_platform_data(Dictionary(world_objects_by_cell.get(target_cell, {}))):
+		world_objects_by_cell[target_cell] = object_data
 	for object_index in range(mission_world_objects.size()):
 		if str(mission_world_objects[object_index].get("id", "")) == object_id:
 			mission_world_objects[object_index] = object_data
@@ -11730,14 +11788,7 @@ func get_platform_by_id(platform_id: String) -> Dictionary:
 	return {}
 
 func get_platform_for_cell(cell: Vector2i) -> Dictionary:
-	for object_data in mission_world_objects:
-		if str(object_data.get("object_group", "")) != "platform":
-			continue
-		for platform_cell_variant in Array(object_data.get("platform_cells", [])):
-			var platform_cell := WorldObjectCatalogRef.to_world_cell(platform_cell_variant, Vector2i(-1, -1))
-			if platform_cell == cell:
-				return object_data
-	return {}
+	return PlatformOccupancyServiceRef.get_platform_for_cell(cell, mission_world_objects)
 
 
 func refresh_world_object_platform_height_state(object_data: Dictionary) -> void:

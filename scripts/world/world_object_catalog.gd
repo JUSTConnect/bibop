@@ -1646,6 +1646,12 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 		data["walkable"] = false
 		data["passable"] = false
 		data["is_obstacle"] = true
+	var platform_placeable_group: String = _normalized_contract_token(data.get("object_group", data.get("group", "")))
+	var platform_placeable_archetype: String = _normalized_contract_token(data.get("archetype_id", data.get("enemy_type", data.get("enemy_kind", ""))))
+	var platform_placeable_types: Array[String] = ["radiator", "cooling_box", "external_air_cooler", "metal_cooling_block", "case", "crate", "normal_crate", "heavy_crate", "barrel", "box", "steel_box", "turret", "enemy", "vagus", "bug"]
+	if platform_placeable_group not in ["wall", "door", "platform"] and str(data.get("placement_mode", "")).strip_edges().to_lower() != "wall_mounted" and not bool(data.get("is_wall_mounted", false)):
+		if bool(data.get("movable", false)) or bool(data.get("heavy_claw_movable", false)) or normalized_object_type in platform_placeable_types or platform_placeable_archetype in platform_placeable_types or platform_placeable_group in ["enemy", "threat"]:
+			data["platform_placeable"] = true
 	if normalized_object_type in ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"]:
 		data["blocks_movement"] = true
 		data["blocks_vision"] = _safe_bool_like(data.get("blocks_vision", false), false)

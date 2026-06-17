@@ -7,6 +7,7 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
+const PlatformOccupancyServiceRef = preload("res://scripts/game/platform/platform_occupancy_service.gd")
 
 const CIRCUIT_ID_FIELDS = ["circuit_id", "power_circuit_id", "network_id", "power_network_id", "chain_id", "link_group", "cable_group", "connected_circuit"]
 
@@ -256,6 +257,14 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 		object_data["blocks_movement"] = false
 		object_data["changes_passability"] = false
 		object_data["does_not_block_movement"] = true
+	if str(check.get("reason", "")) == "platform_surface_placeable":
+		object_data = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, Dictionary(check.get("surface_context", {})))
+	else:
+		var surface_context: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(cell, manager.mission_world_objects)
+		if str(surface_context.get("surface_kind", "ground")) == "platform" and PlatformOccupancyServiceRef.is_platform_placeable_object(object_data):
+			object_data = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, surface_context)
+		elif PlatformOccupancyServiceRef.is_platform_placeable_object(object_data):
+			object_data = PlatformOccupancyServiceRef.clear_platform_surface_metadata(object_data)
 	_trace_wall_mounted_placement("place_final", {
 			"prefab_id": prefab_id, 
 			"direct_wall_cell_mount": bool(check.get("direct_wall_cell_mount", false)),
@@ -371,6 +380,10 @@ func _clone_map_constructor_entity_data(source_data: Dictionary, target_cell: Ve
 	clone_data.erase("wall_side")
 	clone_data.erase("map_constructor_previous_tile_type")
 	clone_data["position"] = target_cell
+	if str(placement_check.get("reason", "")) == "platform_surface_placeable" or (PlatformOccupancyServiceRef.get_surface_context_for_cell(target_cell, manager.mission_world_objects).get("surface_kind", "ground") == "platform" and PlatformOccupancyServiceRef.is_platform_placeable_object(clone_data)):
+		clone_data = PlatformOccupancyServiceRef.attach_entity_to_surface(clone_data, PlatformOccupancyServiceRef.get_surface_context_for_cell(target_cell, manager.mission_world_objects))
+	elif PlatformOccupancyServiceRef.is_platform_placeable_object(clone_data):
+		clone_data = PlatformOccupancyServiceRef.clear_platform_surface_metadata(clone_data)
 	if str(clone_data.get("placement_mode", "")) == "wall_mounted":
 		if bool(placement_check.get("direct_wall_cell_mount", false)):
 			var direct_anchor_floor_cell: Vector2i = manager._deserialize_cell_variant(placement_check.get("anchor_floor_cell", Vector2i(-1, -1)))
