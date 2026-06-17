@@ -272,10 +272,28 @@ static func _add_occupants(ui: Variant, parent: VBoxContainer, platform_id: Stri
 static func _get_platform_occupant_rows(ui: Variant, platform_id: String) -> Array:
 	if ui.mission_manager_runtime == null:
 		return []
+
+	var result: Variant = null
 	if ui.mission_manager_runtime.has_method("get_map_constructor_platform_occupants"):
-		return Array(ui.mission_manager_runtime.call("get_map_constructor_platform_occupants", platform_id))
-	if ui.mission_manager_runtime.has_method("get_platform_occupants"):
-		return Array(ui.mission_manager_runtime.call("get_platform_occupants", platform_id))
+		result = ui.mission_manager_runtime.call("get_map_constructor_platform_occupants", platform_id)
+	elif ui.mission_manager_runtime.has_method("get_platform_occupants"):
+		result = ui.mission_manager_runtime.call("get_platform_occupants", platform_id)
+	else:
+		return []
+
+	if result is Array:
+		var result_rows: Array = result
+		return result_rows.duplicate(true)
+
+	if result is Dictionary:
+		var result_dict: Dictionary = result
+		if result_dict.has("rows") and result_dict["rows"] is Array:
+			var rows: Array = result_dict["rows"]
+			return rows.duplicate(true)
+		if result_dict.has("occupants") and result_dict["occupants"] is Array:
+			var occupants: Array = result_dict["occupants"]
+			return occupants.duplicate(true)
+
 	return []
 
 static func _add_int_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, min_value: int, max_value: int) -> void:

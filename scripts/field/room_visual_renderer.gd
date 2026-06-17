@@ -4045,7 +4045,7 @@ func get_wall_routed_height_source_px(object_data: Dictionary) -> float:
 			return 400.0
 	return 50.0
 
-func get_wall_route_segment_points(visual_center: Vector2, object_data: Dictionary, source_height_px: float) -> Dictionary:
+func get_wall_route_segment_points(visual_center: Vector2, object_data: Dictionary, _source_height_px: float) -> Dictionary:
 	var side: String = normalize_wall_visual_side(object_data)
 	var half: Vector2 = get_iso_tile_half_size()
 	var y: float = 0.0
