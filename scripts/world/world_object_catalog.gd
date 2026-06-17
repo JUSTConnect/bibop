@@ -102,7 +102,23 @@ const PREFAB_ALIASES: Dictionary = {
 	"external_air_cooler": "metal_cooling_block",
 	"air_cooling": "metal_cooling_block",
 	"air_cooler": "metal_cooling_block",
-	"cooling_fan": "metal_cooling_block"
+	"cooling_fan": "metal_cooling_block",
+	"digital_key": "digital_item",
+	"access_code": "digital_item",
+	"data_file": "digital_item",
+	"key_card": "access_item",
+	"mechanical_key": "access_item",
+	"mechanical_keycard": "access_item",
+	"keycard": "access_item",
+	"fuse": "physical_item",
+	"repair_kit": "physical_item",
+	"reinforcement": "physical_item",
+	"parts": "physical_item",
+	"parts_small": "physical_item",
+	"parts_medium": "physical_item",
+	"parts_large": "physical_item",
+	"module_internal": "module_item",
+	"module_external": "module_item"
 }
 
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
@@ -141,7 +157,23 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"external_air_cooler": {"object_group":"cooling"},
 	"air_cooling": {"object_group":"cooling"},
 	"air_cooler": {"object_group":"cooling"},
-	"cooling_fan": {"object_group":"cooling"}
+	"cooling_fan": {"object_group":"cooling"},
+	"digital_key": {"digital_item_type":"digital_key", "item_class":"digital_key", "item_type":"digital_key"},
+	"access_code": {"digital_item_type":"access_code", "item_class":"access_code", "item_type":"access_code"},
+	"data_file": {"digital_item_type":"data_file", "item_class":"data_file", "item_type":"data_file"},
+	"key_card": {"access_item_type":"key_card", "item_class":"key_card", "item_type":"key_card"},
+	"mechanical_key": {"access_item_type":"key_card", "item_class":"key_card", "item_type":"key_card"},
+	"mechanical_keycard": {"access_item_type":"key_card", "item_class":"key_card", "item_type":"key_card"},
+	"keycard": {"access_item_type":"key_card", "item_class":"key_card", "item_type":"key_card"},
+	"fuse": {"physical_item_type":"fuse", "item_type":"fuse", "visual_asset_id":"fuse_floor_01"},
+	"reinforcement": {"physical_item_type":"reinforcement", "item_type":"reinforcement", "visual_asset_id":"reinforcement_floor_01"},
+	"repair_kit": {"physical_item_type":"repair_kit", "item_type":"repair_kit", "visual_asset_id":"repair_kit_floor_01"},
+	"parts": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":1},
+	"parts_small": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":5},
+	"parts_medium": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":10},
+	"parts_large": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":20},
+	"module_internal": {"module_item_type":"module_internal", "item_type":"module_internal"},
+	"module_external": {"module_item_type":"module_external", "item_type":"module_external"}
 }
 
 # Hidden compatibility mappings for loading old constructor/runtime data only.
@@ -469,18 +501,40 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"item": {
-		"archetype_id":"item", "object_group":"item", "object_type":"item", "palette_label":"Item",
-		"placement_mode":"item", "display_name_template":"{item_class_label}",
-		"item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "item_type":"physical_item", "can_pickup":true, "interactable":true, "configurable":true, "state":"available", "allowed_states":["available", "collected", "disabled"],
+		"archetype_id":"item", "object_group":"item", "object_type":"item", "palette_label":"Digital Items", "show_in_palette":false,
+		"placement_mode":"item", "display_name_template":"{digital_item_type_label}",
+		"configurable":true, "can_pickup":true, "interactable":true, "item_category":"digital", "item_form":"digital", "storage_route":"digital_storage", "storage_type":"digital_storage", "digital_item_type":"data_file", "item_class":"data_file", "item_type":"data_file", "state":"available", "allowed_states":["available", "collected", "disabled"],
 		"property_schema":[
-			{"field":"item_class", "type":"enum", "values":["physical_item", "key_card", "digital_key", "access_code", "data_file"], "default":"physical_item", "labels":{"physical_item":"Physical Item", "key_card":"Key Card", "digital_key":"Digital Key", "access_code":"Access Code", "data_file":"Data File"}},
-			{"field":"storage_route", "type":"enum", "values":["pocket", "keychain", "digital_buffer", "digital_storage"], "default":"pocket", "labels":{"pocket":"Pocket", "keychain":"Keychain", "digital_buffer":"Digital Buffer", "digital_storage":"Digital Storage"}},
+			{"field":"digital_item_type", "type":"enum", "values":["digital_key", "access_code", "data_file"], "default":"data_file", "labels":{"digital_key":"Digital Key", "access_code":"Access Code", "data_file":"Data File"}},
 			{"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"},
-			{"field":"allowed_states", "type":"enum_array", "values":["available", "collected", "disabled"], "default":["available", "collected", "disabled"]},
 			{"field":"linked_door_id", "type":"object_ref", "target_group":"door", "default":""},
 			{"field":"payload_id", "type":"string", "default":""},
 			{"field":"access_code", "type":"string", "default":""}
 		]
+	},
+	"digital_item": {
+		"archetype_id":"digital_item", "object_group":"item", "object_type":"item", "palette_label":"Digital Items",
+		"placement_mode":"item", "display_name_template":"{digital_item_type_label}",
+		"configurable":true, "can_pickup":true, "interactable":true, "item_category":"digital", "item_form":"digital", "storage_route":"digital_storage", "storage_type":"digital_storage", "digital_item_type":"data_file", "item_class":"data_file", "item_type":"data_file", "state":"available", "allowed_states":["available", "collected", "disabled"],
+		"property_schema":[
+			{"field":"digital_item_type", "type":"enum", "values":["digital_key", "access_code", "data_file"], "default":"data_file", "labels":{"digital_key":"Digital Key", "access_code":"Access Code", "data_file":"Data File"}},
+			{"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"},
+			{"field":"linked_door_id", "type":"object_ref", "target_group":"door", "default":""},
+			{"field":"payload_id", "type":"string", "default":""},
+			{"field":"access_code", "type":"string", "default":""}
+		]
+	},
+	"access_item": {
+		"archetype_id":"access_item", "object_group":"item", "object_type":"item", "palette_label":"Access Items", "placement_mode":"item", "display_name_template":"{access_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"access", "item_form":"physical", "storage_route":"keychain", "storage_type":"keychain", "access_item_type":"key_card", "item_class":"key_card", "item_type":"key_card", "key_kind":"key_card", "key_type":"key_card", "state":"available", "allowed_states":["available", "collected", "disabled"],
+		"property_schema":[{"field":"access_item_type", "type":"enum", "values":["key_card"], "default":"key_card", "labels":{"key_card":"Key Card"}}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}, {"field":"linked_door_id", "type":"object_ref", "target_group":"door", "default":""}]
+	},
+	"physical_item": {
+		"archetype_id":"physical_item", "object_group":"item", "object_type":"item", "palette_label":"Physical Items", "placement_mode":"item", "display_name_template":"{physical_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"physical", "item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "physical_item_type":"parts", "item_class":"physical_item", "item_type":"parts", "visual_asset_id":"parts_floor_01", "visual_family":"parts", "visual_surface":"floor", "state":"available", "allowed_states":["available", "collected", "disabled"],
+		"property_schema":[{"field":"physical_item_type", "type":"enum", "values":["fuse", "reinforcement", "repair_kit", "parts"], "default":"parts", "labels":{"fuse":"Fuse", "reinforcement":"Reinforcement Kit", "repair_kit":"Repair Kit", "parts":"Parts"}}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}, {"field":"amount", "type":"int", "default":1, "min":1}]
+	},
+	"module_item": {
+		"archetype_id":"module_item", "object_group":"item", "object_type":"item", "palette_label":"Module Items", "placement_mode":"item", "display_name_template":"{module_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"module", "item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "module_item_type":"module_internal", "item_class":"physical_item", "item_type":"module_internal", "state":"available", "allowed_states":["available", "collected", "disabled"],
+		"property_schema":[{"field":"module_item_type", "type":"enum", "values":["module_internal", "module_external"], "default":"module_internal", "labels":{"module_internal":"Internal Module", "module_external":"External Module"}}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}]
 	},
 	"power_switcher": {
 		"archetype_id":"power_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Power Switcher", "facing_side":"SW",
@@ -587,23 +641,23 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"fuse": {
-		"archetype_id":"fuse", "object_group":"item", "object_type":"fuse", "palette_label":"Fuse",
+		"archetype_id":"fuse", "object_group":"item", "show_in_palette":false, "object_type":"fuse", "palette_label":"Fuse",
 		"placement_mode":"item", "display_name_template":"Fuse", "configurable":false, "visual_asset_id":"fuse_floor_01", "visual_family":"fuse", "visual_surface":"floor", "property_schema":[]
 	},
 	"repair_kit": {
-		"archetype_id":"repair_kit", "object_group":"item", "object_type":"repair_kit", "palette_label":"Repair Kit",
+		"archetype_id":"repair_kit", "object_group":"item", "show_in_palette":false, "object_type":"repair_kit", "palette_label":"Repair Kit",
 		"placement_mode":"item", "display_name_template":"Repair Kit", "configurable":false, "visual_asset_id":"repair_kit_floor_01", "visual_family":"repair_kit", "visual_surface":"floor", "property_schema":[]
 	},
 	"reinforcement": {
-		"archetype_id":"reinforcement", "object_group":"item", "object_type":"reinforcement", "palette_label":"Reinforcement Kit",
+		"archetype_id":"reinforcement", "object_group":"item", "show_in_palette":false, "object_type":"reinforcement", "palette_label":"Reinforcement Kit",
 		"placement_mode":"item", "display_name_template":"Reinforcement Kit", "configurable":false, "visual_asset_id":"reinforcement_floor_01", "visual_family":"reinforcement", "visual_surface":"floor", "property_schema":[]
 	},
 	"module_external": {
-		"archetype_id":"module_external", "object_group":"item", "object_type":"module_external", "palette_label":"External Module",
+		"archetype_id":"module_external", "object_group":"item", "show_in_palette":false, "object_type":"module_external", "palette_label":"External Module",
 		"placement_mode":"item", "display_name_template":"External Module", "configurable":false, "property_schema":[]
 	},
 	"module_internal": {
-		"archetype_id":"module_internal", "object_group":"item", "object_type":"module_internal", "palette_label":"Internal Module",
+		"archetype_id":"module_internal", "object_group":"item", "show_in_palette":false, "object_type":"module_internal", "palette_label":"Internal Module",
 		"placement_mode":"item", "display_name_template":"Internal Module", "configurable":false, "property_schema":[]
 	},
 	"floor": {
@@ -679,7 +733,7 @@ static func canonicalize_legacy_object_data(object_data: Dictionary) -> Dictiona
 			var key: String = str(key_variant)
 			if not data.has(key):
 				data[key] = get_prefab_alias_defaults(original_object_type)[key]
-		if data["object_type"] in ["floor", "item"]:
+		if data["object_type"] in ["floor", "item", "digital_item", "access_item", "physical_item", "module_item"]:
 			data["archetype_id"] = data["object_type"]
 	elif is_legacy_prefab_alias(source_id):
 		data = mark_legacy_source(data, source_id)
@@ -966,16 +1020,15 @@ static func normalize_item_class(value: Variant) -> String:
 
 static func normalize_item_contract(item_data: Dictionary) -> Dictionary:
 	var data: Dictionary = item_data.duplicate(true)
+	var archetype_token: String = _normalized_contract_token(data.get("archetype_id", ""))
 	var source_type: String = _normalized_contract_token(data.get("item_class", data.get("item_type", data.get("object_type", ""))))
-	var is_catalog_item: bool = _normalized_contract_token(data.get("archetype_id", "")) == "item" or _normalized_contract_token(data.get("object_type", "")) == "item" or LEGACY_ITEM_ALIAS_CONFIGS.has(source_type)
+	var is_grouped_item: bool = archetype_token in ["item", "digital_item", "access_item", "physical_item", "module_item"]
+	var is_catalog_item: bool = is_grouped_item or _normalized_contract_token(data.get("object_type", "")) == "item" or LEGACY_ITEM_ALIAS_CONFIGS.has(source_type)
 	if not is_catalog_item:
 		return data
-	var item_class: String = normalize_item_class(source_type)
-	data["archetype_id"] = "item"
+
 	data["object_group"] = "item"
 	data["object_type"] = "item"
-	data["item_class"] = item_class
-	data["item_type"] = item_class
 	data["can_pickup"] = bool(data.get("can_pickup", true))
 	data["interactable"] = bool(data.get("interactable", true))
 	data["configurable"] = bool(data.get("configurable", true))
@@ -984,38 +1037,87 @@ static func normalize_item_contract(item_data: Dictionary) -> Dictionary:
 		data["state"] = "available"
 	if not data.has("allowed_states"):
 		data["allowed_states"] = ["available", "collected", "disabled"]
-	match item_class:
-		ITEM_CLASS_KEY_CARD:
-			data["item_form"] = "physical"
-			data["storage_route"] = ITEM_STORAGE_ROUTE_KEYCHAIN
-			data["storage_type"] = ITEM_STORAGE_ROUTE_KEYCHAIN
-			data["key_kind"] = ITEM_CLASS_KEY_CARD
-			data["key_type"] = ITEM_CLASS_KEY_CARD
-		ITEM_CLASS_DIGITAL_KEY:
-			data["item_form"] = "digital"
-			data["storage_route"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
-			data["storage_type"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+
+	if archetype_token == "digital_item" or data.has("digital_item_type"):
+		var digital_item_type: String = _normalized_contract_token(data.get("digital_item_type", source_type))
+		if not digital_item_type in [ITEM_CLASS_DIGITAL_KEY, ITEM_CLASS_ACCESS_CODE, ITEM_CLASS_DATA_FILE]:
+			digital_item_type = ITEM_CLASS_DATA_FILE
+		data["archetype_id"] = "digital_item"
+		data["item_category"] = "digital"
+		data["digital_item_type"] = digital_item_type
+		data["item_class"] = digital_item_type
+		data["item_type"] = digital_item_type
+		data["item_form"] = "digital"
+		data["storage_route"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+		data["storage_type"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+		if digital_item_type == ITEM_CLASS_DIGITAL_KEY:
 			data["key_kind"] = "digital"
 			data["key_type"] = ITEM_CLASS_DIGITAL_KEY
-		ITEM_CLASS_ACCESS_CODE:
-			data["item_form"] = "digital"
-			data["storage_route"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
-			data["storage_type"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+		elif digital_item_type == ITEM_CLASS_ACCESS_CODE:
 			data["key_kind"] = ITEM_CLASS_ACCESS_CODE
 			data["key_type"] = ITEM_CLASS_ACCESS_CODE
-		ITEM_CLASS_DATA_FILE:
-			data["item_form"] = "digital"
-			data["storage_route"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
-			data["storage_type"] = ITEM_STORAGE_ROUTE_DIGITAL_STORAGE
+		else:
 			data.erase("key_kind")
 			data.erase("key_type")
-		_:
-			data["item_form"] = "physical"
-			data["storage_route"] = ITEM_STORAGE_ROUTE_POCKET
-			data["storage_type"] = ITEM_STORAGE_ROUTE_POCKET
-			data.erase("key_kind")
-			data.erase("key_type")
-	data["display_name"] = str(ITEM_DISPLAY_NAMES[item_class])
+	elif archetype_token == "access_item" or data.has("access_item_type") or source_type == ITEM_CLASS_KEY_CARD:
+		data["archetype_id"] = "access_item"
+		data["item_category"] = "access"
+		data["access_item_type"] = ITEM_CLASS_KEY_CARD
+		data["item_class"] = ITEM_CLASS_KEY_CARD
+		data["item_type"] = ITEM_CLASS_KEY_CARD
+		data["item_form"] = "physical"
+		data["storage_route"] = ITEM_STORAGE_ROUTE_KEYCHAIN
+		data["storage_type"] = ITEM_STORAGE_ROUTE_KEYCHAIN
+		data["key_kind"] = ITEM_CLASS_KEY_CARD
+		data["key_type"] = ITEM_CLASS_KEY_CARD
+	elif archetype_token == "module_item" or data.has("module_item_type"):
+		var module_item_type: String = _normalized_contract_token(data.get("module_item_type", data.get("item_type", "module_internal")))
+		if not module_item_type in ["module_internal", "module_external"]:
+			module_item_type = "module_internal"
+		data["archetype_id"] = "module_item"
+		data["item_category"] = "module"
+		data["module_item_type"] = module_item_type
+		data["item_class"] = ITEM_CLASS_PHYSICAL_ITEM
+		data["item_type"] = module_item_type
+		data["item_form"] = "physical"
+		data["storage_route"] = ITEM_STORAGE_ROUTE_POCKET
+		data["storage_type"] = ITEM_STORAGE_ROUTE_POCKET
+		data.erase("key_kind")
+		data.erase("key_type")
+	elif archetype_token == "physical_item" or data.has("physical_item_type") or source_type in ["fuse", "reinforcement", "repair_kit", "parts"]:
+		var physical_item_type: String = _normalized_contract_token(data.get("physical_item_type", data.get("item_type", "parts")))
+		if not physical_item_type in ["fuse", "reinforcement", "repair_kit", "parts"]:
+			physical_item_type = "parts"
+		data["archetype_id"] = "physical_item"
+		data["item_category"] = "physical"
+		data["physical_item_type"] = physical_item_type
+		data["item_class"] = ITEM_CLASS_PHYSICAL_ITEM
+		data["item_type"] = physical_item_type
+		data["item_form"] = "physical"
+		data["storage_route"] = ITEM_STORAGE_ROUTE_POCKET
+		data["storage_type"] = ITEM_STORAGE_ROUTE_POCKET
+		data["visual_asset_id"] = "%s_floor_01" % physical_item_type
+		data["visual_family"] = physical_item_type
+		data["visual_surface"] = "floor"
+		data.erase("key_kind")
+		data.erase("key_type")
+	else:
+		var item_class: String = normalize_item_class(source_type)
+		data["archetype_id"] = "item"
+		data["item_class"] = item_class
+		data["item_type"] = item_class
+		match item_class:
+			ITEM_CLASS_DIGITAL_KEY, ITEM_CLASS_ACCESS_CODE, ITEM_CLASS_DATA_FILE:
+				data["digital_item_type"] = item_class
+				return normalize_item_contract(data)
+			ITEM_CLASS_KEY_CARD:
+				data["access_item_type"] = ITEM_CLASS_KEY_CARD
+				return normalize_item_contract(data)
+			_:
+				data["physical_item_type"] = str(data.get("item_type", "parts"))
+				return normalize_item_contract(data)
+
+	data["display_name"] = generate_display_name(data)
 	return data
 
 static func get_item_storage_class(item_data: Dictionary) -> String:
