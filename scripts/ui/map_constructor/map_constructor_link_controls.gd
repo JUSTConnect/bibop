@@ -65,6 +65,66 @@ static func add_link_picker(ui: Variant, section: VBoxContainer, entity_kind: St
 	actions.add_child(jump_button)
 	section.add_child(actions)
 
+static func add_single_link_property(ui: Variant, section: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, target_group: String = "", options: Dictionary = {}) -> void:
+	var model: Dictionary = MapConstructorLinkReadModelServiceRef.get_link_options_for_field(ui.mission_manager_runtime, entity_kind, entity_id, field_name, target_group)
+	var current_id: String = ui._safe_ui_string(current_value).strip_edges()
+	if current_id.is_empty():
+		current_id = ui._safe_ui_string(model.get("current_target_id", "")).strip_edges()
+	var row_box: HBoxContainer = HBoxContainer.new()
+	row_box.add_theme_constant_override("separation", 6)
+	var current_label: Label = Label.new()
+	current_label.text = ui._safe_ui_string(model.get("current_label", "(none)"), "(none)")
+	current_label.tooltip_text = current_id
+	current_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row_box.add_child(current_label)
+	var choose: OptionButton = OptionButton.new()
+	choose.add_item("Choose…")
+	choose.set_item_metadata(0, {"id": current_id, "entity_kind": ""})
+	for target_variant in ui._safe_ui_array(model.get("targets", [])):
+		var target: Dictionary = ui._safe_ui_dictionary(target_variant)
+		var tid: String = ui._safe_ui_string(target.get("id", "")).strip_edges()
+		var text: String = ui._safe_ui_string(target.get("label", tid), tid)
+		choose.add_item(text)
+		var idx: int = choose.item_count - 1
+		choose.set_item_metadata(idx, target)
+		choose.set_item_tooltip(idx, tid)
+		if bool(target.get("disabled", false)):
+			choose.set_item_disabled(idx, true)
+			choose.set_item_tooltip(idx, ui._safe_ui_string(target.get("disabled_reason", tid), tid))
+		if tid == current_id:
+			choose.select(idx)
+	choose.item_selected.connect(func(index: int) -> void:
+		var target: Dictionary = ui._safe_ui_dictionary(choose.get_item_metadata(index))
+		var target_id: String = ui._safe_ui_string(target.get("id", "")).strip_edges()
+		if target_id == "__none__":
+			target_id = ""
+		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name: target_id})
+	)
+	row_box.add_child(choose)
+	var clear_button: Button = Button.new()
+	clear_button.text = "Clear"
+	clear_button.pressed.connect(func() -> void:
+		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name: ""})
+	)
+	row_box.add_child(clear_button)
+	var jump_button: Button = Button.new()
+	jump_button.text = "Jump"
+	jump_button.disabled = current_id.is_empty()
+	jump_button.pressed.connect(func() -> void:
+		if current_id.is_empty() or ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("get_map_constructor_entity_by_id"):
+			return
+		for target_variant in ui._safe_ui_array(model.get("targets", [])):
+			var target: Dictionary = ui._safe_ui_dictionary(target_variant)
+			if ui._safe_ui_string(target.get("id", "")).strip_edges() == current_id:
+				var cell: Vector2i = ui._safe_ui_vector2i(target.get("cell", Vector2i(-1, -1)))
+				if cell.x >= 0 and cell.y >= 0:
+					ui._focus_map_constructor_cell(cell)
+					ui._show_map_constructor_inspector(cell, ui._safe_ui_string(target.get("entity_kind", "world_object"), "world_object"), current_id)
+				return
+	)
+	row_box.add_child(jump_button)
+	section.add_child(ui._create_property_row(label, row_box, true))
+
 static func get_map_constructor_key_entity_by_id(ui: Variant, key_id: String) -> Dictionary:
 	var normalized_key_id: String = key_id.strip_edges()
 	if normalized_key_id.is_empty() or ui.mission_manager_runtime == null:
@@ -122,7 +182,8 @@ static func add_key_door_link_section(ui: Variant, parent: VBoxContainer, entity
 	var current_id: String = ui._safe_ui_string(data.get("linked_door_id", "")).strip_edges()
 	var current_label: Label = Label.new()
 	current_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	current_label.text = "Unlocks Door: %s" % (current_id if not current_id.is_empty() else "(none)")
+	current_label.text = "Unlocks Door: %s" % (MapConstructorLinkReadModelServiceRef._lookup_entity_label(ui.mission_manager_runtime, current_id, "world_object") if not current_id.is_empty() else "(none)")
+	current_label.tooltip_text = current_id
 	section.add_child(current_label)
 	var candidates: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_key_door_link_candidates", entity_kind, entity_id))
 	var doors: Array = ui._safe_ui_array(candidates.get("doors", []))
@@ -194,9 +255,11 @@ static func add_door_linked_key_section(ui: Variant, parent: VBoxContainer, _ent
 		var key_entity: Dictionary = get_map_constructor_key_entity_by_id(ui, key_id)
 		var key_data: Dictionary = ui._safe_ui_dictionary(key_entity.get("data", {}))
 		if bool(key_entity.get("ok", false)):
-			label.text = "%s — %s at %s" % [ui._safe_ui_string(key_data.get("display_name", key_id), key_id), key_id, str(ui._safe_ui_vector2i(key_entity.get("cell", Vector2i(-1, -1))))]
+			label.text = "%s at %s" % [ui._safe_ui_string(key_data.get("display_name", key_data.get("name", key_id)), key_id), str(ui._safe_ui_vector2i(key_entity.get("cell", Vector2i(-1, -1))))]
+			label.tooltip_text = key_id
 		else:
-			label.text = "Linked key missing: %s" % key_id
+			label.text = "Linked key missing"
+			label.tooltip_text = key_id
 	section.add_child(label)
 	if not key_id.is_empty():
 		var jump_button: Button = Button.new()

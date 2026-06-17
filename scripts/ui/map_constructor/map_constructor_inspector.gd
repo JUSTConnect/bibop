@@ -597,7 +597,6 @@ static func _render_wall_tab(ui: Variant, parent: VBoxContainer, entity: Diction
 	var entity_kind: String = str(entity.get("entity_kind", "wall"))
 	var entity_id: String = str(entity.get("id", "wall_%d_%d" % [cell.x, cell.y]))
 	var identity: VBoxContainer = ui._create_inspector_section("1. Identity")
-	var id_label: Label = Label.new(); id_label.text = entity_id; identity.add_child(ui._create_property_row("ID", id_label))
 	var type_label: Label = Label.new(); type_label.text = "wall"; identity.add_child(ui._create_property_row("Type", type_label))
 	parent.add_child(identity)
 	var placement: VBoxContainer = ui._create_inspector_section("2. Placement")
@@ -649,7 +648,6 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 		return
 	var type_group: String = ui._safe_ui_string(ui.mission_manager_runtime.call("get_map_constructor_entity_type_group", entity_kind, entity_id), "generic") if ui.mission_manager_runtime.has_method("get_map_constructor_entity_type_group") else "generic"
 	var identity: VBoxContainer = ui._create_inspector_section("1. Identity")
-	var id_label: Label = Label.new(); id_label.text = entity_id; identity.add_child(ui._create_property_row("ID", id_label))
 	ui._add_text_property(identity, "Name", entity_kind, entity_id, "display_name", data.get("display_name", ""))
 	ui._add_map_constructor_description_editor(identity, data, entity_kind, entity_id)
 	var normalized_object_type: String = _get_normalized_object_type(ui, data)
