@@ -1183,6 +1183,22 @@ func setup_task_test_sandbox_world() -> void:
 	current_mission_id = get_task_test_sandbox_source_id()
 	active_runtime_mode_id = RUNTIME_MODE_TASK_TEST
 	_clear_world_object_runtime_state()
+	create_map_constructor_empty_map(10, 10)
+	_capture_task_test_constructor_base_tiles()
+	refresh_generic_cable_runtime_state()
+	refresh_world_cooling_received()
+
+func load_task_test_validation_sandbox() -> void:
+	current_mission_id = get_task_test_sandbox_source_id()
+	active_runtime_mode_id = RUNTIME_MODE_TASK_TEST
+	_clear_world_object_runtime_state()
+	if grid_manager != null and grid_manager.has_method("apply_mission_layout"):
+		var catalog := MissionContentCatalogRef.new()
+		grid_manager.call("apply_mission_layout", catalog.get_mission_layout(get_task_test_sandbox_layout_id()))
+		if grid_manager.has_method("get_width"):
+			constructor_map_width = int(grid_manager.call("get_width"))
+		if grid_manager.has_method("get_height"):
+			constructor_map_height = int(grid_manager.call("get_height"))
 	_capture_task_test_constructor_base_tiles()
 	var validation_data: Dictionary = TaskTestWorldBuilderRef.build_validation_world_objects()
 	var objects: Array[Dictionary] = _safe_dictionary_array(validation_data.get("objects", []))
