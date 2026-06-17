@@ -3,6 +3,48 @@ class_name MapConstructorPropertyControls
 
 const TerminalVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
 const ObjectRefListControlRef = preload("res://scripts/ui/map_constructor/map_constructor_object_ref_list_control.gd")
+const LinkControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_link_controls.gd")
+
+static func is_internal_id_field(field_name: String) -> bool:
+	var normalized: String = field_name.strip_edges().to_lower()
+	return normalized in [
+		"id", "object_id", "entity_id", "prefab_id", "archetype_id",
+		"map_constructor_prefab_id", "legacy_prefab_id", "source_prefab_id",
+		"object_type", "object_group", "type", "group"
+	]
+
+static func is_network_field(field_name: String, row: Dictionary) -> bool:
+	var normalized: String = field_name.strip_edges().to_lower()
+	var target_group: String = MapConstructorUiSafe.safe_string(row.get("target_group", "")).strip_edges().to_lower()
+	return normalized.contains("network") or normalized.contains("circuit") or target_group in ["network", "power_network", "circuit"]
+
+static func is_link_field(field_name: String, row: Dictionary) -> bool:
+	var normalized: String = field_name.strip_edges().to_lower()
+	var field_type: String = MapConstructorUiSafe.safe_string(row.get("type", "")).strip_edges().to_lower()
+	if field_type in ["object_ref", "object_ref_array"]:
+		return true
+	if normalized in ["display_name", "name", "description", "custom_description", "access_code", "access_code_value", "payload_id", "light_group_id"]:
+		return false
+	if normalized in [
+		"required_key_id", "linked_door_id", "target_door_id", "target_platform_id",
+		"linked_terminal_id", "control_terminal_id", "access_terminal_id", "control_source_id",
+		"power_source_id", "power_network_id", "connected_device_ids", "target_light_ids",
+		"linked_light_ids", "stored_key_ids", "stored_access_ids", "stored_item_ids",
+		"digital_key_ids", "access_code_ids"
+	]:
+		return true
+	return normalized.ends_with("_ids") or (normalized.ends_with("_id") and not is_internal_id_field(normalized))
+
+static func should_hide_raw_field_from_normal_ui(field_name: String, row: Dictionary) -> bool:
+	if is_internal_id_field(field_name):
+		return true
+	return false
+
+static func add_read_only_warning_property(ui: Variant, section: VBoxContainer, label: String, message: String) -> void:
+	var warning: Label = Label.new()
+	warning.text = message
+	warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	section.add_child(create_property_row(ui, label, warning))
 
 static func add_map_constructor_description_editor(ui: Variant, section: VBoxContainer, data: Dictionary, entity_kind: String, entity_id: String) -> void:
 	var description_text: String = MapConstructorUiSafe.safe_string(data.get("description", data.get("custom_description", ""))).strip_edges()
@@ -384,7 +426,9 @@ static func add_archetype_schema_properties_for_tab(ui: Variant, section: VBoxCo
 		var power_mode: String = TerminalVisibilityServiceRef.normalize_power_type(data)
 		if field_name in ["is_powered", "power_state"] and power_mode == "none":
 			continue
-		var field_type: String = MapConstructorUiSafe.safe_string(row.get("type", "string"))
+		if should_hide_raw_field_from_normal_ui(field_name, row):
+			continue
+		var field_type: String = MapConstructorUiSafe.safe_string(row.get("type", "string")).strip_edges().to_lower()
 		var current_value: Variant = data.get(field_name, row.get("default"))
 		if field_type == "enum":
 			var options: Array[Dictionary] = []
@@ -400,16 +444,21 @@ static func add_archetype_schema_properties_for_tab(ui: Variant, section: VBoxCo
 			add_enum_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, options)
 		elif field_type == "enum_array":
 			add_enum_array_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_array(row.get("values", [])))
+		elif field_type == "object_ref":
+			LinkControlsRef.add_single_link_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_string(row.get("target_group", "")), row)
 		elif field_type == "object_ref_array":
-			if field_name == "cooling_contour_member_ids" and MapConstructorUiSafe.safe_string(row.get("target_group", "")).strip_edges().to_lower() == "cooling":
-				ObjectRefListControlRef.add_object_ref_array_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
-			else:
-				add_text_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
+			ObjectRefListControlRef.add_object_ref_array_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		elif field_type == "bool":
 			add_bool_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		elif field_type == "int":
 			add_int_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		else:
-			add_text_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
+			if is_link_field(field_name, row):
+				if field_name.ends_with("_ids"):
+					ObjectRefListControlRef.add_object_ref_array_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
+				else:
+					LinkControlsRef.add_single_link_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value, MapConstructorUiSafe.safe_string(row.get("target_group", "")), row)
+			else:
+				add_text_property(ui, section, get_display_label(field_name), entity_kind, entity_id, field_name, current_value)
 		rendered_any = true
 	return rendered_any

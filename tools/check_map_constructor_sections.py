@@ -123,6 +123,45 @@ def main() -> int:
     if forbidden_matches:
         return fail("game-facing scripts contain forbidden Russian or mixed labels:\n  " + "\n  ".join(forbidden_matches))
 
+    required_property_markers = {
+        "object_ref selector": 'elif field_type == "object_ref":\n\t\t\tLinkControlsRef.add_single_link_property',
+        "object_ref_array selector": 'elif field_type == "object_ref_array":\n\t\t\tObjectRefListControlRef.add_object_ref_array_property',
+        "internal field hider": "should_hide_raw_field_from_normal_ui(field_name, row)",
+        "display name remains text-editable": 'field_name: String) -> bool:\n\tvar normalized: String = field_name.strip_edges().to_lower()',
+        "required key link classification": '"required_key_id"',
+        "target door link classification": '"target_door_id"',
+        "target platform link classification": '"target_platform_id"',
+        "terminal link classification": '"linked_terminal_id", "control_terminal_id"',
+        "power link classification": '"power_source_id", "power_network_id"',
+    }
+    for label, marker in required_property_markers.items():
+        if marker not in property_controls_source:
+            return fail(f"Map Constructor property UI is missing {label} marker.")
+
+    forbidden_schema_patterns = [
+        'field_type == "object_ref_array"',
+        'field_type == "object_ref"',
+    ]
+    for pattern in forbidden_schema_patterns:
+        pattern_index = property_controls_source.find(pattern)
+        if pattern_index == -1:
+            return fail(f"Map Constructor property UI missing schema branch {pattern}.")
+        nearby = property_controls_source[pattern_index:pattern_index + 240]
+        if "add_text_property" in nearby:
+            return fail(f"Map Constructor property UI must not render {pattern} with add_text_property().")
+
+    for internal_field in ["id", "object_id", "entity_id", "archetype_id", "map_constructor_prefab_id", "legacy_prefab_id"]:
+        if f'"{internal_field}"' not in property_controls_source:
+            return fail(f"Map Constructor property UI does not classify internal field {internal_field}.")
+
+    if 'var id_label: Label = Label.new(); id_label.text = entity_id; identity.add_child(ui._create_property_row("ID", id_label))' in inspector_source:
+        return fail("Map Constructor normal identity inspector still renders raw entity ID.")
+
+    object_ref_source = read_source(Path("scripts/ui/map_constructor/map_constructor_object_ref_list_control.gd"))
+    if 'var requires_self_membership: bool = field_name == "cooling_contour_member_ids"' not in object_ref_source:
+        return fail("Object ref list control must only auto-preserve self membership for cooling contour members.")
+
+    print("OK: Map Constructor property UI uses selectors for object refs, hides internal IDs, and keeps cooling contour list behavior guarded.")
     print("OK: Game-facing scripts contain no forbidden Russian or mixed archetype label markers.")
     return 0
 

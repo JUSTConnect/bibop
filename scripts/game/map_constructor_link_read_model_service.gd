@@ -15,6 +15,80 @@ const LINK_FIELD_NAMES: Dictionary = {
 	"access_terminal": "access_terminal_id"
 }
 
+static func get_link_options_for_field(mission_manager: Variant, entity_kind: String, entity_id: String, field_name: String, target_group: String = "") -> Dictionary:
+	var model: Dictionary = {"ok": false, "field_name": field_name, "current_target_id": "", "current_label": "(none)", "targets": [], "message": "Link targets unavailable."}
+	if mission_manager == null:
+		return model
+	var current_id: String = ""
+	if not entity_id.is_empty() and mission_manager.has_method("get_map_constructor_entity_by_id"):
+		var entity: Dictionary = _to_dictionary(mission_manager.call("get_map_constructor_entity_by_id", entity_kind, entity_id))
+		var data: Dictionary = _to_dictionary(entity.get("data", {}))
+		current_id = _to_safe_string(data.get(field_name, "")).strip_edges()
+	model["current_target_id"] = current_id
+	var raw_targets: Array = []
+	if mission_manager.has_method("get_map_constructor_link_targets_for_field"):
+		var raw_model: Dictionary = _to_dictionary(mission_manager.call("get_map_constructor_link_targets_for_field", entity_kind, entity_id, field_name))
+		raw_targets = _to_array(raw_model.get("targets", []))
+	if raw_targets.is_empty() and mission_manager.has_method("get_map_constructor_object_ref_options"):
+		raw_targets = _to_array(mission_manager.call("get_map_constructor_object_ref_options", entity_kind, entity_id, field_name))
+	var targets: Array[Dictionary] = []
+	for target_variant in raw_targets:
+		var target: Dictionary = _to_dictionary(target_variant)
+		var target_id: String = _to_safe_string(target.get("id", "")).strip_edges()
+		if target_id.is_empty():
+			continue
+		var row: Dictionary = target.duplicate(true)
+		row["id"] = target_id
+		row["entity_kind"] = _to_safe_string(row.get("entity_kind", row.get("kind", "world_object")), "world_object")
+		row["cell"] = _to_vector2i(row.get("cell", Vector2i(-1, -1)))
+		row["label"] = _readable_target_label(mission_manager, row)
+		row["compatible"] = not bool(row.get("disabled", false))
+		targets.append(row)
+	model["targets"] = targets
+	model["current_label"] = _current_link_label(mission_manager, current_id, targets)
+	model["ok"] = true
+	model["message"] = "Targets ready."
+	return model
+
+static func _current_link_label(mission_manager: Variant, current_id: String, targets: Array[Dictionary]) -> String:
+	if current_id.is_empty():
+		return "(none)"
+	for target in targets:
+		if _to_safe_string(target.get("id", "")).strip_edges() == current_id:
+			return _to_safe_string(target.get("label", current_id), current_id)
+	return _lookup_entity_label(mission_manager, current_id, "world_object")
+
+static func _readable_target_label(mission_manager: Variant, target: Dictionary) -> String:
+	var target_id: String = _to_safe_string(target.get("id", "")).strip_edges()
+	if target_id == "__none__":
+		return "(none)"
+	var label: String = _to_safe_string(target.get("label", "")).strip_edges()
+	if label.is_empty() or label == target_id or label.begins_with(target_id + " ["):
+		label = _lookup_entity_label(mission_manager, target_id, _to_safe_string(target.get("entity_kind", target.get("kind", "world_object")), "world_object"))
+	var object_type: String = _to_safe_string(target.get("object_type", "")).strip_edges()
+	var cell: Vector2i = _to_vector2i(target.get("cell", Vector2i(-1, -1)))
+	if not object_type.is_empty() and not label.contains("["):
+		label += " [%s]" % object_type
+	if cell.x >= 0 and cell.y >= 0 and not label.contains(str(cell)):
+		label += " %s" % str(cell)
+	return label
+
+static func _lookup_entity_label(mission_manager: Variant, target_id: String, entity_kind: String = "world_object") -> String:
+	if mission_manager != null and mission_manager.has_method("get_map_constructor_entity_by_id"):
+		for kind in [entity_kind, "world_object", "item"]:
+			var entity: Dictionary = _to_dictionary(mission_manager.call("get_map_constructor_entity_by_id", kind, target_id))
+			if bool(entity.get("ok", false)):
+				var data: Dictionary = _to_dictionary(entity.get("data", {}))
+				for key in ["display_name", "name", "palette_label"]:
+					var label: String = _to_safe_string(data.get(key, "")).strip_edges()
+					if not label.is_empty():
+						return label
+				var object_type: String = _to_safe_string(data.get("object_type", data.get("item_type", ""))).strip_edges()
+				var cell: Vector2i = _to_vector2i(entity.get("cell", data.get("position", Vector2i(-1, -1))))
+				if not object_type.is_empty() and cell.x >= 0:
+					return "%s %s" % [object_type.replace("_", " ").capitalize(), str(cell)]
+	return target_id
+
 static func get_link_field_name(link_type: String) -> String:
 	return _to_safe_string(LINK_FIELD_NAMES.get(link_type, ""))
 
@@ -138,14 +212,14 @@ static func _is_platform_data(data: Dictionary) -> bool:
 	var archetype_id: String = _to_safe_string(data.get("archetype_id", "")).strip_edges().to_lower()
 	return object_type == "platform" or object_group == "platform" or archetype_id == "platform" or data.has("platform_mode")
 
-static func _to_safe_string(value: Variant) -> String:
+static func _to_safe_string(value: Variant, fallback: String = "") -> String:
 	if value == null:
-		return ""
+		return fallback
 	if value is String or value is StringName or value is NodePath:
 		return str(value)
 	if value is bool or value is int or value is float:
 		return str(value)
-	return ""
+	return fallback
 
 static func _to_array(value: Variant) -> Array:
 	if value is Array:

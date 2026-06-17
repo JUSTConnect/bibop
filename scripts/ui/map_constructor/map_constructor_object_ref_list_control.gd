@@ -5,7 +5,8 @@ static func add_object_ref_array_property(ui: Variant, section: VBoxContainer, l
 	var box: VBoxContainer = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	var selected: Array = MapConstructorUiSafe.safe_array(current_value).duplicate()
-	if not selected.has(entity_id):
+	var requires_self_membership: bool = field_name == "cooling_contour_member_ids"
+	if requires_self_membership and not selected.has(entity_id):
 		selected.append(entity_id)
 	var options: Array = []
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_object_ref_options"):
@@ -20,7 +21,11 @@ static func add_object_ref_array_property(ui: Variant, section: VBoxContainer, l
 		if option_id.is_empty():
 			continue
 		var check: CheckBox = CheckBox.new()
-		check.text = MapConstructorUiSafe.safe_string(row.get("label", option_id), option_id)
+		var option_label: String = MapConstructorUiSafe.safe_string(row.get("label", "")).strip_edges()
+		if option_label.is_empty() or option_label == option_id:
+			option_label = MapConstructorUiSafe.safe_string(row.get("display_name", row.get("name", option_id)), option_id)
+		check.text = option_label
+		check.tooltip_text = option_id
 		check.button_pressed = selected.has(option_id) or bool(row.get("checked", false))
 		check.disabled = bool(row.get("disabled", false))
 		check.toggled.connect(func(pressed: bool) -> void:
@@ -28,7 +33,7 @@ static func add_object_ref_array_property(ui: Variant, section: VBoxContainer, l
 				selected.append(option_id)
 			elif not pressed and selected.has(option_id):
 				selected.erase(option_id)
-			if not selected.has(entity_id):
+			if requires_self_membership and not selected.has(entity_id):
 				selected.append(entity_id)
 			ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name:selected.duplicate()})
 		)
