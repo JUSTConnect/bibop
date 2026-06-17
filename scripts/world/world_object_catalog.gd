@@ -121,6 +121,49 @@ const PREFAB_ALIASES: Dictionary = {
 	"module_external": "module_item"
 }
 
+static func object_accepts_runtime_power_plug(object_data: Dictionary) -> bool:
+	if object_data.is_empty():
+		return false
+
+	var state: String = str(object_data.get("state", object_data.get("status", ""))).strip_edges().to_lower()
+	if state in ["damaged", "broken", "destroyed", "disabled"]:
+		return false
+	if bool(object_data.get("damaged", false)) or bool(object_data.get("broken", false)) or bool(object_data.get("destroyed", false)):
+		return false
+
+	if bool(object_data.get("requires_external_power", false)):
+		return true
+
+	var power_mode: String = str(object_data.get("power_mode", object_data.get("power_type", ""))).strip_edges().to_lower()
+	power_mode = power_mode.replace("-", "_").replace(" ", "_")
+	if power_mode in ["external", "external_power"]:
+		return true
+
+	if bool(object_data.get("can_connect_cable", false)):
+		return true
+
+	var object_group: String = str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower()
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var classifier: String = "%s|%s|%s|%s" % [
+		object_group,
+		object_type,
+		str(object_data.get("archetype_id", "")),
+		str(object_data.get("map_constructor_prefab_id", ""))
+	]
+	classifier = classifier.to_lower()
+
+	if object_type in ["power_socket", "outlet"]:
+		return true
+
+	if object_group == "terminal" or object_type.contains("terminal"):
+		return state == "unpowered" or not bool(object_data.get("is_powered", true))
+	if object_group == "door" or object_type.contains("door") or object_type.contains("gate"):
+		return state == "unpowered" or not bool(object_data.get("is_powered", true)) or power_mode in ["external", "external_power"]
+	if classifier.contains("firewall"):
+		return state == "unpowered" or not bool(object_data.get("is_powered", true))
+
+	return false
+
 const LEGACY_SOURCE_METADATA_FIELDS: Array[String] = ["legacy_prefab_id", "map_constructor_prefab_id", "legacy_object_type", "source_prefab_id"]
 
 const PREFAB_ALIAS_DEFAULTS: Dictionary = {
