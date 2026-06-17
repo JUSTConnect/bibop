@@ -1157,7 +1157,7 @@ func get_iso_object_depth_key_for_payload(payload: Dictionary) -> float:
 	var object_data: Dictionary = Dictionary(payload.get("object_data", {}))
 	if object_data.is_empty():
 		return get_iso_floor_depth_key(object_cell)
-	if is_wall_mounted_runtime_object(object_data):
+	if is_wall_mounted_runtime_object(object_data) or is_wall_procedural_routed_object(object_data):
 		var attached_wall_cell: Vector2i = _try_parse_cell_variant(object_data.get("attached_wall_cell", object_cell), object_cell)
 		return get_iso_wall_depth_key_for_cell(attached_wall_cell)
 	var grounding_profile: Dictionary = get_iso_object_grounding_profile(object_data, object_cell)
@@ -2549,15 +2549,18 @@ func get_wall_mounted_visual_center(object_data: Dictionary, fallback_cell: Vect
 	var wall_cell: Vector2i = _try_parse_cell_variant(object_data.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
 	if wall_cell.x < 0 or wall_cell.y < 0:
 		wall_cell = _try_parse_cell_variant(object_data.get("position", fallback_cell), fallback_cell)
-	var wall_side: String = get_wall_mounted_cardinal_side(object_data)
-	for zone_variant in get_wall_mounted_anchor_zones(wall_cell):
-		var zone: Dictionary = Dictionary(zone_variant)
-		if str(zone.get("wall_side", "")) == wall_side:
-			return Vector2(zone.get("mount_zone_center", grid_to_iso(wall_cell))) + Vector2(0.0, -maxf(iso_wall_height * 0.34, 14.0))
-	var delta: Vector2i = _get_wall_side_delta(wall_side)
+	return get_wall_mounted_anchor(wall_cell, normalize_wall_visual_side(object_data), object_data)
+
+func get_wall_mounted_anchor(cell: Vector2i, wall_side: String, object_data: Dictionary) -> Vector2:
+	var normalized_side: String = wall_side.strip_edges().to_lower()
+	if normalized_side not in ["sw", "se"]:
+		var side_data: Dictionary = object_data.duplicate(false)
+		side_data["wall_side"] = normalized_side
+		normalized_side = normalize_wall_visual_side(side_data)
 	var half_size: Vector2 = get_iso_tile_half_size()
-	var side_offset: Vector2 = Vector2(float(delta.x) * half_size.x * 0.34, float(delta.y) * half_size.y * 0.34)
-	return grid_to_iso(wall_cell) + side_offset + Vector2(0.0, -maxf(iso_wall_height * 0.34, 14.0))
+	var side_offset: Vector2 = Vector2(half_size.x * 0.36 if normalized_side == "se" else -half_size.x * 0.36, -half_size.y * 0.18)
+	var height_offset: float = WALL_MOUNTED_LIGHT_HEIGHT_OFFSET if LightVisualServiceRef.is_light_object(object_data) else WALL_MOUNTED_DEVICE_HEIGHT_OFFSET
+	return grid_to_iso(cell) + side_offset + Vector2(0.0, height_offset)
 
 func _get_object_mount_mode(object_data: Dictionary) -> String:
 	var mount: String = str(object_data.get("mount", object_data.get("cable_install_mode", object_data.get("install_mode", object_data.get("placement_mode", object_data.get("placement", "floor")))))).to_lower().strip_edges()
@@ -3450,6 +3453,8 @@ const ISO_OBJECT_PNG_MAX_VISUAL_SCALE: float = 1.5
 const ISO_OBJECT_SOURCE_CANVAS_WIDTH := 512.0
 const WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX := 180.0
 const WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX := 330.0
+const WALL_MOUNTED_DEVICE_HEIGHT_OFFSET := -32.0
+const WALL_MOUNTED_LIGHT_HEIGHT_OFFSET := -48.0
 const WALL_MOUNT_SIDE_OFFSET_SW := Vector2(-18.0, -4.0)
 const WALL_MOUNT_SIDE_OFFSET_SE := Vector2(18.0, -4.0)
 const AUTHORED_WALL_CANVAS_SOURCE_WIDTH: float = 512.0
@@ -3984,7 +3989,7 @@ func get_wall_routed_height_source_px(object_data: Dictionary) -> float:
 func get_wall_route_segment_points(visual_center: Vector2, object_data: Dictionary, source_height_px: float) -> Dictionary:
 	var side: String = normalize_wall_visual_side(object_data)
 	var half: Vector2 = get_iso_tile_half_size()
-	var y: float = -get_wall_mount_height_screen_px(source_height_px)
+	var y: float = 0.0
 	var start: Vector2
 	var end: Vector2
 	if side == "se":
@@ -4394,8 +4399,7 @@ func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: Stri
 		or _get_object_mount_mode(object_data) == "wall"
 	)
 	if wall_mounted:
-		var wall_mount_height_source_px: float = get_wall_mounted_object_height_source_px(object_data, asset_key)
-		configured_offset = Vector2(0.0, -get_wall_mount_height_screen_px(wall_mount_height_source_px)) + get_wall_mount_side_visual_offset(object_data) + explicit_visual_offset
+		configured_offset = explicit_visual_offset
 	var final_draw_position: Vector2 = visual_center + surface_offset - visual_pivot + configured_offset
 	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
 	var wall_visual_side: String = normalize_wall_visual_side(object_data) if wall_mounted else ""
@@ -7187,9 +7191,27 @@ func get_iso_object_sub_order(layer_name: String, profile_key: String) -> float:
 		return ISO_DRAW_SUB_ORDER_DOOR
 	return ISO_DRAW_SUB_ORDER_ITEM
 
+func get_wall_mounted_render_layer(object_data: Dictionary) -> int:
+	if object_data.has("wall_render_layer"):
+		return int(object_data.get("wall_render_layer", 20))
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var prefab_id: String = str(object_data.get("map_constructor_prefab_id", object_data.get("prefab_id", ""))).strip_edges().to_lower()
+	var visual_family: String = str(object_data.get("visual_family", object_data.get("visual_asset_family", ""))).strip_edges().to_lower()
+	var routing_kind: String = str(object_data.get("routing_kind", "")).strip_edges().to_lower()
+	if object_type.contains("cable") or prefab_id.contains("cable") or visual_family.contains("cable") or routing_kind.contains("cable"):
+		return 10
+	if prefab_id in ["external_air_duct", "external_water_pipe"] or object_type in ["external_air_duct", "external_water_pipe"]:
+		return 10
+	if is_wall_routing_utility_object(object_data):
+		return 10
+	return 20
+
 func make_iso_object_draw_entry(cell: Vector2i, layer_name: String, layer_bias: float, object_index: float, payload: Dictionary) -> Dictionary:
 	var profile_key: String = str(payload.get("profile_key", ""))
-	var sub_order: float = get_iso_object_sub_order(layer_name, profile_key) + object_index * 0.01
+	var stable_order_step: float = 0.00001 if layer_name == "wall_mounted" else 0.01
+	var sub_order: float = get_iso_object_sub_order(layer_name, profile_key) + object_index * stable_order_step
+	if layer_name == "wall_mounted":
+		sub_order += float(get_wall_mounted_render_layer(Dictionary(payload.get("object_data", {})))) * 0.001
 	var entry: Dictionary = {
 		"cell": cell,
 		"layer": layer_name,
@@ -7213,7 +7235,7 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 	var runtime_objects_by_cell: Dictionary = {}
 	for object_data in _get_runtime_world_objects_for_iso_render(is_map_constructor_editor_render()):
 		var object_cell: Vector2i = _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1)))
-		if is_wall_mounted_runtime_object(object_data):
+		if is_wall_mounted_runtime_object(object_data) or is_wall_procedural_routed_object(object_data):
 			object_cell = _try_parse_cell_variant(object_data.get("attached_wall_cell", object_cell), object_cell)
 		if object_cell.x < 0 or object_cell.y < 0:
 			continue
@@ -7235,7 +7257,7 @@ func build_iso_object_draw_entries() -> Array[Dictionary]:
 			for object_index in range(runtime_objects.size()):
 				var object_data: Dictionary = Dictionary(runtime_objects[object_index])
 				var object_profile_key: String = get_iso_object_profile_key_for_object_data(object_data, "generic_object")
-				var layer_name: String = "wall_mounted" if is_wall_mounted_runtime_object(object_data) else ("cable" if CableTopologyServiceRef.is_cable_object(object_data) else ("terminal" if is_terminal_like_profile(object_profile_key) else "item"))
+				var layer_name: String = "wall_mounted" if is_wall_mounted_runtime_object(object_data) or is_wall_procedural_routed_object(object_data) else ("cable" if CableTopologyServiceRef.is_cable_object(object_data) else ("terminal" if is_terminal_like_profile(object_profile_key) else "item"))
 				var layer_bias: float = ISO_LAYER_BIAS_WALL_MOUNTED if layer_name == "wall_mounted" else (ISO_LAYER_BIAS_CABLE if layer_name == "cable" else (ISO_LAYER_BIAS_TERMINAL if layer_name == "terminal" else ISO_LAYER_BIAS_ITEM))
 				var object_payload: Dictionary = {"object_cell":cell, "tile_type":tile_type, "profile_key":object_profile_key, "object_data":object_data}
 				draw_entries.append(make_iso_object_draw_entry(cell, layer_name, layer_bias, float(object_index), object_payload))
