@@ -15,8 +15,8 @@ const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/terminal_basic.json",
 	"res://data/objects/door_basic.json"
 ]
-const MAP_COLUMNS := 6
-const MAP_ROWS := 5
+const MAP_COLUMNS: int = 6
+const MAP_ROWS: int = 5
 
 const UI_BG := Color(0.055, 0.065, 0.085, 1.0)
 const PANEL_BG := Color(0.09, 0.105, 0.135, 1.0)
@@ -53,7 +53,7 @@ func _load_object_definitions() -> void:
 	definitions_by_id.clear()
 	working_preview_data_by_id.clear()
 	map_edit_state.reset()
-	for definition in object_definitions:
+	for definition: Dictionary in object_definitions:
 		var object_id: String = str(definition.get("id", ""))
 		definitions_by_id[object_id] = definition
 		working_preview_data_by_id[object_id] = ObjectDataFactoryRef.make_initial_object_data(definition)
@@ -89,16 +89,16 @@ func _build_layout() -> void:
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	main_stack.add_child(body)
 
-	var left_panel := _build_palette_panel()
+	var left_panel: PanelContainer = _build_palette_panel()
 	left_panel.custom_minimum_size = Vector2(260, 0)
 	body.add_child(left_panel)
 
-	var center_panel := _build_map_canvas_panel()
+	var center_panel: PanelContainer = _build_map_canvas_panel()
 	center_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(center_panel)
 
-	var right_panel := _build_inspector_panel()
+	var right_panel: PanelContainer = _build_inspector_panel()
 	right_panel.custom_minimum_size = Vector2(420, 0)
 	right_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(right_panel)
@@ -110,7 +110,7 @@ func _build_layout() -> void:
 
 
 func _build_header() -> Control:
-	var panel := _make_panel_container()
+	var panel: PanelContainer = _make_panel_container()
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	panel.add_child(_wrap_margin(row, 12, 8))
@@ -136,7 +136,7 @@ func _build_header() -> Control:
 
 
 func _build_palette_panel() -> PanelContainer:
-	var panel := _make_panel_container()
+	var panel: PanelContainer = _make_panel_container()
 	var stack := VBoxContainer.new()
 	stack.add_theme_constant_override("separation", 8)
 	panel.add_child(_wrap_margin(stack, 10, 10))
@@ -160,7 +160,7 @@ func _build_palette_panel() -> PanelContainer:
 
 
 func _build_map_canvas_panel() -> PanelContainer:
-	var panel := _make_panel_container()
+	var panel: PanelContainer = _make_panel_container()
 	var stack := VBoxContainer.new()
 	stack.add_theme_constant_override("separation", 10)
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -184,7 +184,7 @@ func _build_map_canvas_panel() -> PanelContainer:
 
 
 func _build_inspector_panel() -> PanelContainer:
-	var panel := _make_panel_container()
+	var panel: PanelContainer = _make_panel_container()
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
@@ -242,26 +242,26 @@ func _build_map_cell_button(cell: Vector2i) -> Button:
 
 
 func _get_cell_text(cell: Vector2i) -> String:
-	var instance_id: String = map_edit_state.get_instance_id_at_cell(cell)
+	var instance_id: String = str(map_edit_state.get_instance_id_at_cell(cell))
 	if instance_id.is_empty():
 		return "%d,%d\n+" % [cell.x, cell.y]
-	var data: Dictionary = map_edit_state.get_instance_data(instance_id)
+	var data: Dictionary = Dictionary(map_edit_state.get_instance_data(instance_id))
 	var definition_id: String = str(data.get("definition_id", ""))
-	var marker := "*" if map_edit_state.is_selected_instance(instance_id) else ""
+	var marker: String = "*" if bool(map_edit_state.is_selected_instance(instance_id)) else ""
 	return "%s%s\n%s" % [marker, str(data.get("display_name", instance_id)), str(definitions_by_id.get(definition_id, {}).get("object_type", "object"))]
 
 
 func _get_cell_color(cell: Vector2i) -> Color:
-	var instance_id: String = map_edit_state.get_instance_id_at_cell(cell)
-	if not instance_id.is_empty() and map_edit_state.is_selected_instance(instance_id):
+	var instance_id: String = str(map_edit_state.get_instance_id_at_cell(cell))
+	if not instance_id.is_empty() and bool(map_edit_state.is_selected_instance(instance_id)):
 		return CELL_SELECTED
 	return CELL_BG
 
 
 func _handle_map_cell_pressed(cell: Vector2i) -> void:
-	var definition := _get_selected_definition()
-	var existed := map_edit_state.has_instance_at_cell(cell)
-	var result: Dictionary = map_edit_state.place_or_select_cell(cell, definition)
+	var definition: Dictionary = _get_selected_definition()
+	var existed: bool = bool(map_edit_state.has_instance_at_cell(cell))
+	var result: Dictionary = Dictionary(map_edit_state.place_or_select_cell(cell, definition))
 	_refresh_map_grid()
 	_render_selected_object_inspector()
 	if result.is_empty():
@@ -289,7 +289,7 @@ func _select_palette_definition(index: int) -> void:
 func _update_selected_palette_label() -> void:
 	if selected_palette_label == null:
 		return
-	var definition := _get_selected_definition()
+	var definition: Dictionary = _get_selected_definition()
 	if definition.is_empty():
 		selected_palette_label.text = "Selected: none"
 		return
@@ -319,8 +319,8 @@ func _render_empty_inspector() -> void:
 func _render_selected_object_inspector() -> void:
 	if inspector_content == null:
 		return
-	var definition := _get_inspected_definition()
-	var data := _get_inspected_data(definition)
+	var definition: Dictionary = _get_inspected_definition()
+	var data: Dictionary = _get_inspected_data(definition)
 	if definition.is_empty() or data.is_empty():
 		_render_empty_inspector()
 		return
@@ -333,7 +333,7 @@ func _render_selected_object_inspector() -> void:
 
 func _get_inspected_definition() -> Dictionary:
 	if map_edit_state.selected_entity_kind == "placed_object":
-		var placed_data: Dictionary = map_edit_state.get_selected_instance_data()
+		var placed_data: Dictionary = Dictionary(map_edit_state.get_selected_instance_data())
 		var definition_id: String = str(placed_data.get("definition_id", ""))
 		return Dictionary(definitions_by_id.get(definition_id, {}))
 	return _get_selected_definition()
@@ -341,7 +341,7 @@ func _get_inspected_definition() -> Dictionary:
 
 func _get_inspected_data(definition: Dictionary) -> Dictionary:
 	if map_edit_state.selected_entity_kind == "placed_object":
-		return map_edit_state.get_selected_instance_data()
+		return Dictionary(map_edit_state.get_selected_instance_data())
 	var definition_id: String = str(definition.get("id", ""))
 	return Dictionary(working_preview_data_by_id.get(definition_id, {}))
 
