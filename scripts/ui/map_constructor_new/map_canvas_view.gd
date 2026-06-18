@@ -3,7 +3,7 @@ extends Control
 # MapCanvasView
 # Responsive canvas for map cells.
 # Важно: canvas не задаёт ширину layout через child-buttons. Он рисует клетки внутри доступного rect.
-# Текущий object-card режим — временный DEBUG visual, чтобы явно проверить visual pipeline.
+# Object texture рисуется первым. DEBUG card используется только если PNG asset не найден.
 
 signal cell_pressed(cell: Vector2i)
 
@@ -18,12 +18,14 @@ const MUTED_TEXT_COLOR := Color(0.68, 0.74, 0.78, 1.0)
 const ACCENT_COLOR := Color(0.25, 0.78, 0.95, 1.0)
 const CARD_BG := Color(0.04, 0.05, 0.07, 0.95)
 const DEBUG_BAND_COLOR := Color(1.0, 1.0, 1.0, 0.18)
+const ASSET_SELECTION_COLOR := Color(0.25, 0.95, 1.0, 1.0)
 
 var columns: int = 1
 var rows: int = 1
 var cell_visuals: Dictionary = {}
 var selected_cell: Vector2i = Vector2i(-1, -1)
 var hover_cell: Vector2i = Vector2i(-1, -1)
+var texture_cache: Dictionary = {}
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -81,7 +83,7 @@ func _draw() -> void:
 			if visual.is_empty() or bool(visual.get("is_empty", false)):
 				_draw_empty_cell(rect, cell)
 			else:
-				_draw_debug_object_card(rect, visual)
+				_draw_object_visual(rect, visual)
 
 
 func _draw_cell_background(cell: Vector2i, rect: Rect2) -> void:
@@ -98,6 +100,22 @@ func _draw_empty_cell(rect: Rect2, cell: Vector2i) -> void:
 	var center_y: float = rect.position.y + rect.size.y * 0.52
 	draw_string(font, Vector2(rect.position.x + 4.0, center_y), "%d,%d" % [cell.x, cell.y], HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 8.0, font_size, TEXT_COLOR)
 	draw_string(font, Vector2(rect.position.x + 4.0, center_y + float(font_size + 6)), "+", HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 8.0, font_size + 2, ACCENT_COLOR)
+
+
+func _draw_object_visual(rect: Rect2, visual: Dictionary) -> void:
+	var texture: Texture2D = _get_visual_texture(visual)
+	if texture != null:
+		_draw_texture_object(rect, visual, texture)
+		return
+	_draw_debug_object_card(rect, visual)
+
+
+func _draw_texture_object(rect: Rect2, visual: Dictionary, texture: Texture2D) -> void:
+	var asset_margin: float = clamp(min(rect.size.x, rect.size.y) * 0.08, 4.0, 8.0)
+	var asset_rect := Rect2(rect.position + Vector2(asset_margin, asset_margin), rect.size - Vector2(asset_margin * 2.0, asset_margin * 2.0))
+	draw_texture_rect(texture, asset_rect, false)
+	if bool(visual.get("is_selected", false)):
+		draw_rect(asset_rect, ASSET_SELECTION_COLOR, false, 4.0)
 
 
 func _draw_debug_object_card(rect: Rect2, visual: Dictionary) -> void:
@@ -126,6 +144,21 @@ func _draw_debug_object_card(rect: Rect2, visual: Dictionary) -> void:
 	draw_string(font, Vector2(card_rect.position.x + 5.0, label_y), label, HORIZONTAL_ALIGNMENT_CENTER, card_rect.size.x - 10.0, label_size, TEXT_COLOR, TextServer.JUSTIFICATION_WORD_BOUND)
 	if not sub_label.is_empty():
 		draw_string(font, Vector2(card_rect.position.x + 5.0, label_y + float(label_size + 6)), sub_label, HORIZONTAL_ALIGNMENT_CENTER, card_rect.size.x - 10.0, max(9, label_size - 2), MUTED_TEXT_COLOR, TextServer.JUSTIFICATION_WORD_BOUND)
+
+
+func _get_visual_texture(visual: Dictionary) -> Texture2D:
+	var candidates: Array = Array(visual.get("asset_candidates", []))
+	for candidate in candidates:
+		var path: String = str(candidate)
+		if texture_cache.has(path):
+			return texture_cache[path]
+		if not ResourceLoader.exists(path):
+			continue
+		var resource: Resource = ResourceLoader.load(path)
+		if resource is Texture2D:
+			texture_cache[path] = resource
+			return resource
+	return null
 
 
 func _cell_from_position(position: Vector2) -> Vector2i:
@@ -166,7 +199,7 @@ func _get_font_size(rect: Rect2) -> int:
 func _labels_to_visuals(labels: Dictionary) -> Dictionary:
 	var visuals: Dictionary = {}
 	for key in labels.keys():
-		visuals[key] = {"label": str(labels[key]), "is_empty": false, "marker": "?"}
+		visuals[key] = {"label": str(labels[key]), "is_empty": false, "marker": "?", "asset_candidates": []}
 	return visuals
 
 
