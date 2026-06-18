@@ -1,0 +1,13 @@
+{
+  "schema_id": "object_config_schema",
+  "description": "Base object configurable parameter schema.",
+  "fields": [
+    {"id": "object_class", "label": "Object class", "type": "enum", "values": ["1", "2", "3"]},
+    {"id": "power_mode", "label": "Power mode", "type": "enum", "values": ["none", "internal", "external", "source"]},
+    {"id": "control_mode", "label": "Control mode", "type": "enum", "values": ["none", "internal", "external"]},
+    {"id": "access_mode", "label": "Access mode", "type": "enum", "values": ["none", "access_code", "key_card", "digital_key", "terminal"]},
+    {"id": "mount", "label": "Mount", "type": "enum", "values": ["floor", "wall"]},
+    {"id": "side", "label": "Side", "type": "enum", "values": ["SW", "SE", "NE", "NW"]},
+    {"id": "routing_mode", "label": "Routing mode", "type": "enum", "values": ["inner", "outer"]}
+  ]
+}
