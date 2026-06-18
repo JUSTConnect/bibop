@@ -10,6 +10,7 @@ const KIND_NEGATIVE := "negative"
 
 const DEFAULT_DURATION := 2.8
 const MAX_VISIBLE := 4
+const HINT_SOURCE_SCAN_INTERVAL := 0.45
 
 const COLOR_SYSTEM_BG := Color(0.055, 0.105, 0.160, 0.96)
 const COLOR_SYSTEM_BORDER := Color(0.200, 0.760, 0.950, 0.90)
@@ -34,10 +35,15 @@ const COLOR_DEFAULT_TEXT := Color(0.820, 0.900, 0.920, 1.00)
 var _root: Control = null
 var _stack: VBoxContainer = null
 var _items: Array[Dictionary] = []
+var _hint_source_ids: Dictionary = {}
+var _hint_source_scan_timer: float = 0.0
 
 func _ready() -> void:
 	layer = 128
 	_ensure_layout()
+	_scan_hint_sources()
+	if get_tree() != null and not get_tree().node_added.is_connected(_on_tree_node_added):
+		get_tree().node_added.connect(_on_tree_node_added)
 
 
 func notify(message: String, kind: String = KIND_SYSTEM, duration: float = DEFAULT_DURATION) -> void:
@@ -69,7 +75,28 @@ func negative(message: String, duration: float = DEFAULT_DURATION) -> void:
 	notify(message, KIND_NEGATIVE, duration)
 
 
+func from_legacy_hint(message: String, duration: float = DEFAULT_DURATION) -> void:
+	notify(message, classify_legacy_hint(message), duration)
+
+
+func classify_legacy_hint(message: String) -> String:
+	var lower_message := message.strip_edges().to_lower()
+	if lower_message.is_empty():
+		return KIND_SYSTEM
+	if _contains_any(lower_message, ["overheat", "thermal critical", "critical", "broken", "damaged", "failed", "mission failed", "disabled", "shutdown", "destroyed"]):
+		return KIND_NEGATIVE
+	if _contains_any(lower_message, ["blocked", "locked", "missing", "unavailable", "invalid", "insufficient", "no ", "cannot", "can't", "warning", "low battery"]):
+		return KIND_SYSTEM_NEGATIVE
+	if _contains_any(lower_message, ["charged", "completed", "success", "scan", "scanned", "hack", "hacked", "activated", "enabled", "opened", "closed", "connected"]):
+		return KIND_POSITIVE
+	return KIND_SYSTEM
+
+
 func _process(delta: float) -> void:
+	_hint_source_scan_timer -= delta
+	if _hint_source_scan_timer <= 0.0:
+		_hint_source_scan_timer = HINT_SOURCE_SCAN_INTERVAL
+		_scan_hint_sources()
 	for i in range(_items.size() - 1, -1, -1):
 		var item: Dictionary = _items[i]
 		item["ttl"] = float(item.get("ttl", 0.0)) - delta
@@ -160,3 +187,44 @@ func _remove_item(index: int) -> void:
 	_items.remove_at(index)
 	if node != null and is_instance_valid(node):
 		node.queue_free()
+
+
+func _scan_hint_sources() -> void:
+	if get_tree() == null or get_tree().root == null:
+		return
+	_connect_hint_source_recursive(get_tree().root)
+
+
+func _connect_hint_source_recursive(node: Node) -> void:
+	_connect_hint_source(node)
+	for child in node.get_children():
+		_connect_hint_source_recursive(child)
+
+
+func _on_tree_node_added(node: Node) -> void:
+	_connect_hint_source(node)
+
+
+func _connect_hint_source(node: Node) -> void:
+	if node == null or node == self:
+		return
+	if not node.has_signal("hint_requested"):
+		return
+	var instance_id := node.get_instance_id()
+	if _hint_source_ids.has(instance_id):
+		return
+	var callback := Callable(self, "_on_legacy_hint_requested")
+	if not node.is_connected("hint_requested", callback):
+		node.connect("hint_requested", callback)
+	_hint_source_ids[instance_id] = true
+
+
+func _on_legacy_hint_requested(message: String) -> void:
+	from_legacy_hint(message)
+
+
+func _contains_any(text: String, needles: Array[String]) -> bool:
+	for needle in needles:
+		if text.contains(needle):
+			return true
+	return false
