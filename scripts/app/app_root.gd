@@ -9,6 +9,7 @@ const ObjectDataFactoryRef = preload("res://scripts/domain/object_data_factory.g
 const ObjectStatusModelRef = preload("res://scripts/domain/object_status_model.gd")
 const ObjectIdentityViewModelRef = preload("res://scripts/presentation/object_identity_view_model.gd")
 const ObjectStatusViewModelRef = preload("res://scripts/presentation/object_status_view_model.gd")
+const ObjectConfigViewModelRef = preload("res://scripts/presentation/object_config_view_model.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -191,12 +192,13 @@ func _render_selected_object_inspector() -> void:
 	var status: Dictionary = ObjectStatusModelRef.build_status(data)
 	var identity_view_model: Dictionary = ObjectIdentityViewModelRef.create("world_object", object_id, data)
 	var status_view_model: Dictionary = ObjectStatusViewModelRef.create(status)
+	var config_view_model: Dictionary = ObjectConfigViewModelRef.create(Array(definition.get("config_schema", [])), data, "world_object", object_id)
 
 	inspector_content.add_child(_build_view_model_section(identity_view_model))
 	inspector_content.add_child(_make_section_separator())
 	inspector_content.add_child(_build_view_model_section(status_view_model))
 	inspector_content.add_child(_make_section_separator())
-	inspector_content.add_child(_build_config_section(object_id, definition, data))
+	inspector_content.add_child(_build_view_model_section(config_view_model))
 	inspector_content.add_child(_make_section_separator())
 	inspector_content.add_child(_build_links_section(definition))
 	_set_status("Selected: %s" % str(data.get("display_name", object_id)))
@@ -212,7 +214,11 @@ func _clear_inspector() -> void:
 func _build_view_model_section(section_view_model: Dictionary) -> PanelContainer:
 	var section := _make_section_panel(str(section_view_model.get("title", "Section")))
 	var content: VBoxContainer = section.get_meta("content") as VBoxContainer
-	for row_variant in Array(section_view_model.get("rows", [])):
+	var rows: Array = Array(section_view_model.get("rows", []))
+	if rows.is_empty():
+		content.add_child(_make_readonly_row("Info", "No data."))
+		return section
+	for row_variant in rows:
 		content.add_child(_build_view_model_row(Dictionary(row_variant)))
 	return section
 
@@ -224,6 +230,10 @@ func _build_view_model_row(row_view_model: Dictionary) -> Control:
 	var apply_mode: String = str(row_view_model.get("apply_mode", ""))
 	var field_id: String = str(row_view_model.get("id", ""))
 	var entity_id: String = str(row_view_model.get("entity_id", ""))
+	var readonly: bool = bool(row_view_model.get("readonly", false))
+
+	if readonly:
+		return _make_readonly_row(label, str(value))
 
 	match control_type:
 		"line_edit":
@@ -243,33 +253,9 @@ func _build_view_model_row(row_view_model: Dictionary) -> Control:
 					_apply_object_patch(entity_id, {field_id: text_edit.text}, "%s updated." % label)
 				)
 			return _make_property_row(label, text_edit)
-		_:
-			return _make_readonly_row(label, str(value))
-
-
-func _build_config_section(object_id: String, definition: Dictionary, data: Dictionary) -> PanelContainer:
-	var section := _make_section_panel("3. Configurable Parameters")
-	var content: VBoxContainer = section.get_meta("content") as VBoxContainer
-	var schema_rows: Array = Array(definition.get("config_schema", []))
-	if schema_rows.is_empty():
-		content.add_child(_make_readonly_row("Info", "No configurable parameters."))
-		return section
-	for row_variant in schema_rows:
-		var schema_row: Dictionary = Dictionary(row_variant)
-		var field_id: String = str(schema_row.get("id", ""))
-		if field_id.is_empty():
-			continue
-		content.add_child(_build_config_row(object_id, field_id, schema_row, data.get(field_id, schema_row.get("default", ""))))
-	return section
-
-
-func _build_config_row(object_id: String, field_id: String, schema_row: Dictionary, value: Variant) -> Control:
-	var field_type: String = str(schema_row.get("type", "string"))
-	var label: String = str(schema_row.get("label", field_id.replace("_", " ").capitalize()))
-	match field_type:
 		"enum":
 			var option := OptionButton.new()
-			var values: Array = Array(schema_row.get("values", schema_row.get("options", [])))
+			var values: Array = Array(row_view_model.get("options", []))
 			var selected: int = 0
 			for index in range(values.size()):
 				var option_value: String = str(values[index])
@@ -279,24 +265,27 @@ func _build_config_row(object_id: String, field_id: String, schema_row: Dictiona
 					selected = index
 			option.select(selected)
 			option.item_selected.connect(func(index: int) -> void:
-				_apply_object_patch(object_id, {field_id: option.get_item_metadata(index)}, "%s updated." % label)
+				_apply_object_patch(entity_id, {field_id: option.get_item_metadata(index)}, "%s updated." % label)
 			)
 			return _make_property_row(label, option)
 		"int":
 			var spin := SpinBox.new()
 			spin.step = 1
-			spin.min_value = float(schema_row.get("min", 0))
-			spin.max_value = float(schema_row.get("max", 999))
+			spin.min_value = _to_float(row_view_model.get("min", 0), 0.0)
+			spin.max_value = _to_float(row_view_model.get("max", 999), 999.0)
 			spin.value = _to_float(value, spin.min_value)
 			return _make_apply_row(label, spin, func() -> void:
-				_apply_object_patch(object_id, {field_id: int(spin.value)}, "%s updated." % label)
+				_apply_object_patch(entity_id, {field_id: int(spin.value)}, "%s updated." % label)
 			)
+		"checkbox":
+			var check := CheckBox.new()
+			check.button_pressed = bool(value)
+			check.toggled.connect(func(enabled: bool) -> void:
+				_apply_object_patch(entity_id, {field_id: enabled}, "%s updated." % label)
+			)
+			return _make_property_row(label, check)
 		_:
-			var edit := LineEdit.new()
-			edit.text = str(value)
-			return _make_apply_row(label, edit, func() -> void:
-				_apply_object_patch(object_id, {field_id: edit.text}, "%s updated." % label)
-			)
+			return _make_readonly_row(label, str(value))
 
 
 func _build_links_section(definition: Dictionary) -> PanelContainer:
