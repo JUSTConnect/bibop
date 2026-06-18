@@ -55,6 +55,8 @@ func notify(message: String, kind: String = KIND_SYSTEM, duration: float = DEFAU
 	if clean_message.is_empty():
 		return
 	var normalized_kind: String = _normalize_kind(kind)
+	if normalized_kind.is_empty():
+		normalized_kind = KIND_SYSTEM
 	if _is_recent_duplicate(clean_message, normalized_kind):
 		return
 	_ensure_layout()
@@ -96,6 +98,66 @@ func negative(message: String, duration: float = DEFAULT_DURATION) -> void:
 
 func from_legacy_hint(message: String, duration: float = DEFAULT_DURATION) -> void:
 	notify(message, classify_legacy_hint(message), duration)
+
+
+func process_runtime_notification_timer(ui_owner: Object, delta: float) -> void:
+	if ui_owner == null or not is_instance_valid(ui_owner):
+		return
+	var timer: float = float(_get_object_property(ui_owner, "runtime_notification_timer"))
+	var runtime_label: Label = _get_object_property(ui_owner, "runtime_notification_label") as Label
+	if timer > 0.0:
+		timer = maxf(0.0, timer - delta)
+		if _object_has_property(ui_owner, "runtime_notification_timer"):
+			ui_owner.set("runtime_notification_timer", timer)
+		if runtime_label != null and is_instance_valid(runtime_label):
+			var pulse: float = 0.70 + 0.30 * abs(sin(float(Time.get_ticks_msec()) / 180.0))
+			runtime_label.modulate = Color(1, 1, 1, pulse)
+	elif runtime_label != null and is_instance_valid(runtime_label):
+		refresh_runtime_notification_fallback(ui_owner)
+
+
+func refresh_runtime_notification_fallback(ui_owner: Object) -> void:
+	if ui_owner == null or not is_instance_valid(ui_owner):
+		return
+	var runtime_label: Label = _get_object_property(ui_owner, "runtime_notification_label") as Label
+	if runtime_label == null or not is_instance_valid(runtime_label):
+		return
+	if _object_has_property(ui_owner, "runtime_notification_timer"):
+		ui_owner.set("runtime_notification_timer", 0.0)
+	if _object_has_property(ui_owner, "runtime_notification_role"):
+		ui_owner.set("runtime_notification_role", "neutral")
+	runtime_label.modulate = Color.WHITE
+	var secondary_text: String = "No active objective"
+	if ui_owner.has_method("_get_runtime_secondary_objective_text"):
+		secondary_text = str(ui_owner.call("_get_runtime_secondary_objective_text")).strip_edges()
+		if secondary_text.is_empty():
+			secondary_text = "No active objective"
+	runtime_label.text = secondary_text
+	runtime_label.add_theme_color_override("font_color", COLOR_DEFAULT_TEXT)
+	var runtime_panel: PanelContainer = _get_object_property(ui_owner, "runtime_notification_panel") as PanelContainer
+	if runtime_panel != null and is_instance_valid(runtime_panel):
+		runtime_panel.add_theme_stylebox_override("panel", _make_style(COLOR_DEFAULT_BG, COLOR_DEFAULT_BORDER))
+
+
+func get_runtime_notification_role(message: String) -> String:
+	var lower: String = message.to_lower()
+	for token in ["collected", "unlocked", "opened", "closed", "complete", "success", "stored", "picked up"]:
+		if lower.find(token) != -1:
+			return "ok"
+	for token in ["too heavy", "required", "locked", "no ", "cannot", "failed", "missing", "not enough", "blocked", "rejected", "occupied"]:
+		if lower.find(token) != -1:
+			return "danger"
+	return "info"
+
+
+func show_runtime_notification(ui_owner: Object, message: String) -> void:
+	var role: String = get_runtime_notification_role(message)
+	var kind: String = KIND_SYSTEM
+	if role == "ok":
+		kind = KIND_POSITIVE
+	elif role == "danger":
+		kind = KIND_NEGATIVE
+	show_hint(ui_owner, message, kind, 7.0)
 
 
 func classify_legacy_hint(message: String) -> String:
@@ -280,19 +342,17 @@ func _object_has_property(target: Object, property_name: String) -> bool:
 
 func _normalize_kind(kind: String) -> String:
 	var clean_kind := kind.strip_edges().to_lower()
-	match clean_kind:
-		KIND_SYSTEM, KIND_SYSTEM_NEGATIVE, KIND_POSITIVE, KIND_NEGATIVE:
-			return clean_kind
-		"info", "blue", "system_positive":
-			return KIND_SYSTEM
-		"warning", "orange":
-			return KIND_SYSTEM_NEGATIVE
-		"ok", "success", "green":
-			return KIND_POSITIVE
-		"danger", "error", "red":
-			return KIND_NEGATIVE
-		_:
-			return ""
+	if clean_kind in [KIND_SYSTEM, KIND_SYSTEM_NEGATIVE, KIND_POSITIVE, KIND_NEGATIVE]:
+		return clean_kind
+	if clean_kind in ["info", "blue", "system_positive"]:
+		return KIND_SYSTEM
+	if clean_kind in ["warning", "orange"]:
+		return KIND_SYSTEM_NEGATIVE
+	if clean_kind in ["ok", "success", "green"]:
+		return KIND_POSITIVE
+	if clean_kind in ["danger", "error", "red"]:
+		return KIND_NEGATIVE
+	return ""
 
 
 func _is_recent_duplicate(message: String, kind: String) -> bool:
