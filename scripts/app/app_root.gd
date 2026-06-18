@@ -10,6 +10,7 @@ const ObjectStatusModelRef = preload("res://scripts/domain/object_status_model.g
 const ObjectIdentityViewModelRef = preload("res://scripts/presentation/object_identity_view_model.gd")
 const ObjectStatusViewModelRef = preload("res://scripts/presentation/object_status_view_model.gd")
 const ObjectConfigViewModelRef = preload("res://scripts/presentation/object_config_view_model.gd")
+const ObjectLinksViewModelRef = preload("res://scripts/presentation/object_links_view_model.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -193,6 +194,7 @@ func _render_selected_object_inspector() -> void:
 	var identity_view_model: Dictionary = ObjectIdentityViewModelRef.create("world_object", object_id, data)
 	var status_view_model: Dictionary = ObjectStatusViewModelRef.create(status)
 	var config_view_model: Dictionary = ObjectConfigViewModelRef.create(Array(definition.get("config_schema", [])), data, "world_object", object_id)
+	var links_view_model: Dictionary = ObjectLinksViewModelRef.create(Array(definition.get("links_schema", [])), data, "world_object", object_id)
 
 	inspector_content.add_child(_build_view_model_section(identity_view_model))
 	inspector_content.add_child(_make_section_separator())
@@ -200,7 +202,7 @@ func _render_selected_object_inspector() -> void:
 	inspector_content.add_child(_make_section_separator())
 	inspector_content.add_child(_build_view_model_section(config_view_model))
 	inspector_content.add_child(_make_section_separator())
-	inspector_content.add_child(_build_links_section(definition))
+	inspector_content.add_child(_build_view_model_section(links_view_model))
 	_set_status("Selected: %s" % str(data.get("display_name", object_id)))
 
 
@@ -286,19 +288,6 @@ func _build_view_model_row(row_view_model: Dictionary) -> Control:
 			return _make_property_row(label, check)
 		_:
 			return _make_readonly_row(label, str(value))
-
-
-func _build_links_section(definition: Dictionary) -> PanelContainer:
-	var section := _make_section_panel("4. Links")
-	var content: VBoxContainer = section.get_meta("content") as VBoxContainer
-	var links_schema: Array = Array(definition.get("links_schema", []))
-	if links_schema.is_empty():
-		content.add_child(_make_readonly_row("Info", "No links."))
-		return section
-	for link_variant in links_schema:
-		var link: Dictionary = Dictionary(link_variant)
-		content.add_child(_make_readonly_row(str(link.get("label", link.get("id", "Link"))), "type=%s" % str(link.get("type", "unknown"))))
-	return section
 
 
 func _apply_object_patch(object_id: String, patch: Dictionary, message: String) -> void:
