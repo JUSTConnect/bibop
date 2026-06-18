@@ -1,10 +1,7 @@
 extends RefCounted
 
-# ObjectDataFactory
-# Создаёт начальное runtime/config data из ObjectDefinition.
-# Не создаёт UI и не знает про scenes.
-
 const ObjectConfigSchemaRef = preload("res://scripts/domain/object_config_schema.gd")
+const ObjectRuntimeStateRef = preload("res://scripts/domain/object_runtime_state.gd")
 
 static func make_initial_object_data(definition: Dictionary) -> Dictionary:
 	var base_config: Dictionary = ObjectConfigSchemaRef.make_base_config(definition)
@@ -20,8 +17,7 @@ static func make_initial_object_data(definition: Dictionary) -> Dictionary:
 	data["description"] = str(definition.get("description", ""))
 	data["visual_id"] = str(definition.get("visual_id", ""))
 	data["power_state"] = infer_power_state(data)
-	return data
-
+	return ObjectRuntimeStateRef.merge_into_data(data, ObjectRuntimeStateRef.make_initial(definition, data))
 
 static func infer_power_state(data: Dictionary) -> String:
 	var power_mode: String = str(data.get("power_mode", "none")).to_lower()
@@ -32,17 +28,11 @@ static func infer_power_state(data: Dictionary) -> String:
 	var state: String = str(data.get("state", "on")).to_lower()
 	return "unpowered" if state == "off" else "powered"
 
-
 static func _make_initial_links(definition: Dictionary) -> Dictionary:
 	var links: Dictionary = {}
 	for link_variant in Array(definition.get("links_schema", [])):
 		var link: Dictionary = Dictionary(link_variant)
 		var link_id: String = str(link.get("id", ""))
-		if link_id.is_empty():
-			continue
-		var link_type: String = str(link.get("type", ""))
-		if link_type == "object_ref_array":
-			links[link_id] = []
-		else:
-			links[link_id] = ""
+		if not link_id.is_empty():
+			links[link_id] = [] if str(link.get("type", "")) == "object_ref_array" else ""
 	return links
