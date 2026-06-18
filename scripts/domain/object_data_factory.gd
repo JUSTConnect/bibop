@@ -4,8 +4,13 @@ extends RefCounted
 # Создаёт начальное runtime/config data из ObjectDefinition.
 # Не создаёт UI и не знает про scenes.
 
+const ObjectConfigSchemaRef = preload("res://scripts/domain/object_config_schema.gd")
+
 static func make_initial_object_data(definition: Dictionary) -> Dictionary:
-	var data: Dictionary = Dictionary(definition.get("base_parameters", {})).duplicate(true)
+	var base_config: Dictionary = ObjectConfigSchemaRef.make_base_config(definition)
+	var data: Dictionary = base_config.duplicate(true)
+	data["base_config"] = base_config
+	data["config_overrides"] = {}
 	data["id"] = str(definition.get("id", ""))
 	data["definition_id"] = str(definition.get("id", ""))
 	data["object_type"] = str(definition.get("object_type", "unknown"))
