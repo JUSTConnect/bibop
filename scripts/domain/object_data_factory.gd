@@ -11,6 +11,7 @@ static func make_initial_object_data(definition: Dictionary) -> Dictionary:
 	var data: Dictionary = base_config.duplicate(true)
 	data["base_config"] = base_config
 	data["config_overrides"] = {}
+	data["links"] = _make_initial_links(definition)
 	data["id"] = str(definition.get("id", ""))
 	data["definition_id"] = str(definition.get("id", ""))
 	data["object_type"] = str(definition.get("object_type", "unknown"))
@@ -30,3 +31,18 @@ static func infer_power_state(data: Dictionary) -> String:
 		return "powered" if bool(data.get("is_powered")) else "unpowered"
 	var state: String = str(data.get("state", "on")).to_lower()
 	return "unpowered" if state == "off" else "powered"
+
+
+static func _make_initial_links(definition: Dictionary) -> Dictionary:
+	var links: Dictionary = {}
+	for link_variant in Array(definition.get("links_schema", [])):
+		var link: Dictionary = Dictionary(link_variant)
+		var link_id: String = str(link.get("id", ""))
+		if link_id.is_empty():
+			continue
+		var link_type: String = str(link.get("type", ""))
+		if link_type == "object_ref_array":
+			links[link_id] = []
+		else:
+			links[link_id] = ""
+	return links
