@@ -1,0 +1,26 @@
+{
+  "id": "power_source_basic",
+  "object_type": "power_source",
+  "object_group": "power",
+  "display_name": "Power Source",
+  "description": "Basic power source.",
+  "visual_id": "power_source_01",
+  "tags": ["power", "source", "floor"],
+  "base_parameters": {
+    "object_class": 1,
+    "power_mode": "source",
+    "control_mode": "none",
+    "access_mode": "none",
+    "mount": "floor",
+    "state": "on"
+  },
+  "config_schema": [
+    {"id": "object_class", "label": "Object class", "type": "enum", "values": ["1", "2", "3"]},
+    {"id": "source_capacity", "label": "Source capacity", "type": "int", "min": 1, "max": 10},
+    {"id": "overheat_threshold", "label": "Overheat threshold", "type": "int", "min": 1, "max": 5}
+  ],
+  "links_schema": [
+    {"id": "power_circuit", "label": "Power circuit", "type": "power_circuit"}
+  ],
+  "interactions": ["scan", "repair", "connect", "cut"]
+}
