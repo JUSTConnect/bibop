@@ -28,6 +28,7 @@ func reset() -> void:
 
 
 func set_selected_definition(definition_id: String) -> void:
+	selected_cell = Vector2i(-1, -1)
 	selected_definition_id = definition_id
 	selected_entity_kind = "definition_preview"
 	selected_entity_id = definition_id
