@@ -7,8 +7,12 @@ extends RefCounted
 
 const OK_COLOR := Color(0.25, 0.85, 0.48, 1.0)
 const WARNING_COLOR := Color(0.95, 0.7, 0.18, 1.0)
+const MUTED_COLOR := Color(0.62, 0.68, 0.72, 1.0)
+const ACCENT_COLOR := Color(0.25, 0.78, 0.95, 1.0)
 const LABEL_WIDTH := 118.0
 const APPLY_WIDTH := 58.0
+const RESET_WIDTH := 48.0
+const SOURCE_WIDTH := 42.0
 const ROW_SEPARATION := 6
 
 static func build_row(row_definition: Dictionary, on_apply: Callable = Callable()) -> HBoxContainer:
@@ -29,6 +33,15 @@ static func build_row(row_definition: Dictionary, on_apply: Callable = Callable(
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(control)
 
+	if row_definition.has("value_source"):
+		var source_label := Label.new()
+		source_label.text = "over" if str(row_definition.get("value_source", "")) == "override" else "base"
+		source_label.custom_minimum_size = Vector2(SOURCE_WIDTH, 0)
+		source_label.clip_text = true
+		source_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		source_label.add_theme_color_override("font_color", ACCENT_COLOR if source_label.text == "over" else MUTED_COLOR)
+		row.add_child(source_label)
+
 	if str(row_definition.get("apply_mode", "")) == "inline" and not bool(row_definition.get("readonly", false)):
 		var apply_button := Button.new()
 		apply_button.text = "Apply"
@@ -39,6 +52,17 @@ static func build_row(row_definition: Dictionary, on_apply: Callable = Callable(
 			_emit_apply(on_apply, row_definition, _read_control_value(control))
 		)
 		row.add_child(apply_button)
+
+	if bool(row_definition.get("can_reset", false)):
+		var reset_button := Button.new()
+		reset_button.text = "Base"
+		reset_button.custom_minimum_size = Vector2(RESET_WIDTH, 28)
+		reset_button.clip_text = true
+		reset_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		reset_button.pressed.connect(func() -> void:
+			_emit_apply(on_apply, row_definition, row_definition.get("base_value", ""))
+		)
+		row.add_child(reset_button)
 	return row
 
 
