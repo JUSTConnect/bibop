@@ -69,9 +69,43 @@ func _apply_runtime_resource_label_styles() -> void:
 	_apply_resource_label_style(ui.runtime_actions_label, int(ui.bipob.actions_left), maxi(int(ui.bipob.actions_per_turn), 1))
 
 
+func _keep_runtime_bottom_left_visible() -> void:
+	if ui == null or ui.runtime_hud_root == null or not is_instance_valid(ui.runtime_hud_root):
+		return
+	var bottom_left: Control = ui.runtime_hud_root.get_node_or_null("RuntimeBottomLeft") as Control
+	if bottom_left != null and is_instance_valid(bottom_left):
+		bottom_left.visible = true
+		bottom_left.mouse_filter = Control.MOUSE_FILTER_PASS
+	var stats_strip: Control = null
+	if bottom_left != null and is_instance_valid(bottom_left):
+		stats_strip = bottom_left.get_node_or_null("RuntimeStatsStrip") as Control
+	if stats_strip != null and is_instance_valid(stats_strip):
+		stats_strip.visible = true
+		stats_strip.mouse_filter = Control.MOUSE_FILTER_PASS
+	var controls_panel: Control = null
+	if bottom_left != null and is_instance_valid(bottom_left):
+		controls_panel = bottom_left.get_node_or_null("RuntimeControlsPanel") as Control
+	if controls_panel != null and is_instance_valid(controls_panel):
+		controls_panel.visible = true
+		controls_panel.mouse_filter = Control.MOUSE_FILTER_PASS
+	var base_row: Control = ui.runtime_base_controls_grid
+	if base_row == null or not is_instance_valid(base_row):
+		if controls_panel != null and is_instance_valid(controls_panel):
+			base_row = controls_panel.find_child("RuntimeBaseControlRow", true, false) as Control
+	if base_row != null and is_instance_valid(base_row):
+		base_row.visible = true
+		base_row.mouse_filter = Control.MOUSE_FILTER_PASS
+	for button in [ui.runtime_turn_left_button, ui.runtime_turn_right_button, ui.runtime_action_button, ui.runtime_connect_button, ui.runtime_heavy_claw_button, ui.runtime_cut_button, ui.runtime_end_turn_button]:
+		if button != null and is_instance_valid(button):
+			button.visible = true
+			button.mouse_filter = Control.MOUSE_FILTER_STOP
+
+
 func refresh_controls() -> void:
+	_keep_runtime_bottom_left_visible()
 	_apply_runtime_resource_label_styles()
 	RuntimeInteractionPresenterRef.refresh(ui)
+	_keep_runtime_bottom_left_visible()
 
 
 func enter_interaction_mode() -> void:
