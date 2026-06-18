@@ -9,8 +9,6 @@ const KIND_POSITIVE := "positive"
 const KIND_NEGATIVE := "negative"
 
 const DEFAULT_DURATION := 2.8
-const MAX_VISIBLE := 4
-const HINT_SOURCE_SCAN_INTERVAL := 0.45
 const DUPLICATE_SUPPRESS_MS := 120
 
 const COLOR_SYSTEM_BG := Color(0.055, 0.105, 0.160, 0.96)
@@ -33,21 +31,16 @@ const COLOR_DEFAULT_BG := Color(0.070, 0.080, 0.095, 0.96)
 const COLOR_DEFAULT_BORDER := Color(0.120, 0.220, 0.280, 0.75)
 const COLOR_DEFAULT_TEXT := Color(0.820, 0.900, 0.920, 1.00)
 
-var _root: Control = null
-var _stack: VBoxContainer = null
-var _items: Array[Dictionary] = []
-var _hint_source_ids: Dictionary = {}
-var _hint_source_scan_timer: float = 0.0
 var _last_notification_message: String = ""
 var _last_notification_kind: String = ""
 var _last_notification_msec: int = 0
 
 func _ready() -> void:
-	layer = 128
-	_ensure_layout()
-	_scan_hint_sources()
-	if get_tree() != null and not get_tree().node_added.is_connected(_on_tree_node_added):
-		get_tree().node_added.connect(_on_tree_node_added)
+	# This singleton is now a compatibility adapter for GameUI's existing HUD.
+	# It intentionally does not create a separate CanvasLayer stack and does not scan the whole scene tree.
+	layer = -128
+	process_mode = Node.PROCESS_MODE_DISABLED
+	visible = false
 
 
 func notify(message: String, kind: String = KIND_SYSTEM, duration: float = DEFAULT_DURATION) -> void:
@@ -59,12 +52,6 @@ func notify(message: String, kind: String = KIND_SYSTEM, duration: float = DEFAU
 		normalized_kind = KIND_SYSTEM
 	if _is_recent_duplicate(clean_message, normalized_kind):
 		return
-	_ensure_layout()
-	var item := _build_item(clean_message, normalized_kind)
-	_stack.add_child(item)
-	_items.append({"node": item, "ttl": maxf(duration, 0.1)})
-	while _items.size() > MAX_VISIBLE:
-		_remove_item(0)
 	_store_last_notification(clean_message, normalized_kind)
 	notification_pushed.emit(normalized_kind, clean_message, duration)
 
@@ -76,7 +63,9 @@ func show_hint(ui_owner: Object, message: String, kind: String = "", duration: f
 	var resolved_kind: String = _normalize_kind(kind)
 	if resolved_kind.is_empty():
 		resolved_kind = classify_legacy_hint(clean_message)
-	notify(clean_message, resolved_kind, duration)
+	if not _is_recent_duplicate(clean_message, resolved_kind):
+		_store_last_notification(clean_message, resolved_kind)
+		notification_pushed.emit(resolved_kind, clean_message, duration)
 	_sync_legacy_ui_hint_target(ui_owner, clean_message, resolved_kind, duration)
 
 
@@ -133,10 +122,13 @@ func refresh_runtime_notification_fallback(ui_owner: Object) -> void:
 		if secondary_text.is_empty():
 			secondary_text = "No active objective"
 	runtime_label.text = secondary_text
-	runtime_label.add_theme_color_override("font_color", COLOR_DEFAULT_TEXT)
+	var text_color: Color = _get_ui_color(ui_owner, "UI_COLOR_TEXT_DIM", COLOR_DEFAULT_TEXT)
+	runtime_label.add_theme_color_override("font_color", text_color)
 	var runtime_panel: PanelContainer = _get_object_property(ui_owner, "runtime_notification_panel") as PanelContainer
 	if runtime_panel != null and is_instance_valid(runtime_panel):
-		runtime_panel.add_theme_stylebox_override("panel", _make_style(COLOR_DEFAULT_BG, COLOR_DEFAULT_BORDER))
+		var panel_bg: Color = _get_ui_color(ui_owner, "UI_COLOR_PANEL_DARK", COLOR_DEFAULT_BG)
+		var border: Color = _get_ui_color(ui_owner, "UI_COLOR_BORDER_DIM", COLOR_DEFAULT_BORDER)
+		runtime_panel.add_theme_stylebox_override("panel", _make_style(panel_bg, border))
 
 
 func get_runtime_notification_role(message: String) -> String:
@@ -173,65 +165,26 @@ func classify_legacy_hint(message: String) -> String:
 	return KIND_SYSTEM
 
 
-func _process(delta: float) -> void:
-	_hint_source_scan_timer -= delta
-	if _hint_source_scan_timer <= 0.0:
-		_hint_source_scan_timer = HINT_SOURCE_SCAN_INTERVAL
-		_scan_hint_sources()
-	for i in range(_items.size() - 1, -1, -1):
-		var item: Dictionary = _items[i]
-		item["ttl"] = float(item.get("ttl", 0.0)) - delta
-		_items[i] = item
-		if float(item.get("ttl", 0.0)) <= 0.0:
-			_remove_item(i)
-
-
-func _ensure_layout() -> void:
-	if _root != null and is_instance_valid(_root):
+func _sync_legacy_ui_hint_target(ui_owner: Object, message: String, kind: String, duration: float) -> void:
+	if ui_owner == null or not is_instance_valid(ui_owner):
 		return
-	_root = Control.new()
-	_root.name = "RuntimeNotificationLayerRoot"
-	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_root)
-
-	_stack = VBoxContainer.new()
-	_stack.name = "RuntimeNotificationStack"
-	_stack.anchor_left = 0.5
-	_stack.anchor_right = 0.5
-	_stack.anchor_top = 0.0
-	_stack.anchor_bottom = 0.0
-	_stack.offset_left = -230.0
-	_stack.offset_right = 230.0
-	_stack.offset_top = 18.0
-	_stack.offset_bottom = 18.0
-	_stack.add_theme_constant_override("separation", 6)
-	_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(_stack)
-
-
-func _build_item(message: String, kind: String) -> PanelContainer:
 	var colors := _get_colors(kind)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(460.0, 44.0)
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_theme_stylebox_override("panel", _make_style(colors["bg"], colors["border"]))
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_bottom", 6)
-	panel.add_child(margin)
-
-	var label := Label.new()
-	label.text = message
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.clip_text = true
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_color_override("font_color", colors["text"])
-	margin.add_child(label)
-	return panel
+	var hint_label: Label = _get_object_property(ui_owner, "hint_label") as Label
+	if hint_label != null and is_instance_valid(hint_label):
+		hint_label.text = message
+	var runtime_label: Label = _get_object_property(ui_owner, "runtime_notification_label") as Label
+	if runtime_label != null and is_instance_valid(runtime_label):
+		runtime_label.text = message
+		runtime_label.modulate = Color.WHITE
+		runtime_label.add_theme_color_override("font_color", colors["text"])
+	var runtime_panel: PanelContainer = _get_object_property(ui_owner, "runtime_notification_panel") as PanelContainer
+	if runtime_panel != null and is_instance_valid(runtime_panel):
+		runtime_panel.visible = true
+		runtime_panel.add_theme_stylebox_override("panel", _make_style(colors["bg"], colors["border"]))
+	if _object_has_property(ui_owner, "runtime_notification_timer"):
+		ui_owner.set("runtime_notification_timer", duration)
+	if _object_has_property(ui_owner, "runtime_notification_role"):
+		ui_owner.set("runtime_notification_role", kind)
 
 
 func _make_style(bg: Color, border: Color) -> StyleBoxFlat:
@@ -261,70 +214,6 @@ func _get_colors(kind: String) -> Dictionary:
 			return {"bg": COLOR_DEFAULT_BG, "border": COLOR_DEFAULT_BORDER, "text": COLOR_DEFAULT_TEXT}
 
 
-func _remove_item(index: int) -> void:
-	if index < 0 or index >= _items.size():
-		return
-	var node: Node = _items[index].get("node", null)
-	_items.remove_at(index)
-	if node != null and is_instance_valid(node):
-		node.queue_free()
-
-
-func _scan_hint_sources() -> void:
-	if get_tree() == null or get_tree().root == null:
-		return
-	_connect_hint_source_recursive(get_tree().root)
-
-
-func _connect_hint_source_recursive(node: Node) -> void:
-	_connect_hint_source(node)
-	for child in node.get_children():
-		_connect_hint_source_recursive(child)
-
-
-func _on_tree_node_added(node: Node) -> void:
-	_connect_hint_source(node)
-
-
-func _connect_hint_source(node: Node) -> void:
-	if node == null or node == self:
-		return
-	if not node.has_signal("hint_requested"):
-		return
-	var instance_id := node.get_instance_id()
-	if _hint_source_ids.has(instance_id):
-		return
-	var callback := Callable(self, "_on_legacy_hint_requested")
-	if not node.is_connected("hint_requested", callback):
-		node.connect("hint_requested", callback)
-	_hint_source_ids[instance_id] = true
-
-
-func _on_legacy_hint_requested(message: String) -> void:
-	from_legacy_hint(message)
-
-
-func _sync_legacy_ui_hint_target(ui_owner: Object, message: String, kind: String, duration: float) -> void:
-	if ui_owner == null or not is_instance_valid(ui_owner):
-		return
-	var colors := _get_colors(kind)
-	var hint_label: Label = _get_object_property(ui_owner, "hint_label") as Label
-	if hint_label != null and is_instance_valid(hint_label):
-		hint_label.text = message
-	var runtime_label: Label = _get_object_property(ui_owner, "runtime_notification_label") as Label
-	if runtime_label != null and is_instance_valid(runtime_label):
-		runtime_label.text = message
-		runtime_label.add_theme_color_override("font_color", colors["text"])
-	var runtime_panel: PanelContainer = _get_object_property(ui_owner, "runtime_notification_panel") as PanelContainer
-	if runtime_panel != null and is_instance_valid(runtime_panel):
-		runtime_panel.visible = true
-		runtime_panel.add_theme_stylebox_override("panel", _make_style(colors["bg"], colors["border"]))
-	if _object_has_property(ui_owner, "runtime_notification_timer"):
-		ui_owner.set("runtime_notification_timer", duration)
-	if _object_has_property(ui_owner, "runtime_notification_role"):
-		ui_owner.set("runtime_notification_role", kind)
-
-
 func _get_object_property(target: Object, property_name: String) -> Variant:
 	if target == null or not _object_has_property(target, property_name):
 		return null
@@ -338,6 +227,13 @@ func _object_has_property(target: Object, property_name: String) -> bool:
 		if str(property_data.get("name", "")) == property_name:
 			return true
 	return false
+
+
+func _get_ui_color(target: Object, property_name: String, fallback: Color) -> Color:
+	var value: Variant = _get_object_property(target, property_name)
+	if value is Color:
+		return value
+	return fallback
 
 
 func _normalize_kind(kind: String) -> String:
