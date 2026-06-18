@@ -17,7 +17,7 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 [autoload]
 
 RuntimeNotifications="*res://scripts/ui/runtime/runtime_notification_layer.gd"
-RuntimeControlMenuRecovery="*res://scripts/ui/runtime/runtime_control_menu_recovery.gd"
+RuntimeCommandPanelRecovery="*res://scripts/ui/runtime/runtime_command_panel_recovery.gd"
 
 [display]
 
