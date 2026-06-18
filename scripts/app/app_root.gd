@@ -11,6 +11,7 @@ const ObjectInspectorViewModelRef = preload("res://scripts/presentation/object_i
 const ObjectInspectorBuilderRef = preload("res://scripts/ui/object_inspector/object_inspector_builder.gd")
 const MapEditStateRef = preload("res://scripts/map_constructor/map_edit_state.gd")
 const MapCanvasViewRef = preload("res://scripts/ui/map_constructor_new/map_canvas_view.gd")
+const ObjectVisualFactoryRef = preload("res://scripts/rendering/object_visual_factory.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -306,26 +307,26 @@ func _rebuild_palette_list() -> void:
 func _refresh_map_canvas() -> void:
 	if map_canvas == null:
 		return
-	map_canvas.call("set_cells", MAP_COLUMNS, MAP_ROWS, _build_cell_labels(), Vector2i(map_edit_state.selected_cell))
+	map_canvas.call("set_cell_visuals", MAP_COLUMNS, MAP_ROWS, _build_cell_visuals(), Vector2i(map_edit_state.selected_cell))
 
 
-func _build_cell_labels() -> Dictionary:
-	var labels: Dictionary = {}
+func _build_cell_visuals() -> Dictionary:
+	var visuals: Dictionary = {}
 	for y in range(MAP_ROWS):
 		for x in range(MAP_COLUMNS):
 			var cell := Vector2i(x, y)
-			labels[_cell_key(cell)] = _get_cell_text(cell)
-	return labels
+			visuals[_cell_key(cell)] = _get_cell_visual(cell)
+	return visuals
 
 
-func _get_cell_text(cell: Vector2i) -> String:
+func _get_cell_visual(cell: Vector2i) -> Dictionary:
 	var instance_id: String = str(map_edit_state.get_instance_id_at_cell(cell))
 	if instance_id.is_empty():
-		return "%d,%d\n+" % [cell.x, cell.y]
+		return ObjectVisualFactoryRef.create_empty_cell_visual(cell)
 	var data: Dictionary = Dictionary(map_edit_state.get_instance_data(instance_id))
 	var definition_id: String = str(data.get("definition_id", ""))
-	var marker: String = "*" if bool(map_edit_state.is_selected_instance(instance_id)) else ""
-	return "%s%s\n%s" % [marker, str(data.get("display_name", instance_id)), str(definitions_by_id.get(definition_id, {}).get("object_type", "object"))]
+	var definition: Dictionary = Dictionary(definitions_by_id.get(definition_id, {}))
+	return ObjectVisualFactoryRef.create_map_visual(data, definition, bool(map_edit_state.is_selected_instance(instance_id)))
 
 
 func _handle_map_cell_pressed(cell: Vector2i) -> void:
