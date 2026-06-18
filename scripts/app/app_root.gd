@@ -7,6 +7,8 @@ extends Control
 const ObjectDefinitionCatalogRef = preload("res://scripts/domain/object_definition_catalog.gd")
 const ObjectDataFactoryRef = preload("res://scripts/domain/object_data_factory.gd")
 const ObjectStatusModelRef = preload("res://scripts/domain/object_status_model.gd")
+const ObjectIdentityViewModelRef = preload("res://scripts/presentation/object_identity_view_model.gd")
+const ObjectStatusViewModelRef = preload("res://scripts/presentation/object_status_view_model.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -187,10 +189,12 @@ func _render_selected_object_inspector() -> void:
 	var object_id: String = str(definition.get("id", ""))
 	var data: Dictionary = Dictionary(working_data_by_id.get(object_id, {}))
 	var status: Dictionary = ObjectStatusModelRef.build_status(data)
+	var identity_view_model: Dictionary = ObjectIdentityViewModelRef.create("world_object", object_id, data)
+	var status_view_model: Dictionary = ObjectStatusViewModelRef.create(status)
 
-	inspector_content.add_child(_build_identity_section(object_id, data))
+	inspector_content.add_child(_build_view_model_section(identity_view_model))
 	inspector_content.add_child(_make_section_separator())
-	inspector_content.add_child(_build_status_section(status))
+	inspector_content.add_child(_build_view_model_section(status_view_model))
 	inspector_content.add_child(_make_section_separator())
 	inspector_content.add_child(_build_config_section(object_id, definition, data))
 	inspector_content.add_child(_make_section_separator())
@@ -205,32 +209,42 @@ func _clear_inspector() -> void:
 		child.queue_free()
 
 
-func _build_identity_section(object_id: String, data: Dictionary) -> PanelContainer:
-	var section := _make_section_panel("1. Identity")
+func _build_view_model_section(section_view_model: Dictionary) -> PanelContainer:
+	var section := _make_section_panel(str(section_view_model.get("title", "Section")))
 	var content: VBoxContainer = section.get_meta("content") as VBoxContainer
-
-	var name_edit := LineEdit.new()
-	name_edit.text = str(data.get("display_name", ""))
-	content.add_child(_make_apply_row("Name", name_edit, func() -> void:
-		_apply_object_patch(object_id, {"display_name": name_edit.text}, "Name updated.")
-	))
-
-	var description_edit := TextEdit.new()
-	description_edit.text = str(data.get("description", ""))
-	description_edit.custom_minimum_size = Vector2(0, 78)
-	content.add_child(_make_apply_row("Description", description_edit, func() -> void:
-		_apply_object_patch(object_id, {"description": description_edit.text}, "Description updated.")
-	))
+	for row_variant in Array(section_view_model.get("rows", [])):
+		content.add_child(_build_view_model_row(Dictionary(row_variant)))
 	return section
 
 
-func _build_status_section(status: Dictionary) -> PanelContainer:
-	var section := _make_section_panel("2. Status")
-	var content: VBoxContainer = section.get_meta("content") as VBoxContainer
-	content.add_child(_make_readonly_row("Object type", str(status.get("object_type", "unknown"))))
-	content.add_child(_make_readonly_row("Total state", str(status.get("total_state", "unknown"))))
-	content.add_child(_make_readonly_row("Power state", str(status.get("power_state", "none"))))
-	return section
+func _build_view_model_row(row_view_model: Dictionary) -> Control:
+	var control_type: String = str(row_view_model.get("control_type", "readonly_text"))
+	var label: String = str(row_view_model.get("label", row_view_model.get("id", "Value")))
+	var value: Variant = row_view_model.get("value", "")
+	var apply_mode: String = str(row_view_model.get("apply_mode", ""))
+	var field_id: String = str(row_view_model.get("id", ""))
+	var entity_id: String = str(row_view_model.get("entity_id", ""))
+
+	match control_type:
+		"line_edit":
+			var edit := LineEdit.new()
+			edit.text = str(value)
+			if apply_mode == "inline":
+				return _make_apply_row(label, edit, func() -> void:
+					_apply_object_patch(entity_id, {field_id: edit.text}, "%s updated." % label)
+				)
+			return _make_property_row(label, edit)
+		"text_edit":
+			var text_edit := TextEdit.new()
+			text_edit.text = str(value)
+			text_edit.custom_minimum_size = Vector2(0, 78)
+			if apply_mode == "inline":
+				return _make_apply_row(label, text_edit, func() -> void:
+					_apply_object_patch(entity_id, {field_id: text_edit.text}, "%s updated." % label)
+				)
+			return _make_property_row(label, text_edit)
+		_:
+			return _make_readonly_row(label, str(value))
 
 
 func _build_config_section(object_id: String, definition: Dictionary, data: Dictionary) -> PanelContainer:
