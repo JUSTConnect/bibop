@@ -14,6 +14,10 @@ config/name="bibop"
 run/main_scene="uid://diphyupq6cob4"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
+[autoload]
+
+RuntimeNotifications="*res://scripts/ui/runtime/runtime_notification_layer.gd"
+
 [display]
 
 window/size/viewport_width=1280
