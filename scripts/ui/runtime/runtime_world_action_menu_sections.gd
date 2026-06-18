@@ -1,5 +1,5 @@
 extends Node
-class_name RuntimeWorldActionMenuSections
+class_name RuntimeWorldActionMenuSectionsService
 
 const PANEL_NAME := "RuntimeWorldActionsPanel"
 const SECTION_PREFIX := "RuntimeWorldActionsSection"
