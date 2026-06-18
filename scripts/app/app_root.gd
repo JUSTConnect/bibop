@@ -12,6 +12,7 @@ const ObjectInspectorBuilderRef = preload("res://scripts/ui/object_inspector/obj
 const MapEditStateRef = preload("res://scripts/map_constructor/map_edit_state.gd")
 const MapCanvasViewRef = preload("res://scripts/ui/map_constructor_new/map_canvas_view.gd")
 const ObjectVisualFactoryRef = preload("res://scripts/rendering/object_visual_factory.gd")
+const ObjectInteractionSystemRef = preload("res://scripts/systems/object_interaction_system.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -207,7 +208,7 @@ func _build_map_canvas_panel() -> PanelContainer:
 	panel.add_child(_wrap_margin(stack, PANEL_PADDING, PANEL_PADDING))
 
 	var title := Label.new()
-	title.text = "Map Canvas / Place and Erase tools"
+	title.text = "Map Canvas / Place, Erase, Use"
 	title.add_theme_color_override("font_color", ACCENT)
 	title.clip_text = true
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -241,6 +242,9 @@ func _build_map_toolbar() -> HBoxContainer:
 	))
 	toolbar.add_child(_make_toolbar_button("Erase", func() -> void:
 		_set_tool_mode("erase")
+	))
+	toolbar.add_child(_make_toolbar_button("Use", func() -> void:
+		_use_selected_object()
 	))
 	toolbar.add_child(_make_toolbar_button("Clear", func() -> void:
 		_clear_map()
@@ -384,6 +388,23 @@ func _set_tool_mode(tool_mode: String, show_status: bool = true) -> void:
 func _update_tool_mode_label() -> void:
 	if tool_mode_label != null:
 		tool_mode_label.text = "Tool: %s" % str(map_edit_state.active_tool_mode).capitalize()
+
+
+func _use_selected_object() -> void:
+	var selected_data: Dictionary = Dictionary(map_edit_state.get_selected_instance_data())
+	if selected_data.is_empty():
+		_set_status("Select a placed object before Use.")
+		return
+	var result: Dictionary = ObjectInteractionSystemRef.use_object(selected_data, map_edit_state.get_placed_objects())
+	for patch_variant in Array(result.get("patches", [])):
+		var patch_info: Dictionary = Dictionary(patch_variant)
+		var instance_id: String = str(patch_info.get("instance_id", ""))
+		var patch: Dictionary = Dictionary(patch_info.get("patch", {}))
+		if not instance_id.is_empty() and not patch.is_empty():
+			map_edit_state.patch_instance(instance_id, patch)
+	_refresh_map_canvas()
+	_render_selected_object_inspector()
+	_set_status(str(result.get("message", "Use finished.")))
 
 
 func _clear_map() -> void:
