@@ -11,6 +11,7 @@ const ObjectIdentityViewModelRef = preload("res://scripts/presentation/object_id
 const ObjectStatusViewModelRef = preload("res://scripts/presentation/object_status_view_model.gd")
 const ObjectConfigViewModelRef = preload("res://scripts/presentation/object_config_view_model.gd")
 const ObjectLinksViewModelRef = preload("res://scripts/presentation/object_links_view_model.gd")
+const CommonPropertyRowBuilderRef = preload("res://scripts/ui/common/common_property_row_builder.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -221,73 +222,17 @@ func _build_view_model_section(section_view_model: Dictionary) -> PanelContainer
 		content.add_child(_make_readonly_row("Info", "No data."))
 		return section
 	for row_variant in rows:
-		content.add_child(_build_view_model_row(Dictionary(row_variant)))
+		content.add_child(CommonPropertyRowBuilderRef.build_row(Dictionary(row_variant), Callable(self, "_apply_view_model_row_update")))
 	return section
 
 
-func _build_view_model_row(row_view_model: Dictionary) -> Control:
-	var control_type: String = str(row_view_model.get("control_type", "readonly_text"))
-	var label: String = str(row_view_model.get("label", row_view_model.get("id", "Value")))
-	var value: Variant = row_view_model.get("value", "")
-	var apply_mode: String = str(row_view_model.get("apply_mode", ""))
-	var field_id: String = str(row_view_model.get("id", ""))
+func _apply_view_model_row_update(row_view_model: Dictionary, value: Variant) -> void:
 	var entity_id: String = str(row_view_model.get("entity_id", ""))
-	var readonly: bool = bool(row_view_model.get("readonly", false))
-
-	if readonly:
-		return _make_readonly_row(label, str(value))
-
-	match control_type:
-		"line_edit":
-			var edit := LineEdit.new()
-			edit.text = str(value)
-			if apply_mode == "inline":
-				return _make_apply_row(label, edit, func() -> void:
-					_apply_object_patch(entity_id, {field_id: edit.text}, "%s updated." % label)
-				)
-			return _make_property_row(label, edit)
-		"text_edit":
-			var text_edit := TextEdit.new()
-			text_edit.text = str(value)
-			text_edit.custom_minimum_size = Vector2(0, 78)
-			if apply_mode == "inline":
-				return _make_apply_row(label, text_edit, func() -> void:
-					_apply_object_patch(entity_id, {field_id: text_edit.text}, "%s updated." % label)
-				)
-			return _make_property_row(label, text_edit)
-		"enum":
-			var option := OptionButton.new()
-			var values: Array = Array(row_view_model.get("options", []))
-			var selected: int = 0
-			for index in range(values.size()):
-				var option_value: String = str(values[index])
-				option.add_item(option_value)
-				option.set_item_metadata(index, option_value)
-				if option_value == str(value):
-					selected = index
-			option.select(selected)
-			option.item_selected.connect(func(index: int) -> void:
-				_apply_object_patch(entity_id, {field_id: option.get_item_metadata(index)}, "%s updated." % label)
-			)
-			return _make_property_row(label, option)
-		"int":
-			var spin := SpinBox.new()
-			spin.step = 1
-			spin.min_value = _to_float(row_view_model.get("min", 0), 0.0)
-			spin.max_value = _to_float(row_view_model.get("max", 999), 999.0)
-			spin.value = _to_float(value, spin.min_value)
-			return _make_apply_row(label, spin, func() -> void:
-				_apply_object_patch(entity_id, {field_id: int(spin.value)}, "%s updated." % label)
-			)
-		"checkbox":
-			var check := CheckBox.new()
-			check.button_pressed = bool(value)
-			check.toggled.connect(func(enabled: bool) -> void:
-				_apply_object_patch(entity_id, {field_id: enabled}, "%s updated." % label)
-			)
-			return _make_property_row(label, check)
-		_:
-			return _make_readonly_row(label, str(value))
+	var field_id: String = str(row_view_model.get("id", ""))
+	if entity_id.is_empty() or field_id.is_empty():
+		return
+	var label: String = str(row_view_model.get("label", field_id))
+	_apply_object_patch(entity_id, {field_id: value}, "%s updated." % label)
 
 
 func _apply_object_patch(object_id: String, patch: Dictionary, message: String) -> void:
@@ -327,16 +272,6 @@ func _make_property_row(label_text: String, control: Control) -> HBoxContainer:
 	row.add_child(label)
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(control)
-	return row
-
-
-func _make_apply_row(label_text: String, control: Control, callback: Callable) -> HBoxContainer:
-	var row := _make_property_row(label_text, control)
-	var apply_button := Button.new()
-	apply_button.text = "Apply"
-	apply_button.custom_minimum_size = Vector2(84, 30)
-	apply_button.pressed.connect(callback)
-	row.add_child(apply_button)
 	return row
 
 
@@ -382,13 +317,6 @@ func _make_panel_style(bg: Color, border: Color, border_width: int, radius: int)
 	style.set_border_width_all(border_width)
 	style.set_corner_radius_all(radius)
 	return style
-
-
-func _to_float(value: Variant, fallback: float) -> float:
-	if value is float or value is int:
-		return float(value)
-	var text: String = str(value)
-	return float(text) if text.is_valid_float() else fallback
 
 
 func _set_status(text: String) -> void:
