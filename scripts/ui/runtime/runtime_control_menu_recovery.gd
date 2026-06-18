@@ -87,7 +87,6 @@ func _ensure_runtime_controls(ui: Object) -> void:
 	bottom_left.mouse_filter = Control.MOUSE_FILTER_PASS
 	controls_panel.visible = true
 	controls_panel.mouse_filter = Control.MOUSE_FILTER_PASS
-	_layout_bottom_left(ui, bottom_left, controls_panel)
 	var base_row: Control = _get_property(ui, "runtime_base_controls_grid") as Control
 	if base_row == null or not is_instance_valid(base_row):
 		base_row = controls_panel.find_child("RuntimeBaseControlRow", true, false) as Control
@@ -95,6 +94,7 @@ func _ensure_runtime_controls(ui: Object) -> void:
 		base_row.visible = true
 		base_row.mouse_filter = Control.MOUSE_FILTER_PASS
 	_refresh_runtime_controls(ui)
+	_layout_bottom_left(ui, bottom_left, controls_panel)
 
 
 func _layout_bottom_left(ui: Object, bottom_left: Control, controls_panel: Control) -> void:
