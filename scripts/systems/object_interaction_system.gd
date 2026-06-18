@@ -2,21 +2,46 @@ extends RefCounted
 
 # ObjectInteractionSystem
 # Первый системный слой поверх links.
-# Пока реализован только минимальный use-case:
-# terminal.use -> toggles linked door states through links.controlled_targets.
+# Реализовано:
+# - power_source.use -> toggles source on/off
+# - terminal.use -> requires linked power_source if power_mode=external
+# - terminal.use -> toggles linked door states through links.controlled_targets
 
 static func use_object(actor_data: Dictionary, all_objects: Array[Dictionary]) -> Dictionary:
 	var actor_type: String = str(actor_data.get("object_type", ""))
-	if actor_type != "terminal":
-		return {
-			"ok": false,
-			"message": "Selected object has no use behavior yet.",
-			"patches": [],
-		}
-	return _use_terminal(actor_data, all_objects)
+	match actor_type:
+		"power_source":
+			return _use_power_source(actor_data)
+		"terminal":
+			return _use_terminal(actor_data, all_objects)
+		_:
+			return {
+				"ok": false,
+				"message": "Selected object has no use behavior yet.",
+				"patches": [],
+			}
+
+
+static func _use_power_source(actor_data: Dictionary) -> Dictionary:
+	var actor_id: String = str(actor_data.get("id", ""))
+	var current_state: String = str(actor_data.get("state", "on")).to_lower()
+	var next_state: String = "off" if current_state == "on" else "on"
+	var next_power_state: String = "unpowered" if next_state == "off" else "powered"
+	return {
+		"ok": true,
+		"message": "Power source %s." % next_state,
+		"patches": [
+			{"instance_id": actor_id, "patch": {"state": next_state, "power_state": next_power_state}}
+		],
+	}
 
 
 static func _use_terminal(actor_data: Dictionary, all_objects: Array[Dictionary]) -> Dictionary:
+	var objects_by_id: Dictionary = _index_objects_by_id(all_objects)
+	var power_check: Dictionary = _check_terminal_power(actor_data, objects_by_id)
+	if not bool(power_check.get("ok", false)):
+		return power_check
+
 	var links: Dictionary = Dictionary(actor_data.get("links", {}))
 	var controlled_targets: Array = _as_string_array(links.get("controlled_targets", []))
 	if controlled_targets.is_empty():
@@ -25,7 +50,6 @@ static func _use_terminal(actor_data: Dictionary, all_objects: Array[Dictionary]
 			"message": "Terminal has no controlled targets.",
 			"patches": [],
 		}
-	var objects_by_id: Dictionary = _index_objects_by_id(all_objects)
 	var patches: Array[Dictionary] = []
 	var changed_names: Array[String] = []
 	for target_id_variant in controlled_targets:
@@ -50,6 +74,41 @@ static func _use_terminal(actor_data: Dictionary, all_objects: Array[Dictionary]
 		"message": "Terminal used: %s" % ", ".join(changed_names),
 		"patches": patches,
 	}
+
+
+static func _check_terminal_power(actor_data: Dictionary, objects_by_id: Dictionary) -> Dictionary:
+	var power_mode: String = str(actor_data.get("power_mode", "none")).to_lower()
+	if power_mode != "external":
+		return {"ok": true, "patches": []}
+	var links: Dictionary = Dictionary(actor_data.get("links", {}))
+	var power_source_id: String = str(links.get("power_source", ""))
+	if power_source_id.is_empty():
+		return {
+			"ok": false,
+			"message": "Terminal requires a linked power source.",
+			"patches": [],
+		}
+	if not objects_by_id.has(power_source_id):
+		return {
+			"ok": false,
+			"message": "Linked power source was not found.",
+			"patches": [],
+		}
+	var source: Dictionary = Dictionary(objects_by_id[power_source_id])
+	if str(source.get("object_type", "")) != "power_source":
+		return {
+			"ok": false,
+			"message": "Linked object is not a power source.",
+			"patches": [],
+		}
+	var source_state: String = str(source.get("state", "on")).to_lower()
+	if source_state == "off":
+		return {
+			"ok": false,
+			"message": "Terminal is unpowered: linked power source is off.",
+			"patches": [],
+		}
+	return {"ok": true, "patches": []}
 
 
 static func _index_objects_by_id(objects: Array[Dictionary]) -> Dictionary:
