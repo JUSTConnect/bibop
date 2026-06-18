@@ -1,0 +1,17 @@
+{
+  "id": "key_card_basic",
+  "item_type": "key_card",
+  "item_group": "access",
+  "display_name": "Key Card",
+  "description": "Basic access key card.",
+  "visual_id": "object_keycard",
+  "stackable": false,
+  "max_stack": 1,
+  "usable": true,
+  "consumable": false,
+  "config_schema": [
+    {"id": "access_level", "label": "Access level", "type": "enum", "values": ["1", "2", "3"]},
+    {"id": "linked_object_id", "label": "Linked object", "type": "object_ref"}
+  ],
+  "interactions": ["inspect", "use"]
+}
