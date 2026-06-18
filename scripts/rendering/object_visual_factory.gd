@@ -8,6 +8,7 @@ extends RefCounted
 const POWER_COLOR := Color(0.20, 0.70, 0.95, 1.0)
 const POWER_OFF_COLOR := Color(0.32, 0.38, 0.44, 1.0)
 const TERMINAL_COLOR := Color(0.62, 0.42, 0.95, 1.0)
+const TERMINAL_OFF_COLOR := Color(0.34, 0.28, 0.42, 1.0)
 const DOOR_COLOR := Color(0.95, 0.62, 0.25, 1.0)
 const DOOR_OPEN_COLOR := Color(0.28, 0.82, 0.42, 1.0)
 const GENERIC_COLOR := Color(0.48, 0.68, 0.58, 1.0)
@@ -85,7 +86,7 @@ static func _get_fill_color(data: Dictionary, object_type: String) -> Color:
 		"power_source":
 			return POWER_OFF_COLOR if str(data.get("state", "on")).to_lower() == "off" else POWER_COLOR
 		"terminal":
-			return TERMINAL_COLOR
+			return TERMINAL_OFF_COLOR if str(data.get("power_state", "none")).to_lower() == "unpowered" else TERMINAL_COLOR
 		"door":
 			return DOOR_OPEN_COLOR if str(data.get("state", "closed")).to_lower() == "open" else DOOR_COLOR
 		_:
@@ -100,11 +101,9 @@ static func _make_state_label(data: Dictionary, object_type: String) -> String:
 			return "door:%s" % str(data.get("state", "closed")).to_lower()
 		"terminal":
 			var links: Dictionary = Dictionary(data.get("links", {}))
-			var power_source: String = str(links.get("power_source", ""))
 			var targets: Array = Array(links.get("controlled_targets", []))
-			var power_label: String = "power:linked" if not power_source.is_empty() else "power:none"
-			var target_label: String = "targets:%d" % targets.size()
-			return "%s %s" % [power_label, target_label]
+			var power_state: String = str(data.get("power_state", "none")).to_lower()
+			return "power:%s targets:%d" % [power_state, targets.size()]
 		_:
 			return str(data.get("visual_id", object_type))
 
