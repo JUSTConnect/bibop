@@ -106,24 +106,19 @@ func _try_decorate_inspector_on_node(node: Node) -> void:
 	if content.get_node_or_null(STATUS_SECTION_NAME) != null:
 		return
 	var section: VBoxContainer = _build_status_section(node, manager, entity_kind, entity_id, data)
-	if section == null:
-		return
 	content.add_child(section)
 	var insert_index: int = _find_insert_index_after_identity(content)
 	content.move_child(section, insert_index)
 
 
 func applies_to_object(object_data: Dictionary) -> bool:
-	if object_data.is_empty():
-		return false
-	if bool(object_data.get("object_status_layer_excluded", false)):
+	if object_data.is_empty() or bool(object_data.get("object_status_layer_excluded", false)):
 		return false
 	var object_group: String = _norm(object_data.get("object_group", object_data.get("group", "")))
 	var object_type: String = _norm(object_data.get("object_type", object_data.get("type", "")))
 	var archetype_id: String = _norm(object_data.get("archetype_id", ""))
 	var prefab_id: String = _norm(object_data.get("map_constructor_prefab_id", object_data.get("prefab_id", "")))
 	var joined: String = "%s %s %s %s" % [object_group, object_type, archetype_id, prefab_id]
-
 	if object_group == "cooling" or object_group == "cooling_system":
 		return object_type == "cooling_box" or archetype_id == "cooling_box" or prefab_id == "cooling_box"
 	if object_group in EXCLUDED_OBJECT_GROUPS:
@@ -144,7 +139,6 @@ func normalize_object_status(object_data: Dictionary) -> Dictionary:
 	data["object_status_layer_applies"] = applies
 	if not applies:
 		return data
-
 	data["object_state"] = _normalize_choice(data.get("object_state", _infer_object_state(data)), STATE_OPTIONS, "on")
 	data["object_power_state"] = _normalize_choice(data.get("object_power_state", _infer_power_state(data)), POWER_STATE_OPTIONS, "none")
 	data["object_health_max"] = clampi(_int_value(data.get("object_health_max", data.get("durability_max", data.get("durability", 5))), 5), 1, 999)
@@ -155,14 +149,14 @@ func normalize_object_status(object_data: Dictionary) -> Dictionary:
 	data["overheat_enabled"] = bool(data.get("overheat_enabled", data.has("object_overheat_max") or data.has("overheat_threshold") or data.has("current_heat")))
 	data["object_overheat_max"] = clampi(_int_value(data.get("object_overheat_max", data.get("overheat_threshold", 5)), 5), 1, 5)
 	data["object_overheat_current"] = clampi(_int_value(data.get("object_overheat_current", data.get("current_heat", 0)), 0), 0, int(data["object_overheat_max"]))
-	data["object_class"] = clampi(_int_value(data.get("object_class", data.get("door_class", data.get("terminal_class", data.get("power_source_class", 1)))), 1), 1, 3)
+	var inferred_class: int = _int_value(data.get("object_class", data.get("door_class", data.get("terminal_class", data.get("power_source_class", 1)))), 1)
+	data["object_class"] = clampi(inferred_class, 1, 3)
 	data["test_override_enabled"] = bool(data.get("test_override_enabled", false))
 	data["object_control_state"] = _normalize_choice(data.get("object_control_state", _infer_control_state(data)), CONTROL_STATE_OPTIONS, "none")
 	data["object_access_state"] = _normalize_choice(data.get("object_access_state", _infer_access_state(data)), ACCESS_STATE_OPTIONS, "none")
 	data["object_mount_state"] = _normalize_choice(data.get("object_mount_state", data.get("mount", data.get("install_mode", "floor"))), MOUNT_STATE_OPTIONS, "floor")
 	data["object_side_state"] = _normalize_side(data.get("object_side_state", data.get("wall_side", data.get("interaction_side", "SW"))))
 	data["object_routing_mode_state"] = _normalize_choice(data.get("object_routing_mode_state", data.get("wall_routing_mode", data.get("routing_mode", "outer"))), ROUTING_MODE_OPTIONS, "outer")
-
 	var summary: Dictionary = build_status_summary(data)
 	data["object_status_warnings"] = Array(summary.get("warnings", [])).duplicate()
 	data["object_total_state"] = str(summary.get("total_state", "ready"))
@@ -205,14 +199,8 @@ func get_status_display_lines(object_data: Dictionary) -> Array[String]:
 	lines.append("State: %s" % str(data.get("object_state", "on")).capitalize())
 	lines.append("Power state: %s" % str(data.get("object_power_state", "none")).capitalize())
 	lines.append("Health state: %d/%d" % [int(data.get("object_health_current", 0)), int(data.get("object_health_max", 0))])
-	if bool(data.get("energy_capacity_enabled", false)):
-		lines.append("Energy capacity: %d/%d" % [int(data.get("object_energy_capacity_current", 0)), int(data.get("object_energy_capacity_max", 0))])
-	else:
-		lines.append("Energy capacity: none")
-	if bool(data.get("overheat_enabled", false)):
-		lines.append("Current overheat: %d/%d" % [int(data.get("object_overheat_current", 0)), int(data.get("object_overheat_max", 0))])
-	else:
-		lines.append("Current overheat: none")
+	lines.append("Energy capacity: %d/%d" % [int(data.get("object_energy_capacity_current", 0)), int(data.get("object_energy_capacity_max", 0))] if bool(data.get("energy_capacity_enabled", false)) else "Energy capacity: none")
+	lines.append("Current overheat: %d/%d" % [int(data.get("object_overheat_current", 0)), int(data.get("object_overheat_max", 0))] if bool(data.get("overheat_enabled", false)) else "Current overheat: none")
 	lines.append("Class: %d" % int(data.get("object_class", 1)))
 	lines.append("Control state: %s" % str(data.get("object_control_state", "none")))
 	lines.append("Access state: %s" % str(data.get("object_access_state", "none")))
@@ -233,7 +221,6 @@ func _build_status_section(ui: Object, manager: Object, entity_kind: String, ent
 	header.text = "2. Object Status Layer"
 	header.add_theme_color_override("font_color", _ui_color(ui, "UI_COLOR_ACCENT", Color(0.2, 0.76, 0.95, 1.0)))
 	section.add_child(header)
-
 	_add_total_state_row(ui, section, normalized)
 	_add_enum_row(ui, section, "State", manager, entity_kind, entity_id, "object_state", str(normalized.get("object_state", "on")), STATE_OPTIONS, bool(normalized.get("test_override_enabled", false)), {"state":"__same__", "status":"__same__"})
 	_add_enum_row(ui, section, "Power state", manager, entity_kind, entity_id, "object_power_state", str(normalized.get("object_power_state", "none")), POWER_STATE_OPTIONS, true, {"is_powered":"__power_bool__", "power_state":"__same__"})
@@ -263,7 +250,13 @@ func _add_total_state_row(ui: Object, section: VBoxContainer, data: Dictionary) 
 	var label := Label.new()
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var warnings: Array = Array(summary.get("warnings", []))
-	label.text = "%s%s" % [_format_total_state(str(summary.get("total_state", "ready"))), "\nWarnings: %s" % ", ".join(PackedStringArray(warnings)) if not warnings.is_empty() else ""]
+	var warning_text: String = ""
+	if not warnings.is_empty():
+		var warning_strings: Array[String] = []
+		for warning in warnings:
+			warning_strings.append(str(warning))
+		warning_text = "\nWarnings: %s" % ", ".join(warning_strings)
+	label.text = "%s%s" % [_format_total_state(str(summary.get("total_state", "ready"))), warning_text]
 	label.add_theme_color_override("font_color", _ui_color(ui, "UI_COLOR_OK", Color(0.25, 0.85, 0.48, 1.0)) if warnings.is_empty() else _ui_color(ui, "UI_COLOR_WARNING", Color(0.95, 0.72, 0.18, 1.0)))
 	section.add_child(_create_property_row(ui, "Total state", label))
 
@@ -362,10 +355,7 @@ func _find_first_scroll(node: Node) -> ScrollContainer:
 
 func _find_insert_index_after_identity(content: VBoxContainer) -> int:
 	for index in range(content.get_child_count()):
-		var child: Node = content.get_child(index)
-		if child == null:
-			continue
-		var first_label: Label = _find_first_label(child)
+		var first_label: Label = _find_first_label(content.get_child(index))
 		if first_label != null and str(first_label.text).begins_with("1."):
 			return mini(index + 1, content.get_child_count() - 1)
 	return 0
@@ -411,16 +401,11 @@ func _value_for_field(field_name: String, value: String) -> Variant:
 
 func _resolve_alias_value(alias_rule: String, value: String) -> Variant:
 	match alias_rule:
-		"__same__":
-			return value
-		"__power_bool__":
-			return value == "powered"
-		"__access_alias__":
-			return "no_key" if value == "none" else value
-		"__side_lower__":
-			return value.to_lower()
-		_:
-			return alias_rule
+		"__same__": return value
+		"__power_bool__": return value == "powered"
+		"__access_alias__": return "no_key" if value == "none" else value
+		"__side_lower__": return value.to_lower()
+		_: return alias_rule
 
 
 func _infer_object_state(data: Dictionary) -> String:
@@ -450,33 +435,24 @@ func _infer_power_state(data: Dictionary) -> String:
 
 func _infer_control_state(data: Dictionary) -> String:
 	var control: String = _norm(data.get("control_type", data.get("control_mode", "none"))).trim_suffix("_control")
-	if control in CONTROL_STATE_OPTIONS:
-		return control
-	return "none"
+	return control if control in CONTROL_STATE_OPTIONS else "none"
 
 
 func _infer_access_state(data: Dictionary) -> String:
 	var access: String = _norm(data.get("access_type", data.get("lock_type", "none")))
 	match access:
-		"access_code", "code", "password":
-			return "access_code"
-		"key_card", "mechanical_key", "mechanical_keycard", "keycard":
-			return "key_card"
-		"digital_key":
-			return "digital_key"
-		"terminal", "terminal_lock":
-			return "terminal"
-		_:
-			return "none"
+		"access_code", "code", "password": return "access_code"
+		"key_card", "mechanical_key", "mechanical_keycard", "keycard": return "key_card"
+		"digital_key": return "digital_key"
+		"terminal", "terminal_lock": return "terminal"
+		_: return "none"
 
 
 func _normalize_choice(value: Variant, options: Array[String], fallback: String) -> String:
 	var normalized: String = _norm(value)
-	if normalized == "inner" or normalized == "innear":
+	if normalized == "innear":
 		normalized = "inner"
-	if normalized in options:
-		return normalized
-	return fallback
+	return normalized if normalized in options else fallback
 
 
 func _normalize_side(value: Variant) -> String:
@@ -484,15 +460,11 @@ func _normalize_side(value: Variant) -> String:
 	if side in SIDE_STATE_OPTIONS:
 		return side
 	match side.to_lower():
-		"south_west", "southwest", "south", "west", "sw":
-			return "SW"
-		"south_east", "southeast", "east", "se":
-			return "SE"
-		"north_east", "northeast", "ne":
-			return "NE"
-		"north_west", "northwest", "nw":
-			return "NW"
-	return "SW"
+		"south_west", "southwest", "south", "west", "sw": return "SW"
+		"south_east", "southeast", "east", "se": return "SE"
+		"north_east", "northeast", "ne": return "NE"
+		"north_west", "northwest", "nw": return "NW"
+		_: return "SW"
 
 
 func _format_total_state(value: String) -> String:
@@ -505,10 +477,8 @@ func _norm(value: Variant) -> String:
 
 func _int_value(value: Variant, fallback: int = 0) -> int:
 	match typeof(value):
-		TYPE_INT:
-			return int(value)
-		TYPE_FLOAT:
-			return int(value)
+		TYPE_INT: return int(value)
+		TYPE_FLOAT: return int(value)
 		TYPE_STRING:
 			var text: String = str(value).strip_edges()
 			if text.is_valid_int():
