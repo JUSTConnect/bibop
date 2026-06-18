@@ -2,6 +2,7 @@ extends RefCounted
 class_name RuntimeStoragePanel
 
 const BipobActionControllerRef = preload("res://scripts/bipob/bipob_action_controller.gd")
+const ActionIconAtlasServiceRef = preload("res://scripts/ui/action_icon_atlas_service.gd")
 
 const PANEL_SIZE: Vector2 = Vector2(380, 190)
 const FLYOUT_SIZE: Vector2 = Vector2(66, 118)
@@ -255,6 +256,8 @@ static func _build_manipulator_area(ui) -> PanelContainer:
 		drop_button.focus_mode = Control.FOCUS_NONE
 		drop_button.custom_minimum_size = Vector2(MANIPULATOR_CELL_SIZE, STANDARD_ROW_HEIGHT)
 		drop_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ActionIconAtlasServiceRef.apply_icon_to_button(drop_button, "drop_item", "Drop", ActionIconAtlasServiceRef.ITEM_ACTION_ICON_SIZE, ActionIconAtlasServiceRef.ITEM_ACTION_BUTTON_MIN_SIZE, true, true)
+		drop_button.tooltip_text = "Drop held manipulator item"
 		drop_button.pressed.connect(_on_drop_pressed.bind(ui, index))
 		column.add_child(drop_button)
 		preview.set_meta("drop_button", drop_button)
@@ -312,6 +315,8 @@ static func _build_buffer_area(ui) -> PanelContainer:
 	delete_button.disabled = true
 	delete_button.custom_minimum_size = Vector2(MANIPULATOR_CELL_SIZE, STANDARD_ROW_HEIGHT)
 	delete_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ActionIconAtlasServiceRef.apply_icon_to_button(delete_button, "delete_file", "Delete", ActionIconAtlasServiceRef.ITEM_ACTION_ICON_SIZE, ActionIconAtlasServiceRef.ITEM_ACTION_BUTTON_MIN_SIZE, true, true)
+	delete_button.tooltip_text = "Delete buffered item"
 	# No confirmed backend delete path exists yet, so keep this action non-destructive.
 	delete_button.pressed.connect(func() -> void: _show_hint(ui, "Delete is not implemented yet."))
 	root.add_child(delete_button)
