@@ -3,6 +3,7 @@ extends Control
 # MapCanvasView
 # Responsive canvas for map cells.
 # Важно: canvas не задаёт ширину layout через child-buttons. Он рисует клетки внутри доступного rect.
+# Текущий object-card режим — временный DEBUG visual, чтобы явно проверить visual pipeline.
 
 signal cell_pressed(cell: Vector2i)
 
@@ -12,13 +13,14 @@ const CELL_HOVER_COLOR := Color(0.105, 0.14, 0.18, 1.0)
 const CELL_SELECTED_COLOR := Color(0.12, 0.22, 0.28, 1.0)
 const BORDER_COLOR := Color(0.25, 0.5, 0.62, 0.85)
 const TEXT_COLOR := Color(0.88, 0.91, 0.94, 1.0)
+const DARK_TEXT_COLOR := Color(0.04, 0.05, 0.07, 1.0)
 const MUTED_TEXT_COLOR := Color(0.68, 0.74, 0.78, 1.0)
 const ACCENT_COLOR := Color(0.25, 0.78, 0.95, 1.0)
-const CARD_BG := Color(0.10, 0.12, 0.16, 0.92)
+const CARD_BG := Color(0.04, 0.05, 0.07, 0.95)
+const DEBUG_BAND_COLOR := Color(1.0, 1.0, 1.0, 0.18)
 
 var columns: int = 1
 var rows: int = 1
-var cell_labels: Dictionary = {}
 var cell_visuals: Dictionary = {}
 var selected_cell: Vector2i = Vector2i(-1, -1)
 var hover_cell: Vector2i = Vector2i(-1, -1)
@@ -79,7 +81,7 @@ func _draw() -> void:
 			if visual.is_empty() or bool(visual.get("is_empty", false)):
 				_draw_empty_cell(rect, cell)
 			else:
-				_draw_object_card(rect, visual)
+				_draw_debug_object_card(rect, visual)
 
 
 func _draw_cell_background(cell: Vector2i, rect: Rect2) -> void:
@@ -93,41 +95,37 @@ func _draw_cell_background(cell: Vector2i, rect: Rect2) -> void:
 func _draw_empty_cell(rect: Rect2, cell: Vector2i) -> void:
 	var font: Font = get_theme_default_font()
 	var font_size: int = _get_font_size(rect)
-	var center_x: float = rect.position.x + rect.size.x * 0.5
-	var base_y: float = rect.position.y + rect.size.y * 0.5 - 2.0
-	draw_string(font, Vector2(rect.position.x + 4.0, base_y), "%d,%d" % [cell.x, cell.y], HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 8.0, font_size, TEXT_COLOR)
-	draw_string(font, Vector2(center_x - 6.0, base_y + float(font_size + 6)), "+", HORIZONTAL_ALIGNMENT_LEFT, rect.size.x, font_size, ACCENT_COLOR)
+	var center_y: float = rect.position.y + rect.size.y * 0.52
+	draw_string(font, Vector2(rect.position.x + 4.0, center_y), "%d,%d" % [cell.x, cell.y], HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 8.0, font_size, TEXT_COLOR)
+	draw_string(font, Vector2(rect.position.x + 4.0, center_y + float(font_size + 6)), "+", HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 8.0, font_size + 2, ACCENT_COLOR)
 
 
-func _draw_object_card(rect: Rect2, visual: Dictionary) -> void:
-	var card_margin: float = clamp(min(rect.size.x, rect.size.y) * 0.11, 6.0, 10.0)
+func _draw_debug_object_card(rect: Rect2, visual: Dictionary) -> void:
+	var fill_color: Color = _read_color(visual.get("fill_color", ACCENT_COLOR), ACCENT_COLOR)
+	var outline_color: Color = _read_color(visual.get("outline_color", fill_color), fill_color)
+	var is_selected: bool = bool(visual.get("is_selected", false))
+	var card_margin: float = clamp(min(rect.size.x, rect.size.y) * 0.08, 5.0, 9.0)
 	var card_rect := Rect2(rect.position + Vector2(card_margin, card_margin), rect.size - Vector2(card_margin * 2.0, card_margin * 2.0))
-	var fill_color: Color = Color(visual.get("fill_color", CARD_BG))
-	var outline_color: Color = Color(visual.get("outline_color", fill_color))
+	var band_height: float = clamp(card_rect.size.y * 0.34, 22.0, 42.0)
+	var band_rect := Rect2(card_rect.position, Vector2(card_rect.size.x, band_height))
+
 	draw_rect(card_rect, CARD_BG, true)
-	draw_rect(card_rect, outline_color, false, 2.0 if bool(visual.get("is_selected", false)) else 1.0)
-	_draw_marker(card_rect, str(visual.get("marker", "O")), fill_color)
-	_draw_visual_text(card_rect, str(visual.get("label", "Object")), str(visual.get("sub_label", "")))
+	draw_rect(card_rect, outline_color, false, 5.0 if is_selected else 3.0)
+	draw_rect(band_rect, fill_color, true)
+	draw_rect(Rect2(card_rect.position + Vector2(0.0, band_height), Vector2(card_rect.size.x, 2.0)), DEBUG_BAND_COLOR, true)
 
-
-func _draw_marker(card_rect: Rect2, marker: String, fill_color: Color) -> void:
 	var font: Font = get_theme_default_font()
-	var marker_size: float = clamp(card_rect.size.y * 0.42, 18.0, 30.0)
-	var marker_rect := Rect2(card_rect.position + Vector2(6.0, 6.0), Vector2(marker_size, marker_size))
-	draw_rect(marker_rect, fill_color, true)
-	draw_rect(marker_rect, Color(1, 1, 1, 0.28), false, 1.0)
-	draw_string(font, Vector2(marker_rect.position.x, marker_rect.position.y + marker_rect.size.y * 0.72), marker, HORIZONTAL_ALIGNMENT_CENTER, marker_rect.size.x, int(marker_rect.size.y * 0.62), Color.WHITE)
+	var marker: String = str(visual.get("marker", "O"))
+	var marker_size: int = int(clamp(card_rect.size.y * 0.46, 24.0, 44.0))
+	draw_string(font, Vector2(card_rect.position.x + 4.0, card_rect.position.y + band_height - 6.0), marker, HORIZONTAL_ALIGNMENT_CENTER, card_rect.size.x - 8.0, marker_size, DARK_TEXT_COLOR)
 
-
-func _draw_visual_text(card_rect: Rect2, label: String, sub_label: String) -> void:
-	var font: Font = get_theme_default_font()
-	var font_size: int = int(clamp(card_rect.size.y * 0.16, 10.0, 15.0))
-	var text_x: float = card_rect.position.x + clamp(card_rect.size.y * 0.50, 34.0, 46.0)
-	var text_width: float = max(10.0, card_rect.end.x - text_x - 5.0)
-	var y: float = card_rect.position.y + card_rect.size.y * 0.42
-	draw_string(font, Vector2(text_x, y), label, HORIZONTAL_ALIGNMENT_LEFT, text_width, font_size, TEXT_COLOR, TextServer.JUSTIFICATION_WORD_BOUND)
+	var label: String = str(visual.get("label", "Object"))
+	var sub_label: String = str(visual.get("sub_label", ""))
+	var label_size: int = int(clamp(card_rect.size.y * 0.16, 10.0, 16.0))
+	var label_y: float = card_rect.position.y + band_height + float(label_size + 8)
+	draw_string(font, Vector2(card_rect.position.x + 5.0, label_y), label, HORIZONTAL_ALIGNMENT_CENTER, card_rect.size.x - 10.0, label_size, TEXT_COLOR, TextServer.JUSTIFICATION_WORD_BOUND)
 	if not sub_label.is_empty():
-		draw_string(font, Vector2(text_x, y + float(font_size + 5)), sub_label, HORIZONTAL_ALIGNMENT_LEFT, text_width, max(9, font_size - 2), MUTED_TEXT_COLOR, TextServer.JUSTIFICATION_WORD_BOUND)
+		draw_string(font, Vector2(card_rect.position.x + 5.0, label_y + float(label_size + 6)), sub_label, HORIZONTAL_ALIGNMENT_CENTER, card_rect.size.x - 10.0, max(9, label_size - 2), MUTED_TEXT_COLOR, TextServer.JUSTIFICATION_WORD_BOUND)
 
 
 func _cell_from_position(position: Vector2) -> Vector2i:
@@ -168,8 +166,14 @@ func _get_font_size(rect: Rect2) -> int:
 func _labels_to_visuals(labels: Dictionary) -> Dictionary:
 	var visuals: Dictionary = {}
 	for key in labels.keys():
-		visuals[key] = {"label": str(labels[key]), "is_empty": false}
+		visuals[key] = {"label": str(labels[key]), "is_empty": false, "marker": "?"}
 	return visuals
+
+
+func _read_color(value: Variant, fallback: Color) -> Color:
+	if value is Color:
+		return value
+	return fallback
 
 
 func _cell_key(cell: Vector2i) -> String:
