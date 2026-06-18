@@ -473,7 +473,7 @@ func _render_selected_object_inspector() -> void:
 	var entity_kind: String = str(map_edit_state.selected_entity_kind)
 	var entity_id: String = str(data.get("id", ""))
 	var status: Dictionary = ObjectStatusModelRef.build_status(data)
-	var inspector_view_model: Dictionary = ObjectInspectorViewModelRef.create(entity_kind, entity_id, definition, data, status)
+	var inspector_view_model: Dictionary = ObjectInspectorViewModelRef.create(entity_kind, entity_id, definition, data, status, _get_link_target_options(entity_id))
 	ObjectInspectorBuilderRef.fill_content(inspector_content, inspector_view_model, Callable(self, "_apply_view_model_row_update"))
 
 
@@ -498,6 +498,9 @@ func _apply_view_model_row_update(row_view_model: Dictionary, value: Variant) ->
 	var field_id: String = str(row_view_model.get("id", ""))
 	if entity_id.is_empty() or field_id.is_empty():
 		return
+	if str(row_view_model.get("row_kind", "")) == "link_field":
+		_apply_placed_object_link_patch(entity_kind, entity_id, field_id, str(row_view_model.get("link_type", "")), value)
+		return
 	var label: String = str(row_view_model.get("label", field_id))
 	if entity_kind == "placed_object":
 		_apply_placed_object_patch(entity_id, {field_id: value}, "%s updated." % label)
@@ -520,6 +523,47 @@ func _apply_placed_object_patch(instance_id: String, patch: Dictionary, message:
 	_refresh_map_canvas()
 	_set_status(message)
 	_render_selected_object_inspector()
+
+
+func _apply_placed_object_link_patch(entity_kind: String, instance_id: String, link_id: String, link_type: String, value: Variant) -> void:
+	if entity_kind != "placed_object":
+		_set_status("Links can be edited only on placed objects.")
+		return
+	var data: Dictionary = Dictionary(map_edit_state.get_instance_data(instance_id))
+	if data.is_empty():
+		return
+	var links: Dictionary = Dictionary(data.get("links", {})).duplicate(true)
+	links[link_id] = _normalize_link_value(value, link_type)
+	map_edit_state.patch_instance(instance_id, {"links": links})
+	_set_status("Link updated: %s" % link_id)
+	_render_selected_object_inspector()
+
+
+func _normalize_link_value(value: Variant, link_type: String) -> Variant:
+	if link_type == "object_ref_array":
+		if value is Array:
+			return Array(value)
+		var result: Array[String] = []
+		for part in str(value).split(",", false):
+			var item: String = String(part).strip_edges()
+			if not item.is_empty():
+				result.append(item)
+		return result
+	return str(value)
+
+
+func _get_link_target_options(current_entity_id: String) -> Array[Dictionary]:
+	var targets: Array[Dictionary] = []
+	for object_data in map_edit_state.get_placed_objects():
+		var target_id: String = str(object_data.get("id", ""))
+		if target_id.is_empty() or target_id == current_entity_id:
+			continue
+		targets.append({
+			"id": target_id,
+			"display_name": str(object_data.get("display_name", target_id)),
+			"object_type": str(object_data.get("object_type", "object")),
+		})
+	return targets
 
 
 func _make_panel_container() -> PanelContainer:
