@@ -19,6 +19,7 @@ const OBJECT_DEFINITION_PATHS: Array[String] = [
 ]
 const MAP_COLUMNS: int = 6
 const MAP_ROWS: int = 5
+const SNAPSHOT_PATH := "user://newbip_map_snapshot.json"
 
 const UI_BG := Color(0.055, 0.065, 0.085, 1.0)
 const PANEL_BG := Color(0.09, 0.105, 0.135, 1.0)
@@ -43,6 +44,7 @@ var selected_index: int = 0
 var object_list: VBoxContainer = null
 var map_canvas: Control = null
 var selected_palette_label: Label = null
+var tool_mode_label: Label = null
 var inspector_content: VBoxContainer = null
 var status_label: Label = null
 
@@ -153,6 +155,7 @@ func _build_header() -> Control:
 		_load_object_definitions()
 		_rebuild_palette_list()
 		_refresh_map_canvas()
+		_update_tool_mode_label()
 		_select_palette_definition(clampi(selected_index, 0, max(0, object_definitions.size() - 1)))
 		_set_status("Definitions reloaded. Map cleared.")
 	)
@@ -196,18 +199,19 @@ func _build_map_canvas_panel() -> PanelContainer:
 	var panel: PanelContainer = _make_panel_container()
 	panel.clip_contents = true
 	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 10)
+	stack.add_theme_constant_override("separation", 8)
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.clip_contents = true
 	panel.add_child(_wrap_margin(stack, PANEL_PADDING, PANEL_PADDING))
 
 	var title := Label.new()
-	title.text = "Map Canvas / click empty cell to place / click occupied cell to select"
+	title.text = "Map Canvas / Place and Erase tools"
 	title.add_theme_color_override("font_color", ACCENT)
 	title.clip_text = true
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	stack.add_child(title)
+	stack.add_child(_build_map_toolbar())
 
 	map_canvas = MapCanvasViewRef.new()
 	map_canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -219,6 +223,48 @@ func _build_map_canvas_panel() -> PanelContainer:
 	stack.add_child(map_canvas)
 	_refresh_map_canvas()
 	return panel
+
+
+func _build_map_toolbar() -> HBoxContainer:
+	var toolbar := HBoxContainer.new()
+	toolbar.add_theme_constant_override("separation", 6)
+	toolbar.clip_contents = true
+	toolbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	tool_mode_label = Label.new()
+	tool_mode_label.custom_minimum_size = Vector2(82, 0)
+	tool_mode_label.clip_text = true
+	tool_mode_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	toolbar.add_child(tool_mode_label)
+
+	toolbar.add_child(_make_toolbar_button("Place", func() -> void:
+		_set_tool_mode("place")
+	))
+	toolbar.add_child(_make_toolbar_button("Erase", func() -> void:
+		_set_tool_mode("erase")
+	))
+	toolbar.add_child(_make_toolbar_button("Clear", func() -> void:
+		_clear_map()
+	))
+	toolbar.add_child(_make_toolbar_button("Save", func() -> void:
+		_save_snapshot()
+	))
+	toolbar.add_child(_make_toolbar_button("Load", func() -> void:
+		_load_snapshot()
+	))
+
+	_update_tool_mode_label()
+	return toolbar
+
+
+func _make_toolbar_button(text: String, callback: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(58, 0)
+	button.clip_text = true
+	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	button.pressed.connect(callback)
+	return button
 
 
 func _build_inspector_panel() -> PanelContainer:
@@ -285,6 +331,12 @@ func _get_cell_text(cell: Vector2i) -> String:
 
 
 func _handle_map_cell_pressed(cell: Vector2i) -> void:
+	if str(map_edit_state.active_tool_mode) == "erase":
+		var erased: Dictionary = Dictionary(map_edit_state.erase_cell(cell))
+		_refresh_map_canvas()
+		_render_selected_object_inspector()
+		_set_status("Nothing to erase." if erased.is_empty() else "Erased: %s" % str(erased.get("display_name", erased.get("id", "object"))))
+		return
 	var definition: Dictionary = _get_selected_definition()
 	var existed: bool = bool(map_edit_state.has_instance_at_cell(cell))
 	var result: Dictionary = Dictionary(map_edit_state.place_or_select_cell(cell, definition))
@@ -306,6 +358,7 @@ func _select_palette_definition(index: int) -> void:
 	var definition: Dictionary = object_definitions[selected_index]
 	var definition_id: String = str(definition.get("id", ""))
 	map_edit_state.set_selected_definition(definition_id)
+	_set_tool_mode("place", false)
 	_update_selected_palette_label()
 	_refresh_map_canvas()
 	_render_selected_object_inspector()
@@ -320,6 +373,74 @@ func _update_selected_palette_label() -> void:
 		selected_palette_label.text = "Selected: none"
 		return
 	selected_palette_label.text = "Selected palette:\n%s" % str(definition.get("display_name", definition.get("id", "Object")))
+
+
+func _set_tool_mode(tool_mode: String, show_status: bool = true) -> void:
+	map_edit_state.set_tool_mode(tool_mode)
+	_update_tool_mode_label()
+	if show_status:
+		_set_status("Tool: %s" % str(map_edit_state.active_tool_mode).capitalize())
+
+
+func _update_tool_mode_label() -> void:
+	if tool_mode_label != null:
+		tool_mode_label.text = "Tool: %s" % str(map_edit_state.active_tool_mode).capitalize()
+
+
+func _clear_map() -> void:
+	map_edit_state.clear_map_keep_palette()
+	_refresh_map_canvas()
+	_render_selected_object_inspector()
+	_set_status("Map cleared.")
+
+
+func _save_snapshot() -> void:
+	var file := FileAccess.open(SNAPSHOT_PATH, FileAccess.WRITE)
+	if file == null:
+		_set_status("Cannot save snapshot: %s" % SNAPSHOT_PATH)
+		return
+	file.store_string(JSON.stringify(map_edit_state.make_snapshot(), "\t"))
+	_set_status("Snapshot saved: %s" % SNAPSHOT_PATH)
+
+
+func _load_snapshot() -> void:
+	if not FileAccess.file_exists(SNAPSHOT_PATH):
+		_set_status("Snapshot not found: %s" % SNAPSHOT_PATH)
+		return
+	var file := FileAccess.open(SNAPSHOT_PATH, FileAccess.READ)
+	if file == null:
+		_set_status("Cannot load snapshot: %s" % SNAPSHOT_PATH)
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if not (parsed is Dictionary):
+		_set_status("Snapshot JSON is invalid.")
+		return
+	map_edit_state.load_snapshot(Dictionary(parsed))
+	_ensure_selected_definition_is_valid()
+	_sync_selected_index_from_state()
+	_update_selected_palette_label()
+	_update_tool_mode_label()
+	_refresh_map_canvas()
+	_render_selected_object_inspector()
+	_set_status("Snapshot loaded.")
+
+
+func _ensure_selected_definition_is_valid() -> void:
+	var definition_id: String = str(map_edit_state.selected_definition_id)
+	if definitions_by_id.has(definition_id):
+		return
+	if object_definitions.is_empty():
+		return
+	map_edit_state.set_selected_definition(str(object_definitions[0].get("id", "")))
+
+
+func _sync_selected_index_from_state() -> void:
+	var definition_id: String = str(map_edit_state.selected_definition_id)
+	for index in range(object_definitions.size()):
+		if str(object_definitions[index].get("id", "")) == definition_id:
+			selected_index = index
+			return
+	selected_index = 0
 
 
 func _get_selected_definition() -> Dictionary:
