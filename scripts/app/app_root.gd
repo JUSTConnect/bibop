@@ -6,6 +6,7 @@ extends Control
 
 const ObjectDefinitionCatalogRef = preload("res://scripts/domain/object_definition_catalog.gd")
 const ObjectDataFactoryRef = preload("res://scripts/domain/object_data_factory.gd")
+const ObjectStatusModelRef = preload("res://scripts/domain/object_status_model.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -185,7 +186,7 @@ func _render_selected_object_inspector() -> void:
 	var definition: Dictionary = object_definitions[selected_index]
 	var object_id: String = str(definition.get("id", ""))
 	var data: Dictionary = Dictionary(working_data_by_id.get(object_id, {}))
-	var status: Dictionary = _build_status(data)
+	var status: Dictionary = ObjectStatusModelRef.build_status(data)
 
 	inspector_content.add_child(_build_identity_section(object_id, data))
 	inspector_content.add_child(_make_section_separator())
@@ -301,23 +302,10 @@ func _apply_object_patch(object_id: String, patch: Dictionary, message: String) 
 	var data: Dictionary = Dictionary(working_data_by_id.get(object_id, {})).duplicate(true)
 	for key in patch.keys():
 		data[key] = patch[key]
-	data["power_state"] = _infer_power_state(data)
+	data["power_state"] = ObjectDataFactoryRef.infer_power_state(data)
 	working_data_by_id[object_id] = data
 	_set_status(message)
 	_render_selected_object_inspector()
-
-
-func _build_status(data: Dictionary) -> Dictionary:
-	var power_state: String = _infer_power_state(data)
-	var raw_state: String = str(data.get("state", "on")).to_lower()
-	var total_state: String = "Ready"
-	if raw_state in ["off", "broken", "overheat", "disabled"] or power_state == "unpowered":
-		total_state = "Not ready"
-	return {"object_type": str(data.get("object_type", "unknown")), "total_state": total_state, "power_state": power_state}
-
-
-func _infer_power_state(data: Dictionary) -> String:
-	return ObjectDataFactoryRef.infer_power_state(data)
 
 
 func _make_section_panel(title: String) -> PanelContainer:
