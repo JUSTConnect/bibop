@@ -1,5 +1,5 @@
 extends RefCounted
-class_name RuntimeNotifications
+class_name RuntimeNotificationsLegacy
 
 
 static func show_hint(ui, message: String) -> void:
