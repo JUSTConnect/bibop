@@ -7,11 +7,8 @@ extends Control
 const ObjectDefinitionCatalogRef = preload("res://scripts/domain/object_definition_catalog.gd")
 const ObjectDataFactoryRef = preload("res://scripts/domain/object_data_factory.gd")
 const ObjectStatusModelRef = preload("res://scripts/domain/object_status_model.gd")
-const ObjectIdentityViewModelRef = preload("res://scripts/presentation/object_identity_view_model.gd")
-const ObjectStatusViewModelRef = preload("res://scripts/presentation/object_status_view_model.gd")
-const ObjectConfigViewModelRef = preload("res://scripts/presentation/object_config_view_model.gd")
-const ObjectLinksViewModelRef = preload("res://scripts/presentation/object_links_view_model.gd")
-const CommonPropertyRowBuilderRef = preload("res://scripts/ui/common/common_property_row_builder.gd")
+const ObjectInspectorViewModelRef = preload("res://scripts/presentation/object_inspector_view_model.gd")
+const ObjectInspectorBuilderRef = preload("res://scripts/ui/object_inspector/object_inspector_builder.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -21,10 +18,8 @@ const OBJECT_DEFINITION_PATHS: Array[String] = [
 
 const UI_BG := Color(0.055, 0.065, 0.085, 1.0)
 const PANEL_BG := Color(0.09, 0.105, 0.135, 1.0)
-const SECTION_BG := Color(0.12, 0.14, 0.18, 1.0)
 const BORDER := Color(0.25, 0.5, 0.62, 0.85)
 const ACCENT := Color(0.25, 0.78, 0.95, 1.0)
-const OK := Color(0.25, 0.85, 0.48, 1.0)
 const WARNING := Color(0.95, 0.7, 0.18, 1.0)
 
 var object_definition_catalog: RefCounted = null
@@ -179,7 +174,10 @@ func _select_object(index: int) -> void:
 
 
 func _render_empty_inspector() -> void:
-	_clear_inspector()
+	if inspector_content == null:
+		return
+	for child in inspector_content.get_children():
+		child.queue_free()
 	var label := Label.new()
 	label.text = "No object definitions found."
 	label.add_theme_color_override("font_color", WARNING)
@@ -187,43 +185,13 @@ func _render_empty_inspector() -> void:
 
 
 func _render_selected_object_inspector() -> void:
-	_clear_inspector()
 	var definition: Dictionary = object_definitions[selected_index]
 	var object_id: String = str(definition.get("id", ""))
 	var data: Dictionary = Dictionary(working_data_by_id.get(object_id, {}))
 	var status: Dictionary = ObjectStatusModelRef.build_status(data)
-	var identity_view_model: Dictionary = ObjectIdentityViewModelRef.create("world_object", object_id, data)
-	var status_view_model: Dictionary = ObjectStatusViewModelRef.create(status)
-	var config_view_model: Dictionary = ObjectConfigViewModelRef.create(Array(definition.get("config_schema", [])), data, "world_object", object_id)
-	var links_view_model: Dictionary = ObjectLinksViewModelRef.create(Array(definition.get("links_schema", [])), data, "world_object", object_id)
-
-	inspector_content.add_child(_build_view_model_section(identity_view_model))
-	inspector_content.add_child(_make_section_separator())
-	inspector_content.add_child(_build_view_model_section(status_view_model))
-	inspector_content.add_child(_make_section_separator())
-	inspector_content.add_child(_build_view_model_section(config_view_model))
-	inspector_content.add_child(_make_section_separator())
-	inspector_content.add_child(_build_view_model_section(links_view_model))
+	var inspector_view_model: Dictionary = ObjectInspectorViewModelRef.create("world_object", object_id, definition, data, status)
+	ObjectInspectorBuilderRef.fill_content(inspector_content, inspector_view_model, Callable(self, "_apply_view_model_row_update"))
 	_set_status("Selected: %s" % str(data.get("display_name", object_id)))
-
-
-func _clear_inspector() -> void:
-	if inspector_content == null:
-		return
-	for child in inspector_content.get_children():
-		child.queue_free()
-
-
-func _build_view_model_section(section_view_model: Dictionary) -> PanelContainer:
-	var section := _make_section_panel(str(section_view_model.get("title", "Section")))
-	var content: VBoxContainer = section.get_meta("content") as VBoxContainer
-	var rows: Array = Array(section_view_model.get("rows", []))
-	if rows.is_empty():
-		content.add_child(_make_readonly_row("Info", "No data."))
-		return section
-	for row_variant in rows:
-		content.add_child(CommonPropertyRowBuilderRef.build_row(Dictionary(row_variant), Callable(self, "_apply_view_model_row_update")))
-	return section
 
 
 func _apply_view_model_row_update(row_view_model: Dictionary, value: Variant) -> void:
@@ -243,55 +211,6 @@ func _apply_object_patch(object_id: String, patch: Dictionary, message: String) 
 	working_data_by_id[object_id] = data
 	_set_status(message)
 	_render_selected_object_inspector()
-
-
-func _make_section_panel(title: String) -> PanelContainer:
-	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _make_panel_style(SECTION_BG, BORDER, 1, 6))
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 8)
-	panel.add_child(_wrap_margin(content, 10, 8))
-	panel.set_meta("content", content)
-
-	var header := Label.new()
-	header.text = title
-	header.add_theme_color_override("font_color", ACCENT)
-	header.add_theme_font_size_override("font_size", 18)
-	content.add_child(header)
-	return panel
-
-
-func _make_property_row(label_text: String, control: Control) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var label := Label.new()
-	label.text = label_text
-	label.custom_minimum_size = Vector2(170, 0)
-	row.add_child(label)
-	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(control)
-	return row
-
-
-func _make_readonly_row(label_text: String, value_text: String) -> HBoxContainer:
-	var label := Label.new()
-	label.text = value_text
-	label.clip_text = true
-	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	if value_text == "Ready" or value_text == "powered":
-		label.add_theme_color_override("font_color", OK)
-	elif value_text == "Not ready" or value_text == "unpowered":
-		label.add_theme_color_override("font_color", WARNING)
-	return _make_property_row(label_text, label)
-
-
-func _make_section_separator() -> PanelContainer:
-	var separator := PanelContainer.new()
-	separator.custom_minimum_size = Vector2(0, 8)
-	separator.add_theme_stylebox_override("panel", _make_panel_style(BORDER, BORDER, 0, 0))
-	return separator
 
 
 func _make_panel_container() -> PanelContainer:
