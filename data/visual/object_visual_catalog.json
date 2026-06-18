@@ -1,0 +1,14 @@
+{
+  "power_source_01": {
+    "texture": "res://assets/visual/isometric/objects/power_source_01.png",
+    "fallback_marker": "P"
+  },
+  "terminal_01": {
+    "texture": "res://assets/visual/isometric/objects/terminal_01.png",
+    "fallback_marker": "T"
+  },
+  "object_door": {
+    "texture": "res://assets/visual/isometric/objects/object_door.png",
+    "fallback_marker": "D"
+  }
+}
