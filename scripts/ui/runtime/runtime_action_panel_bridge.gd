@@ -11,6 +11,7 @@ const RESOURCE_COLOR_HIGH: Color = Color(0.250, 0.850, 0.480, 1.0)
 const RESOURCE_COLOR_MID: Color = Color(0.950, 0.720, 0.180, 1.0)
 const RESOURCE_COLOR_LOW: Color = Color(0.950, 0.250, 0.250, 1.0)
 const RESOURCE_OUTLINE_COLOR: Color = Color(1.0, 1.0, 1.0, 0.72)
+const CONTROL_MENU_Z_INDEX: int = 58
 
 var ui = null
 
@@ -75,7 +76,7 @@ func _ensure_runtime_control_menu_visible() -> void:
 	var bottom_left: Control = ui.runtime_hud_root.get_node_or_null("RuntimeBottomLeft") as Control
 	if bottom_left != null and is_instance_valid(bottom_left):
 		bottom_left.visible = true
-		bottom_left.z_index = ui.Z_RUNTIME_HUD + 8 if "Z_RUNTIME_HUD" in ui else 58
+		bottom_left.z_index = CONTROL_MENU_Z_INDEX
 		bottom_left.z_as_relative = false
 		bottom_left.mouse_filter = Control.MOUSE_FILTER_PASS
 		ui.runtime_hud_root.move_child(bottom_left, ui.runtime_hud_root.get_child_count() - 1)
