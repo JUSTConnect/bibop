@@ -1,7 +1,8 @@
 extends Control
 
 # AppRoot
-# Touchable vertical slice: Palette + Map Canvas + Placed Object Inspector.
+# Touchable vertical slice: Palette + responsive Map Canvas + Placed Object Inspector.
+# Правило layout: основные области делят окно; внутренний контент не расширяет root.
 
 const ObjectDefinitionCatalogRef = preload("res://scripts/domain/object_definition_catalog.gd")
 const ObjectDataFactoryRef = preload("res://scripts/domain/object_data_factory.gd")
@@ -9,6 +10,7 @@ const ObjectStatusModelRef = preload("res://scripts/domain/object_status_model.g
 const ObjectInspectorViewModelRef = preload("res://scripts/presentation/object_inspector_view_model.gd")
 const ObjectInspectorBuilderRef = preload("res://scripts/ui/object_inspector/object_inspector_builder.gd")
 const MapEditStateRef = preload("res://scripts/map_constructor/map_edit_state.gd")
+const MapCanvasViewRef = preload("res://scripts/ui/map_constructor_new/map_canvas_view.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -20,11 +22,16 @@ const MAP_ROWS: int = 5
 
 const UI_BG := Color(0.055, 0.065, 0.085, 1.0)
 const PANEL_BG := Color(0.09, 0.105, 0.135, 1.0)
-const CELL_BG := Color(0.075, 0.09, 0.12, 1.0)
-const CELL_SELECTED := Color(0.12, 0.22, 0.28, 1.0)
 const BORDER := Color(0.25, 0.5, 0.62, 0.85)
 const ACCENT := Color(0.25, 0.78, 0.95, 1.0)
 const WARNING := Color(0.95, 0.7, 0.18, 1.0)
+
+const OUTER_MARGIN := 12
+const BODY_GAP := 10
+const PANEL_PADDING := 10
+const PALETTE_RATIO := 0.22
+const MAP_RATIO := 0.50
+const INSPECTOR_RATIO := 0.28
 
 var object_definition_catalog: RefCounted = null
 var map_edit_state: RefCounted = null
@@ -34,13 +41,14 @@ var working_preview_data_by_id: Dictionary = {}
 var selected_index: int = 0
 
 var object_list: VBoxContainer = null
-var map_grid: GridContainer = null
+var map_canvas: Control = null
 var selected_palette_label: Label = null
 var inspector_content: VBoxContainer = null
 var status_label: Label = null
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	clip_contents = true
 	map_edit_state = MapEditStateRef.new()
 	_load_object_definitions()
 	_build_layout()
@@ -70,49 +78,61 @@ func _build_layout() -> void:
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 18)
-	margin.add_theme_constant_override("margin_right", 18)
-	margin.add_theme_constant_override("margin_top", 16)
-	margin.add_theme_constant_override("margin_bottom", 16)
+	margin.add_theme_constant_override("margin_left", OUTER_MARGIN)
+	margin.add_theme_constant_override("margin_right", OUTER_MARGIN)
+	margin.add_theme_constant_override("margin_top", OUTER_MARGIN)
+	margin.add_theme_constant_override("margin_bottom", OUTER_MARGIN)
+	margin.clip_contents = true
 	add_child(margin)
 
 	var main_stack := VBoxContainer.new()
-	main_stack.add_theme_constant_override("separation", 12)
+	main_stack.add_theme_constant_override("separation", 10)
 	main_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	main_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main_stack.clip_contents = true
 	margin.add_child(main_stack)
 	main_stack.add_child(_build_header())
 
 	var body := HBoxContainer.new()
-	body.add_theme_constant_override("separation", 14)
+	body.add_theme_constant_override("separation", BODY_GAP)
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.clip_contents = true
 	main_stack.add_child(body)
 
 	var left_panel: PanelContainer = _build_palette_panel()
-	left_panel.custom_minimum_size = Vector2(260, 0)
+	left_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_panel.size_flags_stretch_ratio = PALETTE_RATIO
 	body.add_child(left_panel)
 
 	var center_panel: PanelContainer = _build_map_canvas_panel()
 	center_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center_panel.size_flags_stretch_ratio = MAP_RATIO
 	body.add_child(center_panel)
 
 	var right_panel: PanelContainer = _build_inspector_panel()
-	right_panel.custom_minimum_size = Vector2(420, 0)
+	right_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_panel.size_flags_stretch_ratio = INSPECTOR_RATIO
 	body.add_child(right_panel)
 
 	status_label = Label.new()
 	status_label.text = "Select object in palette, then click a map cell."
 	status_label.add_theme_color_override("font_color", ACCENT)
+	status_label.clip_text = true
+	status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	main_stack.add_child(status_label)
 
 
 func _build_header() -> Control:
 	var panel: PanelContainer = _make_panel_container()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.clip_contents = true
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
+	row.clip_contents = true
 	panel.add_child(_wrap_margin(row, 12, 8))
 
 	var title := Label.new()
@@ -120,14 +140,19 @@ func _build_header() -> Control:
 	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", ACCENT)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.clip_text = true
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(title)
 
 	var reload_button := Button.new()
-	reload_button.text = "Reload definitions / Clear map"
+	reload_button.text = "Reload / Clear"
+	reload_button.custom_minimum_size = Vector2(112, 0)
+	reload_button.clip_text = true
+	reload_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	reload_button.pressed.connect(func() -> void:
 		_load_object_definitions()
 		_rebuild_palette_list()
-		_refresh_map_grid()
+		_refresh_map_canvas()
 		_select_palette_definition(clampi(selected_index, 0, max(0, object_definitions.size() - 1)))
 		_set_status("Definitions reloaded. Map cleared.")
 	)
@@ -137,23 +162,31 @@ func _build_header() -> Control:
 
 func _build_palette_panel() -> PanelContainer:
 	var panel: PanelContainer = _make_panel_container()
+	panel.clip_contents = true
 	var stack := VBoxContainer.new()
 	stack.add_theme_constant_override("separation", 8)
-	panel.add_child(_wrap_margin(stack, 10, 10))
+	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stack.clip_contents = true
+	panel.add_child(_wrap_margin(stack, PANEL_PADDING, PANEL_PADDING))
 
 	var title := Label.new()
 	title.text = "Object Palette"
 	title.add_theme_color_override("font_color", ACCENT)
+	title.clip_text = true
 	stack.add_child(title)
 
 	selected_palette_label = Label.new()
 	selected_palette_label.text = "Selected: none"
 	selected_palette_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	selected_palette_label.clip_text = true
 	stack.add_child(selected_palette_label)
 
 	object_list = VBoxContainer.new()
 	object_list.add_theme_constant_override("separation", 6)
+	object_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	object_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	object_list.clip_contents = true
 	stack.add_child(object_list)
 	_rebuild_palette_list()
 	return panel
@@ -161,41 +194,49 @@ func _build_palette_panel() -> PanelContainer:
 
 func _build_map_canvas_panel() -> PanelContainer:
 	var panel: PanelContainer = _make_panel_container()
+	panel.clip_contents = true
 	var stack := VBoxContainer.new()
 	stack.add_theme_constant_override("separation", 10)
 	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_child(_wrap_margin(stack, 12, 10))
+	stack.clip_contents = true
+	panel.add_child(_wrap_margin(stack, PANEL_PADDING, PANEL_PADDING))
 
 	var title := Label.new()
 	title.text = "Map Canvas / click empty cell to place / click occupied cell to select"
 	title.add_theme_color_override("font_color", ACCENT)
+	title.clip_text = true
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	stack.add_child(title)
 
-	map_grid = GridContainer.new()
-	map_grid.columns = MAP_COLUMNS
-	map_grid.add_theme_constant_override("h_separation", 8)
-	map_grid.add_theme_constant_override("v_separation", 8)
-	map_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	map_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stack.add_child(map_grid)
-	_refresh_map_grid()
+	map_canvas = MapCanvasViewRef.new()
+	map_canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	map_canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	map_canvas.custom_minimum_size = Vector2.ZERO
+	map_canvas.cell_pressed.connect(func(cell: Vector2i) -> void:
+		_handle_map_cell_pressed(cell)
+	)
+	stack.add_child(map_canvas)
+	_refresh_map_canvas()
 	return panel
 
 
 func _build_inspector_panel() -> PanelContainer:
 	var panel: PanelContainer = _make_panel_container()
+	panel.clip_contents = true
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_child(_wrap_margin(scroll, 12, 10))
+	scroll.clip_contents = true
+	panel.add_child(_wrap_margin(scroll, PANEL_PADDING, PANEL_PADDING))
 
 	inspector_content = VBoxContainer.new()
 	inspector_content.add_theme_constant_override("separation", 10)
 	inspector_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inspector_content.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	inspector_content.clip_contents = true
 	scroll.add_child(inspector_content)
 	return panel
 
@@ -209,36 +250,28 @@ func _rebuild_palette_list() -> void:
 		var definition: Dictionary = object_definitions[index]
 		var button := Button.new()
 		button.text = "%s\n%s" % [str(definition.get("display_name", definition.get("id", "Object"))), str(definition.get("object_type", "unknown"))]
-		button.custom_minimum_size = Vector2(0, 54)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.clip_text = true
+		button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		button.pressed.connect(func() -> void:
 			_select_palette_definition(index)
 		)
 		object_list.add_child(button)
 
 
-func _refresh_map_grid() -> void:
-	if map_grid == null:
+func _refresh_map_canvas() -> void:
+	if map_canvas == null:
 		return
-	for child in map_grid.get_children():
-		child.queue_free()
+	map_canvas.set_cells(MAP_COLUMNS, MAP_ROWS, _build_cell_labels(), Vector2i(map_edit_state.selected_cell))
+
+
+func _build_cell_labels() -> Dictionary:
+	var labels: Dictionary = {}
 	for y in range(MAP_ROWS):
 		for x in range(MAP_COLUMNS):
 			var cell := Vector2i(x, y)
-			map_grid.add_child(_build_map_cell_button(cell))
-
-
-func _build_map_cell_button(cell: Vector2i) -> Button:
-	var button := Button.new()
-	button.custom_minimum_size = Vector2(96, 68)
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	button.text = _get_cell_text(cell)
-	button.add_theme_stylebox_override("normal", _make_panel_style(_get_cell_color(cell), BORDER, 1, 5))
-	button.add_theme_stylebox_override("hover", _make_panel_style(CELL_SELECTED, BORDER, 1, 5))
-	button.pressed.connect(func() -> void:
-		_handle_map_cell_pressed(cell)
-	)
-	return button
+			labels[_cell_key(cell)] = _get_cell_text(cell)
+	return labels
 
 
 func _get_cell_text(cell: Vector2i) -> String:
@@ -251,18 +284,11 @@ func _get_cell_text(cell: Vector2i) -> String:
 	return "%s%s\n%s" % [marker, str(data.get("display_name", instance_id)), str(definitions_by_id.get(definition_id, {}).get("object_type", "object"))]
 
 
-func _get_cell_color(cell: Vector2i) -> Color:
-	var instance_id: String = str(map_edit_state.get_instance_id_at_cell(cell))
-	if not instance_id.is_empty() and bool(map_edit_state.is_selected_instance(instance_id)):
-		return CELL_SELECTED
-	return CELL_BG
-
-
 func _handle_map_cell_pressed(cell: Vector2i) -> void:
 	var definition: Dictionary = _get_selected_definition()
 	var existed: bool = bool(map_edit_state.has_instance_at_cell(cell))
 	var result: Dictionary = Dictionary(map_edit_state.place_or_select_cell(cell, definition))
-	_refresh_map_grid()
+	_refresh_map_canvas()
 	_render_selected_object_inspector()
 	if result.is_empty():
 		_set_status("No palette object selected.")
@@ -281,7 +307,7 @@ func _select_palette_definition(index: int) -> void:
 	var definition_id: String = str(definition.get("id", ""))
 	map_edit_state.set_selected_definition(definition_id)
 	_update_selected_palette_label()
-	_refresh_map_grid()
+	_refresh_map_canvas()
 	_render_selected_object_inspector()
 	_set_status("Palette selected: %s. Click a map cell to place it." % str(definition.get("display_name", definition_id)))
 
@@ -371,7 +397,7 @@ func _apply_preview_patch(definition_id: String, patch: Dictionary, message: Str
 
 func _apply_placed_object_patch(instance_id: String, patch: Dictionary, message: String) -> void:
 	map_edit_state.patch_instance(instance_id, patch)
-	_refresh_map_grid()
+	_refresh_map_canvas()
 	_set_status(message)
 	_render_selected_object_inspector()
 
@@ -399,6 +425,10 @@ func _make_panel_style(bg: Color, border: Color, border_width: int, radius: int)
 	style.set_border_width_all(border_width)
 	style.set_corner_radius_all(radius)
 	return style
+
+
+func _cell_key(cell: Vector2i) -> String:
+	return "%d:%d" % [cell.x, cell.y]
 
 
 func _set_status(text: String) -> void:
