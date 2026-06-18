@@ -6,8 +6,10 @@ extends RefCounted
 # Цветной DEBUG fallback используется только если PNG ещё не найден.
 
 const POWER_COLOR := Color(0.20, 0.70, 0.95, 1.0)
+const POWER_OFF_COLOR := Color(0.32, 0.38, 0.44, 1.0)
 const TERMINAL_COLOR := Color(0.62, 0.42, 0.95, 1.0)
 const DOOR_COLOR := Color(0.95, 0.62, 0.25, 1.0)
+const DOOR_OPEN_COLOR := Color(0.28, 0.82, 0.42, 1.0)
 const GENERIC_COLOR := Color(0.48, 0.68, 0.58, 1.0)
 const SELECTED_OUTLINE := Color(0.30, 0.95, 1.0, 1.0)
 
@@ -25,9 +27,9 @@ static func create_map_visual(data: Dictionary, definition: Dictionary = {}, is_
 		"display_name": display_name,
 		"marker": _get_marker(object_type),
 		"label": _make_short_label(display_name),
-		"sub_label": visual_id if not visual_id.is_empty() else object_type,
-		"fill_color": _get_fill_color(object_type),
-		"outline_color": SELECTED_OUTLINE if is_selected else _get_fill_color(object_type),
+		"sub_label": _make_state_label(data, object_type),
+		"fill_color": _get_fill_color(data, object_type),
+		"outline_color": SELECTED_OUTLINE if is_selected else _get_fill_color(data, object_type),
 		"is_selected": is_selected,
 		"debug_fallback": true,
 	}
@@ -78,16 +80,33 @@ static func _get_marker(object_type: String) -> String:
 			return "O"
 
 
-static func _get_fill_color(object_type: String) -> Color:
+static func _get_fill_color(data: Dictionary, object_type: String) -> Color:
 	match object_type:
 		"power_source":
-			return POWER_COLOR
+			return POWER_OFF_COLOR if str(data.get("state", "on")).to_lower() == "off" else POWER_COLOR
 		"terminal":
 			return TERMINAL_COLOR
 		"door":
-			return DOOR_COLOR
+			return DOOR_OPEN_COLOR if str(data.get("state", "closed")).to_lower() == "open" else DOOR_COLOR
 		_:
 			return GENERIC_COLOR
+
+
+static func _make_state_label(data: Dictionary, object_type: String) -> String:
+	match object_type:
+		"power_source":
+			return "power:%s" % str(data.get("state", "on")).to_lower()
+		"door":
+			return "door:%s" % str(data.get("state", "closed")).to_lower()
+		"terminal":
+			var links: Dictionary = Dictionary(data.get("links", {}))
+			var power_source: String = str(links.get("power_source", ""))
+			var targets: Array = Array(links.get("controlled_targets", []))
+			var power_label: String = "power:linked" if not power_source.is_empty() else "power:none"
+			var target_label: String = "targets:%d" % targets.size()
+			return "%s %s" % [power_label, target_label]
+		_:
+			return str(data.get("visual_id", object_type))
 
 
 static func _make_short_label(text: String) -> String:
