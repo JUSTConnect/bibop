@@ -1,0 +1,26 @@
+{
+  "id": "terminal_basic",
+  "object_type": "terminal",
+  "object_group": "terminal",
+  "display_name": "Terminal",
+  "description": "Basic terminal object.",
+  "visual_id": "terminal_01",
+  "tags": ["terminal", "control", "access"],
+  "base_parameters": {
+    "object_class": 1,
+    "power_mode": "external",
+    "control_mode": "internal",
+    "access_mode": "none",
+    "mount": "floor",
+    "state": "on"
+  },
+  "config_schema": [
+    {"id": "terminal_type", "label": "Terminal type", "type": "enum", "values": ["information", "control", "access", "storage"]},
+    {"id": "terminal_class", "label": "Terminal class", "type": "enum", "values": ["1", "2", "3"]}
+  ],
+  "links_schema": [
+    {"id": "power_source", "label": "Power source", "type": "object_ref"},
+    {"id": "controlled_targets", "label": "Controlled targets", "type": "object_ref_array"}
+  ],
+  "interactions": ["scan", "use", "hack", "repair"]
+}
