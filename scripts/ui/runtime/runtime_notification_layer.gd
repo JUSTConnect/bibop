@@ -11,6 +11,7 @@ const KIND_NEGATIVE := "negative"
 const DEFAULT_DURATION := 2.8
 const MAX_VISIBLE := 4
 const HINT_SOURCE_SCAN_INTERVAL := 0.45
+const DUPLICATE_SUPPRESS_MS := 120
 
 const COLOR_SYSTEM_BG := Color(0.055, 0.105, 0.160, 0.96)
 const COLOR_SYSTEM_BORDER := Color(0.200, 0.760, 0.950, 0.90)
@@ -37,6 +38,9 @@ var _stack: VBoxContainer = null
 var _items: Array[Dictionary] = []
 var _hint_source_ids: Dictionary = {}
 var _hint_source_scan_timer: float = 0.0
+var _last_notification_message: String = ""
+var _last_notification_kind: String = ""
+var _last_notification_msec: int = 0
 
 func _ready() -> void:
 	layer = 128
@@ -50,13 +54,28 @@ func notify(message: String, kind: String = KIND_SYSTEM, duration: float = DEFAU
 	var clean_message := message.strip_edges()
 	if clean_message.is_empty():
 		return
+	var normalized_kind: String = _normalize_kind(kind)
+	if _is_recent_duplicate(clean_message, normalized_kind):
+		return
 	_ensure_layout()
-	var item := _build_item(clean_message, kind)
+	var item := _build_item(clean_message, normalized_kind)
 	_stack.add_child(item)
 	_items.append({"node": item, "ttl": maxf(duration, 0.1)})
 	while _items.size() > MAX_VISIBLE:
 		_remove_item(0)
-	notification_pushed.emit(kind, clean_message, duration)
+	_store_last_notification(clean_message, normalized_kind)
+	notification_pushed.emit(normalized_kind, clean_message, duration)
+
+
+func show_hint(ui_owner: Object, message: String, kind: String = "", duration: float = DEFAULT_DURATION) -> void:
+	var clean_message := message.strip_edges()
+	if clean_message.is_empty():
+		return
+	var resolved_kind: String = _normalize_kind(kind)
+	if resolved_kind.is_empty():
+		resolved_kind = classify_legacy_hint(clean_message)
+	notify(clean_message, resolved_kind, duration)
+	_sync_legacy_ui_hint_target(ui_owner, clean_message, resolved_kind, duration)
 
 
 func system(message: String, duration: float = DEFAULT_DURATION) -> void:
@@ -221,6 +240,70 @@ func _connect_hint_source(node: Node) -> void:
 
 func _on_legacy_hint_requested(message: String) -> void:
 	from_legacy_hint(message)
+
+
+func _sync_legacy_ui_hint_target(ui_owner: Object, message: String, kind: String, duration: float) -> void:
+	if ui_owner == null or not is_instance_valid(ui_owner):
+		return
+	var colors := _get_colors(kind)
+	var hint_label: Label = _get_object_property(ui_owner, "hint_label") as Label
+	if hint_label != null and is_instance_valid(hint_label):
+		hint_label.text = message
+	var runtime_label: Label = _get_object_property(ui_owner, "runtime_notification_label") as Label
+	if runtime_label != null and is_instance_valid(runtime_label):
+		runtime_label.text = message
+		runtime_label.add_theme_color_override("font_color", colors["text"])
+	var runtime_panel: PanelContainer = _get_object_property(ui_owner, "runtime_notification_panel") as PanelContainer
+	if runtime_panel != null and is_instance_valid(runtime_panel):
+		runtime_panel.visible = true
+		runtime_panel.add_theme_stylebox_override("panel", _make_style(colors["bg"], colors["border"]))
+	if _object_has_property(ui_owner, "runtime_notification_timer"):
+		ui_owner.set("runtime_notification_timer", duration)
+	if _object_has_property(ui_owner, "runtime_notification_role"):
+		ui_owner.set("runtime_notification_role", kind)
+
+
+func _get_object_property(target: Object, property_name: String) -> Variant:
+	if target == null or not _object_has_property(target, property_name):
+		return null
+	return target.get(property_name)
+
+
+func _object_has_property(target: Object, property_name: String) -> bool:
+	if target == null:
+		return false
+	for property_data in target.get_property_list():
+		if str(property_data.get("name", "")) == property_name:
+			return true
+	return false
+
+
+func _normalize_kind(kind: String) -> String:
+	var clean_kind := kind.strip_edges().to_lower()
+	match clean_kind:
+		KIND_SYSTEM, KIND_SYSTEM_NEGATIVE, KIND_POSITIVE, KIND_NEGATIVE:
+			return clean_kind
+		"info", "blue", "system_positive":
+			return KIND_SYSTEM
+		"warning", "orange":
+			return KIND_SYSTEM_NEGATIVE
+		"ok", "success", "green":
+			return KIND_POSITIVE
+		"danger", "error", "red":
+			return KIND_NEGATIVE
+		_:
+			return ""
+
+
+func _is_recent_duplicate(message: String, kind: String) -> bool:
+	var now_msec: int = Time.get_ticks_msec()
+	return message == _last_notification_message and kind == _last_notification_kind and now_msec - _last_notification_msec <= DUPLICATE_SUPPRESS_MS
+
+
+func _store_last_notification(message: String, kind: String) -> void:
+	_last_notification_message = message
+	_last_notification_kind = kind
+	_last_notification_msec = Time.get_ticks_msec()
 
 
 func _contains_any(text: String, needles: Array[String]) -> bool:
