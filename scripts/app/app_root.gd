@@ -217,9 +217,7 @@ func _build_map_canvas_panel() -> PanelContainer:
 	map_canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	map_canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	map_canvas.custom_minimum_size = Vector2.ZERO
-	map_canvas.cell_pressed.connect(func(cell: Vector2i) -> void:
-		_handle_map_cell_pressed(cell)
-	)
+	map_canvas.connect("cell_pressed", Callable(self, "_handle_map_cell_pressed"))
 	stack.add_child(map_canvas)
 	_refresh_map_canvas()
 	return panel
@@ -308,7 +306,7 @@ func _rebuild_palette_list() -> void:
 func _refresh_map_canvas() -> void:
 	if map_canvas == null:
 		return
-	map_canvas.set_cells(MAP_COLUMNS, MAP_ROWS, _build_cell_labels(), Vector2i(map_edit_state.selected_cell))
+	map_canvas.call("set_cells", MAP_COLUMNS, MAP_ROWS, _build_cell_labels(), Vector2i(map_edit_state.selected_cell))
 
 
 func _build_cell_labels() -> Dictionary:
