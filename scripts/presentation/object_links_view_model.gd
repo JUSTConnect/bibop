@@ -6,6 +6,17 @@ extends RefCounted
 
 static func create(links_schema: Array, _data: Dictionary = {}, entity_kind: String = "world_object", entity_id: String = "") -> Dictionary:
 	var rows: Array[Dictionary] = []
+	if links_schema.is_empty():
+		rows.append({
+			"id": "links_info",
+			"label": "Info",
+			"control_type": "readonly_text",
+			"value": "No links.",
+			"readonly": true,
+			"entity_kind": entity_kind,
+			"entity_id": entity_id,
+		})
+		return {"section_id": "links", "title": "4. Links", "rows": rows}
 	for link_variant in links_schema:
 		var link: Dictionary = Dictionary(link_variant)
 		var link_id: String = str(link.get("id", ""))
