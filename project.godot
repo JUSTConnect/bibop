@@ -19,7 +19,7 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 RuntimeNotifications="*res://scripts/ui/runtime/runtime_notification_layer.gd"
 RuntimeWorldActionMenuSections="*res://scripts/ui/runtime/runtime_world_action_menu_sections.gd"
 ObjectStatusLayer="*res://scripts/world/object_status_layer.gd"
-MapConstructorObjectLinkLayer="*res://scripts/game/map_constructor_object_link_layer_service_v2.gd"
+MapConstructorObjectLinkLayer="*res://scripts/game/map_constructor_object_link_layer_service_v3.gd"
 
 [display]
 
