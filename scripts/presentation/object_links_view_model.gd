@@ -3,6 +3,7 @@ extends RefCounted
 # ObjectLinksViewModel
 # Link rows for inspector.
 # Первый рабочий слой: object_ref можно выбрать из placed objects.
+# object_ref_array пока редактируется как single-target dropdown, сохраняется как Array.
 
 static func create(links_schema: Array, data: Dictionary = {}, entity_kind: String = "world_object", entity_id: String = "", link_targets: Array = []) -> Dictionary:
 	var rows: Array[Dictionary] = []
@@ -47,16 +48,14 @@ static func _make_link_row(link: Dictionary, link_id: String, link_type: String,
 
 static func _control_type_for_link_type(link_type: String) -> String:
 	match link_type:
-		"object_ref":
+		"object_ref", "object_ref_array":
 			return "enum"
-		"object_ref_array":
-			return "line_edit"
 		_:
 			return "line_edit"
 
 
 static func _make_options(link_type: String, link_targets: Array) -> Array[String]:
-	if link_type != "object_ref":
+	if link_type != "object_ref" and link_type != "object_ref_array":
 		return []
 	var options: Array[String] = [""]
 	for target_variant in link_targets:
@@ -70,10 +69,8 @@ static func _make_options(link_type: String, link_targets: Array) -> Array[Strin
 static func _normalize_value(value: Variant, link_type: String) -> Variant:
 	if link_type == "object_ref_array":
 		if value is Array:
-			var parts: Array[String] = []
-			for item in Array(value):
-				parts.append(str(item))
-			return ", ".join(parts)
+			var values: Array = Array(value)
+			return str(values[0]) if not values.is_empty() else ""
 		return str(value)
 	return value
 
