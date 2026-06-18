@@ -18,7 +18,6 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 
 RuntimeNotifications="*res://scripts/ui/runtime/runtime_notification_layer.gd"
 RuntimeHudRepair="*res://scripts/ui/runtime/runtime_hud_repair_service.gd"
-ObjectStatusLayer="*res://scripts/world/object_status_layer_runtime.gd"
 MapConstructorInspectorStructure="*res://scripts/ui/map_constructor/map_constructor_inspector_structure_layer.gd"
 
 [display]
