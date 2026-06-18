@@ -38,7 +38,7 @@ func _looks_like_game_ui(node: Node) -> bool:
 func _ensure_control_menu(ui: Object) -> void:
 	if ui == null or not is_instance_valid(ui):
 		return
-	if not _is_gameplay(ui):
+	if not _should_show_recovery(ui):
 		return
 	var hud_root: Control = _get_property(ui, "runtime_hud_root") as Control
 	if hud_root == null or not is_instance_valid(hud_root):
@@ -157,13 +157,20 @@ func _ensure_bridge(ui: Object) -> Object:
 	return bridge
 
 
-func _is_gameplay(ui: Object) -> bool:
-	if ui == null or not is_instance_valid(ui) or not _has_property(ui, "app_screen_mode"):
+func _should_show_recovery(ui: Object) -> bool:
+	if ui == null or not is_instance_valid(ui):
 		return false
-	var mode_text: String = str(_get_property(ui, "app_screen_mode"))
-	if mode_text == "2":
-		return true
-	return mode_text.to_lower().contains("gameplay")
+	if _get_property(ui, "runtime_hud_root") == null:
+		return false
+	var bipob: Object = _get_property(ui, "bipob") as Object
+	if bipob == null or not is_instance_valid(bipob):
+		return false
+	var map_constructor_state: Object = _get_property(ui, "map_constructor_state") as Object
+	if map_constructor_state != null and is_instance_valid(map_constructor_state):
+		var mode_value: Variant = map_constructor_state.get("map_constructor_mode_active")
+		if bool(mode_value):
+			return false
+	return true
 
 
 func _make_style(bg: Color, border: Color) -> StyleBoxFlat:
