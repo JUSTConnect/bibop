@@ -13,7 +13,7 @@ static func create(entity_kind: String, entity_id: String, definition: Dictionar
 	var sections: Array[Dictionary] = [
 		ObjectIdentityViewModelRef.create(entity_kind, entity_id, data),
 		ObjectStatusViewModelRef.create(status),
-		ObjectConfigViewModelRef.create(Array(definition.get("config_schema", [])), data, entity_kind, entity_id),
+		ObjectConfigViewModelRef.create(Array(definition.get("config_schema", [])), data, entity_kind, entity_id, definition),
 		ObjectLinksViewModelRef.create(Array(definition.get("links_schema", [])), data, entity_kind, entity_id),
 	]
 	return {
