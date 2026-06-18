@@ -4,6 +4,9 @@ extends Control
 # Первый осязаемый vertical slice новой архитектуры.
 # Запускается сразу и показывает: object list -> Identity -> Status -> Configurable Parameters -> Links.
 
+const ObjectDefinitionCatalogRef = preload("res://scripts/domain/object_definition_catalog.gd")
+const ObjectDataFactoryRef = preload("res://scripts/domain/object_data_factory.gd")
+
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
 	"res://data/objects/terminal_basic.json",
@@ -18,6 +21,7 @@ const ACCENT := Color(0.25, 0.78, 0.95, 1.0)
 const OK := Color(0.25, 0.85, 0.48, 1.0)
 const WARNING := Color(0.95, 0.7, 0.18, 1.0)
 
+var object_definition_catalog: RefCounted = null
 var object_definitions: Array[Dictionary] = []
 var working_data_by_id: Dictionary = {}
 var selected_index: int = 0
@@ -34,42 +38,12 @@ func _ready() -> void:
 
 
 func _load_object_definitions() -> void:
-	object_definitions.clear()
+	object_definition_catalog = ObjectDefinitionCatalogRef.new()
+	object_definitions = object_definition_catalog.load_paths(OBJECT_DEFINITION_PATHS)
 	working_data_by_id.clear()
-	for path in OBJECT_DEFINITION_PATHS:
-		var definition: Dictionary = _load_json_dictionary(path)
-		if definition.is_empty():
-			continue
-		object_definitions.append(definition)
+	for definition in object_definitions:
 		var object_id: String = str(definition.get("id", ""))
-		working_data_by_id[object_id] = _make_initial_object_data(definition)
-
-
-func _load_json_dictionary(path: String) -> Dictionary:
-	if not FileAccess.file_exists(path):
-		push_warning("Missing object definition: %s" % path)
-		return {}
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		push_warning("Cannot open object definition: %s" % path)
-		return {}
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	if parsed is Dictionary:
-		return Dictionary(parsed)
-	push_warning("Invalid object definition JSON: %s" % path)
-	return {}
-
-
-func _make_initial_object_data(definition: Dictionary) -> Dictionary:
-	var data: Dictionary = Dictionary(definition.get("base_parameters", {})).duplicate(true)
-	data["id"] = str(definition.get("id", ""))
-	data["object_type"] = str(definition.get("object_type", "unknown"))
-	data["object_group"] = str(definition.get("object_group", "generic"))
-	data["display_name"] = str(definition.get("display_name", definition.get("id", "Object")))
-	data["description"] = str(definition.get("description", ""))
-	data["visual_id"] = str(definition.get("visual_id", ""))
-	data["power_state"] = _infer_power_state(data)
-	return data
+		working_data_by_id[object_id] = ObjectDataFactoryRef.make_initial_object_data(definition)
 
 
 func _build_layout() -> void:
@@ -343,13 +317,7 @@ func _build_status(data: Dictionary) -> Dictionary:
 
 
 func _infer_power_state(data: Dictionary) -> String:
-	var power_mode: String = str(data.get("power_mode", "none")).to_lower()
-	if power_mode == "none":
-		return "none"
-	if data.has("is_powered"):
-		return "powered" if bool(data.get("is_powered")) else "unpowered"
-	var state: String = str(data.get("state", "on")).to_lower()
-	return "unpowered" if state == "off" else "powered"
+	return ObjectDataFactoryRef.infer_power_state(data)
 
 
 func _make_section_panel(title: String) -> PanelContainer:
