@@ -13,6 +13,7 @@ const MapEditStateRef = preload("res://scripts/map_constructor/map_edit_state.gd
 const MapCanvasViewRef = preload("res://scripts/ui/map_constructor_new/map_canvas_view.gd")
 const ObjectVisualFactoryRef = preload("res://scripts/rendering/object_visual_factory.gd")
 const ObjectInteractionSystemRef = preload("res://scripts/systems/object_interaction_system.gd")
+const ObjectPowerSystemRef = preload("res://scripts/systems/object_power_system.gd")
 
 const OBJECT_DEFINITION_PATHS: Array[String] = [
 	"res://data/objects/power_source_basic.json",
@@ -336,6 +337,7 @@ func _get_cell_visual(cell: Vector2i) -> Dictionary:
 func _handle_map_cell_pressed(cell: Vector2i) -> void:
 	if str(map_edit_state.active_tool_mode) == "erase":
 		var erased: Dictionary = Dictionary(map_edit_state.erase_cell(cell))
+		_run_power_system()
 		_refresh_map_canvas()
 		_render_selected_object_inspector()
 		_set_status("Nothing to erase." if erased.is_empty() else "Erased: %s" % str(erased.get("display_name", erased.get("id", "object"))))
@@ -343,6 +345,7 @@ func _handle_map_cell_pressed(cell: Vector2i) -> void:
 	var definition: Dictionary = _get_selected_definition()
 	var existed: bool = bool(map_edit_state.has_instance_at_cell(cell))
 	var result: Dictionary = Dictionary(map_edit_state.place_or_select_cell(cell, definition))
+	_run_power_system()
 	_refresh_map_canvas()
 	_render_selected_object_inspector()
 	if result.is_empty():
@@ -390,6 +393,15 @@ func _update_tool_mode_label() -> void:
 		tool_mode_label.text = "Tool: %s" % str(map_edit_state.active_tool_mode).capitalize()
 
 
+func _run_power_system() -> void:
+	for patch_variant in ObjectPowerSystemRef.evaluate_all(map_edit_state.get_placed_objects()):
+		var patch_info: Dictionary = Dictionary(patch_variant)
+		var instance_id: String = str(patch_info.get("instance_id", ""))
+		var patch: Dictionary = Dictionary(patch_info.get("patch", {}))
+		if not instance_id.is_empty() and not patch.is_empty():
+			map_edit_state.patch_instance(instance_id, patch)
+
+
 func _use_selected_object() -> void:
 	var selected_data: Dictionary = Dictionary(map_edit_state.get_selected_instance_data())
 	if selected_data.is_empty():
@@ -402,6 +414,7 @@ func _use_selected_object() -> void:
 		var patch: Dictionary = Dictionary(patch_info.get("patch", {}))
 		if not instance_id.is_empty() and not patch.is_empty():
 			map_edit_state.patch_instance(instance_id, patch)
+	_run_power_system()
 	_refresh_map_canvas()
 	_render_selected_object_inspector()
 	_set_status(str(result.get("message", "Use finished.")))
@@ -436,6 +449,7 @@ func _load_snapshot() -> void:
 		_set_status("Snapshot JSON is invalid.")
 		return
 	map_edit_state.load_snapshot(Dictionary(parsed))
+	_run_power_system()
 	_ensure_selected_definition_is_valid()
 	_sync_selected_index_from_state()
 	_update_selected_palette_label()
@@ -541,6 +555,7 @@ func _apply_preview_patch(definition_id: String, patch: Dictionary, message: Str
 
 func _apply_placed_object_patch(instance_id: String, patch: Dictionary, message: String) -> void:
 	map_edit_state.patch_instance(instance_id, patch)
+	_run_power_system()
 	_refresh_map_canvas()
 	_set_status(message)
 	_render_selected_object_inspector()
@@ -556,6 +571,8 @@ func _apply_placed_object_link_patch(entity_kind: String, instance_id: String, l
 	var links: Dictionary = Dictionary(data.get("links", {})).duplicate(true)
 	links[link_id] = _normalize_link_value(value, link_type)
 	map_edit_state.patch_instance(instance_id, {"links": links})
+	_run_power_system()
+	_refresh_map_canvas()
 	_set_status("Link updated: %s" % link_id)
 	_render_selected_object_inspector()
 
