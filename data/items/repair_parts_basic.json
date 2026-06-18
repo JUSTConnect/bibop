@@ -1,0 +1,16 @@
+{
+  "id": "repair_parts_basic",
+  "item_type": "repair_parts",
+  "item_group": "resource",
+  "display_name": "Repair Parts",
+  "description": "Common repair resource.",
+  "visual_id": "object_repair_kit",
+  "stackable": true,
+  "max_stack": 99,
+  "usable": true,
+  "consumable": true,
+  "config_schema": [
+    {"id": "repair_value", "label": "Repair value", "type": "int", "min": 1, "max": 10}
+  ],
+  "interactions": ["inspect", "use"]
+}
