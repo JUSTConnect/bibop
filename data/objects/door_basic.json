@@ -1,0 +1,26 @@
+{
+  "id": "door_basic",
+  "object_type": "door",
+  "object_group": "door",
+  "display_name": "Door",
+  "description": "Basic door object.",
+  "visual_id": "object_door",
+  "tags": ["door", "access"],
+  "base_parameters": {
+    "object_class": 1,
+    "power_mode": "none",
+    "control_mode": "internal",
+    "access_mode": "none",
+    "mount": "floor",
+    "state": "closed"
+  },
+  "config_schema": [
+    {"id": "door_class", "label": "Door class", "type": "enum", "values": ["1", "2", "3"]},
+    {"id": "access_mode", "label": "Access mode", "type": "enum", "values": ["none", "access_code", "key_card", "digital_key", "terminal"]}
+  ],
+  "links_schema": [
+    {"id": "access_terminal", "label": "Access terminal", "type": "object_ref"},
+    {"id": "required_key", "label": "Required key", "type": "object_ref"}
+  ],
+  "interactions": ["open", "close", "hack", "repair"]
+}
