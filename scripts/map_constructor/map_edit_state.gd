@@ -5,6 +5,7 @@ extends RefCounted
 # Не создаёт UI. Хранит выбранный palette definition, placed objects и selected instance.
 
 const ObjectDataFactoryRef = preload("res://scripts/domain/object_data_factory.gd")
+const ObjectConfigSchemaRef = preload("res://scripts/domain/object_config_schema.gd")
 
 const TOOL_PLACE := "place"
 const TOOL_ERASE := "erase"
@@ -105,8 +106,22 @@ func patch_instance(instance_id: String, patch: Dictionary) -> Dictionary:
 	if not placed_objects_by_id.has(instance_id):
 		return {}
 	var data: Dictionary = Dictionary(placed_objects_by_id[instance_id]).duplicate(true)
-	for key in patch.keys():
-		data[key] = patch[key]
+	var base_config: Dictionary = Dictionary(data.get("base_config", {}))
+	var overrides: Dictionary = Dictionary(data.get("config_overrides", {})).duplicate(true)
+	for key_variant in patch.keys():
+		var key: String = str(key_variant)
+		var value: Variant = patch[key_variant]
+		if base_config.has(key) or overrides.has(key):
+			var base_value: Variant = base_config.get(key)
+			if ObjectConfigSchemaRef.values_equal(value, base_value):
+				overrides.erase(key)
+				data[key] = base_value
+			else:
+				overrides[key] = value
+				data[key] = value
+		else:
+			data[key] = value
+	data["config_overrides"] = overrides
 	data["power_state"] = ObjectDataFactoryRef.infer_power_state(data)
 	placed_objects_by_id[instance_id] = data
 	return data.duplicate(true)
