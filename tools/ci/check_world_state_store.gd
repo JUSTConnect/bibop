@@ -199,10 +199,22 @@ func _run_mission_manager_checks() -> void:
 	_expect(str(heat_after_refresh.get("cooling_state", "")) == "cooled", "cooling refresh cooling_state mismatch: %s" % var_to_str(heat_after_refresh.get("cooling_state", null)))
 	manager.enable_debug_seed = true
 	manager._seed_debug_world_objects()
-	var seeded := manager.world_state_store.get_object_by_id("wall_b1")
-	_expect(int(seeded.get("scan_level", 0)) == 3, "debug seed scan_level persists")
-	var seeded_power := manager.world_state_store.get_object_by_id("steel_door_1")
-	_expect(str(seeded_power.get("power_network_id", "")) == "power_net_A", "debug seed power network persists")
+
+	var seeded: Dictionary = Dictionary(
+		manager.world_state_store.get_object_by_id("wall_b1")
+	)
+	_expect(
+		int(seeded.get("scan_level", 0)) == 3,
+		"debug seed scan_level mismatch: %s" % var_to_str(seeded)
+	)
+
+	var seeded_power: Dictionary = Dictionary(
+		manager.world_state_store.get_object_by_id("door_a1")
+	)
+	_expect(
+		str(seeded_power.get("power_network_id", "")) == "power_net_A",
+		"debug seed power network mismatch: %s" % var_to_str(seeded_power)
+	)
 	_expect(manager.world_state_store.validate_consistency().is_empty(), "MissionManager store consistency remains valid")
 	manager.free()
 	manager = null
