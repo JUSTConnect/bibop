@@ -184,6 +184,7 @@ func _initialize() -> void:
 	if failures.is_empty():
 		print("Map constructor prefab catalog checks passed.")
 		quit(0)
+		return
 	for failure in failures:
 		push_error(failure)
 	quit(1)
