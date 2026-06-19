@@ -18,4 +18,4 @@ func apply_patches(map_editor: RefCounted, patches: Array) -> void:
 		var instance_id: String = str(info.get("instance_id", ""))
 		var patch: Dictionary = Dictionary(info.get("patch", {}))
 		if not instance_id.is_empty() and not patch.is_empty():
-			map_editor.call("patch_instance", instance_id, patch)
+			map_editor.call("apply_runtime_patch", instance_id, patch)
