@@ -11,6 +11,7 @@ const MapConstructorServiceRef = preload("res://scripts/game/map_constructor_ser
 const MapConstructorValidationServiceRef = preload("res://scripts/game/map_constructor_validation_service.gd")
 const MapConstructorPresetServiceRef = preload("res://scripts/game/map_constructor_preset_service.gd")
 const MapConstructorKeyDoorLinkServiceRef = preload("res://scripts/game/map_constructor_key_door_link_service.gd")
+const MapConstructorPrefabCatalogRef = preload("res://scripts/game/map_constructor_prefab_catalog.gd")
 const MapConstructorTerminalLinkFilterServiceRef = preload("res://scripts/game/map_constructor_terminal_link_filter_service.gd")
 const MapConstructorInformationTerminalServiceRef = preload("res://scripts/game/map_constructor_information_terminal_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
@@ -3258,160 +3259,22 @@ func _get_world_object_template(prefab_id: String) -> Dictionary:
 	return {}
 
 func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
-	# Palette rows come from WorldObjectCatalog so authoring cannot drift.
-	# Legacy item shortcuts remain hidden load/import aliases only.
-	var entries: Array[Dictionary] = []
-	var seen_prefab_ids: Dictionary = {}
-	for entry in entries:
-		seen_prefab_ids[str(entry.get("id", ""))] = true
-	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
-		var prefab_id: String = str(row.get("prefab_id", ""))
-		if prefab_id.is_empty() or seen_prefab_ids.has(prefab_id):
-			continue
-		var catalog_row: Dictionary = row.duplicate(true)
-		catalog_row["id"] = prefab_id
-		entries.append(catalog_row)
-		seen_prefab_ids[prefab_id] = true
-	for index in range(entries.size()):
-		var entry: Dictionary = entries[index]
-		var prefab_id: String = str(entry.get("id", ""))
-		var object_template: Dictionary = _get_world_object_template(prefab_id)
-		entry["label"] = str(entry.get("display_name", object_template.get("name", prefab_id.replace("_", " ").capitalize())))
-		entry["placement_mode"] = str(entry.get("placement_mode", object_template.get("placement_mode", "floor")))
-		entries[index] = entry
-	return entries
+	return MapConstructorPrefabCatalogRef.get_catalog_entries()
 
 func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
-	var metadata: Dictionary = {
-		"floor": {"display_name":"Floor","category":"Structural","subcategory":"Configurable Floor","placement_mode":"object","system_roles":["navigation"],"tags":["floor","walkable","structural","configurable","archetype"],"description":"Configurable Floor archetype. Choose material, covering, visual style, and state properties in the inspector.","placement_hint":"Place the base Floor, then configure properties.","requires_wall":false,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
-		"stepped_floor": {"display_name":"Stepped Floor","category":"Structural","subcategory":"Floor","placement_mode":"tile","system_roles":["navigation"],"tags":["floor","walkable","elevation"],"description":"Walkable stepped floor tile.","placement_hint":"Use for alternate floor visuals.","requires_wall":false,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
-		"external_wall": {"display_name":"External Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","solid","boundary","fixed_archetype"],"description":"Fixed external structural wall. Gameplay parameters are not editable.","placement_hint":"Place the fixed external wall archetype.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
-		"wall": {"display_name":"Wall","category":"Structural","subcategory":"Wall","placement_mode":"object","system_roles":["blocking"],"tags":["wall","obstacle","configurable","archetype"],"description":"Configurable internal wall. Choose material in the inspector.","placement_hint":"Place Wall, then configure its canonical material property.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
-		"door": {"display_name":"Door","category":"Door","subcategory":"Configurable","placement_mode":"object","system_roles":["navigation","access_control"],"tags":["door","configurable","archetype"],"description":"Configurable door archetype. Choose material, access, power, control, and state properties in the inspector.","placement_hint":"Place the base Door, then configure properties.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"terminal": {"display_name":"Terminal","category":"Terminal","subcategory":"Configurable","placement_mode":"object","system_roles":["terminal_interaction","signal_control"],"tags":["terminal","configurable","archetype"],"description":"Configurable terminal archetype. Choose role, target, class, power, control, status, and links in the inspector.","placement_hint":"Place the base Terminal, then configure properties.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"item": {"display_name":"Item","category":"Item","subcategory":"Configurable","placement_mode":"item","system_roles":["item"],"tags":["item","configurable","archetype"],"description":"Configurable Item archetype. Choose item class, storage route, state, and optional door link in the inspector.","placement_hint":"Place the base Item, then configure properties.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":true,"default_state":{}},
-		"firewall": {"display_name":"Firewall Node","category":"Control","subcategory":"Security","placement_mode":"object","system_roles":["signal_control"],"tags":["firewall","security","control"],"description":"Floor security node controlled through terminal links.","placement_hint":"Place on a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"power_source_class_1": {"display_name":"Power Source C1","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Primary local power source.","placement_hint":"Set power_network_id in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":1,"outlet_capacity":4}},
-		"power_source_class_2": {"display_name":"Power Source C2","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Class 2 power source.","placement_hint":"Place beside wires/outlets.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":2,"outlet_capacity":5}},
-		"power_source_class_3": {"display_name":"Power Source C3","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source","generator"],"description":"Class 3 power source.","placement_hint":"Place beside wires/outlets.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","power_mode":"internal","control_mode":"internal","is_powered":true,"power_source_class":3,"outlet_capacity":6}},
-		"power_socket": {"display_name":"Power Socket","category":"Power","subcategory":"Connector","placement_mode":"object","system_roles":["power_network","power_consumer"],"tags":["power","socket","connector"],"description":"Power connector point for devices.","placement_hint":"Set power_network_id in inspector after placement. Wall placement is optional.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
-		"power_cable": {"display_name":"Power Cable","category":"Power","subcategory":"Network","placement_mode":"object","system_roles":["power_network"],"tags":["power","cable","network"],"description":"Cable segment for power routing.","placement_hint":"Set power_network_id in inspector after placement. Wall placement is optional.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"wall_routing_mode":"outer"}},
-		"circuit_switch": {"display_name":"Circuit Switch","category":"Control","subcategory":"Power","placement_mode":"object","system_roles":["signal_control","power_network"],"tags":["switch","circuit","control"],"description":"Switch controlling power state.","placement_hint":"Configure links in inspector after placement.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"circuit_breaker": {"display_name":"Circuit Breaker","category":"Power","subcategory":"Protection","placement_mode":"wall_mounted","system_roles":["power_network","signal_control"],"tags":["breaker","power","wall"],"description":"Wall-mounted power safety breaker.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"light": {"display_name":"Light","category":"Power","subcategory":"Lighting","placement_mode":"wall_mounted","system_roles":["lighting","power_consumer"],"tags":["light","lighting","wall"],"description":"Wall light linked logically to a power source.","placement_hint":"Requires a wall cell.","requires_wall":true,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"brightness":"1.0","color":"#ffffff"}},
-		"external_air_duct": {"display_name":"External Air Duct","category":"Cooling System","subcategory":"Wall-mounted","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","placement_mode":"wall_mounted","system_roles":["cooling","airflow"],"tags":["air","duct","wall"],"description":"Wall-mounted external air duct.","placement_hint":"Requires a wall cell.","requires_wall":true,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"air_duct","cooling_system_type":"air_duct","cooling_contour_mode":"auto","cooling_contour_id":"","cooling_contour_member_ids":[],"wall_side_1":"NW","wall_side_2":"SE"}},
-		"external_water_pipe": {"display_name":"External Water Pipe","category":"Cooling System","subcategory":"Wall-mounted","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","placement_mode":"wall_mounted","system_roles":["cooling","water"],"tags":["water","pipe","wall"],"description":"Wall-mounted external water pipe.","placement_hint":"Requires a wall cell.","requires_wall":true,"requires_floor":false,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"water_pipe","cooling_system_type":"water_pipe","cooling_contour_mode":"auto","cooling_contour_id":"","cooling_contour_member_ids":[],"wall_side_1":"NW","wall_side_2":"SE"}},
-		"light_switch": {"display_name":"Light Switch","category":"Control","subcategory":"Lighting","placement_mode":"wall_mounted","system_roles":["signal_control","power_consumer"],"tags":["switch","light","wall"],"description":"Wall-mounted switch for lights/devices.","placement_hint":"Requires a valid adjacent wall side.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{}},
-		"power_switcher": {"display_name":"Power Switcher","category":"Power","subcategory":"Control","placement_mode":"object","system_roles":["signal_control","power_network"],"tags":["switch","power","configurable"],"description":"Logical power switcher. Configure mount=floor/wall and switch_state=on/off in the inspector.","placement_hint":"Place on floor by default; set mount to wall for wall art and wall-mounted behavior.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"mount":"floor","switch_state":"off","state":"switch_off","is_on":false}},
-		"fuse_box": {"display_name":"Fuse Box","category":"Power","subcategory":"Protection","placement_mode":"object","system_roles":["power_network","power_consumer"],"tags":["fuse","power","configurable"],"description":"Logical fuse box. Configure mount=floor/wall and fuse_present=true/false in the inspector.","placement_hint":"Place on floor by default; set mount to wall for wall art and wall-mounted behavior.","requires_wall":true,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":true,"default_state":{"mount":"floor","fuse_present":true,"fuse_installed":true}},
-		"barrel": {"display_name":"Barrel","category":"Objects","subcategory":"Movable","placement_mode":"object","system_roles":["movable"],"tags":["barrel","movable","configurable"],"description":"Movable barrel. Configure variant=normal/fire in the inspector.","placement_hint":"Place on a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{"variant":"normal"}},
-		"steel_box": {"display_name":"Steel Box","category":"Objects","subcategory":"Movable","placement_mode":"object","system_roles":["movable"],"tags":["steel","box","movable"],"description":"Heavy movable steel box.","placement_hint":"Place on a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
-		"case": {"display_name":"Case","category":"Objects","subcategory":"Prop","placement_mode":"object","system_roles":["prop"],"tags":["case","object"],"description":"Simple placeable case object.","placement_hint":"Place on a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
-		"power_source": {"display_name":"Power Source","category":"Power","subcategory":"Source","placement_mode":"object","system_roles":["power_source","power_network"],"tags":["power","source"],"description":"Logical power source using the unified object asset.","placement_hint":"Place on a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"state":"on","is_powered":true}},
-		"radiator": {"display_name":"Radiator","category":"Objects","subcategory":"Cooling","placement_mode":"object","system_roles":["cooling"],"tags":["radiator","cooling"],"description":"External floor radiator.","placement_hint":"Place on a floor cell.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
-		"power_cable_reel": {"display_name":"Cable Reel","category":"Power","subcategory":"Power Utility","placement_mode":"object","system_roles":["power_network"],"tags":["power","cable","reel","floor","wall","utility"],"description":"Cable reel utility node. Use the inspector mount parameter to choose floor or wall visual mode.","placement_hint":"Place the unified Cable Reel, then choose Floor or Wall in the inspector.","requires_wall":false,"requires_floor":true,"is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{"mount":"floor","install_mode":"floor","cable_install_mode":"floor","wall_routing_mode":"outer"}},
-	}
-	return metadata
-
-
-func _build_map_constructor_prefab_fallback_metadata(prefab_id: String, catalog_entry: Dictionary = {}) -> Dictionary:
-	var id: String = prefab_id.strip_edges()
-	var category: String = str(catalog_entry.get("category", catalog_entry.get("group", ""))).strip_edges()
-	if category.is_empty():
-		category = "Utility"
-	var placement_mode: String = str(catalog_entry.get("placement_mode", "")).strip_edges()
-	if placement_mode.is_empty():
-		placement_mode = "floor"
-	var display_name: String = str(catalog_entry.get("label", id)).strip_edges()
-	if display_name.is_empty():
-		display_name = id
-	var hint: String = str(catalog_entry.get("hint", "")).strip_edges()
-	var expected_invalid: bool = id.find("expected_invalid") >= 0 or category.to_lower().find("expected_invalid") >= 0
-	var requires_floor: bool = placement_mode != "tile"
-	var fallback_tags: Array[String] = [id, category, placement_mode]
-	return {
-		"id": id,
-		"display_name": display_name,
-		"category": category,
-		"subcategory": "",
-		"placement_mode": placement_mode,
-		"system_roles": [],
-		"tags": fallback_tags,
-		"description": "Constructor prefab.",
-		"placement_hint": hint,
-		"requires_wall": placement_mode == "wall_mounted",
-		"requires_floor": requires_floor,
-		"is_destructive": false,
-		"is_diagnostic": false,
-		"is_expected_invalid_tool": expected_invalid,
-		"can_have_power_network": false,
-		"can_have_links": false,
-		"default_state": catalog_entry.get("default_state", {}),
-		"canonical_object_type": str(catalog_entry.get("canonical_object_type", id)),
-		"object_group": str(catalog_entry.get("object_group", "")),
-		"is_alias": bool(catalog_entry.get("is_alias", false)),
-		"alias_source_id": str(catalog_entry.get("alias_source_id", "")),
-		"door_type": str(catalog_entry.get("door_type", "")),
-		"material": str(catalog_entry.get("material", "")),
-		"access_type": str(catalog_entry.get("access_type", "")),
-		"door_class": catalog_entry.get("door_class", ""),
-		"power_behavior": str(catalog_entry.get("power_behavior", "")),
-		"blocks_movement": bool(catalog_entry.get("blocks_movement", false))
-	}
+	return MapConstructorPrefabCatalogRef._get_presentation_catalog()
 
 func get_map_constructor_prefab_metadata(prefab_id: String) -> Dictionary:
-	var metadata_catalog: Dictionary = _get_map_constructor_prefab_metadata_catalog()
-	var id: String = prefab_id.strip_edges()
-	if metadata_catalog.has(id):
-		var explicit_row: Dictionary = Dictionary(metadata_catalog[id]).duplicate(true)
-		explicit_row["id"] = id
-		return {"ok": true, "prefab": _normalize_map_constructor_prefab_palette_metadata(explicit_row), "message": "OK"}
-	for entry in get_map_constructor_prefab_catalog():
-		var catalog_entry: Dictionary = Dictionary(entry)
-		if str(catalog_entry.get("id", "")).strip_edges() == id:
-			return {"ok": true, "prefab": _normalize_map_constructor_prefab_palette_metadata(_build_map_constructor_prefab_fallback_metadata(id, catalog_entry)), "message": "OK"}
-	return {"ok": false, "prefab": {}, "message": "Unknown prefab id."}
+	var presentation: Dictionary = MapConstructorPrefabCatalogRef.get_prefab_presentation(prefab_id)
+	if presentation.is_empty():
+		return {"ok": false, "prefab": {}, "message": "Unknown prefab id."}
+	return {"ok": true, "prefab": _normalize_map_constructor_prefab_palette_metadata(presentation), "message": "OK"}
 
 func _normalize_map_constructor_prefab_palette_metadata(metadata: Dictionary) -> Dictionary:
-	var row: Dictionary = metadata.duplicate(true)
-	var prefab_id: String = str(row.get("id", row.get("prefab_id", ""))).strip_edges().to_lower()
-	var placement_contract: Dictionary = WorldObjectCatalogRef.get_constructor_placement_contract(prefab_id)
-	if placement_contract.is_empty():
-		row["placement_contract_valid"] = false
-		row["validation_reason"] = "missing_placement_contract"
-		row["canonical_prefab_id"] = prefab_id
-		row["supports_floor"] = false
-		row["supports_wall"] = false
-		row["floor_only"] = false
-		row["wall_only"] = false
-		row["requires_floor"] = false
-		row["requires_wall"] = false
-		row["requires_floor_anchor_when_wall_mounted"] = false
-		row["requires_floor_anchor"] = false
-	else:
-		var canonical_prefab_id: String = str(placement_contract.get("canonical_prefab_id", prefab_id))
-		row["placement_contract_valid"] = true
-		row["canonical_prefab_id"] = canonical_prefab_id
-		row["placement_mode"] = str(placement_contract.get("default_placement_mode", row.get("placement_mode", "object")))
-		row["default_placement_surface"] = str(placement_contract.get("default_placement_surface", "floor"))
-		row["placement_surfaces"] = Array(placement_contract.get("placement_surfaces", []))
-		row["supports_floor"] = bool(placement_contract.get("supports_floor", false))
-		row["supports_wall"] = bool(placement_contract.get("supports_wall", false))
-		row["floor_only"] = bool(placement_contract.get("floor_only", false))
-		row["wall_only"] = bool(placement_contract.get("wall_only", false))
-		row["requires_floor"] = bool(placement_contract.get("requires_floor", false))
-		row["requires_wall"] = bool(placement_contract.get("requires_wall", false))
-		row["requires_floor_anchor_when_wall_mounted"] = bool(placement_contract.get("requires_floor_anchor_when_wall_mounted", false))
-		row["requires_floor_anchor"] = bool(placement_contract.get("requires_floor_anchor_when_wall_mounted", false))
-		row["changes_passability"] = bool(placement_contract.get("changes_passability", row.get("changes_passability", false)))
-	var palette_group: String = WorldObjectCatalogRef.get_constructor_palette_group_for_prefab(prefab_id)
-	if not palette_group.is_empty():
-		row["category"] = palette_group
-		row["constructor_group"] = palette_group
-		row["constructor_tab"] = palette_group
-		row["palette_group"] = palette_group
-	row["prefab_id"] = prefab_id
-	return row
+	# Delegated fail-closed contract normalization preserves the existing public API:
+	# missing_placement_contract, row["supports_wall"], row["supports_floor"],
+	# row["requires_wall"] = bool(placement_contract.get("requires_wall", false))
+	return MapConstructorPrefabCatalogRef.normalize_presentation_row(metadata)
 
 func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictionary:
 	var search: String = str(options.get("search", "")).strip_edges().to_lower()
@@ -3425,13 +3288,7 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 	var rows: Array[Dictionary] = []
 	var categories: Array[String] = []
 	var roles: Array[String] = []
-	for entry in get_map_constructor_prefab_catalog():
-		var catalog_entry: Dictionary = Dictionary(entry)
-		var prefab_id: String = str(catalog_entry.get("id", "")).strip_edges()
-		if prefab_id.is_empty():
-			continue
-		var meta_result: Dictionary = get_map_constructor_prefab_metadata(prefab_id)
-		var meta: Dictionary = Dictionary(meta_result.get("prefab", {})).duplicate(true)
+	for meta in MapConstructorPrefabCatalogRef.get_catalog_entries():
 		var category: String = str(meta.get("category", ""))
 		var placement_mode: String = str(meta.get("placement_mode", ""))
 		var role_values: Array[String] = []
