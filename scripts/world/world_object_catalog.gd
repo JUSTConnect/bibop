@@ -123,85 +123,6 @@ const PREFAB_ALIASES: Dictionary = {
 	"bug": "enemy"
 }
 
-const CONSTRUCTOR_PALETTE_GROUP_ORDER: Array[String] = [
-	"Recent",
-	"Power",
-	"Cooling system",
-	"Movable",
-	"Environments",
-	"Item",
-	"Traps",
-	"Robots",
-	"Control",
-	"Other"
-]
-
-const CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB: Dictionary = {
-	"power_cable_reel": "Power",
-	"power_source": "Power",
-	"power_cable": "Power",
-	"power_socket": "Power",
-	"fuse_box": "Power",
-	"power_switcher": "Power",
-	"light": "Power",
-	"light_switcher": "Power",
-	"radiator": "Cooling system",
-	"external_water_pipe": "Cooling system",
-	"external_air_duct": "Cooling system",
-	"metal_cooling_block": "Cooling system",
-	"crate": "Movable",
-	"barrel": "Movable",
-	"wall": "Environments",
-	"floor": "Environments",
-	"platform": "Environments",
-	"station": "Environments",
-	"digital_item": "Item",
-	"access_item": "Item",
-	"physical_item": "Item",
-	"module_item": "Item",
-	"turret": "Traps",
-	"enemy": "Robots",
-	"bipob": "Robots",
-	"terminal": "Control",
-	"door": "Control",
-	"firewall": "Control",
-	"debris": "Other",
-	"case": "Other"
-}
-
-const CONSTRUCTOR_PALETTE_PREFAB_ORDER: Array[String] = [
-	"power_cable_reel",
-	"power_source",
-	"power_cable",
-	"power_socket",
-	"fuse_box",
-	"power_switcher",
-	"light",
-	"light_switcher",
-	"radiator",
-	"external_water_pipe",
-	"external_air_duct",
-	"metal_cooling_block",
-	"crate",
-	"barrel",
-	"wall",
-	"floor",
-	"platform",
-	"station",
-	"digital_item",
-	"access_item",
-	"physical_item",
-	"module_item",
-	"turret",
-	"enemy",
-	"bipob",
-	"terminal",
-	"door",
-	"firewall",
-	"debris",
-	"case"
-]
-
 static func object_accepts_runtime_power_plug(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
 		return false
@@ -1025,76 +946,6 @@ static func is_constructor_door_preset(prefab_id: String) -> bool:
 static func get_wall_material_quick_presets() -> Array[Dictionary]:
 	return []
 
-static func get_constructor_palette_rows() -> Array[Dictionary]:
-	var rows: Array[Dictionary] = []
-	var rows_by_prefab: Dictionary = {}
-	for archetype_id_variant in ARCHETYPE_REGISTRY.keys():
-		var archetype_id: String = str(archetype_id_variant)
-		var definition: Dictionary = ARCHETYPE_REGISTRY[archetype_id]
-		if not bool(definition.get("show_in_palette", true)):
-			continue
-		if not CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.has(archetype_id):
-			continue
-		rows_by_prefab[archetype_id] = _normalize_constructor_palette_row({"id":archetype_id, "prefab_id":archetype_id, "archetype_id":archetype_id, "canonical_object_type":str(definition.get("object_type", archetype_id)), "display_name":str(definition.get("palette_label", archetype_id.capitalize())), "label":str(definition.get("palette_label", archetype_id.capitalize())), "category":str(definition.get("object_group", "Objects")).capitalize(), "object_group":str(definition.get("object_group", "physical_object")), "placement_mode":str(definition.get("placement_mode", "object")), "blocks_movement":bool(definition.get("blocks_movement", true)), "is_alias":false})
-	for object_type_variant in OBJECT_LIBRARY.keys():
-		var object_type: String = str(object_type_variant)
-		var definition: Dictionary = OBJECT_LIBRARY[object_type]
-		if ARCHETYPE_REGISTRY.has(object_type) or is_legacy_prefab_alias(object_type) or not bool(definition.get("placeable_in_constructor", true)) or str(definition.get("group", "")) in ["door", "terminal", "item", "platform"]:
-			continue
-		if not CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.has(object_type):
-			continue
-		rows_by_prefab[object_type] = _normalize_constructor_palette_row(_build_constructor_palette_row(object_type, object_type, definition, false))
-	for prefab_id in CONSTRUCTOR_PALETTE_PREFAB_ORDER:
-		if rows_by_prefab.has(prefab_id):
-			rows.append(rows_by_prefab[prefab_id])
-	return rows
-
-static func get_constructor_palette_group_order() -> Array[String]:
-	return CONSTRUCTOR_PALETTE_GROUP_ORDER.duplicate()
-
-static func get_constructor_palette_group_for_prefab(prefab_id: String) -> String:
-	return str(CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.get(canonical_prefab_id(prefab_id), ""))
-
-static func is_visible_constructor_palette_prefab(prefab_id: String) -> bool:
-	return CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.has(canonical_prefab_id(prefab_id))
-
-static func _normalize_constructor_palette_row(row: Dictionary) -> Dictionary:
-	var normalized_row: Dictionary = row.duplicate(true)
-	var canonical_prefab_id_value: String = canonical_prefab_id(str(normalized_row.get("prefab_id", normalized_row.get("id", ""))))
-	var palette_group: String = str(CONSTRUCTOR_PALETTE_GROUP_BY_PREFAB.get(canonical_prefab_id_value, "Other"))
-	normalized_row["id"] = canonical_prefab_id_value
-	normalized_row["prefab_id"] = canonical_prefab_id_value
-	normalized_row["category"] = palette_group
-	normalized_row["constructor_group"] = palette_group
-	normalized_row["constructor_tab"] = palette_group
-	normalized_row["palette_group"] = palette_group
-	normalized_row["is_alias"] = false
-	normalized_row["alias_source_id"] = ""
-	return normalized_row
-
-static func _build_constructor_palette_row(prefab_id: String, canonical_type: String, definition: Dictionary, is_alias: bool) -> Dictionary:
-	var object_group: String = str(definition.get("group", definition.get("object_group", "physical_object")))
-	var category: String = str(definition.get("constructor_category", object_group.capitalize()))
-	var placement_mode: String = str(definition.get("placement_mode", "object"))
-	var row: Dictionary = {
-		"id": prefab_id,
-		"prefab_id": prefab_id,
-		"canonical_object_type": canonical_type,
-		"display_name": str(definition.get("name", prefab_id.capitalize())),
-		"label": str(definition.get("name", prefab_id.capitalize())),
-		"category": category,
-		"constructor_tab": str(definition.get("constructor_tab", "")),
-		"constructor_group": str(definition.get("constructor_group", "")),
-		"object_group": object_group,
-		"placement_mode": placement_mode,
-		"blocks_movement": bool(definition.get("blocks_movement", false)),
-		"is_alias": is_alias,
-		"alias_source_id": prefab_id if is_alias else ""
-	}
-	if object_group == "door":
-		for field_name in ["door_type", "material", "access_type", "door_class", "power_behavior"]:
-			row[field_name] = definition.get(field_name, "")
-	return row
 
 static func is_constructor_solid_prefab(prefab_id: String) -> bool:
 	var object_data: Dictionary = create_world_object(prefab_id, "constructor_solid_preview")
@@ -1928,15 +1779,9 @@ static func validate_object_registry_contract() -> Array[String]:
 	for required_field in ["door_type", "material", "access_type", "door_class", "power_type", "control_type", "power_behavior", "state", "allowed_states"]:
 		if required_field not in door_schema_fields:
 			warnings.append("door_archetype_schema_missing_%s" % required_field)
-	var door_palette_count: int = 0
-	for palette_row in get_constructor_palette_rows():
-		var palette_id: String = _normalized_contract_token(Dictionary(palette_row).get("id", ""))
-		if palette_id == "door":
-			door_palette_count += 1
-		elif is_legacy_door_object_type(palette_id):
-			warnings.append("door_legacy_alias_exposed_in_palette_%s" % palette_id)
-	if door_palette_count != 1:
-		warnings.append("door_palette_row_count_%d" % door_palette_count)
+	var door_contract: Dictionary = get_constructor_placement_contract("door")
+	if door_contract.is_empty() or _normalized_contract_token(door_contract.get("canonical_prefab_id", "")) != "door":
+		warnings.append("door_constructor_placement_contract_missing")
 	for legacy_door_id_variant in LEGACY_DOOR_ALIAS_CONFIGS.keys():
 		var legacy_door_id: String = str(legacy_door_id_variant)
 		var normalized_legacy_door: Dictionary = create_world_object(legacy_door_id, "validation_%s" % legacy_door_id)

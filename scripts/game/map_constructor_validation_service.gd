@@ -2,6 +2,7 @@ extends RefCounted
 class_name MapConstructorValidationService
 
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const MapConstructorPrefabCatalogRef = preload("res://scripts/game/map_constructor_prefab_catalog.gd")
 const MapConstructorPowerLinkValidationRulesRef = preload("res://scripts/game/map_constructor_power_link_validation_rules.gd")
 const MapConstructorReadinessValidationServiceRef = preload("res://scripts/game/map_constructor_readiness_validation_service.gd")
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
@@ -120,7 +121,7 @@ func validate_constructor_palette_contract() -> Array[String]:
 	var visible_floor_prefabs: Array[String] = []
 	var visible_item_prefabs: Array[String] = []
 	var visible_bipob_prefabs: Array[String] = []
-	for row in WorldObjectCatalogRef.get_constructor_palette_rows():
+	for row in MapConstructorPrefabCatalogRef.get_catalog_entries():
 		var prefab_id: String = _safe_string(row.get("prefab_id", row.get("id", ""))).strip_edges()
 		var archetype_id: String = _safe_string(row.get("archetype_id", "")).strip_edges()
 		if prefab_id.is_empty():
@@ -863,7 +864,7 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 		var library_definition: Dictionary = Dictionary(WorldObjectCatalogRef.OBJECT_LIBRARY[library_object_type])
 		if _safe_string(library_definition.get("group", "")).strip_edges().to_lower() == "item" and palette_ids.has(library_object_type) and WorldObjectCatalogRef.get_archetype_definition(library_object_type).is_empty():
 			issues.append(_make_map_constructor_issue("palette_raw_item_row_%s" % library_object_type, "error", "Map Constructor palette exposes raw OBJECT_LIBRARY item row: %s." % library_object_type, Vector2i(-1, -1), source_name, "palette", library_object_type, "Expose a dedicated archetype row or keep the raw item hidden."))
-	for catalog_row in WorldObjectCatalogRef.get_constructor_palette_rows():
+	for catalog_row in MapConstructorPrefabCatalogRef.get_catalog_entries():
 		var catalog_prefab_id: String = _safe_string(catalog_row.get("prefab_id", "")).strip_edges().to_lower()
 		if not palette_ids.has(catalog_prefab_id):
 			issues.append(_make_map_constructor_issue("palette_missing_catalog_object_%s" % catalog_prefab_id, "error", "Constructor-placeable catalog object missing from Map Constructor palette: %s." % catalog_prefab_id, Vector2i(-1, -1), source_name, "palette", catalog_prefab_id, "Generate object palette rows from WorldObjectCatalog."))

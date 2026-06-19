@@ -170,12 +170,6 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	object_data["map_constructor_tile_type"] = placed_tile_type
 	object_data["map_constructor_previous_tile_type"] = previous_tile_type
 	object_data["map_constructor_rotation_degrees"] = posmod(rotation_degrees, 360)
-	var prefab_meta_result: Dictionary = manager.get_map_constructor_prefab_metadata(prefab_id)
-	if bool(prefab_meta_result.get("ok", false)):
-		var prefab_meta: Dictionary = manager._safe_dictionary(prefab_meta_result.get("prefab", {}))
-		var prefab_defaults: Dictionary = manager._safe_dictionary(prefab_meta.get("default_state", {}))
-		for default_key in prefab_defaults.keys():
-			object_data[str(default_key)] = prefab_defaults[default_key]
 	object_data = WorldObjectCatalogRef.apply_prefab_alias_defaults(canonical_prefab_id, prefab_id, object_data)
 	object_data = WorldObjectCatalogRef.normalize_world_object_contract(object_data)
 	object_data = WorldObjectCatalogRef.normalize_door_state_fields(object_data)
