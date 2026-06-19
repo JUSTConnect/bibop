@@ -34,10 +34,8 @@ func _ready() -> void:
 		queue_redraw()
 	)
 
-
 func set_cells(new_columns: int, new_rows: int, new_cell_labels: Dictionary, new_selected_cell: Vector2i) -> void:
 	set_cell_visuals(new_columns, new_rows, _labels_to_visuals(new_cell_labels), new_selected_cell)
-
 
 func set_cell_visuals(new_columns: int, new_rows: int, new_cell_visuals: Dictionary, new_selected_cell: Vector2i) -> void:
 	columns = max(1, new_columns)
@@ -45,7 +43,6 @@ func set_cell_visuals(new_columns: int, new_rows: int, new_cell_visuals: Diction
 	cell_visuals = new_cell_visuals.duplicate(true)
 	selected_cell = new_selected_cell
 	queue_redraw()
-
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
@@ -63,12 +60,10 @@ func _gui_input(event: InputEvent) -> void:
 				cell_pressed.emit(cell)
 				accept_event()
 
-
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_MOUSE_EXIT:
 		hover_cell = Vector2i(-1, -1)
 		queue_redraw()
-
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), BG_COLOR, true)
@@ -85,14 +80,12 @@ func _draw() -> void:
 			else:
 				_draw_object_visual(rect, visual)
 
-
 func _draw_cell_background(cell: Vector2i, rect: Rect2) -> void:
 	var fill: Color = CELL_SELECTED_COLOR if cell == selected_cell else CELL_COLOR
 	if cell == hover_cell and cell != selected_cell:
 		fill = CELL_HOVER_COLOR
 	draw_rect(rect, fill, true)
 	draw_rect(rect, BORDER_COLOR, false, 1.0)
-
 
 func _draw_empty_cell(rect: Rect2, cell: Vector2i) -> void:
 	var font: Font = get_theme_default_font()
@@ -101,7 +94,6 @@ func _draw_empty_cell(rect: Rect2, cell: Vector2i) -> void:
 	draw_string(font, Vector2(rect.position.x + 4.0, center_y), "%d,%d" % [cell.x, cell.y], HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 8.0, font_size, TEXT_COLOR)
 	draw_string(font, Vector2(rect.position.x + 4.0, center_y + float(font_size + 6)), "+", HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 8.0, font_size + 2, ACCENT_COLOR)
 
-
 func _draw_object_visual(rect: Rect2, visual: Dictionary) -> void:
 	var texture: Texture2D = _get_visual_texture(visual)
 	if texture != null:
@@ -109,14 +101,12 @@ func _draw_object_visual(rect: Rect2, visual: Dictionary) -> void:
 		return
 	_draw_debug_object_card(rect, visual)
 
-
 func _draw_texture_object(rect: Rect2, visual: Dictionary, texture: Texture2D) -> void:
 	var asset_margin: float = clamp(min(rect.size.x, rect.size.y) * 0.08, 4.0, 8.0)
 	var asset_rect := Rect2(rect.position + Vector2(asset_margin, asset_margin), rect.size - Vector2(asset_margin * 2.0, asset_margin * 2.0))
 	draw_texture_rect(texture, asset_rect, false)
 	if bool(visual.get("is_selected", false)):
 		draw_rect(asset_rect, ASSET_SELECTION_COLOR, false, 4.0)
-
 
 func _draw_debug_object_card(rect: Rect2, visual: Dictionary) -> void:
 	var fill_color: Color = _read_color(visual.get("fill_color", ACCENT_COLOR), ACCENT_COLOR)
@@ -145,10 +135,9 @@ func _draw_debug_object_card(rect: Rect2, visual: Dictionary) -> void:
 	if not sub_label.is_empty():
 		draw_string(font, Vector2(card_rect.position.x + 5.0, label_y + float(label_size + 6)), sub_label, HORIZONTAL_ALIGNMENT_CENTER, card_rect.size.x - 10.0, max(9, label_size - 2), MUTED_TEXT_COLOR, TextServer.JUSTIFICATION_WORD_BOUND)
 
-
 func _get_visual_texture(visual: Dictionary) -> Texture2D:
 	var candidates: Array = Array(visual.get("asset_candidates", []))
-	for candidate in candidates:
+	for candidate: Variant in candidates:
 		var path: String = str(candidate)
 		if texture_cache.has(path):
 			return texture_cache[path]
@@ -160,8 +149,7 @@ func _get_visual_texture(visual: Dictionary) -> Texture2D:
 			return resource
 	return null
 
-
-func _cell_from_position(position: Vector2) -> Vector2i:
+func _cell_from_position(local_position: Vector2) -> Vector2i:
 	var gap: float = _get_gap()
 	var cell_size: Vector2 = _get_cell_size(gap)
 	if cell_size.x <= 0.0 or cell_size.y <= 0.0:
@@ -169,10 +157,9 @@ func _cell_from_position(position: Vector2) -> Vector2i:
 	for y in range(rows):
 		for x in range(columns):
 			var cell := Vector2i(x, y)
-			if _get_cell_rect(cell, cell_size, gap).has_point(position):
+			if _get_cell_rect(cell, cell_size, gap).has_point(local_position):
 				return cell
 	return Vector2i(-1, -1)
-
 
 func _get_cell_size(gap: float) -> Vector2:
 	var total_gap_x: float = gap * float(max(0, columns - 1))
@@ -181,33 +168,27 @@ func _get_cell_size(gap: float) -> Vector2:
 	var available_height: float = max(1.0, size.y - total_gap_y)
 	return Vector2(available_width / float(columns), available_height / float(rows))
 
-
 func _get_cell_rect(cell: Vector2i, cell_size: Vector2, gap: float) -> Rect2:
 	var x: float = float(cell.x) * (cell_size.x + gap)
 	var y: float = float(cell.y) * (cell_size.y + gap)
 	return Rect2(Vector2(x, y), cell_size)
 
-
 func _get_gap() -> float:
 	return clamp(size.x * 0.008, 4.0, 8.0)
-
 
 func _get_font_size(rect: Rect2) -> int:
 	return int(clamp(min(rect.size.x, rect.size.y) * 0.18, 10.0, 16.0))
 
-
 func _labels_to_visuals(labels: Dictionary) -> Dictionary:
 	var visuals: Dictionary = {}
-	for key in labels.keys():
+	for key: Variant in labels.keys():
 		visuals[key] = {"label": str(labels[key]), "is_empty": false, "marker": "?", "asset_candidates": []}
 	return visuals
-
 
 func _read_color(value: Variant, fallback: Color) -> Color:
 	if value is Color:
 		return value
 	return fallback
-
 
 func _cell_key(cell: Vector2i) -> String:
 	return "%d:%d" % [cell.x, cell.y]
