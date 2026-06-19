@@ -140,9 +140,6 @@ static func _presentation_catalog() -> Dictionary:
 		_presentation_catalog_cache = _build_presentation_catalog()
 	return _presentation_catalog_cache
 
-static func _get_presentation_catalog() -> Dictionary:
-	return _presentation_catalog()
-
 
 static func get_category_order() -> Array[String]:
 	return CATEGORY_ORDER.duplicate()

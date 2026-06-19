@@ -28,21 +28,6 @@ const EXPECTED_LABELS: Dictionary = {
 }
 
 
-const EXPECTED_CONFIGURABLE: Dictionary = {
-	"power_cable_reel":true, "power_source":false, "power_cable":false, "power_socket":false, "fuse_box":true, "power_switcher":true, "light":true, "light_switcher":true,
-	"radiator":false, "external_water_pipe":true, "external_air_duct":true, "metal_cooling_block":false, "crate":true, "barrel":true, "wall":true, "floor":true, "platform":true, "station":true,
-	"digital_item":true, "access_item":true, "physical_item":true, "module_item":true, "turret":false, "enemy":true, "bipob":true, "terminal":true, "door":true, "firewall":true, "debris":false, "case":true
-}
-
-const EXPECTED_SCHEMA_FIELDS: Dictionary = {
-	"door":["door_type", "material", "access_type", "state"],
-	"terminal":["terminal_type", "power_type", "control_type", "status"],
-	"wall":["material", "is_breachable_wall"],
-	"module_item":["module_item_type", "state"],
-	"power_switcher":["mount", "switch_state"],
-	"fuse_box":["mount", "has_fuse"]
-}
-
 const REQUIRED_ALIASES: Dictionary = {
 	"light_switch":"power_switcher", "circuit_breaker":"power_switcher", "fuse_box_installed":"fuse_box", "fuse_box_empty":"fuse_box",
 	"module_internal":"module_item", "module_external":"module_item", "concrete_floor":"floor", "breachable_wall":"wall"
@@ -129,12 +114,30 @@ func _initialize() -> void:
 		var alias_canonical_id := str(REQUIRED_ALIASES[hidden_alias])
 		_assert(str(alias_meta.get("canonical_prefab_id", "")) == alias_canonical_id, "alias canonical mismatch: %s" % hidden_alias)
 		_assert(not str(alias_meta.get("label", "")).is_empty(), "alias label missing: %s" % hidden_alias)
-		var alias_definition: Dictionary = WorldObjectCatalog.get_archetype_definition(alias_canonical_id)
-		_assert(bool(alias_meta.get("configurable", false)) == bool(alias_definition.get("configurable", false)), "alias configurable not canonical: %s" % hidden_alias)
+		var alias_definition: Dictionary = \
+			WorldObjectCatalog.get_constructor_prefab_definition(
+				alias_canonical_id
+			)
+		_assert(
+			bool(alias_meta.get("configurable", false)) ==
+				bool(alias_definition.get("configurable", false)),
+			"alias configurable not canonical: %s" % hidden_alias
+		)
 		if bool(alias_meta.get("configurable", false)):
-			var alias_schema: Array[Dictionary] = WorldObjectCatalog.get_archetype_property_schema(alias_canonical_id)
-			_assert(not alias_schema.is_empty(), "alias canonical schema missing: %s" % hidden_alias)
-			_assert(Array(alias_meta.get("property_schema", [])) == alias_schema, "alias row schema differs from canonical schema: %s" % hidden_alias)
+			var alias_schema: Array[Dictionary] = \
+				WorldObjectCatalog.get_constructor_prefab_property_schema(
+					alias_canonical_id
+				)
+			_assert(
+				not alias_schema.is_empty(),
+				"alias canonical schema missing: %s" % hidden_alias
+			)
+			_assert(
+				Array(alias_meta.get("property_schema", [])) ==
+					alias_schema,
+				"alias row schema differs from canonical schema: %s" %
+					hidden_alias
+			)
 		var alias_contract: Dictionary = WorldObjectCatalog.get_constructor_placement_contract(str(hidden_alias))
 		_assert(str(alias_meta.get("default_placement_surface", "")) == str(alias_contract.get("default_placement_surface", "")), "alias placement contract not alias-aware: %s" % hidden_alias)
 	var unknown := Catalog.normalize_presentation_row({"id":"unknown_prefab", "display_name":"Unknown", "supports_floor":true, "placement_mode":"object"})
@@ -175,10 +178,13 @@ func _initialize() -> void:
 	_assert(bool(alias_result.get("ok", false)), "MissionManager alias metadata failed")
 	var alias_prefab: Dictionary = Dictionary(alias_result.get("prefab", {}))
 	_assert(str(alias_prefab.get("prefab_id", "")) == "fuse_box_installed", "MissionManager alias requested ID lost")
-	_assert(bool(alias_prefab.get("configurable", false)) == bool(WorldObjectCatalog.get_archetype_definition("fuse_box").get("configurable", false)), "MissionManager alias configurable not canonical")
+	_assert(bool(alias_prefab.get("configurable", false)) == bool(WorldObjectCatalog.get_constructor_prefab_definition("fuse_box").get("configurable", false)), "MissionManager alias configurable not canonical")
+	manager.free()
+	manager = null
 	if failures.is_empty():
 		print("Map constructor prefab catalog checks passed.")
 		quit(0)
+		return
 	for failure in failures:
 		push_error(failure)
 	quit(1)
