@@ -3376,15 +3376,33 @@ func _normalize_map_constructor_prefab_palette_metadata(metadata: Dictionary) ->
 	var row: Dictionary = metadata.duplicate(true)
 	var prefab_id: String = str(row.get("id", row.get("prefab_id", ""))).strip_edges().to_lower()
 	var placement_contract: Dictionary = WorldObjectCatalogRef.get_constructor_placement_contract(prefab_id)
-	if not placement_contract.is_empty():
+	if placement_contract.is_empty():
+		row["placement_contract_valid"] = false
+		row["validation_reason"] = "missing_placement_contract"
+		row["canonical_prefab_id"] = prefab_id
+		row["supports_floor"] = false
+		row["supports_wall"] = false
+		row["floor_only"] = false
+		row["wall_only"] = false
+		row["requires_floor"] = false
+		row["requires_wall"] = false
+		row["requires_floor_anchor_when_wall_mounted"] = false
+		row["requires_floor_anchor"] = false
+	else:
 		var canonical_prefab_id: String = str(placement_contract.get("canonical_prefab_id", prefab_id))
+		row["placement_contract_valid"] = true
 		row["canonical_prefab_id"] = canonical_prefab_id
 		row["placement_mode"] = str(placement_contract.get("default_placement_mode", row.get("placement_mode", "object")))
-		row["requires_wall"] = bool(placement_contract.get("wall_only", false))
-		row["requires_floor"] = bool(placement_contract.get("supports_floor", false))
-		row["supports_wall"] = bool(placement_contract.get("supports_wall", false))
+		row["default_placement_surface"] = str(placement_contract.get("default_placement_surface", "floor"))
+		row["placement_surfaces"] = Array(placement_contract.get("placement_surfaces", []))
 		row["supports_floor"] = bool(placement_contract.get("supports_floor", false))
+		row["supports_wall"] = bool(placement_contract.get("supports_wall", false))
+		row["floor_only"] = bool(placement_contract.get("floor_only", false))
 		row["wall_only"] = bool(placement_contract.get("wall_only", false))
+		row["requires_floor"] = bool(placement_contract.get("requires_floor", false))
+		row["requires_wall"] = bool(placement_contract.get("requires_wall", false))
+		row["requires_floor_anchor_when_wall_mounted"] = bool(placement_contract.get("requires_floor_anchor_when_wall_mounted", false))
+		row["requires_floor_anchor"] = bool(placement_contract.get("requires_floor_anchor_when_wall_mounted", false))
 		row["changes_passability"] = bool(placement_contract.get("changes_passability", row.get("changes_passability", false)))
 	var palette_group: String = WorldObjectCatalogRef.get_constructor_palette_group_for_prefab(prefab_id)
 	if not palette_group.is_empty():
@@ -4099,9 +4117,16 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 
 	var mode_override: String = placement_mode_override.strip_edges().to_lower()
 	var placement_contract: Dictionary = WorldObjectCatalogRef.get_constructor_placement_contract(normalized_prefab_id)
+	if placement_contract.is_empty():
+		return {
+			"ok": false,
+			"reason": "missing_placement_contract",
+			"message": "Prefab is missing a canonical placement contract.",
+			"warnings": []
+		}
 	var canonical_prefab_id: String = str(placement_contract.get("canonical_prefab_id", WorldObjectCatalogRef.canonical_object_type(normalized_prefab_id)))
 	var supports_wall: bool = bool(placement_contract.get("supports_wall", false))
-	var supports_floor: bool = bool(placement_contract.get("supports_floor", true))
+	var supports_floor: bool = bool(placement_contract.get("supports_floor", false))
 	var is_wall_only_prefab: bool = bool(placement_contract.get("wall_only", false))
 	var is_floor_and_wall_prefab: bool = supports_floor and supports_wall
 	var can_share_wall_cell: bool = supports_wall and _is_map_constructor_wall_cell_share_prefab(canonical_prefab_id)
