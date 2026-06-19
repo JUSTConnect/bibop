@@ -9,8 +9,10 @@ const TESTS: Array[Script] = [
 	preload("res://tests/smoke/test_visual_resolution.gd"),
 	preload("res://tests/smoke/test_command_history.gd"),
 	preload("res://tests/smoke/test_passability.gd"),
+	preload("res://tests/smoke/test_play_mode_boundary.gd"),
 	preload("res://tests/smoke/test_agent_path.gd"),
 	preload("res://tests/smoke/test_context_actions.gd"),
+	preload("res://tests/smoke/test_file_size_limits.gd"),
 ]
 
 func _init() -> void:
