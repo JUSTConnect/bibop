@@ -10,10 +10,13 @@ var selected_index: int = 0
 
 func load_paths(paths: Array[String]) -> Array[String]:
 	var catalog: RefCounted = ObjectDefinitionCatalogRef.new()
-	definitions = catalog.call("load_paths", paths)
+	var loaded_values: Array = Array(catalog.call("load_paths", paths))
+	definitions.clear()
 	definitions_by_id.clear()
 	preview_data_by_id.clear()
-	for definition: Dictionary in definitions:
+	for value: Variant in loaded_values:
+		var definition: Dictionary = Dictionary(value)
+		definitions.append(definition)
 		var definition_id: String = str(definition.get("id", ""))
 		definitions_by_id[definition_id] = definition
 		preview_data_by_id[definition_id] = ObjectDataFactoryRef.make_initial_object_data(definition)
