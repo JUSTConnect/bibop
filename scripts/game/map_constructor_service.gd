@@ -109,7 +109,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 			if not bool(cable_validation.get("ok", false)):
 				return {"ok": false, "reason": "invalid_cable_junction", "message": str(cable_validation.get("message", CableTopologyServiceRef.ERROR_MESSAGE_JUNCTION_REQUIRES_SWITCH)), "object_id": "", "warnings": [], "cable_topology": cable_validation}
 		manager.add_item_at_cell(cell, item_data)
-		PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
+		manager.recalculate_power_network("")
 		manager.refresh_world_cooling_received()
 		result["object_id"] = item_object_id
 		result["is_item"] = true
@@ -253,7 +253,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	if is_wall_mounted_placement:
 		restore_wall_cell_authoring_state(cell, wall_authoring_snapshot)
 		
-	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(object_data.get("power_network_id", "")))
+	manager.recalculate_power_network(str(object_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	result["object_id"] = object_id
 	
@@ -307,7 +307,7 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 				if not bool(item_data.get("created_by_map_constructor", false)):
 					return {"ok": false, "message": "Cannot remove non-constructor item.", "object_id": entity_id, "warnings": []}
 				manager.world_state_store.remove_object_by_id(entity_id)
-				PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
+				manager.recalculate_power_network("")
 				manager.refresh_world_cooling_received()
 				manager._record_map_constructor_change("delete", {"entity_kind":"item", "entity_id":entity_id, "object_type":str(item_data.get("item_type", item_data.get("object_type", "item"))), "cell":cell, "summary":"Deleted item %s" % entity_id, "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
 				return {"ok": true, "message": "Removed item.", "object_id": entity_id, "warnings": []}
@@ -333,7 +333,7 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 			restore_tile_type = int(object_data.get("map_constructor_previous_tile_type", GridManager.TILE_FLOOR))
 		manager.grid_manager.call("set_tile", object_cell, restore_tile_type)
 	_remove_world_object_record_by_id(entity_id)
-	PowerSystemRef.recalculate_network(manager.mission_world_objects, removed_network_id)
+	manager.recalculate_power_network(removed_network_id)
 	manager.refresh_world_cooling_received()
 	manager._record_map_constructor_change("delete", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":str(object_data.get("object_type", "")), "cell":object_cell, "summary":"Deleted %s %s" % [str(object_data.get("object_type", "object")), entity_id], "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
 	return {"ok": true, "message": "Removed object.", "object_id": entity_id, "warnings": []}
@@ -434,7 +434,7 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 		return {"ok": false, "message": str(remove_result.get("message", "Move failed."))}
 	if entity_kind == "item" or str(entity.get("entity_kind", entity_kind)) == "item":
 		manager.add_item_at_cell(target_cell, cloned_data)
-		PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
+		manager.recalculate_power_network("")
 		manager.refresh_world_cooling_received()
 		manager._record_map_constructor_change("move", {"entity_kind":"item", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("item_type", cloned_data.get("object_type", "item"))), "cell":target_cell, "summary":"Moved object %s from %s to %s" % [str(cloned_data.get("id", "")), manager._format_map_constructor_cell(source_cell), manager._format_map_constructor_cell(target_cell)], "details":{"from_cell":source_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
 		return {"ok": true, "message": "Moved object.", "object_id": str(cloned_data.get("id", ""))}
@@ -446,7 +446,7 @@ func move_map_constructor_entity_to_cell(entity_kind: String, entity_id: String,
 	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile") and not is_cloned_wall_mounted:
 		manager.grid_manager.call("set_tile", target_cell, int(cloned_data.get("map_constructor_tile_type", previous_tile_type)))
 	_add_map_constructor_world_object_at_cell(target_cell, cloned_data)
-	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(cloned_data.get("power_network_id", "")))
+	manager.recalculate_power_network(str(cloned_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	manager._record_map_constructor_change("move", {"entity_kind":"world_object", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Moved object %s from %s to %s" % [str(cloned_data.get("id", "")), manager._format_map_constructor_cell(source_cell), manager._format_map_constructor_cell(target_cell)], "details":{"from_cell":source_cell, "to_cell":target_cell}, "undo_hint":"Move back manually."})
 	return {"ok": true, "message": "Moved object.", "object_id": str(cloned_data.get("id", ""))}
@@ -479,7 +479,7 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 	var cloned_data: Dictionary = manager._safe_dictionary(clone_result.get("data", {}))
 	if entity_kind == "item" or str(entity.get("entity_kind", entity_kind)) == "item":
 		manager.add_item_at_cell(target_cell, cloned_data)
-		PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
+		manager.recalculate_power_network("")
 		manager.refresh_world_cooling_received()
 		manager._record_map_constructor_change("duplicate", {"entity_kind":"item", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("item_type", cloned_data.get("object_type", "item"))), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, manager._format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
 		return {"ok": true, "message": "Duplicated object.", "object_id": str(cloned_data.get("id", ""))}
@@ -491,7 +491,7 @@ func duplicate_map_constructor_entity_to_cell(entity_kind: String, entity_id: St
 	if manager.grid_manager != null and manager.grid_manager.has_method("set_tile") and not is_cloned_wall_mounted:
 		manager.grid_manager.call("set_tile", target_cell, int(cloned_data.get("map_constructor_tile_type", previous_tile_type)))
 	_add_map_constructor_world_object_at_cell(target_cell, cloned_data)
-	PowerSystemRef.recalculate_network(manager.mission_world_objects, str(cloned_data.get("power_network_id", "")))
+	manager.recalculate_power_network(str(cloned_data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	manager._record_map_constructor_change("duplicate", {"entity_kind":"world_object", "entity_id":str(cloned_data.get("id", "")), "object_type":str(cloned_data.get("object_type", "")), "cell":target_cell, "summary":"Duplicated object %s to %s" % [entity_id, manager._format_map_constructor_cell(target_cell)], "details":{"source_entity_id":entity_id}, "undo_hint":"Can undo by deleting duplicate."})
 	return {"ok": true, "message": "Duplicated object.", "object_id": str(cloned_data.get("id", ""))}
@@ -1060,8 +1060,8 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 		return result
 	var needs_power_refresh: bool = field_name in CIRCUIT_ID_FIELDS or field_name in ["is_powered", "requires_external_power", "power_mode", "power_source_id", "current_heat", "working_heat", "overheat_threshold"]
 	if needs_power_refresh:
-		PowerSystemRef.recalculate_network(manager.mission_world_objects, old_network_id)
-		PowerSystemRef.recalculate_network(manager.mission_world_objects, str(data.get("power_network_id", "")))
+		manager.recalculate_power_network(old_network_id)
+		manager.recalculate_power_network(str(data.get("power_network_id", "")))
 	manager.refresh_world_cooling_received()
 	if resolved_kind == "world_object":
 		_sync_terminal_door_link(entity_id, data, field_name, old_value, new_value)

@@ -56,6 +56,9 @@ func add_object(object_data: Dictionary) -> Dictionary:
 	return _ok({"object": object_data.duplicate(true)})
 
 func upsert_object(object_data: Dictionary) -> Dictionary:
+	return _upsert_object_internal(object_data, "upsert")
+
+func _upsert_object_internal(object_data: Dictionary, action: String = "") -> Dictionary:
 	var object_id := _object_id(object_data)
 	if object_id.is_empty(): return _fail("empty_object_id")
 	var replacing := object_id if _objects_by_id.has(object_id) else ""
@@ -68,7 +71,8 @@ func upsert_object(object_data: Dictionary) -> Dictionary:
 	var built := _build_state_from_maps(objects, order)
 	if not bool(built.get("ok", false)): return built
 	_commit_state(objects, order, Dictionary(built.get("indexes", {})))
-	changed.emit({"action": "upsert", "object_id": object_id, "current_cell": _cell(object_data), "layer": _layer(object_data), "warnings": []})
+	if not action.is_empty():
+		changed.emit({"action": action, "object_id": object_id, "current_cell": _cell(object_data), "layer": _layer(object_data), "warnings": []})
 	return _ok({"object": object_data.duplicate(true)})
 
 func update_object_state(object_id: String, patch: Dictionary) -> Dictionary:
@@ -87,7 +91,10 @@ func update_object_structure(object_id: String, structural_patch: Dictionary) ->
 	if _patch_has_id_change(object_id, structural_patch): return _fail("object_id_is_immutable")
 	var object_data: Dictionary = Dictionary(_objects_by_id[object_id]).duplicate(true)
 	for key in structural_patch.keys(): object_data[key] = structural_patch[key]
-	return upsert_object(object_data)
+	var result := _upsert_object_internal(object_data, "")
+	if bool(result.get("ok", false)):
+		changed.emit({"action": "update_structure", "object_id": object_id, "warnings": []})
+	return result
 
 func move_object(object_id: String, destination: Vector2i, structural_patch: Dictionary = {}) -> Dictionary:
 	if not _objects_by_id.has(object_id): return _fail("missing_object_id")
@@ -98,7 +105,7 @@ func move_object(object_id: String, destination: Vector2i, structural_patch: Dic
 	for key in structural_patch.keys(): object_data[key] = structural_patch[key]
 	var placement := validate_structural_placement(object_data, destination, object_id)
 	if not bool(placement.get("ok", false)): return placement
-	var result := upsert_object(object_data)
+	var result := _upsert_object_internal(object_data, "")
 	if bool(result.get("ok", false)):
 		changed.emit({"action": "move", "object_id": object_id, "previous_cell": previous_cell, "current_cell": destination, "layer": _layer(object_data), "warnings": []})
 	return result
@@ -148,6 +155,46 @@ func validate_structural_placement(object_data: Dictionary, destination: Vector2
 			if str(id) != replacing_object_id: conflicts.append(str(id))
 	if not conflicts.is_empty(): return _fail("%s_cell_occupied" % layer, [], conflicts)
 	return _ok({"layer": layer, "conflicting_object_ids": []})
+
+func apply_non_structural_snapshot(mutated_objects: Array[Dictionary], action: String = "batch_update_state") -> Dictionary:
+	var seen: Dictionary = {}
+	var changed_ids: Array[String] = []
+	if mutated_objects.size() != _object_order.size():
+		return _fail("object_order_changed")
+	for index in range(mutated_objects.size()):
+		var object_data: Dictionary = Dictionary(mutated_objects[index])
+		var object_id := _object_id(object_data)
+		if object_id.is_empty(): return _fail("missing_object_id")
+		if seen.has(object_id): return _fail("duplicate_object_id", [], [object_id])
+		seen[object_id] = true
+		if index >= _object_order.size() or _object_order[index] != object_id:
+			return _fail("object_order_changed", [], [object_id])
+		if not _objects_by_id.has(object_id): return _fail("unexpected_object_id", [], [object_id])
+		var canonical: Dictionary = _objects_by_id[object_id]
+		var structural_check := _validate_non_structural_snapshot_object(canonical, object_data)
+		if not bool(structural_check.get("ok", false)): return structural_check
+		if var_to_str(canonical) != var_to_str(object_data): changed_ids.append(object_id)
+	for object_id in _object_order:
+		if not seen.has(object_id): return _fail("missing_object_id", [], [object_id])
+	var next_objects := _duplicate_objects_by_id(_objects_by_id)
+	for object_data in mutated_objects:
+		var object_id := _object_id(object_data)
+		next_objects[object_id] = Dictionary(object_data).duplicate(true)
+	_objects_by_id = next_objects
+	changed.emit({"action": action, "changed_object_ids": changed_ids.duplicate(), "warnings": []})
+	return _ok({"changed_object_ids": changed_ids})
+
+func _validate_non_structural_snapshot_object(canonical: Dictionary, candidate: Dictionary) -> Dictionary:
+	var object_id := _object_id(canonical)
+	if _object_id(candidate) != object_id:
+		return {"ok": false, "reason": "object_id_is_immutable", "object_id": object_id, "warnings": []}
+	if _layer(candidate) != _layer(canonical):
+		return {"ok": false, "reason": "structural_layer_changed", "object_id": object_id, "warnings": []}
+	for field in STRUCTURAL_FIELDS.keys():
+		var key := str(field)
+		if var_to_str(canonical.get(key, null)) != var_to_str(candidate.get(key, null)):
+			return {"ok": false, "reason": "structural_field_changed", "object_id": object_id, "field": key, "warnings": []}
+	return _ok()
 
 func has_object(object_id: String) -> bool: return _objects_by_id.has(object_id)
 func get_object_by_id(object_id: String) -> Dictionary: return Dictionary(_objects_by_id.get(object_id, {})).duplicate(true)

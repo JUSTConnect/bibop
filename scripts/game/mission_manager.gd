@@ -278,6 +278,14 @@ var platform_last_tick_action_index: int = -1
 func replace_world_state_snapshot(objects: Array[Dictionary]) -> Dictionary:
 	return world_state_store.replace_snapshot(objects)
 
+func _commit_runtime_world_snapshot(mutated_objects: Array[Dictionary], action: String) -> Dictionary:
+	return world_state_store.apply_non_structural_snapshot(mutated_objects, action)
+
+func recalculate_power_network(network_id: String) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	PowerSystemRef.recalculate_network(objects, network_id)
+	return _commit_runtime_world_snapshot(objects, "power_network_recalculated")
+
 var runtime_inventory_state := {
 	"pocket_items": [],
 	"manipulator_hold": "",
@@ -1164,7 +1172,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 					add_item_at_cell(Vector2i(3, 4), object_data)
 				_:
 					add_item_at_cell(Vector2i(1, 3), object_data)
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 	if debug_world_cooling_scenario_enabled:
 		seed_world_cooling_debug_scenario()
@@ -1218,7 +1226,7 @@ func load_task_test_validation_sandbox() -> void:
 		var cell: Vector2i = Vector2i(cell_variant)
 		for item in Array(items_by_cell.get(cell_variant, [])):
 			add_item_at_cell(cell, Dictionary(item).duplicate(true))
-	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	recalculate_power_network("task_test_power_main")
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 
@@ -1859,7 +1867,7 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 				added_count += 1
 			incoming_row.erase("cell")
 			add_item_at_cell(cell, incoming_row)
-	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	recalculate_power_network("task_test_power_main")
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 	var patch_id: String = str(_map_constructor_last_patch_snapshot.get("patch_id", ""))
@@ -1879,7 +1887,7 @@ func rollback_last_map_constructor_patch() -> Dictionary:
 		if floor_state_variant is Dictionary:
 			_apply_map_constructor_floor_visual_state_row(_safe_dictionary(floor_state_variant))
 	_map_constructor_last_patch_snapshot.clear()
-	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	recalculate_power_network("task_test_power_main")
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 	_record_map_constructor_change("patch_rollback", {"summary":"Rolled back last patch", "undo_hint":"Apply patch again if needed."})
@@ -2150,7 +2158,7 @@ func _refresh_map_constructor_state_after_preset_apply() -> void:
 	if grid_manager != null and grid_manager.has_method("request_visual_refresh"):
 		grid_manager.call("request_visual_refresh")
 	_rebuild_wall_mounted_world_object_lookup()
-	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	recalculate_power_network("task_test_power_main")
 	var networks: Dictionary = {}
 	for object_data_variant in mission_world_objects:
 		if not (object_data_variant is Dictionary):
@@ -2159,7 +2167,7 @@ func _refresh_map_constructor_state_after_preset_apply() -> void:
 		if not network_id.is_empty():
 			networks[network_id] = true
 	for network_id_variant in networks.keys():
-		PowerSystemRef.recalculate_network(mission_world_objects, str(network_id_variant))
+		recalculate_power_network(str(network_id_variant))
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 
@@ -2306,20 +2314,21 @@ func _should_assign_main_power_network(object_data: Dictionary) -> bool:
 	return false
 
 func _seed_debug_world_objects() -> void:
-	world_state_store.replace_snapshot(WorldObjectCatalogRef.create_test_set())
-	for object_data in mission_world_objects:
+	var seed_objects: Array[Dictionary] = WorldObjectCatalogRef.create_test_set()
+	for object_data in seed_objects:
 		if object_data.get("id", "") in ["wall_b1", "wall_d1"]:
 			object_data["scan_level"] = 3
-	if mission_world_objects.size() > 0:
-		mission_world_objects[0]["power_network_id"] = "power_net_A"
-	for object_data in mission_world_objects:
+	if seed_objects.size() > 0:
+		seed_objects[0]["power_network_id"] = "power_net_A"
+	for object_data in seed_objects:
 		if object_data.get("object_group", "") in ["door", "terminal", "power"]:
 			object_data["power_network_id"] = "power_net_A"
 		if object_data.get("object_type", "") == "energy_wall":
 			object_data["power_network_id"] = "power_net_A"
 		if object_data.get("id", "") == "fuse_box_empty_1":
 			object_data["power_network_id"] = ""
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	world_state_store.replace_snapshot(seed_objects)
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 	if debug_world_cooling_scenario_enabled:
 		seed_world_cooling_debug_scenario()
@@ -2327,22 +2336,6 @@ func _seed_debug_world_objects() -> void:
 		seed_platform_debug_scenario()
 	if debug_world_logs:
 		_debug_world_summary()
-
-func _place_debug_world_object(object_type: String, object_id: String, cell: Vector2i, overrides: Dictionary = {}) -> Dictionary:
-	if object_type.is_empty() or object_id.is_empty():
-		return {}
-	var existing := get_world_object_by_id(object_id)
-	if not existing.is_empty():
-		world_state_store.remove_object_by_id(object_id)
-	var object_data := WorldObjectCatalogRef.create_world_object(object_type, object_id)
-	if object_data.is_empty():
-		return {}
-	object_data["id"] = object_id
-	object_data["position"] = cell
-	for key in overrides.keys():
-		object_data[key] = overrides[key]
-	world_state_store.upsert_object(object_data)
-	return object_data
 
 func seed_world_cooling_debug_scenario(origin: Vector2i = Vector2i(8, 8)) -> void:
 	_place_debug_world_object("terminal", "terminal_c2_radiator", origin + Vector2i(0, 0), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
@@ -2364,7 +2357,7 @@ func seed_world_cooling_debug_scenario(origin: Vector2i = Vector2i(8, 8)) -> voi
 	_place_debug_world_object("power_source_class_3", "power_source_c3_cooled", origin + Vector2i(0, 12), {"working_heat": 3, "current_heat": 3, "overheat_threshold": 3, "state": "active"})
 	_place_debug_world_object("external_water_pipe", "cooling_water_g", origin + Vector2i(1, 12))
 	refresh_world_cooling_received()
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 
 func validate_world_cooling_debug_scenario() -> Array[String]:
@@ -2541,7 +2534,15 @@ func _select_world_object_for_cell(cell: Vector2i) -> Dictionary:
 	return by_cell
 
 func refresh_generic_cable_runtime_state(network_filter: String = "") -> Dictionary:
-	generic_cable_runtime_report = BipobCableRuntimeServiceRef.apply_generic_power_runtime(mission_world_objects, network_filter)
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	generic_cable_runtime_report = BipobCableRuntimeServiceRef.apply_generic_power_runtime(objects, network_filter)
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "generic_cable_runtime_refreshed")
+	if not bool(commit_result.get("ok", false)):
+		generic_cable_runtime_report["ok"] = false
+		generic_cable_runtime_report["store_commit"] = commit_result
+		var warnings: Array = Array(generic_cable_runtime_report.get("warnings", []))
+		warnings.append("world_state_store_commit_failed:%s" % str(commit_result.get("reason", "unknown")))
+		generic_cable_runtime_report["warnings"] = warnings
 	return generic_cable_runtime_report.duplicate(true)
 
 
@@ -2550,10 +2551,18 @@ func get_generic_cable_runtime_report() -> Dictionary:
 
 
 func refresh_generic_airflow_runtime_state(network_filter: String = "") -> Dictionary:
-	generic_airflow_runtime_report = BipobAirflowRuntimeServiceRef.apply_generic_airflow_runtime(mission_world_objects, network_filter)
-	for object_data in mission_world_objects:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	generic_airflow_runtime_report = BipobAirflowRuntimeServiceRef.apply_generic_airflow_runtime(objects, network_filter)
+	for object_data in objects:
 		if bool(object_data.get("generic_airflow_runtime", false)) and bool(object_data.get("cooling_required", false)):
 			WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "generic_airflow_runtime_refreshed")
+	if not bool(commit_result.get("ok", false)):
+		generic_airflow_runtime_report["ok"] = false
+		generic_airflow_runtime_report["store_commit"] = commit_result
+		var warnings: Array = Array(generic_airflow_runtime_report.get("warnings", []))
+		warnings.append("world_state_store_commit_failed:%s" % str(commit_result.get("reason", "unknown")))
+		generic_airflow_runtime_report["warnings"] = warnings
 	return generic_airflow_runtime_report.duplicate(true)
 
 
@@ -4295,7 +4304,7 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 						cleared_any = true
 				if cleared_any:
 					applied_count += 1
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("batch", {"summary":"Batch %s: %d affected" % [str(preview.get("operation_type", "")), applied_count], "details":{"operation_type":str(preview.get("operation_type", "")), "affected_count":applied_count}, "undo_hint":"Use Undo Last Batch."})
 	return {"ok": true, "message": "Batch applied.", "applied_count": applied_count, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "batch_id": str(_map_constructor_last_batch_snapshot.get("batch_id", ""))}
@@ -4306,7 +4315,7 @@ func undo_last_map_constructor_batch_operation() -> Dictionary:
 	replace_world_state_snapshot(Array(_map_constructor_last_batch_snapshot.get("mission_world_objects", [])).duplicate(true))
 	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_batch_snapshot.clear()
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("batch_undo", {"summary":"Undid last batch operation.", "undo_hint":"Re-apply batch manually if needed."})
 	return {"ok": true, "message": "Last batch operation undone."}
@@ -4414,7 +4423,7 @@ func set_map_constructor_wall_mounted_side(entity_kind: String, entity_id: Strin
 	data["attached_wall_cell"] = _serialize_cell_key(attached)
 	data["position"] = anchor
 	set_world_object_at_cell(anchor, data)
-	PowerSystemRef.recalculate_network(mission_world_objects, str(data.get("power_network_id", "")))
+	recalculate_power_network(str(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
 	_record_map_constructor_change("side_change", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":str(data.get("object_type", "")), "cell":anchor, "summary":"Changed wall side on %s to %s" % [entity_id, side], "undo_hint":"Can undo by switching side again."})
 	return {"ok": true, "message": "Wall side changed to %s." % _get_map_constructor_wall_side_label(side), "object_id": entity_id, "wall_side": side, "attached_wall_cell": attached}
@@ -5762,8 +5771,8 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 		else:
 			result["message"] = "connected_device_ids supports world_object only."
 			return result
-		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
-		PowerSystemRef.recalculate_network(mission_world_objects, str(data.get("power_network_id", "")))
+		recalculate_power_network(old_network_id)
+		recalculate_power_network(str(data.get("power_network_id", "")))
 		refresh_world_cooling_received()
 		result["ok"] = true
 		result["message"] = "Updated connected_device_ids."
@@ -5880,8 +5889,8 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 			needs_power_refresh = true
 			break
 	if needs_power_refresh:
-		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
-		PowerSystemRef.recalculate_network(mission_world_objects, str(data.get("power_network_id", "")))
+		recalculate_power_network(old_network_id)
+		recalculate_power_network(str(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
 	return {"ok": true, "message": "Preset %s applied." % lower_preset, "entity_id": entity_id, "preset": lower_preset}
 
@@ -6727,7 +6736,7 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 		if not switch_is_on:
 			linked_light["is_powered"] = false
 	if not source_id.is_empty():
-		PowerSystemRef.recalculate_network(mission_world_objects, source_id)
+		recalculate_power_network(source_id)
 	if switch_is_on:
 		for linked_light in linked_lights:
 			if not bool(linked_light.get("is_powered", false)):
@@ -6857,7 +6866,7 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 				data[field_name] = ""
 				cleared += 1
 			update_world_object_by_id(str(row.get("id", "")), data)
-		PowerSystemRef.recalculate_network(mission_world_objects, "")
+		recalculate_power_network("")
 		refresh_world_cooling_received()
 		_record_map_constructor_change("cleanup", {"entity_kind":"", "entity_id":"", "summary":"Applied cleanup: %d objects affected" % cleared, "details":{"cleanup_type":str(cleanup_type).to_lower(), "affected_count":cleared}, "undo_hint":"Use Undo Last Cleanup."})
 		return {"ok": true, "message": "Invalid references cleaned.", "deleted_count": cleared, "cleanup_id": str(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": []}
@@ -6866,7 +6875,7 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 		var remove_result: Dictionary = _remove_map_constructor_entity_by_id(str(row.get("entity_kind", "")), str(row.get("id", "")))
 		if bool(remove_result.get("ok", false)):
 			deleted_count += 1
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	var message: String = "Cleanup applied."
 	if str(cleanup_type).to_lower() == "reset_runtime_map":
@@ -6880,7 +6889,7 @@ func undo_last_map_constructor_cleanup() -> Dictionary:
 	replace_world_state_snapshot(Array(_map_constructor_last_cleanup_snapshot.get("mission_world_objects", [])).duplicate(true))
 	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_cleanup_snapshot.clear()
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("cleanup_undo", {"summary":"Undid last cleanup.", "undo_hint":"Redo cleanup manually if needed."})
 	return {"ok": true, "message": "Last cleanup undone."}
@@ -7106,7 +7115,7 @@ func apply_map_constructor_autofix(fix_type: String, options: Dictionary = {}) -
 				d["wall_side"] = str(wall_data.get("wall_side", d.get("wall_side", "")))
 				d["attached_wall_cell"] = Vector2i(wall_data.get("attached_wall_cell", d.get("attached_wall_cell", Vector2i(-1,-1))))
 				update_world_object_by_id(str(row.get("entity_id", "")), d)
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("autofix", {"summary":"Applied auto-fix: %d fields fixed" % fixes.size(), "details":{"fix_type":fix_type, "fixed_count":fixes.size()}, "undo_hint":"Use Undo Last Auto-fix."})
 	return {"ok": true, "message": "Auto-fix applied.", "fixed_count": fixes.size(), "fix_id": str(_map_constructor_last_autofix_snapshot.get("fix_id", "")), "warnings": Array(preview.get("warnings", []))}
@@ -7117,7 +7126,7 @@ func undo_last_map_constructor_autofix() -> Dictionary:
 	replace_world_state_snapshot(Array(_map_constructor_last_autofix_snapshot.get("mission_world_objects", [])).duplicate(true))
 	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_autofix_snapshot.clear()
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("autofix_undo", {"summary":"Undid last auto-fix.", "undo_hint":"Re-apply auto-fix manually if needed."})
 	return {"ok": true, "message": "Last auto-fix undone."}
@@ -7217,22 +7226,24 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 	object_data = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
 	world_state_store.move_object(object_id, target_cell, object_data)
 	refresh_world_cooling_received()
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 	result["success"] = true
 	result["message"] = "Moved %s." % str(object_data.get("display_name", "Object"))
 	return result
 
 func refresh_world_cooling_received() -> void:
-	for object_data in mission_world_objects:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	for object_data in objects:
 		if bool(object_data.get("generic_airflow_runtime", false)) and bool(object_data.get("cooling_required", false)):
 			continue
 		if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
 			continue
 		var target_position: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-		var cooling_received: int = WorldObjectCatalogRef.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
+		var cooling_received: int = WorldObjectCatalogRef.calculate_world_cooling_received_for_target(object_data, target_position, objects)
 		object_data["cooling_received"] = cooling_received
 		WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+	_commit_runtime_world_snapshot(objects, "world_cooling_refreshed")
 	refresh_generic_airflow_runtime_state()
 
 func preview_cooling_application(filter: String = "") -> Dictionary:
@@ -7274,6 +7285,7 @@ func preview_cooling_application(filter: String = "") -> Dictionary:
 
 func apply_cooling_application(filter: String = "") -> Dictionary:
 	var preview := preview_cooling_application(filter)
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
 	for target_variant in preview.get("targets", []):
 		if typeof(target_variant) != TYPE_DICTIONARY:
 			continue
@@ -7281,13 +7293,19 @@ func apply_cooling_application(filter: String = "") -> Dictionary:
 		var object_id := str(target.get("object_id", "")).strip_edges()
 		if object_id.is_empty():
 			continue
-		var object_data := get_world_object_by_id(object_id)
-		if object_data.is_empty():
-			continue
-		if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
-			continue
-		object_data["cooling_received"] = maxi(0, int(target.get("cooling_received", 0)))
-		WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+		for object_data in objects:
+			if str(object_data.get("id", "")).strip_edges() != object_id:
+				continue
+			if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
+				continue
+			object_data["cooling_received"] = maxi(0, int(target.get("cooling_received", 0)))
+			WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "cooling_application_applied")
+	if not bool(commit_result.get("ok", false)):
+		preview["store_commit"] = commit_result
+		var warnings: Array = Array(preview.get("warnings", []))
+		warnings.append("world_state_store_commit_failed:%s" % str(commit_result.get("reason", "unknown")))
+		preview["warnings"] = warnings
 	return preview
 
 func update_cooling_for_network_or_area(filter: String = "") -> Dictionary:
@@ -7817,7 +7835,7 @@ func preview_power_source_load_heat_for_network(filter: String = "") -> Dictiona
 	return report
 
 func update_power_source_load_heat_for_network(filter: String = "") -> Dictionary:
-	PowerSystemRef.recalculate_network(mission_world_objects, filter)
+	recalculate_power_network(filter)
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
@@ -7866,7 +7884,7 @@ func update_power_source_load_heat_for_network(filter: String = "") -> Dictionar
 	return report
 
 func preview_power_graph_state_application(filter: String = "") -> Dictionary:
-	PowerSystemRef.recalculate_network(mission_world_objects, filter)
+	recalculate_power_network(filter)
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var filter_text := filter.strip_edges()
@@ -8568,7 +8586,7 @@ func execute_power_source_recovery_apply(filter: String = "") -> Dictionary:
 	return {"recovery": recovery, "apply": apply}
 
 func apply_power_network_after_explicit_power_event(reason: String = "", filter: String = "") -> Dictionary:
-	PowerSystemRef.recalculate_network(mission_world_objects, filter)
+	recalculate_power_network(filter)
 	refresh_generic_cable_runtime_state(filter)
 	var report := apply_power_graph_state_from_preview(filter)
 	return {
@@ -11501,7 +11519,7 @@ func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
 		candidate_object["position"] = new_position
 		world_state_store.upsert_object(candidate_object)
 	refresh_world_cooling_received()
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 
 func get_world_runtime_persistence_debug_summary_text() -> String:

@@ -4,6 +4,7 @@ const WorldStateStoreRef = preload("res://scripts/world/world_state_store.gd")
 const MissionManagerRef = preload("res://scripts/game/mission_manager.gd")
 
 var failures: Array[String] = []
+var signal_events: Array[Dictionary] = []
 
 func _initialize() -> void:
 	_run_store_checks()
@@ -17,12 +18,15 @@ func _initialize() -> void:
 	quit(1)
 	return
 
+func _on_store_changed(change: Dictionary) -> void:
+	signal_events.append(change)
+
 func _expect(condition: bool, message: String) -> void:
 	if not condition:
 		failures.append(message)
 
-func _obj(id: String, cell: Vector2i, group: String = "device", type: String = "terminal") -> Dictionary:
-	return {"id": id, "object_group": group, "object_type": type, "position": cell}
+func _obj(id: String, cell: Vector2i, group: String = "device", object_type: String = "terminal") -> Dictionary:
+	return {"id": id, "object_group": group, "object_type": object_type, "position": cell}
 
 func _item(id: String, cell: Vector2i) -> Dictionary:
 	return {"id": id, "object_group": "item", "object_type": "item", "position": cell}
@@ -87,6 +91,48 @@ func _run_store_checks() -> void:
 	invalid._objects_by_id["key_a"] = {"id": "field_b", "position": Vector2i.ZERO}
 	invalid._object_order.append("key_a")
 	_expect(not invalid.validate_consistency().is_empty(), "key/field id mismatch detected")
+	var bridge_store: WorldStateStore = WorldStateStoreRef.new()
+	bridge_store.changed.connect(_on_store_changed)
+	bridge_store.add_object(_obj("bridge_a", Vector2i(20, 20)))
+	signal_events.clear()
+	var bridge_snapshot := bridge_store.get_all_objects()
+	bridge_snapshot[0]["is_powered"] = true
+	bridge_snapshot[0]["runtime_added"] = "yes"
+	_expect(not bool(bridge_store.get_object_by_id("bridge_a").get("is_powered", false)), "snapshot mutation is isolated before commit")
+	var bridge_result := bridge_store.apply_non_structural_snapshot(bridge_snapshot, "test_runtime_update")
+	_expect(bool(bridge_result.get("ok", false)), "non-structural snapshot commit succeeds")
+	_expect(bool(bridge_store.get_object_by_id("bridge_a").get("is_powered", false)), "non-structural field change persists")
+	_expect(str(bridge_store.get_object_by_id("bridge_a").get("runtime_added", "")) == "yes", "non-structural field addition persists")
+	_expect(signal_events.size() == 1 and str(signal_events[0].get("action", "")) == "test_runtime_update", "batch commit emits one signal")
+	signal_events.clear()
+	bridge_snapshot = bridge_store.get_all_objects()
+	bridge_snapshot[0].erase("runtime_added")
+	_expect(bool(bridge_store.apply_non_structural_snapshot(bridge_snapshot, "test_runtime_remove").get("ok", false)), "non-structural field removal commit succeeds")
+	_expect(not bridge_store.get_object_by_id("bridge_a").has("runtime_added"), "non-structural field removal persists")
+	var before_bad := bridge_store.get_object_by_id("bridge_a")
+	var bad_snapshot := bridge_store.get_all_objects()
+	bad_snapshot[0]["position"] = Vector2i(99, 99)
+	_expect(not bool(bridge_store.apply_non_structural_snapshot(bad_snapshot, "bad_position").get("ok", true)), "structural position change is rejected")
+	_expect(bridge_store.get_object_by_id("bridge_a") == before_bad, "failed bridge commit leaves state unchanged")
+	bad_snapshot = bridge_store.get_all_objects()
+	bad_snapshot[0]["id"] = "other"
+	_expect(not bool(bridge_store.apply_non_structural_snapshot(bad_snapshot, "bad_id").get("ok", true)), "id change is rejected")
+	bad_snapshot = bridge_store.get_all_objects()
+	bad_snapshot[0]["object_group"] = "item"
+	_expect(not bool(bridge_store.apply_non_structural_snapshot(bad_snapshot, "bad_layer").get("ok", true)), "layer-changing object_group is rejected")
+	_expect(not bool(bridge_store.apply_non_structural_snapshot([], "missing").get("ok", true)), "missing object is rejected")
+	bad_snapshot = bridge_store.get_all_objects()
+	bad_snapshot.append(_obj("extra", Vector2i.ZERO))
+	_expect(not bool(bridge_store.apply_non_structural_snapshot(bad_snapshot, "extra").get("ok", true)), "extra object is rejected")
+	bad_snapshot = bridge_store.get_all_objects()
+	bad_snapshot.append(bad_snapshot[0].duplicate(true))
+	_expect(not bool(bridge_store.apply_non_structural_snapshot(bad_snapshot, "duplicate").get("ok", true)), "duplicate object is rejected")
+	var bridge_indexes := bridge_store.get_diagnostic_snapshot()
+	bridge_snapshot = bridge_store.get_all_objects()
+	bridge_snapshot[0]["is_powered"] = false
+	bridge_store.apply_non_structural_snapshot(bridge_snapshot, "index_preserving")
+	_expect(var_to_str(bridge_indexes.get("primary", {})) == var_to_str(bridge_store.get_diagnostic_snapshot().get("primary", {})), "non-structural commit does not change indexes")
+
 	var order_store: WorldStateStore = WorldStateStoreRef.new()
 	order_store.replace_snapshot([_obj("a", Vector2i(10, 10)), _item("b", Vector2i(10, 10)), _wall("c", Vector2i(10, 10), "north")])
 	_expect(Array(order_store.get_diagnostic_snapshot().get("object_ids", [])) == ["a", "b", "c"], "order remains deterministic")
@@ -111,6 +157,34 @@ func _run_mission_manager_checks() -> void:
 	var mm_read: Array[Dictionary] = manager.mission_world_objects
 	mm_read[0]["position"] = Vector2i(99, 99)
 	_expect(manager.get_world_object_by_id("mm_wall").is_empty() == false, "MissionManager compatibility getter is isolated")
+	manager.replace_world_state_snapshot([
+		{"id":"power_source_a", "object_group":"power", "object_type":"power_source_class_1", "position":Vector2i(20, 20), "state":"on", "power_network_id":"net_a"},
+		{"id":"terminal_a", "object_group":"terminal", "object_type":"terminal", "position":Vector2i(21, 20), "state":"off", "power_network_id":"net_a"}
+	])
+	manager.recalculate_power_network("net_a")
+	var powered_terminal: Dictionary = manager.world_state_store.get_object_by_id("terminal_a")
+	_expect(powered_terminal.has("is_powered"), "PowerSystem runtime fields persist in store")
+	manager.replace_world_state_snapshot([
+		{"id":"generic_source", "object_group":"power", "object_type":"power_source_class_1", "position":Vector2i(30, 30), "power_network_id":"generic_net", "state":"on"},
+		{"id":"generic_cable", "object_group":"power", "object_type":"power_cable", "position":Vector2i(31, 30), "power_network_id":"generic_net"}
+	])
+	manager.refresh_generic_cable_runtime_state("generic_net")
+	_expect(manager.world_state_store.get_object_by_id("generic_source").has("generic_power_role"), "generic cable runtime fields persist")
+	manager.replace_world_state_snapshot([
+		{"id":"fan_a", "object_group":"cooling", "object_type":"external_air_cooler", "position":Vector2i(40, 40), "generic_airflow_runtime":true, "airflow_network_id":"air_a", "state":"active", "fan_enabled":true, "airflow_range":1},
+		{"id":"heat_a", "object_group":"terminal", "object_type":"terminal", "position":Vector2i(41, 40), "generic_airflow_runtime":true, "airflow_network_id":"air_a", "cooling_required":true, "working_heat":2, "overheat_threshold":5}
+	])
+	manager.refresh_generic_airflow_runtime_state("air_a")
+	_expect(manager.world_state_store.get_object_by_id("fan_a").has("airflow_cells"), "generic airflow fan fields persist")
+	_expect(manager.world_state_store.get_object_by_id("heat_a").has("cooling_state"), "generic airflow target fields persist")
+	manager.refresh_world_cooling_received()
+	_expect(manager.world_state_store.get_object_by_id("heat_a").has("current_heat"), "cooling heat fields persist")
+	manager.enable_debug_seed = true
+	manager._seed_debug_world_objects()
+	var seeded := manager.world_state_store.get_object_by_id("wall_b1")
+	_expect(int(seeded.get("scan_level", 0)) == 3, "debug seed scan_level persists")
+	var seeded_power := manager.world_state_store.get_object_by_id("steel_door_1")
+	_expect(str(seeded_power.get("power_network_id", "")) == "power_net_A", "debug seed power network persists")
 	_expect(manager.world_state_store.validate_consistency().is_empty(), "MissionManager store consistency remains valid")
 	manager.free()
 	manager = null
