@@ -6,6 +6,7 @@ import sys
 
 catalog = Path("scripts/world/world_object_catalog.gd").read_text()
 mission = Path("scripts/game/mission_manager.gd").read_text()
+workflow = Path(".github/workflows/godot-parser-gate.yml").read_text()
 issues = []
 
 def require(condition, message):
@@ -50,6 +51,13 @@ for prefab in ["fuse_box", "power_socket", "power_switcher", "power_cable_reel"]
         require('"placement_surfaces":["floor", "wall"]' in body, f"{prefab} does not explicitly support floor+wall placement.")
 
 require('"power_cable"' in catalog and '"placement_surfaces":["floor", "wall"]' in catalog, "power_cable explicit floor+wall placement semantics missing.")
+module_item = re.search(r'"module_item"\s*:\s*\{(?P<body>.*?)(?:\n\t"[a-z0-9_]+"\s*:\s*\{|\n\})', catalog, re.S)
+require(module_item is not None, "module_item definition is missing.")
+if module_item:
+    body = module_item.group("body")
+    require('"placement_mode":"item"' in body, "module_item must declare item placement mode.")
+    require('"placement_surfaces":["floor"]' in body, "module_item must declare floor-only placement surfaces.")
+    require('"default_placement_surface":"floor"' in body, "module_item must default to floor placement.")
 require('"light_switch": "power_switcher"' in catalog, "light_switch alias no longer resolves to canonical power_switcher.")
 require('"fuse_box_installed": "fuse_box"' in catalog, "fuse_box alias no longer resolves to canonical fuse_box.")
 
@@ -60,6 +68,8 @@ if resolver_match:
     require("visual_surface" not in resolver_body, "Placement resolver must not infer from visual_surface.")
     require("generic_power_role" not in resolver_body and "cable_link" not in resolver_body, "Placement resolver must not infer wall support from generic_power_role/cable_link.")
 require('"missing_placement_contract"' in mission, "MissionManager missing fail-closed missing_placement_contract handling.")
+require('default_placement_surface == "wall"' in mission, "MissionManager does not apply default_placement_surface for empty overrides.")
+require("check_constructor_placement_contracts.gd" in workflow, "Godot workflow does not run executable constructor placement behavior test.")
 require(Path("tools/ci/check_constructor_placement_contracts.gd").exists(), "Executable GDScript placement contract test is missing.")
 require('placement_contract.get("supports_floor", true)' not in mission, "MissionManager still has permissive supports_floor fallback.")
 

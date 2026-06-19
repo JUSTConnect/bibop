@@ -4129,6 +4129,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var supports_floor: bool = bool(placement_contract.get("supports_floor", false))
 	var is_wall_only_prefab: bool = bool(placement_contract.get("wall_only", false))
 	var is_floor_and_wall_prefab: bool = supports_floor and supports_wall
+	var default_placement_surface: String = str(placement_contract.get("default_placement_surface", "")).strip_edges().to_lower()
 	var can_share_wall_cell: bool = supports_wall and _is_map_constructor_wall_cell_share_prefab(canonical_prefab_id)
 
 	# UI may send "stationary" even when the user selected wall placement.
@@ -4137,6 +4138,8 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var stationary_on_wall_cell: bool = mode_override == "stationary" and is_wall_cell and can_share_wall_cell
 
 	var wants_wall_mount: bool = mode_override == "wall" or mode_override == "wall_mounted" or stationary_on_wall_cell
+	if mode_override.is_empty() and default_placement_surface == "wall":
+		wants_wall_mount = true
 	if is_wall_only_prefab:
 		wants_wall_mount = true
 	if wants_wall_mount and not supports_wall:

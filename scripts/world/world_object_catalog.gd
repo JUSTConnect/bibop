@@ -659,7 +659,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		"property_schema":[{"field":"physical_item_type", "type":"enum", "values":["fuse", "reinforcement", "repair_kit", "parts"], "default":"parts", "labels":{"fuse":"Fuse", "reinforcement":"Reinforcement Kit", "repair_kit":"Repair Kit", "parts":"Parts"}}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}, {"field":"amount", "type":"int", "default":1, "min":1}]
 	},
 	"module_item": {
-		"archetype_id":"module_item", "object_group":"item", "object_type":"item", "palette_label":"Module Items", "placement_mode":"item", "display_name_template":"{module_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"module", "item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "module_item_type":"module_internal", "item_class":"physical_item", "item_type":"module_internal", "state":"available", "allowed_states":["available", "collected", "disabled"],
+		"archetype_id":"module_item", "object_group":"item", "object_type":"item", "palette_label":"Module Items", "placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{module_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"module", "item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "module_item_type":"module_internal", "item_class":"physical_item", "item_type":"module_internal", "state":"available", "allowed_states":["available", "collected", "disabled"],
 		"property_schema":[{"field":"module_item_type", "type":"enum", "values":["module_internal", "module_external"], "default":"module_internal", "labels":{"module_internal":"Internal Module", "module_external":"External Module"}}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}]
 	},
 	"power_switcher": {
@@ -780,11 +780,11 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"module_external": {
 		"archetype_id":"module_external", "object_group":"item", "show_in_palette":false, "object_type":"module_external", "palette_label":"External Module",
-		"placement_mode":"item", "display_name_template":"External Module", "configurable":false, "property_schema":[]
+		"placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"External Module", "configurable":false, "property_schema":[]
 	},
 	"module_internal": {
 		"archetype_id":"module_internal", "object_group":"item", "show_in_palette":false, "object_type":"module_internal", "palette_label":"Internal Module",
-		"placement_mode":"item", "display_name_template":"Internal Module", "configurable":false, "property_schema":[]
+		"placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Internal Module", "configurable":false, "property_schema":[]
 	},
 	"floor": {
 		"archetype_id":"floor", "object_group":"floor", "object_type":"floor", "palette_label":"Floor",
