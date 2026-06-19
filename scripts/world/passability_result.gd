@@ -8,8 +8,8 @@ static func allow() -> RefCounted:
 	return new()
 
 static func block(reason_text: String, object_id: String = "") -> RefCounted:
-	var result := new()
-	result.passable = false
-	result.reason = reason_text
-	result.blocker_id = object_id
+	var result: RefCounted = new()
+	result.set("passable", false)
+	result.set("reason", reason_text)
+	result.set("blocker_id", object_id)
 	return result
