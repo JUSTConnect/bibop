@@ -14,7 +14,7 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    container: barichello/godot-ci:4.4
+    container: barichello/godot-ci:4.6
     steps:
       - uses: actions/checkout@v4
       - name: Import project
