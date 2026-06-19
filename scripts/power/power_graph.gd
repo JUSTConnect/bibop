@@ -22,7 +22,7 @@ static func build(objects: Array[Dictionary]) -> Dictionary:
 	var connections: Array[RefCounted] = []
 	for object_id_value: Variant in nodes_by_id.keys():
 		var object_id: String = str(object_id_value)
-		adjacency[object_id] = []
+		var neighbors: Array[String] = []
 		var node: RefCounted = nodes_by_id[object_id]
 		var cell_value: Variant = node.get("cell")
 		var cell: Vector2i = cell_value if cell_value is Vector2i else Vector2i(-1, -1)
@@ -30,9 +30,10 @@ static func build(objects: Array[Dictionary]) -> Dictionary:
 			var neighbor_id: String = str(id_by_cell.get(_cell_key(cell + direction), ""))
 			if neighbor_id.is_empty() or neighbor_id == object_id:
 				continue
-			Array(adjacency[object_id]).append(neighbor_id)
+			neighbors.append(neighbor_id)
 			if object_id < neighbor_id:
 				connections.append(PowerConnectionRef.make(object_id, neighbor_id))
+		adjacency[object_id] = neighbors
 	return {"nodes_by_id": nodes_by_id, "adjacency": adjacency, "connections": connections}
 
 static func _is_power_node(data: Dictionary) -> bool:
