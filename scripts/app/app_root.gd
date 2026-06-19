@@ -1,9 +1,9 @@
 extends Control
 
 # AppRoot
-# Тонкая scene-shell. Вся orchestration логика живёт в AppController.
+# Тонкая scene-shell. Persistence расширение живёт в AppDocumentController.
 
-const AppControllerRef = preload("res://scripts/app/app_controller.gd")
+const AppControllerRef = preload("res://scripts/app/app_document_controller.gd")
 
 var app_controller: RefCounted = null
 
