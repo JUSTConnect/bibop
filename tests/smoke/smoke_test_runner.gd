@@ -7,6 +7,7 @@ const TESTS: Array[Script] = [
 	preload("res://tests/smoke/test_world_repository.gd"),
 	preload("res://tests/smoke/test_power_interaction.gd"),
 	preload("res://tests/smoke/test_power_circuit_graph.gd"),
+	preload("res://tests/smoke/test_power_runtime_state.gd"),
 	preload("res://tests/smoke/test_document_roundtrip.gd"),
 	preload("res://tests/smoke/test_document_migration.gd"),
 	preload("res://tests/smoke/test_visual_resolution.gd"),
