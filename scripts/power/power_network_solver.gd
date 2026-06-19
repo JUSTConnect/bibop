@@ -37,7 +37,10 @@ static func _collect_component(start_id: String, adjacency: Dictionary, visited:
 
 static func _component_has_active_source(component: Array[String], nodes_by_id: Dictionary) -> bool:
 	for object_id: String in component:
-		var node: RefCounted = nodes_by_id[object_id]
+		var node_value: Variant = nodes_by_id.get(object_id)
+		if not (node_value is RefCounted):
+			continue
+		var node: RefCounted = node_value as RefCounted
 		if bool(node.get("source_active")):
 			return true
 	return false
