@@ -383,10 +383,12 @@ const WALL_SIDE_ORDER: Array[String] = ["north", "east", "south", "west"]
 const WALL_MASS_RATIO: float = 0.7
 const WALL_MOUNT_BAND_RATIO: float = 0.3
 
-func _ready() -> void:
+func _enter_tree() -> void:
 	if _grid_manager == null:
 		_grid_manager = get_parent() as GridManager
 	_connect_grid_manager_invalidation()
+
+func _ready() -> void:
 	if _grid_manager != null:
 		request_rebuild()
 
