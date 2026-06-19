@@ -43,5 +43,15 @@ func can_undo() -> bool:
 func can_redo() -> bool:
 	return not redo_stack.is_empty()
 
+func undo_label() -> String:
+	if undo_stack.is_empty():
+		return ""
+	return str(undo_stack.back().get("label"))
+
+func redo_label() -> String:
+	if redo_stack.is_empty():
+		return ""
+	return str(redo_stack.back().get("label"))
+
 func _emit_changed() -> void:
 	changed.emit(can_undo(), can_redo())
