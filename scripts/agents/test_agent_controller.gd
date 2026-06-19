@@ -5,25 +5,30 @@ const PathfinderRef = preload("res://scripts/agents/grid_pathfinder.gd")
 
 var state: RefCounted = AgentStateRef.new()
 var allowed_cells: Array[Vector2i] = []
+var initialized: bool = false
 
 func setup(start_cell: Vector2i, goal_cell: Vector2i, allowed: Array[Vector2i] = []) -> void:
 	state = AgentStateRef.new()
 	state.call("setup", start_cell, goal_cell)
 	allowed_cells = allowed.duplicate()
+	initialized = true
 
 func reset(start_cell: Vector2i, goal_cell: Vector2i) -> void:
 	_ensure_state()
 	state.call("setup", start_cell, goal_cell)
+	initialized = true
 
 func recalculate(repository: RefCounted, columns: int, rows: int) -> Array[Vector2i]:
-	_ensure_state()
+	if not initialized:
+		return []
 	var path: Array[Vector2i] = PathfinderRef.find_path(cell(), goal(), repository, columns, rows, allowed_cells)
 	state.set("path", path)
 	state.set("last_block_reason", "no_path" if path.is_empty() else "")
 	return path
 
 func step(repository: RefCounted, columns: int, rows: int) -> Dictionary:
-	_ensure_state()
+	if not initialized:
+		return {"moved": false, "message": "Agent is not initialized."}
 	if cell() == goal():
 		state.set("reached_goal", true)
 		return {"moved": false, "message": "Agent already reached goal."}
@@ -38,7 +43,8 @@ func step(repository: RefCounted, columns: int, rows: int) -> Dictionary:
 	}
 
 func run_until_stop(repository: RefCounted, columns: int, rows: int, max_steps: int = 64) -> Dictionary:
-	_ensure_state()
+	if not initialized:
+		return {"steps": 0, "reached_goal": false, "cell": Vector2i(-1, -1), "message": "Agent is not initialized."}
 	var steps: int = 0
 	var last_result: Dictionary = {"moved": false, "message": "No movement."}
 	while steps < max_steps and not reached_goal():
@@ -54,17 +60,20 @@ func run_until_stop(repository: RefCounted, columns: int, rows: int, max_steps: 
 	}
 
 func cell() -> Vector2i:
-	_ensure_state()
+	if not initialized:
+		return Vector2i(-1, -1)
 	var value: Variant = state.get("cell")
-	return value if value is Vector2i else Vector2i.ZERO
+	return value if value is Vector2i else Vector2i(-1, -1)
 
 func goal() -> Vector2i:
-	_ensure_state()
+	if not initialized:
+		return Vector2i(-1, -1)
 	var value: Variant = state.get("goal")
-	return value if value is Vector2i else Vector2i.ZERO
+	return value if value is Vector2i else Vector2i(-1, -1)
 
 func reached_goal() -> bool:
-	_ensure_state()
+	if not initialized:
+		return false
 	return bool(state.get("reached_goal"))
 
 func _ensure_state() -> void:
