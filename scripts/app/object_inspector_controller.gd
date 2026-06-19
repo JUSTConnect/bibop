@@ -3,25 +3,30 @@ extends RefCounted
 const ObjectStatusModelRef = preload("res://scripts/domain/object_status_model.gd")
 const ObjectInspectorViewModelRef = preload("res://scripts/presentation/object_inspector_view_model.gd")
 const ObjectInspectorBuilderRef = preload("res://scripts/ui/object_inspector/object_inspector_builder.gd")
+const ObjectActionsViewModelRef = preload("res://scripts/presentation/object_actions_view_model.gd")
+const ObjectActionPanelRef = preload("res://scripts/ui/object_actions/object_action_panel.gd")
 
 var content: VBoxContainer = null
 var palette: RefCounted = null
 var map_editor: RefCounted = null
 var on_world_changed: Callable = Callable()
 var on_status: Callable = Callable()
+var on_action: Callable = Callable()
 
 func setup(
 	new_content: VBoxContainer,
 	palette_controller: RefCounted,
 	map_editor_controller: RefCounted,
 	world_changed_callback: Callable,
-	status_callback: Callable
+	status_callback: Callable,
+	action_callback: Callable = Callable()
 ) -> void:
 	content = new_content
 	palette = palette_controller
 	map_editor = map_editor_controller
 	on_world_changed = world_changed_callback
 	on_status = status_callback
+	on_action = action_callback
 
 func render() -> void:
 	if content == null:
@@ -43,6 +48,9 @@ func render() -> void:
 		_get_link_target_options(entity_id)
 	)
 	ObjectInspectorBuilderRef.fill_content(content, view_model, Callable(self, "apply_row_update"))
+	if entity_kind == "placed_object":
+		var actions_vm: Dictionary = ObjectActionsViewModelRef.create(data)
+		content.add_child(ObjectActionPanelRef.build(actions_vm, Callable(self, "_handle_action")))
 
 func apply_row_update(row: Dictionary, value: Variant) -> void:
 	var entity_kind: String = str(row.get("entity_kind", ""))
@@ -71,9 +79,13 @@ func _apply_link(entity_kind: String, instance_id: String, link_id: String, link
 		return
 	var links: Dictionary = Dictionary(data.get("links", {})).duplicate(true)
 	links[link_id] = _normalize_link_value(value, link_type)
-	map_editor.call("patch_instance", instance_id, {"links": links})
+	map_editor.call("change_links", instance_id, links)
 	_emit_world_changed()
 	_emit_status("Link updated: %s" % link_id)
+
+func _handle_action(action_id: String) -> void:
+	if on_action.is_valid():
+		on_action.call(action_id)
 
 func _normalize_link_value(value: Variant, link_type: String) -> Variant:
 	if link_type != "object_ref_array":
