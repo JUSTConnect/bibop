@@ -1,6 +1,7 @@
 extends Node
 
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const WorldStateStoreRef = preload("res://scripts/world/world_state_store.gd")
 const ScanSystemRef = preload("res://scripts/world/scan_system.gd")
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
@@ -244,12 +245,26 @@ const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
 	"heavy_crate": "heavy_crate_floor_01"
 }
 
-var mission_world_objects: Array[Dictionary] = []
-var world_objects_by_cell: Dictionary = {}
-var wall_mounted_objects_by_cell: Dictionary = {}
+var world_state_store: WorldStateStore = WorldStateStoreRef.new()
+
+var mission_world_objects: Array[Dictionary]:
+	get:
+		return world_state_store.get_all_objects()
+
+var world_objects_by_cell: Dictionary:
+	get:
+		return world_state_store.get_floor_lookup_snapshot()
+
+var wall_mounted_objects_by_cell: Dictionary:
+	get:
+		return world_state_store.get_wall_mount_lookup_snapshot()
+
 var generic_cable_runtime_report: Dictionary = {}
 var generic_airflow_runtime_report: Dictionary = {}
-var cell_items: Dictionary = {}
+
+var cell_items: Dictionary:
+	get:
+		return world_state_store.get_cell_items_snapshot()
 var last_threat_warning_ids: Dictionary = {}
 var last_world_runtime_restore_warnings: Array[String] = []
 var debug_world_logs := false
@@ -259,6 +274,18 @@ var debug_platform_scenario_enabled: bool = false
 var active_bipob_ref: Node = null
 var grid_manager: Node = null
 var platform_last_tick_action_index: int = -1
+
+func replace_world_state_snapshot(objects: Array[Dictionary]) -> Dictionary:
+	return world_state_store.replace_snapshot(objects)
+
+func _commit_runtime_world_snapshot(mutated_objects: Array[Dictionary], action: String) -> Dictionary:
+	return world_state_store.apply_non_structural_snapshot(mutated_objects, action)
+
+func recalculate_power_network(network_id: String) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	PowerSystemRef.recalculate_network(objects, network_id)
+	return _commit_runtime_world_snapshot(objects, "power_network_recalculated")
+
 var runtime_inventory_state := {
 	"pocket_items": [],
 	"manipulator_hold": "",
@@ -1145,7 +1172,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 					add_item_at_cell(Vector2i(3, 4), object_data)
 				_:
 					add_item_at_cell(Vector2i(1, 3), object_data)
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 	if debug_world_cooling_scenario_enabled:
 		seed_world_cooling_debug_scenario()
@@ -1160,10 +1187,7 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 # endregion
 
 func _clear_world_object_runtime_state() -> void:
-	mission_world_objects.clear()
-	world_objects_by_cell.clear()
-	wall_mounted_objects_by_cell.clear()
-	cell_items.clear()
+	world_state_store.clear()
 	_map_constructor_wall_material_overrides.clear()
 	_map_constructor_floor_material_overrides.clear()
 	generic_cable_runtime_report.clear()
@@ -1202,7 +1226,7 @@ func load_task_test_validation_sandbox() -> void:
 		var cell: Vector2i = Vector2i(cell_variant)
 		for item in Array(items_by_cell.get(cell_variant, [])):
 			add_item_at_cell(cell, Dictionary(item).duplicate(true))
-	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	recalculate_power_network("task_test_power_main")
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 
@@ -1843,7 +1867,7 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 				added_count += 1
 			incoming_row.erase("cell")
 			add_item_at_cell(cell, incoming_row)
-	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	recalculate_power_network("task_test_power_main")
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 	var patch_id: String = str(_map_constructor_last_patch_snapshot.get("patch_id", ""))
@@ -1854,9 +1878,8 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 func rollback_last_map_constructor_patch() -> Dictionary:
 	if _map_constructor_last_patch_snapshot.is_empty():
 		return {"ok": false, "message": "No patch to rollback."}
-	mission_world_objects = Array(_map_constructor_last_patch_snapshot.get("mission_world_objects", [])).duplicate(true)
-	cell_items = Dictionary(_map_constructor_last_patch_snapshot.get("cell_items", {})).duplicate(true)
-	world_objects_by_cell = Dictionary(_map_constructor_last_patch_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	world_state_store.replace_snapshot(Array(_map_constructor_last_patch_snapshot.get("mission_world_objects", [])).duplicate(true))
+	# Cell item lookup is derived from world_state_store.
 	_rebuild_wall_mounted_world_object_lookup()
 	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
 		grid_manager.call("clear_floor_visual_states")
@@ -1864,7 +1887,7 @@ func rollback_last_map_constructor_patch() -> Dictionary:
 		if floor_state_variant is Dictionary:
 			_apply_map_constructor_floor_visual_state_row(_safe_dictionary(floor_state_variant))
 	_map_constructor_last_patch_snapshot.clear()
-	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	recalculate_power_network("task_test_power_main")
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 	_record_map_constructor_change("patch_rollback", {"summary":"Rolled back last patch", "undo_hint":"Apply patch again if needed."})
@@ -1875,10 +1898,7 @@ func create_map_constructor_empty_map(width: int, height: int) -> Dictionary:
 		return {"ok": false, "message": "Constructor map build works only in TASK TEST constructor mode."}
 	constructor_map_width = maxi(6, width)
 	constructor_map_height = maxi(6, height)
-	mission_world_objects.clear()
-	world_objects_by_cell.clear()
-	wall_mounted_objects_by_cell.clear()
-	cell_items.clear()
+	world_state_store.clear()
 	constructor_start_marker.clear()
 	constructor_exit_marker.clear()
 	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
@@ -2125,21 +2145,20 @@ func _sync_map_constructor_grid_snapshot_state() -> void:
 	constructor_map_height = int(grid_manager.call("get_height"))
 
 func _refresh_map_constructor_state_after_preset_apply() -> void:
-	world_objects_by_cell.clear()
-	wall_mounted_objects_by_cell.clear()
+	world_state_store.replace_snapshot(mission_world_objects)
 	for object_variant in mission_world_objects:
 		if not (object_variant is Dictionary):
 			continue
 		var object_data: Dictionary = Dictionary(object_variant)
 		var object_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		if object_cell != Vector2i(-1, -1):
-			world_objects_by_cell[object_cell] = object_data
+			world_state_store.upsert_object(object_data)
 	if grid_manager != null and grid_manager.has_method("enforce_boundary_walls"):
 		grid_manager.call("enforce_boundary_walls")
 	if grid_manager != null and grid_manager.has_method("request_visual_refresh"):
 		grid_manager.call("request_visual_refresh")
 	_rebuild_wall_mounted_world_object_lookup()
-	PowerSystemRef.recalculate_network(mission_world_objects, "task_test_power_main")
+	recalculate_power_network("task_test_power_main")
 	var networks: Dictionary = {}
 	for object_data_variant in mission_world_objects:
 		if not (object_data_variant is Dictionary):
@@ -2148,7 +2167,7 @@ func _refresh_map_constructor_state_after_preset_apply() -> void:
 		if not network_id.is_empty():
 			networks[network_id] = true
 	for network_id_variant in networks.keys():
-		PowerSystemRef.recalculate_network(mission_world_objects, str(network_id_variant))
+		recalculate_power_network(str(network_id_variant))
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 
@@ -2295,20 +2314,21 @@ func _should_assign_main_power_network(object_data: Dictionary) -> bool:
 	return false
 
 func _seed_debug_world_objects() -> void:
-	mission_world_objects = WorldObjectCatalogRef.create_test_set()
-	for object_data in mission_world_objects:
+	var seed_objects: Array[Dictionary] = WorldObjectCatalogRef.create_test_set()
+	for object_data in seed_objects:
 		if object_data.get("id", "") in ["wall_b1", "wall_d1"]:
 			object_data["scan_level"] = 3
-	if mission_world_objects.size() > 0:
-		mission_world_objects[0]["power_network_id"] = "power_net_A"
-	for object_data in mission_world_objects:
+	if seed_objects.size() > 0:
+		seed_objects[0]["power_network_id"] = "power_net_A"
+	for object_data in seed_objects:
 		if object_data.get("object_group", "") in ["door", "terminal", "power"]:
 			object_data["power_network_id"] = "power_net_A"
 		if object_data.get("object_type", "") == "energy_wall":
 			object_data["power_network_id"] = "power_net_A"
 		if object_data.get("id", "") == "fuse_box_empty_1":
 			object_data["power_network_id"] = ""
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	world_state_store.replace_snapshot(seed_objects)
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 	if debug_world_cooling_scenario_enabled:
 		seed_world_cooling_debug_scenario()
@@ -2316,29 +2336,6 @@ func _seed_debug_world_objects() -> void:
 		seed_platform_debug_scenario()
 	if debug_world_logs:
 		_debug_world_summary()
-
-func _place_debug_world_object(object_type: String, object_id: String, cell: Vector2i, overrides: Dictionary = {}) -> Dictionary:
-	if object_type.is_empty() or object_id.is_empty():
-		return {}
-	var existing := get_world_object_by_id(object_id)
-	if not existing.is_empty():
-		var existing_cell := Vector2i(existing.get("position", cell))
-		world_objects_by_cell.erase(existing_cell)
-		mission_world_objects.erase(existing)
-	var object_data := WorldObjectCatalogRef.create_world_object(object_type, object_id)
-	if object_data.is_empty():
-		return {}
-	object_data["id"] = object_id
-	object_data["position"] = cell
-	for key in overrides.keys():
-		object_data[key] = overrides[key]
-	var replaced := get_world_object_at_cell(cell)
-	if not replaced.is_empty() and str(replaced.get("id", "")) == object_id:
-		mission_world_objects.erase(replaced)
-	world_objects_by_cell[cell] = object_data
-	if not mission_world_objects.has(object_data):
-		mission_world_objects.append(object_data)
-	return object_data
 
 func seed_world_cooling_debug_scenario(origin: Vector2i = Vector2i(8, 8)) -> void:
 	_place_debug_world_object("terminal", "terminal_c2_radiator", origin + Vector2i(0, 0), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
@@ -2360,7 +2357,7 @@ func seed_world_cooling_debug_scenario(origin: Vector2i = Vector2i(8, 8)) -> voi
 	_place_debug_world_object("power_source_class_3", "power_source_c3_cooled", origin + Vector2i(0, 12), {"working_heat": 3, "current_heat": 3, "overheat_threshold": 3, "state": "active"})
 	_place_debug_world_object("external_water_pipe", "cooling_water_g", origin + Vector2i(1, 12))
 	refresh_world_cooling_received()
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 
 func validate_world_cooling_debug_scenario() -> Array[String]:
@@ -2485,22 +2482,11 @@ func _is_wall_mounted_world_object(object_data: Dictionary) -> bool:
 	return placement_mode == "wall_mounted" or bool(object_data.get("is_wall_mounted", false))
 
 func _rebuild_wall_mounted_world_object_lookup() -> void:
-	wall_mounted_objects_by_cell.clear()
-	for object_data_variant in mission_world_objects:
-		if typeof(object_data_variant) != TYPE_DICTIONARY:
-			continue
-		var object_data: Dictionary = Dictionary(object_data_variant)
-		if not _is_wall_mounted_world_object(object_data):
-			continue
-		var object_cell: Vector2i = _get_world_object_cell_from_data(object_data)
-		if object_cell.x < 0 or object_cell.y < 0:
-			continue
-		var candidates_at_cell: Array = Array(wall_mounted_objects_by_cell.get(object_cell, []))
-		candidates_at_cell.append(object_data)
-		wall_mounted_objects_by_cell[object_cell] = candidates_at_cell
+	# WorldStateStore maintains the wall-mounted index.
+	return
 
 func get_wall_mounted_world_object_at_cell(cell: Vector2i) -> Dictionary:
-	var wall_mounted_candidates: Array = Array(wall_mounted_objects_by_cell.get(cell, []))
+	var wall_mounted_candidates: Array = world_state_store.get_wall_mounted_objects_at_cell(cell)
 	if wall_mounted_candidates.is_empty():
 		return {}
 	var selected_object: Dictionary = {}
@@ -2548,7 +2534,15 @@ func _select_world_object_for_cell(cell: Vector2i) -> Dictionary:
 	return by_cell
 
 func refresh_generic_cable_runtime_state(network_filter: String = "") -> Dictionary:
-	generic_cable_runtime_report = BipobCableRuntimeServiceRef.apply_generic_power_runtime(mission_world_objects, network_filter)
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	generic_cable_runtime_report = BipobCableRuntimeServiceRef.apply_generic_power_runtime(objects, network_filter)
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "generic_cable_runtime_refreshed")
+	if not bool(commit_result.get("ok", false)):
+		generic_cable_runtime_report["ok"] = false
+		generic_cable_runtime_report["store_commit"] = commit_result
+		var warnings: Array = Array(generic_cable_runtime_report.get("warnings", []))
+		warnings.append("world_state_store_commit_failed:%s" % str(commit_result.get("reason", "unknown")))
+		generic_cable_runtime_report["warnings"] = warnings
 	return generic_cable_runtime_report.duplicate(true)
 
 
@@ -2557,10 +2551,18 @@ func get_generic_cable_runtime_report() -> Dictionary:
 
 
 func refresh_generic_airflow_runtime_state(network_filter: String = "") -> Dictionary:
-	generic_airflow_runtime_report = BipobAirflowRuntimeServiceRef.apply_generic_airflow_runtime(mission_world_objects, network_filter)
-	for object_data in mission_world_objects:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	generic_airflow_runtime_report = BipobAirflowRuntimeServiceRef.apply_generic_airflow_runtime(objects, network_filter)
+	for object_data in objects:
 		if bool(object_data.get("generic_airflow_runtime", false)) and bool(object_data.get("cooling_required", false)):
 			WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "generic_airflow_runtime_refreshed")
+	if not bool(commit_result.get("ok", false)):
+		generic_airflow_runtime_report["ok"] = false
+		generic_airflow_runtime_report["store_commit"] = commit_result
+		var warnings: Array = Array(generic_airflow_runtime_report.get("warnings", []))
+		warnings.append("world_state_store_commit_failed:%s" % str(commit_result.get("reason", "unknown")))
+		generic_airflow_runtime_report["warnings"] = warnings
 	return generic_airflow_runtime_report.duplicate(true)
 
 
@@ -2678,13 +2680,7 @@ func get_blocking_object_at_cell_for_push(cell: Vector2i) -> Dictionary:
 	return get_blocking_object_at_cell_for_actor(cell)
 
 func get_renderable_objects_at_cell(cell: Vector2i) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	for object_variant in mission_world_objects:
-		if object_variant is Dictionary:
-			var object_data: Dictionary = Dictionary(object_variant)
-			if _get_world_object_cell_from_data(object_data) == cell:
-				result.append(object_data)
-	return result
+	return world_state_store.get_renderable_objects_at_cell(cell)
 
 func _surface_height_from_variant(value: Variant, fallback: int = 0) -> int:
 	match typeof(value):
@@ -2950,7 +2946,7 @@ func resolve_runtime_surface_cell(cell: Vector2i, actor_level: int = -1) -> Dict
 		"surface_object": object_data,
 		"reason": ""
 	}
-	
+
 func get_cell_height_level(cell: Vector2i) -> int:
 	if grid_manager == null:
 		return 0
@@ -3003,7 +2999,7 @@ func can_move_between_height_levels(from_cell: Vector2i, to_cell: Vector2i, acto
 	var target_height: int = get_cell_height_level(to_cell)
 
 	return actor_height == target_height
-	
+
 func get_runtime_cell_state(cell: Vector2i) -> Dictionary:
 	var state: Dictionary = {
 		"cell": cell,
@@ -3119,135 +3115,62 @@ func get_runtime_cell_block_reason(cell: Vector2i) -> String:
 	var state: Dictionary = get_runtime_cell_state(cell)
 	return str(state.get("block_reason", ""))
 
-func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
+func try_set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> Dictionary:
 	if object_data.is_empty():
-		return
-	object_data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(object_data))
-	object_data["position"] = cell
-	var incoming_group: String = str(object_data.get("object_group", "")).to_lower()
-	var incoming_id: String = str(object_data.get("id", ""))
-	for index in range(mission_world_objects.size() - 1, -1, -1):
-		var existing: Dictionary = mission_world_objects[index]
-		var existing_group: String = str(existing.get("object_group", "")).to_lower()
-		var same_id: bool = not incoming_id.is_empty() and str(existing.get("id", "")) == incoming_id
-		var conflicting_primary: bool = incoming_group in ["door", "terminal"] and existing_group in ["door", "terminal"] and _get_world_object_cell_from_data(existing) == cell
-		if same_id or conflicting_primary:
-			var existing_cell: Vector2i = _get_world_object_cell_from_data(existing)
-			if existing_cell != cell and str(Dictionary(world_objects_by_cell.get(existing_cell, {})).get("id", "")) == str(existing.get("id", "")):
-				world_objects_by_cell.erase(existing_cell)
-			mission_world_objects.remove_at(index)
-	var incoming_is_cable_layer: bool = CableTopologyServiceRef.is_cable_object(object_data)
-	var incoming_is_wall_mounted: bool = _is_wall_mounted_world_object(object_data)
-	var current_lookup: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
-	if incoming_is_wall_mounted:
-		if current_lookup.is_empty() or _is_wall_mounted_world_object(current_lookup):
-			world_objects_by_cell[cell] = object_data
-	elif PlatformOccupancyServiceRef.is_platform_placeable_object(object_data) and PlatformOccupancyServiceRef.is_platform_data(current_lookup):
-		pass
-	elif not incoming_is_cable_layer or current_lookup.is_empty() or CableTopologyServiceRef.is_cable_object(current_lookup):
-		world_objects_by_cell[cell] = object_data
-	mission_world_objects.append(object_data)
-	_rebuild_wall_mounted_world_object_lookup()
-	refresh_generic_cable_runtime_state(str(object_data.get("power_network_id", "")))
-	refresh_world_cooling_received()
+		return {"ok": false, "reason": "empty_object", "warnings": []}
+	var normalized: Dictionary = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(object_data))
+	normalized["position"] = cell
+	var incoming_id: String = str(normalized.get("id", "")).strip_edges()
+	var replacing_id: String = incoming_id if not incoming_id.is_empty() and world_state_store.has_object(incoming_id) else ""
+	var placement: Dictionary = world_state_store.validate_structural_placement(normalized, cell, replacing_id)
+	if not bool(placement.get("ok", false)):
+		push_warning("World object placement failed: %s" % str(placement.get("reason", "unknown")))
+		return placement
+	var result: Dictionary = world_state_store.upsert_object(normalized)
+	if bool(result.get("ok", false)):
+		refresh_generic_cable_runtime_state(str(normalized.get("power_network_id", "")))
+		refresh_world_cooling_received()
+	return result
+
+func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
+	try_set_world_object_at_cell(cell, object_data)
 
 func remove_world_object_at_cell(cell: Vector2i) -> void:
-	var object_data := get_world_object_at_cell(cell)
-	if not object_data.is_empty():
-		mission_world_objects.erase(object_data)
-		var lookup_object: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
-		if not lookup_object.is_empty() and str(lookup_object.get("id", "")) == str(object_data.get("id", "")):
-			world_objects_by_cell.erase(cell)
-		_rebuild_wall_mounted_world_object_lookup()
+	world_state_store.remove_object_at_cell(cell)
 	refresh_generic_cable_runtime_state()
 	refresh_world_cooling_received()
 
 func get_items_at_cell(cell: Vector2i) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	var raw_items: Array = Array(cell_items.get(cell, []))
-	for item_variant in raw_items:
-		if item_variant is Dictionary:
-			result.append(_safe_dictionary(item_variant))
-	return result
+	return world_state_store.get_items_at_cell(cell)
 
 func add_item_at_cell(cell: Vector2i, item_data: Dictionary) -> void:
-	item_data = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_world_object_contract(item_data))
-	item_data["position"] = cell
-	# cell_items is the authoritative pickup lookup. A dropped inventory snapshot
-	# must remain an item even if old save data carried a stale world-object group.
-	item_data["object_group"] = "item"
-	if str(item_data.get("object_type", "")).strip_edges().is_empty():
-		item_data["object_type"] = "item"
-	if not item_data.has("can_pickup"):
-		item_data["can_pickup"] = true
-	var items: Array[Dictionary] = get_items_at_cell(cell)
-	items.append(item_data)
-	cell_items[cell] = items
-	_sync_world_item_record(item_data)
+	var normalized: Dictionary = WorldObjectCatalogRef.normalize_item_contract(WorldObjectCatalogRef.normalize_world_object_contract(item_data))
+	normalized["position"] = cell
+	normalized["object_group"] = "item"
+	if str(normalized.get("object_type", "")).strip_edges().is_empty():
+		normalized["object_type"] = "item"
+	if not normalized.has("can_pickup"):
+		normalized["can_pickup"] = true
+	world_state_store.upsert_object(normalized)
 
 func _sync_world_item_record(item_data: Dictionary) -> void:
-	var item_id: String = str(item_data.get("id", "")).strip_edges()
-	if item_id.is_empty():
+	if str(item_data.get("id", "")).strip_edges().is_empty():
 		return
-	for index in range(mission_world_objects.size()):
-		var object_data: Dictionary = mission_world_objects[index]
-		if str(object_data.get("id", "")) != item_id:
-			continue
-		mission_world_objects[index] = item_data
-		return
-	mission_world_objects.append(item_data)
+	world_state_store.upsert_object(item_data)
 
 func _remove_world_item_record(item_id: String) -> void:
 	if item_id.strip_edges().is_empty():
 		return
-	for index in range(mission_world_objects.size() - 1, -1, -1):
-		var object_data: Dictionary = mission_world_objects[index]
-		if str(object_data.get("id", "")) == item_id:
-			mission_world_objects.remove_at(index)
+	world_state_store.remove_object_by_id(item_id.strip_edges())
 
 func _remove_world_item_from_lookup_tables(item_id: String, item_data: Dictionary = {}) -> void:
-	var normalized_id: String = item_id.strip_edges()
-	if normalized_id.is_empty():
-		return
-	for cell_variant in cell_items.keys():
-		var original_items: Array = Array(cell_items.get(cell_variant, []))
-		var remaining_items: Array[Dictionary] = []
-		var removed := false
-		for item_variant in original_items:
-			if item_variant is Dictionary and str(Dictionary(item_variant).get("id", "")).strip_edges() == normalized_id:
-				removed = true
-				continue
-			if item_variant is Dictionary:
-				remaining_items.append(Dictionary(item_variant))
-		if removed:
-			if remaining_items.is_empty():
-				cell_items.erase(cell_variant)
-			else:
-				cell_items[cell_variant] = remaining_items
-			break
-	var item_cell := WorldObjectCatalogRef.to_world_cell(item_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-	for cell_variant in world_objects_by_cell.keys():
-		var object_variant: Variant = world_objects_by_cell.get(cell_variant)
-		if object_variant is Dictionary and str(Dictionary(object_variant).get("id", "")).strip_edges() == normalized_id:
-			world_objects_by_cell.erase(cell_variant)
-			break
-	if item_cell != Vector2i(-1, -1):
-		var item_cell_object_variant: Variant = world_objects_by_cell.get(item_cell)
-		if item_cell_object_variant is Dictionary and str(Dictionary(item_cell_object_variant).get("id", "")).strip_edges() == normalized_id:
-			world_objects_by_cell.erase(item_cell)
-	_remove_world_item_record(normalized_id)
+	_remove_world_item_record(item_id)
 
 func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
-	var items: Array[Dictionary] = get_items_at_cell(cell)
-	if items.is_empty():
-		return {}
-	var item: Dictionary = items.pop_front()
-	if items.is_empty():
-		cell_items.erase(cell)
-	else:
-		cell_items[cell] = items
-	_remove_world_item_record(str(item.get("id", "")))
-	return item
+	var result := world_state_store.remove_first_item_at_cell(cell)
+	if bool(result.get("ok", false)):
+		return Dictionary(result.get("removed", {}))
+	return {}
 
 func _get_world_object_template(prefab_id: String) -> Dictionary:
 	var normalized_prefab_id: String = prefab_id.strip_edges()
@@ -3936,7 +3859,7 @@ func _is_map_constructor_wall_stackable_prefab(prefab_id: String) -> bool:
 		"cable_reel",
 		"generic_power_cable"
 	] or normalized_id.contains("cable") or normalized_id.contains("wire")
-	
+
 func _is_map_constructor_wall_cell_share_prefab(prefab_id: String) -> bool:
 	var normalized_id: String = prefab_id.strip_edges().to_lower()
 	return normalized_id in [
@@ -3950,7 +3873,7 @@ func _is_map_constructor_wall_cell_share_prefab(prefab_id: String) -> bool:
 		"external_air_duct",
 		"external_water_pipe"
 	] or normalized_id.contains("cable") or normalized_id.contains("wire")
-	
+
 func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", placement_mode_override: String = "") -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {
@@ -4233,7 +4156,7 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 		"placement_mode": "object",
 		"warnings": []
 	}
-	
+
 func _ensure_map_constructor_service() -> MapConstructorService:
 	if map_constructor_service == null:
 		map_constructor_service = MapConstructorServiceRef.new(self)
@@ -4381,7 +4304,7 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 						cleared_any = true
 				if cleared_any:
 					applied_count += 1
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("batch", {"summary":"Batch %s: %d affected" % [str(preview.get("operation_type", "")), applied_count], "details":{"operation_type":str(preview.get("operation_type", "")), "affected_count":applied_count}, "undo_hint":"Use Undo Last Batch."})
 	return {"ok": true, "message": "Batch applied.", "applied_count": applied_count, "warnings": Array(preview.get("warnings", [])), "conflicts": Array(preview.get("conflicts", [])), "batch_id": str(_map_constructor_last_batch_snapshot.get("batch_id", ""))}
@@ -4389,12 +4312,10 @@ func apply_map_constructor_batch_operation(operation_type: String, entities: Arr
 func undo_last_map_constructor_batch_operation() -> Dictionary:
 	if _map_constructor_last_batch_snapshot.is_empty():
 		return {"ok": false, "message": "No batch operation to undo."}
-	mission_world_objects = Array(_map_constructor_last_batch_snapshot.get("mission_world_objects", [])).duplicate(true)
-	cell_items = Dictionary(_map_constructor_last_batch_snapshot.get("cell_items", {})).duplicate(true)
-	world_objects_by_cell = Dictionary(_map_constructor_last_batch_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	replace_world_state_snapshot(Array(_map_constructor_last_batch_snapshot.get("mission_world_objects", [])).duplicate(true))
 	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_batch_snapshot.clear()
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("batch_undo", {"summary":"Undid last batch operation.", "undo_hint":"Re-apply batch manually if needed."})
 	return {"ok": true, "message": "Last batch operation undone."}
@@ -4502,7 +4423,7 @@ func set_map_constructor_wall_mounted_side(entity_kind: String, entity_id: Strin
 	data["attached_wall_cell"] = _serialize_cell_key(attached)
 	data["position"] = anchor
 	set_world_object_at_cell(anchor, data)
-	PowerSystemRef.recalculate_network(mission_world_objects, str(data.get("power_network_id", "")))
+	recalculate_power_network(str(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
 	_record_map_constructor_change("side_change", {"entity_kind":"world_object", "entity_id":entity_id, "object_type":str(data.get("object_type", "")), "cell":anchor, "summary":"Changed wall side on %s to %s" % [entity_id, side], "undo_hint":"Can undo by switching side again."})
 	return {"ok": true, "message": "Wall side changed to %s." % _get_map_constructor_wall_side_label(side), "object_id": entity_id, "wall_side": side, "attached_wall_cell": attached}
@@ -4696,11 +4617,11 @@ func _clear_runtime_wall_sources_at_cell(cell: Vector2i) -> int:
 			continue
 		if not _is_wall_source_object_data(object_data):
 			continue
-		mission_world_objects.remove_at(index)
+		world_state_store.remove_object_by_id(str(object_data.get("id", "")).strip_edges())
 		removed_count += 1
-	var by_cell: Dictionary = Dictionary(world_objects_by_cell.get(cell, {}))
+	var by_cell: Dictionary = get_world_object_at_cell(cell)
 	if _is_wall_source_object_data(by_cell):
-		world_objects_by_cell.erase(cell)
+		world_state_store.remove_object_by_id(str(by_cell.get("id", "")).strip_edges())
 		removed_count += 1
 	return removed_count
 
@@ -5850,8 +5771,8 @@ func apply_map_constructor_link_target(entity_kind: String, entity_id: String, f
 		else:
 			result["message"] = "connected_device_ids supports world_object only."
 			return result
-		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
-		PowerSystemRef.recalculate_network(mission_world_objects, str(data.get("power_network_id", "")))
+		recalculate_power_network(old_network_id)
+		recalculate_power_network(str(data.get("power_network_id", "")))
 		refresh_world_cooling_received()
 		result["ok"] = true
 		result["message"] = "Updated connected_device_ids."
@@ -5951,7 +5872,8 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 				if str(item_data.get("id", "")) != entity_id:
 					continue
 				items[index] = data
-				cell_items[cell] = items
+				for item_row in items:
+					world_state_store.upsert_object(item_row)
 				updated_item = true
 				break
 			if updated_item:
@@ -5967,8 +5889,8 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 			needs_power_refresh = true
 			break
 	if needs_power_refresh:
-		PowerSystemRef.recalculate_network(mission_world_objects, old_network_id)
-		PowerSystemRef.recalculate_network(mission_world_objects, str(data.get("power_network_id", "")))
+		recalculate_power_network(old_network_id)
+		recalculate_power_network(str(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
 	return {"ok": true, "message": "Preset %s applied." % lower_preset, "entity_id": entity_id, "preset": lower_preset}
 
@@ -6382,7 +6304,7 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 		"message": "Updated properties.",
 		"warnings": warnings
 	}
-	
+
 func get_map_constructor_link_candidates(entity_kind: String, entity_id: String, link_type: String) -> Array[Dictionary]:
 	var field_map := {"linked_terminal":"linked_terminal_id","linked_door":"target_door_id","power_network":"power_network_id","control_source":"control_source_id","terminal_target":"target_door_id","platform_target":"target_platform_id","power_source":"power_source_id","control_terminal":"control_terminal_id","access_terminal":"access_terminal_id"}
 	if not field_map.has(link_type): return []
@@ -6814,7 +6736,7 @@ func toggle_light_switch_links(light_switch_id: String, switch_is_on: bool) -> D
 		if not switch_is_on:
 			linked_light["is_powered"] = false
 	if not source_id.is_empty():
-		PowerSystemRef.recalculate_network(mission_world_objects, source_id)
+		recalculate_power_network(source_id)
 	if switch_is_on:
 		for linked_light in linked_lights:
 			if not bool(linked_light.get("is_powered", false)):
@@ -6944,7 +6866,7 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 				data[field_name] = ""
 				cleared += 1
 			update_world_object_by_id(str(row.get("id", "")), data)
-		PowerSystemRef.recalculate_network(mission_world_objects, "")
+		recalculate_power_network("")
 		refresh_world_cooling_received()
 		_record_map_constructor_change("cleanup", {"entity_kind":"", "entity_id":"", "summary":"Applied cleanup: %d objects affected" % cleared, "details":{"cleanup_type":str(cleanup_type).to_lower(), "affected_count":cleared}, "undo_hint":"Use Undo Last Cleanup."})
 		return {"ok": true, "message": "Invalid references cleaned.", "deleted_count": cleared, "cleanup_id": str(_map_constructor_last_cleanup_snapshot.get("cleanup_id", "")), "warnings": []}
@@ -6953,7 +6875,7 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 		var remove_result: Dictionary = _remove_map_constructor_entity_by_id(str(row.get("entity_kind", "")), str(row.get("id", "")))
 		if bool(remove_result.get("ok", false)):
 			deleted_count += 1
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	var message: String = "Cleanup applied."
 	if str(cleanup_type).to_lower() == "reset_runtime_map":
@@ -6964,12 +6886,10 @@ func apply_map_constructor_cleanup(cleanup_type: String, options: Dictionary = {
 func undo_last_map_constructor_cleanup() -> Dictionary:
 	if _map_constructor_last_cleanup_snapshot.is_empty():
 		return {"ok": false, "message": "No cleanup to undo."}
-	mission_world_objects = Array(_map_constructor_last_cleanup_snapshot.get("mission_world_objects", [])).duplicate(true)
-	cell_items = Dictionary(_map_constructor_last_cleanup_snapshot.get("cell_items", {})).duplicate(true)
-	world_objects_by_cell = Dictionary(_map_constructor_last_cleanup_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	replace_world_state_snapshot(Array(_map_constructor_last_cleanup_snapshot.get("mission_world_objects", [])).duplicate(true))
 	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_cleanup_snapshot.clear()
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("cleanup_undo", {"summary":"Undid last cleanup.", "undo_hint":"Redo cleanup manually if needed."})
 	return {"ok": true, "message": "Last cleanup undone."}
@@ -7195,7 +7115,7 @@ func apply_map_constructor_autofix(fix_type: String, options: Dictionary = {}) -
 				d["wall_side"] = str(wall_data.get("wall_side", d.get("wall_side", "")))
 				d["attached_wall_cell"] = Vector2i(wall_data.get("attached_wall_cell", d.get("attached_wall_cell", Vector2i(-1,-1))))
 				update_world_object_by_id(str(row.get("entity_id", "")), d)
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("autofix", {"summary":"Applied auto-fix: %d fields fixed" % fixes.size(), "details":{"fix_type":fix_type, "fixed_count":fixes.size()}, "undo_hint":"Use Undo Last Auto-fix."})
 	return {"ok": true, "message": "Auto-fix applied.", "fixed_count": fixes.size(), "fix_id": str(_map_constructor_last_autofix_snapshot.get("fix_id", "")), "warnings": Array(preview.get("warnings", []))}
@@ -7203,12 +7123,10 @@ func apply_map_constructor_autofix(fix_type: String, options: Dictionary = {}) -
 func undo_last_map_constructor_autofix() -> Dictionary:
 	if _map_constructor_last_autofix_snapshot.is_empty():
 		return {"ok": false, "message": "No auto-fix to undo."}
-	mission_world_objects = Array(_map_constructor_last_autofix_snapshot.get("mission_world_objects", [])).duplicate(true)
-	cell_items = Dictionary(_map_constructor_last_autofix_snapshot.get("cell_items", {})).duplicate(true)
-	world_objects_by_cell = Dictionary(_map_constructor_last_autofix_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	replace_world_state_snapshot(Array(_map_constructor_last_autofix_snapshot.get("mission_world_objects", [])).duplicate(true))
 	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_autofix_snapshot.clear()
-	PowerSystemRef.recalculate_network(mission_world_objects, "")
+	recalculate_power_network("")
 	refresh_world_cooling_received()
 	_record_map_constructor_change("autofix_undo", {"summary":"Undid last auto-fix.", "undo_hint":"Re-apply auto-fix manually if needed."})
 	return {"ok": true, "message": "Last auto-fix undone."}
@@ -7248,10 +7166,7 @@ func get_map_constructor_audit_summary_text() -> String:
 	return _ensure_map_constructor_validation_service().get_map_constructor_audit_summary_text()
 
 func get_world_object_by_id(id: String) -> Dictionary:
-	for object_data in mission_world_objects:
-		if str(object_data.get("id", "")) == id:
-			return object_data
-	return {}
+	return world_state_store.get_object_by_id(id)
 
 func get_cell_item_by_id(id: String) -> Dictionary:
 	var normalized_id: String = id.strip_edges()
@@ -7263,31 +7178,14 @@ func get_cell_item_by_id(id: String) -> Dictionary:
 				return Dictionary(item_variant)
 	return {}
 
-func update_world_object_by_id(id: String, data: Dictionary) -> void:
-	if id.is_empty() or data.is_empty():
-		return
+func update_world_object_by_id(id: String, new_data: Dictionary) -> void:
+	var data: Dictionary = new_data.duplicate(true)
+	data["id"] = id
 	data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(data))
-	for index in range(mission_world_objects.size()):
-		var object_data: Dictionary = mission_world_objects[index]
-		if str(object_data.get("id", "")) != id:
-			continue
-		var old_position := Vector2i(object_data.get("position", Vector2i(-1, -1)))
-		for key in data.keys():
-			object_data[key] = data[key]
-		mission_world_objects[index] = object_data
-		var new_position := Vector2i(object_data.get("position", old_position))
-		var updated_lookup: Dictionary = Dictionary(world_objects_by_cell.get(new_position, {}))
-		if old_position != new_position and str(Dictionary(world_objects_by_cell.get(old_position, {})).get("id", "")) == id:
-			world_objects_by_cell.erase(old_position)
-		if PlatformOccupancyServiceRef.is_platform_placeable_object(object_data) and PlatformOccupancyServiceRef.is_platform_data(updated_lookup):
-			pass
-		elif not _is_wall_mounted_world_object(object_data) or updated_lookup.is_empty() or _is_wall_mounted_world_object(updated_lookup):
-			world_objects_by_cell[new_position] = object_data
-		_rebuild_wall_mounted_world_object_lookup()
-		refresh_generic_cable_runtime_state(str(object_data.get("power_network_id", "")))
-		refresh_world_cooling_received()
-		return
-
+	world_state_store.upsert_object(data)
+	refresh_generic_cable_runtime_state(str(data.get("power_network_id", "")))
+	refresh_world_cooling_received()
+	return
 
 func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -> Dictionary:
 	var result := {"success": false, "message": "Cannot move object there.", "object_id": object_id, "from": Vector2i(-1, -1), "to": target_cell}
@@ -7325,33 +7223,27 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 	if not target_object.is_empty():
 		result["message"] = "Target cell is occupied."
 		return result
-	if str(Dictionary(world_objects_by_cell.get(from_cell, {})).get("id", "")) == object_id:
-		world_objects_by_cell.erase(from_cell)
-	object_data["position"] = target_cell
 	object_data = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
-	if not PlatformOccupancyServiceRef.is_platform_data(Dictionary(world_objects_by_cell.get(target_cell, {}))):
-		world_objects_by_cell[target_cell] = object_data
-	for object_index in range(mission_world_objects.size()):
-		if str(mission_world_objects[object_index].get("id", "")) == object_id:
-			mission_world_objects[object_index] = object_data
-			break
+	world_state_store.move_object(object_id, target_cell, object_data)
 	refresh_world_cooling_received()
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 	result["success"] = true
 	result["message"] = "Moved %s." % str(object_data.get("display_name", "Object"))
 	return result
 
 func refresh_world_cooling_received() -> void:
-	for object_data in mission_world_objects:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	for object_data in objects:
 		if bool(object_data.get("generic_airflow_runtime", false)) and bool(object_data.get("cooling_required", false)):
 			continue
 		if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
 			continue
 		var target_position: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-		var cooling_received: int = WorldObjectCatalogRef.calculate_world_cooling_received_for_target(object_data, target_position, mission_world_objects)
+		var cooling_received: int = WorldObjectCatalogRef.calculate_world_cooling_received_for_target(object_data, target_position, objects)
 		object_data["cooling_received"] = cooling_received
 		WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+	_commit_runtime_world_snapshot(objects, "world_cooling_refreshed")
 	refresh_generic_airflow_runtime_state()
 
 func preview_cooling_application(filter: String = "") -> Dictionary:
@@ -7393,6 +7285,7 @@ func preview_cooling_application(filter: String = "") -> Dictionary:
 
 func apply_cooling_application(filter: String = "") -> Dictionary:
 	var preview := preview_cooling_application(filter)
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
 	for target_variant in preview.get("targets", []):
 		if typeof(target_variant) != TYPE_DICTIONARY:
 			continue
@@ -7400,13 +7293,19 @@ func apply_cooling_application(filter: String = "") -> Dictionary:
 		var object_id := str(target.get("object_id", "")).strip_edges()
 		if object_id.is_empty():
 			continue
-		var object_data := get_world_object_by_id(object_id)
-		if object_data.is_empty():
-			continue
-		if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
-			continue
-		object_data["cooling_received"] = maxi(0, int(target.get("cooling_received", 0)))
-		WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+		for object_data in objects:
+			if str(object_data.get("id", "")).strip_edges() != object_id:
+				continue
+			if not WorldObjectCatalogRef.can_world_object_receive_cooling(object_data):
+				continue
+			object_data["cooling_received"] = maxi(0, int(target.get("cooling_received", 0)))
+			WorldObjectCatalogRef.update_world_object_heat_state(object_data)
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "cooling_application_applied")
+	if not bool(commit_result.get("ok", false)):
+		preview["store_commit"] = commit_result
+		var warnings: Array = Array(preview.get("warnings", []))
+		warnings.append("world_state_store_commit_failed:%s" % str(commit_result.get("reason", "unknown")))
+		preview["warnings"] = warnings
 	return preview
 
 func update_cooling_for_network_or_area(filter: String = "") -> Dictionary:
@@ -7936,7 +7835,7 @@ func preview_power_source_load_heat_for_network(filter: String = "") -> Dictiona
 	return report
 
 func update_power_source_load_heat_for_network(filter: String = "") -> Dictionary:
-	PowerSystemRef.recalculate_network(mission_world_objects, filter)
+	recalculate_power_network(filter)
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var resolved_filter := _resolve_power_graph_filter_to_network_id(filter.strip_edges())
@@ -7985,7 +7884,7 @@ func update_power_source_load_heat_for_network(filter: String = "") -> Dictionar
 	return report
 
 func preview_power_graph_state_application(filter: String = "") -> Dictionary:
-	PowerSystemRef.recalculate_network(mission_world_objects, filter)
+	recalculate_power_network(filter)
 	var collected := _collect_power_network_objects()
 	var networks: Dictionary = collected.get("networks", {})
 	var filter_text := filter.strip_edges()
@@ -8687,7 +8586,7 @@ func execute_power_source_recovery_apply(filter: String = "") -> Dictionary:
 	return {"recovery": recovery, "apply": apply}
 
 func apply_power_network_after_explicit_power_event(reason: String = "", filter: String = "") -> Dictionary:
-	PowerSystemRef.recalculate_network(mission_world_objects, filter)
+	recalculate_power_network(filter)
 	refresh_generic_cable_runtime_state(filter)
 	var report := apply_power_graph_state_from_preview(filter)
 	return {
@@ -9179,7 +9078,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_terminal", "terminal", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_platform", "lifting_platform", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	for object_data in temp_objects:
-		mission_world_objects.append(object_data)
+		world_state_store.upsert_object(object_data)
 		var object_id := str(object_data.get("id", "")).strip_edges()
 		if not object_id.is_empty():
 			temp_ids[object_id] = true
@@ -9699,7 +9598,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 		var object_data: Dictionary = mission_world_objects[index]
 		var object_id := str(object_data.get("id", "")).strip_edges()
 		if temp_ids.has(object_id):
-			mission_world_objects.remove_at(index)
+			world_state_store.remove_object_by_id(str(object_data.get("id", "")).strip_edges())
 		index -= 1
 	for object_data in mission_world_objects:
 		var object_id := str(object_data.get("id", "")).strip_edges()
@@ -9783,7 +9682,7 @@ func validate_full_power_system_runtime() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_broken_source", "power_source_class_1", "power_debug_source_recovery_broken", {"state": "overheated", "is_powered": false, "broken": true, "overheated_state_before": "active", "current_heat": 4, "working_heat": 1, "cooling_received": 6, "overheat_threshold": 4}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_broken_terminal", "terminal", "power_debug_source_recovery_broken", {"is_powered": false, "state": "unpowered"}))
 	for object_data in temp_objects:
-		mission_world_objects.append(object_data)
+		world_state_store.upsert_object(object_data)
 		cleanup_ids.append(str(object_data.get("id", "")))
 	var recovery_a := execute_power_source_recovery_apply("power_debug_source_recovery")
 	var source_a := get_world_object_by_id("power_debug_source_recovery_source")
@@ -9850,7 +9749,7 @@ func validate_full_power_system_runtime() -> Array[String]:
 	runtime_object["destroyed"] = false
 	runtime_object["state_before_unpowered"] = "active"
 	runtime_object["powered_state_before_unpowered"] = "active"
-	mission_world_objects.append(runtime_object)
+	world_state_store.upsert_object(runtime_object)
 	cleanup_ids.append("power_debug_runtime_save_fields")
 	var runtime_snapshot := get_world_object_runtime_state()
 	var saved_entry: Dictionary = runtime_snapshot.get("power_debug_runtime_save_fields", {})
@@ -9860,7 +9759,7 @@ func validate_full_power_system_runtime() -> Array[String]:
 	for i in range(mission_world_objects.size() - 1, -1, -1):
 		var object_id := str(mission_world_objects[i].get("id", "")).strip_edges()
 		if cleanup_ids.has(object_id):
-			mission_world_objects.remove_at(i)
+			world_state_store.remove_object_by_id(object_id)
 	for warning in validate_cooling_runtime():
 		warnings.append(str(warning))
 	for warning in validate_cooling_and_cable_runtime():
@@ -9920,8 +9819,7 @@ func validate_cooling_and_cable_runtime() -> Array[String]:
 	var radiator := {"id":"temp_cooling_radiator", "object_group":"cooling", "object_type":"cooling_radiator", "position":Vector2i(131, 100), "cooling_device_type":"radiator", "cooling_output":2, "state":"active", "is_powered":true}
 	var cable := {"id":"temp_validation_cable", "object_group":"cable", "object_type":"power_cable", "position":Vector2i(132, 100), "connected":true, "disconnected":false, "cut":false, "state":"active"}
 	for obj in [source, radiator, cable]:
-		mission_world_objects.append(obj)
-		world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj
+		world_state_store.upsert_object(obj)
 	var cool_preview_before := str(get_world_object_runtime_state())
 	preview_cooling_application("")
 	if str(get_world_object_runtime_state()) != cool_preview_before:
@@ -9932,8 +9830,8 @@ func validate_cooling_and_cable_runtime() -> Array[String]:
 	if bool(cable.get("connected", true)):
 		warnings.append("cut_cable_should_disconnect")
 	var repair_item := {"id":"temp_repair_kit_cable", "object_group":"item", "object_type":"item", "position":Vector2i(133, 100), "item_type":"repair_kit"}
-	mission_world_objects.append(repair_item)
-	world_objects_by_cell[Vector2i(133, 100)] = repair_item
+	world_state_store.upsert_object(repair_item)
+
 	cable["damaged"] = true
 	use_inventory_item_on_world_object("temp_repair_kit_cable", "temp_validation_cable")
 	if not bool(cable.get("disconnected", false)):
@@ -9941,8 +9839,8 @@ func validate_cooling_and_cable_runtime() -> Array[String]:
 	for i in range(mission_world_objects.size() - 1, -1, -1):
 		var oid := str(mission_world_objects[i].get("id", ""))
 		if oid.begins_with("temp_"):
-			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
-			mission_world_objects.remove_at(i)
+			# WorldStateStore removes derived lookup entries.
+			world_state_store.remove_object_by_id(oid)
 	apply_world_object_runtime_state(snapshot)
 	for object_id_variant in snapshot.keys():
 		var object_id := str(object_id_variant)
@@ -11619,13 +11517,9 @@ func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
 			candidate_object[key] = runtime_updates[key]
 		candidate_object["id"] = object_id
 		candidate_object["position"] = new_position
-		if not is_new_object and old_position != new_position:
-			world_objects_by_cell.erase(old_position)
-		world_objects_by_cell[new_position] = candidate_object
-		if is_new_object and not mission_world_objects.has(candidate_object):
-			mission_world_objects.append(candidate_object)
+		world_state_store.upsert_object(candidate_object)
 	refresh_world_cooling_received()
-	PowerSystemRef.recalculate_network(mission_world_objects, "power_net_A")
+	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 
 func get_world_runtime_persistence_debug_summary_text() -> String:
@@ -11751,7 +11645,7 @@ func _is_platform_object_data(object_data: Dictionary) -> bool:
 
 func _get_platform_level_from_object(platform_object: Dictionary) -> int:
 	return maxi(0, int(platform_object.get("platform_level", platform_object.get("current_level", platform_object.get("height_level", 0)))))
-	
+
 
 func _is_height_platform_object_data(object_data: Dictionary) -> bool:
 	if object_data.is_empty():
@@ -12689,7 +12583,7 @@ func _build_platform_timer_tick_debug_platform(platform_id: String, mode: String
 
 func _cleanup_platform_timer_tick_debug_state(temp_platforms: Array[Dictionary], original_platform_snapshots: Dictionary, original_last_tick_action_index: int) -> void:
 	for temp_platform in temp_platforms:
-		mission_world_objects.erase(temp_platform)
+		world_state_store.remove_object_by_id(str(temp_platform.get("id", "")).strip_edges())
 	for object_data in original_platform_snapshots.keys():
 		_restore_platform_debug_fields(object_data, original_platform_snapshots[object_data])
 	platform_last_tick_action_index = original_last_tick_action_index
@@ -12724,7 +12618,7 @@ func validate_platform_timer_tick_debug_scenario() -> Array[String]:
 	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_instant", "instant", Vector2i(88, 80), {"height_level": 0}))
 	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_permanent", "permanent", Vector2i(90, 80), {"pending_activation": true, "permanent_state": "active", "height_level": 0}))
 	for temp_platform in temp_platforms:
-		mission_world_objects.append(temp_platform)
+		world_state_store.upsert_object(temp_platform)
 	var temp_cells := {}
 	var has_temp_overlap := false
 	for temp_platform in temp_platforms:
@@ -13242,8 +13136,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	var mechanical_door := {"id": mechanical_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(103, 100), "state": "closed", "is_locked": true, "lock_type": "mechanical_key", "required_key_id": "temp_validation_mechanical_key", "is_powered": true}
 	var digital_door := {"id": digital_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(104, 100), "state": "closed", "is_locked": true, "lock_type": "access_code", "is_powered": true}
 	for obj in [terminal, linked_door, unlinked_door, mechanical_door, digital_door]:
-		mission_world_objects.append(obj)
-		world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj
+		world_state_store.upsert_object(obj)
 		temp_ids.append(str(obj.get("id", "")))
 	var av := get_terminal_action_availability(terminal_id, "hack")
 	if not bool(av.get("available", false)): warnings.append("active_powered_terminal_unavailable")
@@ -13279,7 +13172,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	var encrypted_key := {"id":"temp_validation_encrypted_key", "object_group":"item", "object_type":"item", "position":Vector2i(108, 100), "item_type":"digital_key", "digital_state":"encrypted"}
 	var good_digital := {"id":"temp_validation_good_digital", "object_group":"item", "object_type":"item", "position":Vector2i(109, 100), "item_type":"access_code"}
 	for key_obj in [mechanical_key, wrong_key, damaged_key, encrypted_key, good_digital]:
-		mission_world_objects.append(key_obj); world_objects_by_cell[Vector2i(key_obj.get("position", Vector2i(-1, -1)))] = key_obj; temp_ids.append(str(key_obj.get("id", "")))
+		world_state_store.upsert_object(key_obj); temp_ids.append(str(key_obj.get("id", "")))
 	if not bool(can_use_access_item_on_door(mechanical_key["id"], mechanical_door_id).get("success", false)): warnings.append("mechanical_key_gate_failed")
 	if not bool(pickup_world_item(mechanical_key["id"]).get("success", false)): warnings.append("mechanical_key_pickup_failed")
 	if not get_world_object_by_id(mechanical_key["id"]).is_empty(): warnings.append("picked_up_key_world_copy_remains")
@@ -13305,8 +13198,8 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	for i in range(mission_world_objects.size() - 1, -1, -1):
 		var object_id := str(mission_world_objects[i].get("id", "")).strip_edges()
 		if temp_ids.has(object_id):
-			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
-			mission_world_objects.remove_at(i)
+			# WorldStateStore removes derived lookup entries.
+			world_state_store.remove_object_by_id(object_id)
 	apply_world_object_runtime_state(world_snapshot)
 	runtime_inventory_state = inventory_snapshot.duplicate(true)
 	if mission_world_objects.size() != base_size:
@@ -13357,8 +13250,8 @@ func validate_platform_scan_visibility_runtime() -> Array[String]:
 	if snapshot_a != snapshot_b:
 		warnings.append("scan/report helpers are not read-only")
 	var hidden_cable := {"id":"temp_hidden_cable", "object_group":"cable", "object_type":"power_cable", "position":Vector2i(140, 100), "hidden":true, "hidden_cable":true, "visible_with_xray":true}
-	mission_world_objects.append(hidden_cable)
-	world_objects_by_cell[Vector2i(140, 100)] = hidden_cable
+	world_state_store.upsert_object(hidden_cable)
+
 	var basic_visible := is_world_object_visible_to_player(hidden_cable, "basic")
 	var xray_result := get_scan_result_for_object("temp_hidden_cable", "xray")
 	if basic_visible:
@@ -13374,8 +13267,8 @@ func validate_platform_scan_visibility_runtime() -> Array[String]:
 		warnings.append("reveal_xray_objects_no_effect")
 	for i in range(mission_world_objects.size() - 1, -1, -1):
 		if str(mission_world_objects[i].get("id", "")) == "temp_hidden_cable":
-			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
-			mission_world_objects.remove_at(i)
+			# WorldStateStore removes derived lookup entries.
+			world_state_store.remove_object_by_id("temp_hidden_cable")
 	return warnings
 
 func get_platform_scan_visibility_validation_text() -> String:
@@ -13393,7 +13286,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	if not caps.has("manipulator_level") or not caps.has("connector_level") or not caps.has("processor_level"):
 		warnings.append("capability_defaults_missing")
 	var req_obj := {"id":"temp_req_obj", "object_group":"item", "object_type":"item", "position":Vector2i(120, 100), "required_manipulator_level":1, "required_connector_level":1, "required_processor_level":1}
-	mission_world_objects.append(req_obj); world_objects_by_cell[Vector2i(120, 100)] = req_obj; temp_ids.append("temp_req_obj")
+	world_state_store.upsert_object(req_obj); temp_ids.append("temp_req_obj")
 	var req := check_world_object_requirements("temp_req_obj", "use")
 	for r in ["manipulator_level_too_low","connector_level_too_low","processor_level_too_low"]:
 		if not Array(req.get("reasons", [])).has(r): warnings.append("requirements_missing_%s" % r)
@@ -13401,7 +13294,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var digital_item := {"id":"temp_item_digital", "object_group":"item", "object_type":"item", "position":Vector2i(122, 100), "item_form":"digital", "can_place_in_digital_buffer":true}
 	var digital_blocked := {"id":"temp_item_digital_blocked", "object_group":"item", "object_type":"item", "position":Vector2i(123, 100), "item_form":"digital", "can_place_in_digital_buffer":false}
 	for obj in [physical_item, digital_item, digital_blocked]:
-		mission_world_objects.append(obj); world_objects_by_cell[Vector2i(obj.get("position", Vector2i(-1, -1)))] = obj; temp_ids.append(str(obj.get("id", "")))
+		world_state_store.upsert_object(obj); temp_ids.append(str(obj.get("id", "")))
 	if not bool(pickup_world_item("temp_item_physical").get("success", false)): warnings.append("physical_pickup_failed")
 	if not Array(runtime_inventory_state.get("pocket_items", [])).has("temp_item_physical"): warnings.append("physical_pickup_not_routed_to_pocket")
 	if get_manipulator_held_item_id() == "temp_item_physical": warnings.append("physical_pickup_routed_to_manipulator_before_pocket")
@@ -13448,7 +13341,8 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var stacked_remaining := get_items_at_cell(stacked_cell)
 	if stacked_remaining.size() != 1 or str(Dictionary(stacked_remaining[0]).get("id", "")) != "temp_item_stacked_first": warnings.append("stacked_pickup_removed_wrong_item")
 	if not get_world_object_by_id("temp_item_stacked_second").is_empty(): warnings.append("stacked_pickup_world_copy_remains")
-	cell_items.erase(stacked_cell)
+	for item_row in get_items_at_cell(stacked_cell):
+		world_state_store.remove_object_by_id(str(item_row.get("id", "")).strip_edges())
 	if bool(hold_item_in_manipulator("temp_item_physical").get("success", false)): warnings.append("manipulator_single_item_gate_missing")
 	runtime_inventory_state["manipulator_hold"] = ""
 	var inv_before_fail := str(get_inventory_state())
@@ -13457,8 +13351,8 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	for i in range(mission_world_objects.size() - 1, -1, -1):
 		var oid := str(mission_world_objects[i].get("id", ""))
 		if temp_ids.has(oid):
-			world_objects_by_cell.erase(WorldObjectCatalogRef.to_world_cell(mission_world_objects[i].get("position", Vector2i(-1, -1)), Vector2i(-1, -1)))
-			mission_world_objects.remove_at(i)
+			# WorldStateStore removes derived lookup entries.
+			world_state_store.remove_object_by_id(oid)
 	apply_world_object_runtime_state(world_snapshot)
 	runtime_inventory_state = inventory_snapshot.duplicate(true)
 	return warnings
@@ -13738,7 +13632,7 @@ func classify_task_test_object_for_audit(object_data: Dictionary) -> Array[Strin
 	if int(object_data.get("required_processor_level", 0)) > 0: tags.append("scan_processor_gated")
 	if bool(object_data.get("mission_exit", false)) or bool(object_data.get("extraction", false)): tags.append("extraction")
 	if item_type == "access_code": tags.append("access_code")
-	if item_type == "fuse": tags.append("fuse") 
+	if item_type == "fuse": tags.append("fuse")
 	if item_type == "repair_kit": tags.append("repair_kit")
 	return tags
 
@@ -14748,9 +14642,7 @@ func undo_last_map_constructor_prefab_kit() -> Dictionary:
 		return {"ok": false, "message": "Kit undo is available only in TASK TEST constructor mode."}
 	if _map_constructor_last_kit_snapshot.is_empty():
 		return {"ok":false,"message":"No kit snapshot."}
-	mission_world_objects = Array(_map_constructor_last_kit_snapshot.get("mission_world_objects", [])).duplicate(true)
-	cell_items = Dictionary(_map_constructor_last_kit_snapshot.get("cell_items", {})).duplicate(true)
-	world_objects_by_cell = Dictionary(_map_constructor_last_kit_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	replace_world_state_snapshot(Array(_map_constructor_last_kit_snapshot.get("mission_world_objects", [])).duplicate(true))
 	_rebuild_wall_mounted_world_object_lookup()
 	_map_constructor_last_kit_snapshot.clear()
 	_record_map_constructor_change("kit_undo", {"summary":"Undid last kit."})
@@ -14879,9 +14771,7 @@ func undo_last_map_constructor_room_template() -> Dictionary:
 		return {"ok": false, "message": "Template undo is available only in TASK TEST constructor mode."}
 	if _map_constructor_last_template_snapshot.is_empty():
 		return {"ok":false,"message":"No template snapshot."}
-	mission_world_objects = Array(_map_constructor_last_template_snapshot.get("mission_world_objects", [])).duplicate(true)
-	cell_items = Dictionary(_map_constructor_last_template_snapshot.get("cell_items", {})).duplicate(true)
-	world_objects_by_cell = Dictionary(_map_constructor_last_template_snapshot.get("world_objects_by_cell", {})).duplicate(true)
+	replace_world_state_snapshot(Array(_map_constructor_last_template_snapshot.get("mission_world_objects", [])).duplicate(true))
 	_rebuild_wall_mounted_world_object_lookup()
 	var warnings: Array[String] = []
 	var tile_snapshot: Array = Array(_map_constructor_last_template_snapshot.get("tile_snapshot", []))

@@ -8412,7 +8412,7 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 		if effect is String and str(effect) == "power_recalc_needed":
 			var network_id_text := str(world_object.get("power_network_id", ""))
 			if not network_id_text.is_empty():
-				PowerSystemRef.recalculate_network(mission_manager.mission_world_objects, network_id_text)
+				mission_manager.recalculate_power_network(network_id_text)
 			continue
 		if not (effect is Dictionary):
 			continue
@@ -8452,7 +8452,7 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 		elif effect_type == "power_recalc_needed":
 			var network_id := str(world_object.get("power_network_id", ""))
 			if not network_id.is_empty():
-				PowerSystemRef.recalculate_network(mission_manager.mission_world_objects, network_id)
+				mission_manager.recalculate_power_network(network_id)
 		elif effect_type == "repair_power_cable":
 			var cable_id: String = str(world_object.get("id", "")).strip_edges()
 			if mission_manager != null and mission_manager.has_method("repair_power_cable") and not cable_id.is_empty():
