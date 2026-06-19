@@ -1,31 +1,34 @@
 extends RefCounted
 
-# FirstPlayableTestRoom
-# Минимальный сценарий для системной проверки:
-# Power Source -> Terminal -> Door.
+const ObjectDataFactoryRef = preload("res://scripts/domain/object_data_factory.gd")
+
+static func make_snapshot(definitions_by_id: Dictionary) -> Dictionary:
+	var power: Dictionary = _make_object(definitions_by_id, "power_source_basic", "power_source_basic_001", 1, 2)
+	var terminal: Dictionary = _make_object(definitions_by_id, "terminal_basic", "terminal_basic_002", 2, 2)
+	var door: Dictionary = _make_object(definitions_by_id, "door_basic", "door_basic_003", 3, 2)
+	terminal["links"] = {
+		"power_source": str(power.get("id", "")),
+		"controlled_targets": [str(door.get("id", ""))],
+	}
+	return {
+		"version": 1,
+		"selected_definition_id": "terminal_basic",
+		"selected_entity_kind": "placed_object",
+		"selected_entity_id": str(terminal.get("id", "")),
+		"active_tool_mode": "place",
+		"selected_cell": {"x": 2, "y": 2},
+		"next_instance_index": 4,
+		"placed_objects": [power, terminal, door],
+	}
 
 static func make_objects(definitions_by_id: Dictionary) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	var power := _make_object(definitions_by_id, "power_source_basic", "power_source_basic_001", 1, 2)
-	var terminal := _make_object(definitions_by_id, "terminal_basic", "terminal_basic_002", 2, 2)
-	var door := _make_object(definitions_by_id, "door_basic", "door_basic_003", 3, 2)
-	terminal["links"] = {"power_source": power.get("id", ""), "controlled_targets": [door.get("id", "")]}
-	result.append(power)
-	result.append(terminal)
-	result.append(door)
-	return result
+	return Array(make_snapshot(definitions_by_id).get("placed_objects", []), TYPE_DICTIONARY, "", null)
 
 static func _make_object(definitions_by_id: Dictionary, definition_id: String, instance_id: String, x: int, y: int) -> Dictionary:
 	var definition: Dictionary = Dictionary(definitions_by_id.get(definition_id, {}))
-	var data: Dictionary = Dictionary(definition.get("base_parameters", {})).duplicate(true)
+	var data: Dictionary = ObjectDataFactoryRef.make_initial_object_data(definition)
 	data["id"] = instance_id
 	data["instance_id"] = instance_id
 	data["definition_id"] = definition_id
-	data["object_type"] = str(definition.get("object_type", "object"))
-	data["object_group"] = str(definition.get("object_group", "generic"))
-	data["display_name"] = str(definition.get("display_name", definition_id))
-	data["description"] = str(definition.get("description", ""))
-	data["visual_id"] = str(definition.get("visual_id", ""))
-	data["links"] = {}
 	data["placement"] = {"cell_x": x, "cell_y": y}
 	return data
