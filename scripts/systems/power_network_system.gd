@@ -21,8 +21,8 @@ static func build_power_context(objects: Array[Dictionary]) -> Dictionary:
 static func is_powered_by_context(object_data: Dictionary, context: Dictionary) -> bool:
 	var object_id: String = str(object_data.get("id", ""))
 	var powered_by_id: Dictionary = Dictionary(context.get("powered_by_id", {}))
-	if powered_by_id.has(object_id):
-		return bool(powered_by_id[object_id])
+	if powered_by_id.has(object_id) and bool(powered_by_id[object_id]):
+		return true
 	return _legacy_direct_power(object_data, Dictionary(context.get("objects_by_id", {})))
 
 static func get_circuit_id(object_id: String, context: Dictionary) -> String:
