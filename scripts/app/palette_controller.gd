@@ -18,7 +18,10 @@ func load_paths(paths: Array[String]) -> Array[String]:
 		definitions_by_id[definition_id] = definition
 		preview_data_by_id[definition_id] = ObjectDataFactoryRef.make_initial_object_data(definition)
 	selected_index = clampi(selected_index, 0, max(0, definitions.size() - 1))
-	return Array(catalog.call("get_validation_errors"), TYPE_STRING, "", null)
+	var errors: Array[String] = []
+	for error: Variant in Array(catalog.call("get_validation_errors")):
+		errors.append(str(error))
+	return errors
 
 func select_index(index: int) -> Dictionary:
 	if definitions.is_empty():
