@@ -18,7 +18,6 @@ static func find_path(
 		allowed_lookup[_key(cell)] = true
 	var frontier: Array[Vector2i] = [start]
 	var came_from: Dictionary = {_key(start): start}
-	var cells_by_key: Dictionary = {_key(start): start}
 	while not frontier.is_empty():
 		var current: Vector2i = frontier.pop_front()
 		for direction: Vector2i in DIRECTIONS:
@@ -29,18 +28,15 @@ static func find_path(
 				continue
 			if came_from.has(_key(next)):
 				continue
-			if next != goal and not PassabilitySystemRef.is_passable(next, repository):
+			if not PassabilitySystemRef.is_passable(next, repository):
 				continue
-			if next == goal and not PassabilitySystemRef.is_passable(next, repository):
-				return []
 			came_from[_key(next)] = current
-			cells_by_key[_key(next)] = next
 			if next == goal:
-				return _reconstruct(start, goal, came_from, cells_by_key)
+				return _reconstruct(start, goal, came_from)
 			frontier.append(next)
 	return []
 
-static func _reconstruct(start: Vector2i, goal: Vector2i, came_from: Dictionary, cells_by_key: Dictionary) -> Array[Vector2i]:
+static func _reconstruct(start: Vector2i, goal: Vector2i, came_from: Dictionary) -> Array[Vector2i]:
 	var result: Array[Vector2i] = [goal]
 	var current: Vector2i = goal
 	while current != start:
