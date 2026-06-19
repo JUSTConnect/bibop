@@ -15,7 +15,7 @@ static func get_allowed_target_ids(link_id: String, link_type: String, current_i
 		return []
 	var allowed_types: Array = Array(LINK_TARGET_TYPES.get(link_id, []))
 	var result: Array[String] = []
-	for target in targets:
+	for target: Dictionary in targets:
 		var target_id: String = str(target.get("id", ""))
 		if target_id.is_empty() or target_id == current_id:
 			continue
@@ -26,18 +26,21 @@ static func get_allowed_target_ids(link_id: String, link_type: String, current_i
 
 static func validate_links(links: Dictionary, links_schema: Array, current_id: String, targets: Array[Dictionary]) -> Array[String]:
 	var warnings: Array[String] = []
-	for link_variant in links_schema:
+	for link_variant: Variant in links_schema:
 		var link: Dictionary = Dictionary(link_variant)
 		var link_id: String = str(link.get("id", ""))
 		var link_type: String = str(link.get("type", ""))
 		if link_id.is_empty():
 			continue
 		var allowed: Array[String] = get_allowed_target_ids(link_id, link_type, current_id, targets)
-		var value: Variant = links.get(link_id, [] if link_type == "object_ref_array" else "")
+		var default_value: Variant = ""
+		if link_type == "object_ref_array":
+			default_value = []
+		var value: Variant = links.get(link_id, default_value)
 		if link_type == "object_ref" and not str(value).is_empty() and not str(value) in allowed:
 			warnings.append("Invalid link %s -> %s" % [link_id, str(value)])
 		if link_type == "object_ref_array":
-			for item in Array(value):
+			for item: Variant in Array(value):
 				if not str(item) in allowed:
 					warnings.append("Invalid link %s -> %s" % [link_id, str(item)])
 	return warnings
