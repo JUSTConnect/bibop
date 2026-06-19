@@ -11,7 +11,7 @@ const DOOR_OPEN_COLOR := Color(0.28, 0.82, 0.42, 1.0)
 const GENERIC_COLOR := Color(0.48, 0.68, 0.58, 1.0)
 const SELECTED_OUTLINE := Color(0.30, 0.95, 1.0, 1.0)
 
-static var _visual_catalog: RefCounted = null
+static var _visual_catalog: Variant = null
 
 static func create_map_visual(data: Dictionary, definition: Dictionary = {}, is_selected: bool = false) -> Dictionary:
 	var object_type: String = str(data.get("object_type", definition.get("object_type", "object")))
@@ -57,8 +57,8 @@ static func create_visual(render_model: Dictionary) -> Node2D:
 static func _get_catalog_entry(visual_id: String) -> Dictionary:
 	if _visual_catalog == null:
 		_visual_catalog = ObjectVisualCatalogRef.new()
-		_visual_catalog.load_from_path()
-	return _visual_catalog.get_entry(visual_id)
+		_visual_catalog.call("load_from_path")
+	return Dictionary(_visual_catalog.call("get_entry", visual_id))
 
 static func _make_asset_candidates(visual_id: String, object_type: String, catalog_entry: Dictionary) -> Array[String]:
 	var candidates: Array[String] = []
