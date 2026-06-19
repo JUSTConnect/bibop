@@ -1,6 +1,6 @@
 extends SceneTree
 
-const TESTS: Array = [
+const TESTS: Array[Script] = [
 	preload("res://tests/smoke/test_definition_loading.gd"),
 	preload("res://tests/smoke/test_test_room_loading.gd"),
 	preload("res://tests/smoke/test_power_interaction.gd"),
@@ -15,7 +15,7 @@ const TESTS: Array = [
 
 func _init() -> void:
 	var errors: Array[String] = []
-	for test_script: Variant in TESTS:
+	for test_script: Script in TESTS:
 		var raw_errors: Variant = test_script.call("run")
 		for error: Variant in Array(raw_errors):
 			errors.append(str(error))
