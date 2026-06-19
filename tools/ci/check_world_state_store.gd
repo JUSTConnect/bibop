@@ -2,6 +2,8 @@ extends SceneTree
 
 const WorldStateStoreRef = preload("res://scripts/world/world_state_store.gd")
 const MissionManagerRef = preload("res://scripts/game/mission_manager.gd")
+const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
+const BipobAirflowRuntimeStateRef = preload("res://scripts/game/bipob_airflow_runtime_state.gd")
 
 var failures: Array[String] = []
 var signal_events: Array[Dictionary] = []
@@ -165,20 +167,37 @@ func _run_mission_manager_checks() -> void:
 	var powered_terminal: Dictionary = manager.world_state_store.get_object_by_id("terminal_a")
 	_expect(powered_terminal.has("is_powered"), "PowerSystem runtime fields persist in store")
 	manager.replace_world_state_snapshot([
-		{"id":"generic_source", "object_group":"power", "object_type":"power_source_class_1", "position":Vector2i(30, 30), "power_network_id":"generic_net", "state":"on"},
-		{"id":"generic_cable", "object_group":"power", "object_type":"power_cable", "position":Vector2i(31, 30), "power_network_id":"generic_net"}
+		{"id":"generic_source", "object_group":"power", "object_type":"power_source_class_1", "position":Vector2i(30, 30), "power_network_id":"generic_net", "generic_power_runtime":true, "generic_power_role":BipobCableRuntimeServiceRef.ROLE_POWER_SOURCE, "state":"on"},
+		{"id":"generic_cable", "object_group":"power", "object_type":"power_cable", "position":Vector2i(31, 30), "power_network_id":"generic_net", "generic_power_runtime":true, "generic_power_role":BipobCableRuntimeServiceRef.ROLE_CABLE_LINK, "source_object_id":"generic_source"}
 	])
-	manager.refresh_generic_cable_runtime_state("generic_net")
-	_expect(manager.world_state_store.get_object_by_id("generic_source").has("generic_power_role"), "generic cable runtime fields persist")
+	var cable_report: Dictionary = manager.refresh_generic_cable_runtime_state("generic_net")
+	_expect(bool(cable_report.get("ok", false)), "generic cable runtime report succeeds")
+	var source_after: Dictionary = manager.world_state_store.get_object_by_id("generic_source")
+	var cable_after: Dictionary = manager.world_state_store.get_object_by_id("generic_cable")
+	_expect(bool(source_after.get("is_powered", false)), "generic source powered state persists")
+	_expect(str(source_after.get("power_state", "")) == "source_on", "generic source power_state persists")
+	_expect(cable_after.has("power_received"), "generic cable runtime-generated power_received persists")
+	_expect(cable_after.has("power_state"), "generic cable runtime-generated power_state persists")
 	manager.replace_world_state_snapshot([
-		{"id":"fan_a", "object_group":"cooling", "object_type":"external_air_cooler", "position":Vector2i(40, 40), "generic_airflow_runtime":true, "airflow_network_id":"air_a", "state":"active", "fan_enabled":true, "airflow_range":1},
-		{"id":"heat_a", "object_group":"terminal", "object_type":"terminal", "position":Vector2i(41, 40), "generic_airflow_runtime":true, "airflow_network_id":"air_a", "cooling_required":true, "working_heat":2, "overheat_threshold":5}
+		{"id":"fan_a", "object_group":"cooling", "object_type":"external_air_cooler", "position":Vector2i(40, 40), "generic_airflow_runtime":true, "generic_airflow_role":BipobAirflowRuntimeStateRef.ROLE_FAN, "airflow_network_id":"air_a", "state":"active", "fan_enabled":true, "fan_speed":1, "airflow_range":1, "fan_direction":"right", "cooling_output":1},
+		{"id":"heat_a", "object_group":"terminal", "object_type":"terminal", "position":Vector2i(41, 40), "generic_airflow_runtime":true, "generic_airflow_role":BipobAirflowRuntimeStateRef.ROLE_COOLING_TARGET, "airflow_network_id":"air_a", "cooling_required":true, "working_heat":2, "current_heat":2, "overheat_threshold":5}
 	])
-	manager.refresh_generic_airflow_runtime_state("air_a")
-	_expect(manager.world_state_store.get_object_by_id("fan_a").has("airflow_cells"), "generic airflow fan fields persist")
-	_expect(manager.world_state_store.get_object_by_id("heat_a").has("cooling_state"), "generic airflow target fields persist")
+	var airflow_report: Dictionary = manager.refresh_generic_airflow_runtime_state("air_a")
+	_expect(Array(airflow_report.get("warnings", [])).is_empty(), "generic airflow runtime report has no warnings")
+	var fan_after: Dictionary = manager.world_state_store.get_object_by_id("fan_a")
+	var target_after: Dictionary = manager.world_state_store.get_object_by_id("heat_a")
+	_expect(not Array(fan_after.get("airflow_cells", [])).is_empty(), "generic airflow fan airflow_cells persist")
+	_expect(Array(fan_after.get("cooled_target_ids", [])).has("heat_a"), "generic airflow fan cooled_target_ids persist")
+	_expect(bool(target_after.get("is_cooled", false)), "generic airflow target is_cooled persists")
+	_expect(int(target_after.get("cooling_received", 0)) > 0, "generic airflow target cooling_received persists")
+	_expect(str(target_after.get("cooling_state", "")) == "cooled", "generic airflow target cooling_state persists")
+	_expect(Array(target_after.get("cooling_source_ids", [])).has("fan_a"), "generic airflow target cooling_source_ids persist")
+	var heat_before_refresh: int = int(target_after.get("current_heat", -1))
 	manager.refresh_world_cooling_received()
-	_expect(manager.world_state_store.get_object_by_id("heat_a").has("current_heat"), "cooling heat fields persist")
+	var heat_after_refresh: Dictionary = manager.world_state_store.get_object_by_id("heat_a")
+	_expect(int(heat_after_refresh.get("cooling_received", 0)) > 0, "cooling refresh preserves received cooling")
+	_expect(str(heat_after_refresh.get("cooling_state", "")) == "cooled", "cooling refresh preserves cooled state")
+	_expect(int(heat_after_refresh.get("current_heat", -1)) < heat_before_refresh, "cooling refresh recalculates current_heat")
 	manager.enable_debug_seed = true
 	manager._seed_debug_world_objects()
 	var seeded := manager.world_state_store.get_object_by_id("wall_b1")
