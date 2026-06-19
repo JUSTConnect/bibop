@@ -8,6 +8,7 @@ const TERMINAL_COLOR := Color(0.62, 0.42, 0.95, 1.0)
 const TERMINAL_OFF_COLOR := Color(0.34, 0.28, 0.42, 1.0)
 const DOOR_COLOR := Color(0.95, 0.62, 0.25, 1.0)
 const DOOR_OPEN_COLOR := Color(0.28, 0.82, 0.42, 1.0)
+const CABLE_COLOR := Color(0.22, 0.86, 0.90, 1.0)
 const GENERIC_COLOR := Color(0.48, 0.68, 0.58, 1.0)
 const SELECTED_OUTLINE := Color(0.30, 0.95, 1.0, 1.0)
 
@@ -81,6 +82,8 @@ static func _get_marker(object_type: String) -> String:
 			return "T"
 		"door":
 			return "D"
+		"power_cable":
+			return "C"
 		_:
 			return "O"
 
@@ -92,6 +95,8 @@ static func _get_fill_color(data: Dictionary, object_type: String) -> Color:
 			return TERMINAL_OFF_COLOR if str(data.get("power_state", "none")).to_lower() == "unpowered" else TERMINAL_COLOR
 		"door":
 			return DOOR_OPEN_COLOR if str(data.get("state", "closed")).to_lower() == "open" else DOOR_COLOR
+		"power_cable":
+			return CABLE_COLOR
 		_:
 			return GENERIC_COLOR
 
@@ -106,6 +111,8 @@ static func _make_state_label(data: Dictionary, object_type: String) -> String:
 			var targets: Array = Array(links.get("controlled_targets", []))
 			var power_state: String = str(data.get("power_state", "none")).to_lower()
 			return "power:%s targets:%d" % [power_state, targets.size()]
+		"power_cable":
+			return "cable"
 		_:
 			return str(data.get("visual_id", object_type))
 
