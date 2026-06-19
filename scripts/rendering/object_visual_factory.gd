@@ -1,9 +1,6 @@
 extends RefCounted
 
-# ObjectVisualFactory
-# Создаёт visual descriptors для map canvas.
-# Главная задача: связать object definition visual_id с ассетами.
-# Цветной DEBUG fallback используется только если PNG ещё не найден.
+const ObjectVisualCatalogRef = preload("res://scripts/rendering/object_visual_catalog.gd")
 
 const POWER_COLOR := Color(0.20, 0.70, 0.95, 1.0)
 const POWER_OFF_COLOR := Color(0.32, 0.38, 0.44, 1.0)
@@ -14,27 +11,30 @@ const DOOR_OPEN_COLOR := Color(0.28, 0.82, 0.42, 1.0)
 const GENERIC_COLOR := Color(0.48, 0.68, 0.58, 1.0)
 const SELECTED_OUTLINE := Color(0.30, 0.95, 1.0, 1.0)
 
+static var _visual_catalog: RefCounted = null
+
 static func create_map_visual(data: Dictionary, definition: Dictionary = {}, is_selected: bool = false) -> Dictionary:
 	var object_type: String = str(data.get("object_type", definition.get("object_type", "object")))
 	var display_name: String = str(data.get("display_name", data.get("id", "Object")))
 	var definition_id: String = str(data.get("definition_id", definition.get("id", "")))
 	var visual_id: String = str(data.get("visual_id", definition.get("visual_id", definition_id)))
+	var catalog_entry: Dictionary = _get_catalog_entry(visual_id)
+	var fill_color: Color = _get_fill_color(data, object_type)
 	return {
 		"id": str(data.get("id", "")),
 		"definition_id": definition_id,
 		"visual_id": visual_id,
-		"asset_candidates": _make_asset_candidates(visual_id, object_type),
+		"asset_candidates": _make_asset_candidates(visual_id, object_type, catalog_entry),
 		"object_type": object_type,
 		"display_name": display_name,
-		"marker": _get_marker(object_type),
+		"marker": str(catalog_entry.get("fallback_marker", _get_marker(object_type))),
 		"label": _make_short_label(display_name),
 		"sub_label": _make_state_label(data, object_type),
-		"fill_color": _get_fill_color(data, object_type),
-		"outline_color": SELECTED_OUTLINE if is_selected else _get_fill_color(data, object_type),
+		"fill_color": fill_color,
+		"outline_color": SELECTED_OUTLINE if is_selected else fill_color,
 		"is_selected": is_selected,
 		"debug_fallback": true,
 	}
-
 
 static func create_empty_cell_visual(cell: Vector2i) -> Dictionary:
 	return {
@@ -49,25 +49,29 @@ static func create_empty_cell_visual(cell: Vector2i) -> Dictionary:
 		"is_empty": true,
 	}
 
-
 static func create_visual(render_model: Dictionary) -> Node2D:
 	var node := Sprite2D.new()
 	node.name = str(render_model.get("id", "ObjectVisual"))
 	return node
 
+static func _get_catalog_entry(visual_id: String) -> Dictionary:
+	if _visual_catalog == null:
+		_visual_catalog = ObjectVisualCatalogRef.new()
+		_visual_catalog.load_from_path()
+	return _visual_catalog.get_entry(visual_id)
 
-static func _make_asset_candidates(visual_id: String, object_type: String) -> Array[String]:
+static func _make_asset_candidates(visual_id: String, object_type: String, catalog_entry: Dictionary) -> Array[String]:
 	var candidates: Array[String] = []
+	var catalog_texture: String = str(catalog_entry.get("texture", ""))
+	if not catalog_texture.is_empty():
+		candidates.append(catalog_texture)
 	if not visual_id.is_empty():
 		candidates.append("res://assets/visual/isometric/objects/%s.png" % visual_id)
 		candidates.append("res://assets/visual/isometric/%s.png" % visual_id)
 		candidates.append("res://assets/visual/isometric/%s/%s.png" % [object_type, visual_id])
-		candidates.append("res://assets/visual/isometric/%s/%s.png" % [visual_id, visual_id])
 	if not object_type.is_empty():
 		candidates.append("res://assets/visual/isometric/objects/%s.png" % object_type)
-		candidates.append("res://assets/visual/isometric/%s/%s.png" % [object_type, object_type])
 	return candidates
-
 
 static func _get_marker(object_type: String) -> String:
 	match object_type:
@@ -80,7 +84,6 @@ static func _get_marker(object_type: String) -> String:
 		_:
 			return "O"
 
-
 static func _get_fill_color(data: Dictionary, object_type: String) -> Color:
 	match object_type:
 		"power_source":
@@ -91,7 +94,6 @@ static func _get_fill_color(data: Dictionary, object_type: String) -> Color:
 			return DOOR_OPEN_COLOR if str(data.get("state", "closed")).to_lower() == "open" else DOOR_COLOR
 		_:
 			return GENERIC_COLOR
-
 
 static func _make_state_label(data: Dictionary, object_type: String) -> String:
 	match object_type:
@@ -107,9 +109,8 @@ static func _make_state_label(data: Dictionary, object_type: String) -> String:
 		_:
 			return str(data.get("visual_id", object_type))
 
-
 static func _make_short_label(text: String) -> String:
-	var clean := text.strip_edges()
+	var clean: String = text.strip_edges()
 	if clean.length() <= 18:
 		return clean
 	return clean.substr(0, 15) + "..."
