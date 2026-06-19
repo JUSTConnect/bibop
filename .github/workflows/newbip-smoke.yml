@@ -1,0 +1,23 @@
+name: newbip-smoke
+
+on:
+  push:
+    branches: [newbip]
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "data/**"
+      - "tests/**"
+      - "project.godot"
+      - ".github/workflows/newbip-smoke.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    container: barichello/godot-ci:4.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import project
+        run: godot --headless --editor --quit --path .
+      - name: Run smoke tests
+        run: godot --headless --path . --script res://tests/smoke/smoke_test_runner.gd
