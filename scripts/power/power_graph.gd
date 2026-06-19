@@ -23,7 +23,10 @@ static func build(objects: Array[Dictionary]) -> Dictionary:
 	for object_id_value: Variant in nodes_by_id.keys():
 		var object_id: String = str(object_id_value)
 		var neighbors: Array[String] = []
-		var node: RefCounted = nodes_by_id[object_id]
+		var node_value: Variant = nodes_by_id[object_id]
+		if not (node_value is RefCounted):
+			continue
+		var node: RefCounted = node_value as RefCounted
 		var cell_value: Variant = node.get("cell")
 		var cell: Vector2i = cell_value if cell_value is Vector2i else Vector2i(-1, -1)
 		for direction: Vector2i in DIRECTIONS:
