@@ -21,9 +21,6 @@ static func make_snapshot(definitions_by_id: Dictionary) -> Dictionary:
 		"placed_objects": [power, terminal, door],
 	}
 
-static func make_objects(definitions_by_id: Dictionary) -> Array[Dictionary]:
-	return Array(make_snapshot(definitions_by_id).get("placed_objects", []), TYPE_DICTIONARY, "", null)
-
 static func _make_object(definitions_by_id: Dictionary, definition_id: String, instance_id: String, x: int, y: int) -> Dictionary:
 	var definition: Dictionary = Dictionary(definitions_by_id.get(definition_id, {}))
 	var data: Dictionary = ObjectDataFactoryRef.make_initial_object_data(definition)
