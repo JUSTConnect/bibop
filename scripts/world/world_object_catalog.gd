@@ -816,6 +816,77 @@ static func canonical_prefab_id(prefab_id: String) -> String:
 static func canonical_object_type(object_type: String) -> String:
 	return canonical_prefab_id(object_type)
 
+static func _get_constructor_prefab_definition(canonical_id: String) -> Dictionary:
+	if ARCHETYPE_REGISTRY.has(canonical_id):
+		return Dictionary(ARCHETYPE_REGISTRY[canonical_id]).duplicate(true)
+	if OBJECT_LIBRARY.has(canonical_id):
+		return Dictionary(OBJECT_LIBRARY[canonical_id]).duplicate(true)
+	return {}
+
+static func _schema_field_values(definition: Dictionary, field_names: Array) -> Array[String]:
+	var result: Array[String] = []
+	var raw_schema: Variant = definition.get("property_schema", [])
+	if not raw_schema is Array:
+		return result
+	for schema_entry_variant in raw_schema:
+		if not schema_entry_variant is Dictionary:
+			continue
+		var schema_entry: Dictionary = Dictionary(schema_entry_variant)
+		var field_name: String = str(schema_entry.get("field", "")).strip_edges().to_lower()
+		if not field_names.has(field_name):
+			continue
+		var values_variant: Variant = schema_entry.get("values", [])
+		if values_variant is Array:
+			for value_variant in Array(values_variant):
+				var value: String = str(value_variant).strip_edges().to_lower()
+				if not value.is_empty() and not result.has(value):
+					result.append(value)
+		var default_value: String = str(schema_entry.get("default", "")).strip_edges().to_lower()
+		if not default_value.is_empty() and not result.has(default_value):
+			result.append(default_value)
+	return result
+
+static func get_constructor_placement_contract(prefab_id: String) -> Dictionary:
+	var canonical_id: String = canonical_prefab_id(prefab_id)
+	var definition: Dictionary = _get_constructor_prefab_definition(canonical_id)
+	if definition.is_empty():
+		return {}
+
+	var placement_mode: String = str(definition.get("placement_mode", "object")).strip_edges().to_lower()
+	var object_group: String = str(definition.get("object_group", definition.get("group", ""))).strip_edges().to_lower()
+	var mount: String = str(definition.get("mount", "")).strip_edges().to_lower()
+	var install_mode: String = str(definition.get("install_mode", definition.get("cable_install_mode", ""))).strip_edges().to_lower()
+	var visual_surface: String = str(definition.get("visual_surface", "")).strip_edges().to_lower()
+	var schema_mount_values: Array[String] = _schema_field_values(definition, ["mount", "install_mode", "cable_install_mode"])
+	var has_floor_schema: bool = schema_mount_values.has("floor")
+	var has_wall_schema: bool = schema_mount_values.has("wall")
+	var is_wall_default: bool = placement_mode == "wall_mounted" or mount == "wall" or install_mode == "wall" or visual_surface == "wall"
+	var is_floor_default: bool = placement_mode in ["object", "item", "tile", "floor"] or mount == "floor" or install_mode == "floor" or visual_surface == "floor"
+	var is_structural_tile: bool = object_group in ["wall", "floor", "door", "platform"]
+	var is_routing_link: bool = str(definition.get("generic_power_role", "")).strip_edges().to_lower() == "cable_link"
+
+	var supports_wall: bool = is_wall_default or has_wall_schema or is_routing_link
+	var supports_floor: bool = is_floor_default or has_floor_schema or is_structural_tile or object_group == "item"
+	if placement_mode == "wall_mounted" and not has_floor_schema:
+		supports_floor = false
+	if placement_mode == "item":
+		supports_floor = true
+	if object_group == "wall":
+		supports_floor = true
+
+	var default_placement_mode: String = placement_mode
+	if default_placement_mode.is_empty():
+		default_placement_mode = "object"
+	return {
+		"canonical_prefab_id": canonical_id,
+		"default_placement_mode": default_placement_mode,
+		"supports_floor": supports_floor,
+		"supports_wall": supports_wall,
+		"wall_only": supports_wall and not supports_floor,
+		"requires_floor_anchor": supports_wall,
+		"changes_passability": bool(definition.get("changes_passability", definition.get("blocks_movement", false)))
+	}
+
 static func is_legacy_prefab_alias(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
 	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_PLATFORM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_BIPOB_ALIAS_CONFIGS.has(normalized_value)

@@ -344,15 +344,6 @@ const MAP_CONSTRUCTOR_WALL_SIDE_DELTAS: Array[Dictionary] = [
 	{"side":"west", "delta": Vector2i(-1, 0)}
 ]
 
-const MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS: Dictionary = {
-	"light": true,
-	"light_switch": true,
-	"circuit_breaker": true,
-	"firewall": true,
-	"external_air_duct": true,
-	"external_water_pipe": true
-}
-
 # Compatibility-only inventory of historic constructor solids. Runtime placement
 # resolves solidity through WorldObjectCatalogRef.is_constructor_solid_prefab().
 const MAP_CONSTRUCTOR_SOLID_PREFABS: Array[String] = [
@@ -3384,6 +3375,17 @@ func get_map_constructor_prefab_metadata(prefab_id: String) -> Dictionary:
 func _normalize_map_constructor_prefab_palette_metadata(metadata: Dictionary) -> Dictionary:
 	var row: Dictionary = metadata.duplicate(true)
 	var prefab_id: String = str(row.get("id", row.get("prefab_id", ""))).strip_edges().to_lower()
+	var placement_contract: Dictionary = WorldObjectCatalogRef.get_constructor_placement_contract(prefab_id)
+	if not placement_contract.is_empty():
+		var canonical_prefab_id: String = str(placement_contract.get("canonical_prefab_id", prefab_id))
+		row["canonical_prefab_id"] = canonical_prefab_id
+		row["placement_mode"] = str(placement_contract.get("default_placement_mode", row.get("placement_mode", "object")))
+		row["requires_wall"] = bool(placement_contract.get("wall_only", false))
+		row["requires_floor"] = bool(placement_contract.get("supports_floor", false))
+		row["supports_wall"] = bool(placement_contract.get("supports_wall", false))
+		row["supports_floor"] = bool(placement_contract.get("supports_floor", false))
+		row["wall_only"] = bool(placement_contract.get("wall_only", false))
+		row["changes_passability"] = bool(placement_contract.get("changes_passability", row.get("changes_passability", false)))
 	var palette_group: String = WorldObjectCatalogRef.get_constructor_palette_group_for_prefab(prefab_id)
 	if not palette_group.is_empty():
 		row["category"] = palette_group
@@ -4096,25 +4098,13 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var is_wall_cell: bool = _is_map_constructor_wall_cell(cell) if has_method("_is_map_constructor_wall_cell") else tile_type == GridManager.TILE_WALL
 
 	var mode_override: String = placement_mode_override.strip_edges().to_lower()
-
-	var wall_only_prefabs: Array[String] = [
-		"light",
-		"light_switcher",
-		"external_air_duct",
-		"external_water_pipe"
-	]
-
-	var floor_and_wall_prefabs: Array[String] = [
-		"fuse_box",
-		"power_socket",
-		"power_switcher",
-		"power_cable",
-		"power_cable_reel"
-	]
-
-	var is_wall_only_prefab: bool = wall_only_prefabs.has(normalized_prefab_id)
-	var is_floor_and_wall_prefab: bool = floor_and_wall_prefabs.has(normalized_prefab_id) or normalized_prefab_id.contains("cable") or normalized_prefab_id.contains("wire")
-	var can_share_wall_cell: bool = _is_map_constructor_wall_cell_share_prefab(normalized_prefab_id)
+	var placement_contract: Dictionary = WorldObjectCatalogRef.get_constructor_placement_contract(normalized_prefab_id)
+	var canonical_prefab_id: String = str(placement_contract.get("canonical_prefab_id", WorldObjectCatalogRef.canonical_object_type(normalized_prefab_id)))
+	var supports_wall: bool = bool(placement_contract.get("supports_wall", false))
+	var supports_floor: bool = bool(placement_contract.get("supports_floor", true))
+	var is_wall_only_prefab: bool = bool(placement_contract.get("wall_only", false))
+	var is_floor_and_wall_prefab: bool = supports_floor and supports_wall
+	var can_share_wall_cell: bool = supports_wall and _is_map_constructor_wall_cell_share_prefab(canonical_prefab_id)
 
 	# UI may send "stationary" even when the user selected wall placement.
 	# If the player clicks directly on a wall cell with a wall-compatible prefab,
@@ -4124,8 +4114,15 @@ func can_place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferr
 	var wants_wall_mount: bool = mode_override == "wall" or mode_override == "wall_mounted" or stationary_on_wall_cell
 	if is_wall_only_prefab:
 		wants_wall_mount = true
+	if wants_wall_mount and not supports_wall:
+		return {
+			"ok": false,
+			"reason": "prefab_does_not_support_wall_placement",
+			"message": "This object cannot be placed as wall-mounted.",
+			"placement_mode": str(placement_contract.get("default_placement_mode", "object")),
+			"warnings": []
+		}
 
-	var canonical_prefab_id: String = WorldObjectCatalogRef.canonical_object_type(normalized_prefab_id)
 	var constructor_preview: Dictionary = WorldObjectCatalogRef.create_world_object(normalized_prefab_id, "constructor_preview")
 	if constructor_preview.is_empty():
 		constructor_preview = WorldObjectCatalogRef.create_world_object(canonical_prefab_id, "constructor_preview")
@@ -15375,7 +15372,8 @@ func _preview_map_constructor_entry_set(entries: Array, anchor_cell: Vector2i, o
 		var transformed_offset: Vector2i = _map_constructor_transform_template_offset(Vector2i(entry.get("offset", Vector2i.ZERO)), options)
 		var cell: Vector2i = anchor_cell + transformed_offset
 		var wall_side: String = str(entry.get("wall_side", ""))
-		if bool(MAP_CONSTRUCTOR_WALL_MOUNTED_PREFABS.get(str(entry.get("prefab_id", "")), false)) and wall_side.is_empty():
+		var entry_contract: Dictionary = WorldObjectCatalogRef.get_constructor_placement_contract(str(entry.get("prefab_id", "")))
+		if bool(entry_contract.get("wall_only", false)) and wall_side.is_empty():
 			conflicts.append({"prefab_id":str(entry.get("prefab_id", "")), "cell": cell, "reason":"missing_wall_side", "message":"Wall-mounted prefab requires wall_side."})
 			continue
 		var placement_mode_override: String = str(entry.get("placement_mode", entry.get("mounting_mode", "")))
