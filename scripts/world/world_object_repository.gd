@@ -1,5 +1,7 @@
 extends RefCounted
 
+const WorldObjectPatchRef = preload("res://scripts/world/world_object_patch.gd")
+
 signal object_added(instance_id: String)
 signal object_removed(instance_id: String)
 signal object_changed(instance_id: String)
@@ -47,8 +49,7 @@ func apply_patch(instance_id: String, patch: Dictionary) -> Dictionary:
 		return {}
 	var data: Dictionary = get_object(instance_id)
 	var old_cell: Vector2i = _read_cell(data)
-	for key: Variant in patch.keys():
-		data[key] = patch[key]
+	data = WorldObjectPatchRef.merge(data, patch)
 	var new_cell: Vector2i = _read_cell(data)
 	if old_cell != new_cell:
 		if old_cell.x >= 0 and old_cell.y >= 0:
