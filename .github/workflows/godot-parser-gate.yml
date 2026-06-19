@@ -32,6 +32,7 @@ jobs:
           python tools/check_gdscript_safety_patterns.py
           python tools/check_map_constructor_sections.py
           python tools/check_constructor_placement_contract.py
+          python tools/check_map_constructor_prefab_catalog.py
 
       - name: Godot import smoke
         run: |
@@ -44,3 +45,7 @@ jobs:
       - name: Constructor placement behavior gate
         run: |
           godot --headless --path . --script res://tools/ci/check_constructor_placement_contracts.gd
+
+      - name: Map Constructor prefab catalog gate
+        run: |
+          godot --headless --path . --script res://tools/ci/check_map_constructor_prefab_catalog.gd
