@@ -30,9 +30,13 @@ static func infer_power_state(data: Dictionary) -> String:
 
 static func _make_initial_links(definition: Dictionary) -> Dictionary:
 	var links: Dictionary = {}
-	for link_variant in Array(definition.get("links_schema", [])):
+	for link_variant: Variant in Array(definition.get("links_schema", [])):
 		var link: Dictionary = Dictionary(link_variant)
 		var link_id: String = str(link.get("id", ""))
-		if not link_id.is_empty():
-			links[link_id] = [] if str(link.get("type", "")) == "object_ref_array" else ""
+		if link_id.is_empty():
+			continue
+		if str(link.get("type", "")) == "object_ref_array":
+			links[link_id] = []
+		else:
+			links[link_id] = ""
 	return links
