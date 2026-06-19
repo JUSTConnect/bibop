@@ -1,0 +1,17 @@
+{
+  "id": "power_cable_basic",
+  "object_type": "power_cable",
+  "object_group": "power",
+  "display_name": "Power Cable",
+  "description": "Connects adjacent power nodes.",
+  "visual_id": "power_cable_01",
+  "base_parameters": {
+    "power_mode": "none",
+    "state": "connected",
+    "occupies_cell": false,
+    "passability_mode": "passable"
+  },
+  "config_schema": [],
+  "links_schema": [],
+  "interactions": []
+}
