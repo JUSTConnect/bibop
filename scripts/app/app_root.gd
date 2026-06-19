@@ -1,9 +1,6 @@
 extends Control
 
-# AppRoot
-# Тонкая scene-shell. Persistence расширение живёт в AppDocumentController.
-
-const AppControllerRef = preload("res://scripts/app/app_document_controller.gd")
+const AppControllerRef = preload("res://scripts/app/editor_app_controller.gd")
 
 var app_controller: RefCounted = null
 
