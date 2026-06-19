@@ -16,7 +16,8 @@ const TESTS: Array = [
 func _init() -> void:
 	var errors: Array[String] = []
 	for test_script: Variant in TESTS:
-		for error: Variant in Array(test_script.run()):
+		var raw_errors: Variant = test_script.call("run")
+		for error: Variant in Array(raw_errors):
 			errors.append(str(error))
 	if errors.is_empty():
 		print("newbip smoke tests: PASS")
