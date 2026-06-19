@@ -151,7 +151,7 @@ static func get_prefab_order() -> Array[String]:
 	return PREFAB_ORDER.duplicate()
 
 static func get_presentation_catalog_snapshot() -> Dictionary:
-	return _get_presentation_catalog().duplicate(true)
+	return _presentation_catalog().duplicate(true)
 
 static func get_prefab_presentation(prefab_id: String) -> Dictionary:
 	var requested_id: String = prefab_id.strip_edges().to_lower()
@@ -161,7 +161,7 @@ static func get_prefab_presentation(prefab_id: String) -> Dictionary:
 	if placement_contract.is_empty():
 		return {}
 	var canonical_id: String = str(placement_contract.get("canonical_prefab_id", WorldObjectCatalogRef.canonical_prefab_id(requested_id))).strip_edges().to_lower()
-	var catalog: Dictionary = _get_presentation_catalog()
+	var catalog: Dictionary = _presentation_catalog()
 	var base_row: Dictionary = {}
 	if catalog.has(canonical_id):
 		base_row = Dictionary(catalog[canonical_id]).duplicate(true)
