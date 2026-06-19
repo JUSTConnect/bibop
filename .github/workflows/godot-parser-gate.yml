@@ -30,6 +30,7 @@ jobs:
         run: |
           git diff --check
           python tools/check_gdscript_safety_patterns.py
+          python tools/check_map_constructor_game_ui_proxy.py
           python tools/check_grid_manager_rendering_boundary.py
           python tools/check_map_constructor_sections.py
           python tools/check_constructor_placement_contract.py
@@ -43,6 +44,7 @@ jobs:
       - name: GDScript parser/load gate
         run: |
           godot --headless --path . --script res://tools/ci/parse_all_gd.gd
+          godot --headless --path . --script res://tools/ci/check_map_constructor_session_state_contract.gd
 
       - name: World state store behavior gate
         run: |

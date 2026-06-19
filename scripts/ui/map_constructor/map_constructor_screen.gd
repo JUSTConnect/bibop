@@ -23,14 +23,14 @@ static func refresh(ui: Variant) -> void:
 	MapConstructorTabsRef.remember_palette_scroll(ui)
 	MapConstructorPanelRef.clear_existing_panel(ui)
 
-	if not ui.map_constructor_mode_active:
+	if not ui.map_constructor_state.map_constructor_mode_active:
 		set_visible(ui, false)
 		return
 
 	set_visible(ui, true)
 
-	if not ["map_settings", "objects", "warnings"].has(ui.map_constructor_active_tab):
-		ui.map_constructor_active_tab = "map_settings"
+	if not ["map_settings", "objects", "warnings"].has(ui.map_constructor_state.map_constructor_active_tab):
+		ui.map_constructor_state.map_constructor_active_tab = "map_settings"
 
 	build(ui)
 	MapConstructorScrollStateServiceRef.restore_snapshot_deferred(ui, scroll_snapshot)

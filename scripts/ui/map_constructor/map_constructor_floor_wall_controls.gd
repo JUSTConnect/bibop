@@ -122,28 +122,28 @@ static func create_wall_side_picker(ui: Variant, placement_mode: String) -> Cont
 		var side_button: Button = Button.new()
 		side_button.text = get_wall_side_label(side_id)
 		side_button.toggle_mode = true
-		side_button.button_pressed = ui.selected_map_constructor_wall_side == side_id
-		var available: bool = ui.available_map_constructor_wall_sides.has(side_id)
+		side_button.button_pressed = ui.map_constructor_state.selected_map_constructor_wall_side == side_id
+		var available: bool = ui.map_constructor_state.available_map_constructor_wall_sides.has(side_id)
 		side_button.disabled = not available
 		side_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		side_button.pressed.connect(func() -> void:
-			if not ui.available_map_constructor_wall_sides.has(side_id):
+			if not ui.map_constructor_state.available_map_constructor_wall_sides.has(side_id):
 				ui.show_hint("Wall side %s is not available for this cell." % get_wall_side_label(side_id))
 				return
-			ui.selected_map_constructor_wall_side = side_id
-			if ui.pending_map_constructor_cell.x >= 0 and ui.pending_map_constructor_cell.y >= 0:
-				ui._update_map_constructor_preview_for_cell(ui.pending_map_constructor_cell)
+			ui.map_constructor_state.selected_map_constructor_wall_side = side_id
+			if ui.map_constructor_state.pending_map_constructor_cell.x >= 0 and ui.map_constructor_state.pending_map_constructor_cell.y >= 0:
+				ui._update_map_constructor_preview_for_cell(ui.map_constructor_state.pending_map_constructor_cell)
 			ui._refresh_map_constructor_panels()
 		)
 		row.add_child(side_button)
 	root.add_child(row)
 	var selected_label: Label = Label.new()
-	if ui.selected_map_constructor_wall_side.is_empty():
+	if ui.map_constructor_state.selected_map_constructor_wall_side.is_empty():
 		selected_label.text = "Selected: n/a"
 	else:
-		selected_label.text = "Selected: %s" % get_wall_side_label(ui.selected_map_constructor_wall_side)
+		selected_label.text = "Selected: %s" % get_wall_side_label(ui.map_constructor_state.selected_map_constructor_wall_side)
 	root.add_child(selected_label)
-	if ui.available_map_constructor_wall_sides.is_empty():
+	if ui.map_constructor_state.available_map_constructor_wall_sides.is_empty():
 		var hint_label_local: Label = Label.new()
 		hint_label_local.text = "No wall sides available for this target."
 		root.add_child(hint_label_local)
@@ -160,7 +160,7 @@ static func resolve_wall_material_target_for_selection(ui: Variant, entity_info:
 		var wall_target: Dictionary = _resolve_wall_layer_material_target(ui, wall_cell)
 		if bool(wall_target.get("ok", false)):
 			return wall_target
-	var selected_side: String = normalize_wall_side(ui.selected_map_constructor_wall_side)
+	var selected_side: String = normalize_wall_side(ui.map_constructor_state.selected_map_constructor_wall_side)
 	if not selected_side.is_empty():
 		var selected_cell: Vector2i = ui._safe_ui_vector2i(entity_info.get("cell", fallback_cell))
 		if selected_cell.x >= 0 and selected_cell.y >= 0:
@@ -175,9 +175,9 @@ static func add_coverage_sections(ui: Variant, parent: VBoxContainer, entity_inf
 
 static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> void:
 	var floor_section: VBoxContainer = ui._create_inspector_section("7. Floor Coverage")
-	var floor_target_cell: Vector2i = ui.pending_map_constructor_cell
+	var floor_target_cell: Vector2i = ui.map_constructor_state.pending_map_constructor_cell
 	if floor_target_cell.x < 0 or floor_target_cell.y < 0:
-		floor_target_cell = ui.selected_map_constructor_entity_cell
+		floor_target_cell = ui.map_constructor_state.selected_map_constructor_entity_cell
 	var floor_target_label: Label = Label.new()
 	floor_target_label.text = str(floor_target_cell)
 	floor_section.add_child(ui._create_property_row("Target", floor_target_label))
@@ -253,7 +253,7 @@ static func add_floor_coverage_section(ui: Variant, parent: VBoxContainer) -> vo
 static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, cell: Vector2i, data: Dictionary, entity_kind: String, entity_id: String, type_group: String) -> void:
 	var deferred_wall_section: VBoxContainer = null
 	var wall_target: Dictionary = resolve_wall_material_target_for_selection(ui, entity_info, data, cell)
-	if type_group != "item" and (type_group == "wall" or ui._safe_ui_string(data.get("placement_mode", "")) == "wall_mounted" or not ui.selected_map_constructor_wall_side.is_empty()):
+	if type_group != "item" and (type_group == "wall" or ui._safe_ui_string(data.get("placement_mode", "")) == "wall_mounted" or not ui.map_constructor_state.selected_map_constructor_wall_side.is_empty()):
 		var wall_section: VBoxContainer = ui._create_inspector_section("8. Wall Coverage")
 		if bool(wall_target.get("ok", false)):
 			var wall_cell: Vector2i = ui._safe_ui_vector2i(wall_target.get("cell", Vector2i(-1, -1)))
@@ -399,7 +399,7 @@ static func add_wall_coverage_section(ui: Variant, parent: VBoxContainer, entity
 		deferred_wall_section.add_child(ui._create_property_row("wall_side", wall_side_picker))
 		var apply_side: Button = Button.new(); apply_side.text = "Apply Side"
 		apply_side.pressed.connect(func() -> void:
-			MapConstructorActions.apply_wall_mounted_side(ui, entity_kind, entity_id, ui.selected_map_constructor_wall_side)
+			MapConstructorActions.apply_wall_mounted_side(ui, entity_kind, entity_id, ui.map_constructor_state.selected_map_constructor_wall_side)
 		)
 		deferred_wall_section.add_child(apply_side)
 	if deferred_wall_section != null:
