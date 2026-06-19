@@ -259,8 +259,8 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"case_empty": {"locked":false, "opened":true, "searched":true, "remaining_loot_count":0, "case_loot_state":"empty", "visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class"},
 	"vagus": {"enemy_type":"vagus", "enemy_kind":"vagus"},
 	"bug": {"enemy_type":"bug", "enemy_kind":"bug"},
-	"light_switch": {"switcher_type":"light_switcher"},
-	"circuit_breaker": {"switcher_type":"power_breaker", "is_on":true, "switch_state":"on", "state":"switch_on"},
+	"light_switch": {"switcher_type":"light_switcher", "default_placement_surface":"wall", "placement_mode":"wall_mounted"},
+	"circuit_breaker": {"switcher_type":"power_breaker", "default_placement_surface":"wall", "placement_mode":"wall_mounted", "is_on":true, "switch_state":"on", "state":"switch_on"},
 	"power_switch": {"switcher_type":"power_breaker"},
 	"fire_barrel": {"variant":"fire"},
 	"explosive_barrel": {"variant":"fire"},
@@ -468,25 +468,25 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	"external_air_duct": {
 		"archetype_id":"external_air_duct", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"external_air_duct", "palette_label":"External Air Duct",
 		"display_name_template":"External Air Duct", "name":"External Air Duct", "state":"active", "cooling_device_type":"air_duct", "carries_airflow":true, "passive_cooling":true, "generic_airflow_role":"airflow_path_cell", "airflow_roles":["airflow_path_cell"], "blocks_airflow":false,
-		"movable":false, "material":"metal", "blocks_movement":false, "blocks_vision":false, "durability":12, "placement_mode":"wall_mounted", "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
+		"movable":false, "material":"metal", "blocks_movement":false, "blocks_vision":false, "durability":12, "placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
 		"route_mode":"inner", "wall_routing_mode":"inner", "routing_kind":"air_duct", "cooling_system_type":"air_duct", "cooling_contour_id":"", "cooling_contour_mode":"auto", "cooling_contour_member_ids":[], "cooling_system_tab":true, "routing_label":"Air Duct", "wall_side_1":"NW", "wall_side_2":"SE",
 		"visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA
 	},
 	"external_water_pipe": {
 		"archetype_id":"external_water_pipe", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"external_water_pipe", "palette_label":"External Water Pipe",
 		"display_name_template":"External Water Pipe", "name":"External Water Pipe", "state":"active", "cooling_device_type":"water_pipe", "cooling_output":2, "passive_cooling":true,
-		"movable":false, "material":"metal", "blocks_movement":false, "blocks_vision":false, "durability":15, "placement_mode":"wall_mounted", "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
+		"movable":false, "material":"metal", "blocks_movement":false, "blocks_vision":false, "durability":15, "placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
 		"route_mode":"inner", "wall_routing_mode":"inner", "routing_kind":"water_pipe", "cooling_system_type":"water_pipe", "cooling_contour_id":"", "cooling_contour_mode":"auto", "cooling_contour_member_ids":[], "cooling_system_tab":true, "routing_label":"Water Pipe", "wall_side_1":"NW", "wall_side_2":"SE",
 		"visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA
 	},
 	"external_wall": {
 		"archetype_id":"external_wall", "object_group":"wall", "object_type":"external_wall", "palette_label":"External Wall", "show_in_palette":false,
-		"display_name_template":"External Wall", "material":"external_structural", "is_destructible":false, "supports_embedded_objects":true, "supports_cables":true, "configurable":false, "blocks_movement":true, "blocks_vision":true,
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"External Wall", "material":"external_structural", "is_destructible":false, "supports_embedded_objects":true, "supports_cables":true, "configurable":false, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[]
 	},
 	"wall": {
 		"archetype_id":"wall", "object_group":"wall", "object_type":"wall", "palette_label":"Wall",
-		"display_name_template":"{material_label} Wall", "is_destructible":true, "supports_embedded_objects":true, "supports_cables":true, "configurable":true, "blocks_movement":true, "blocks_vision":true,
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{material_label} Wall", "is_destructible":true, "supports_embedded_objects":true, "supports_cables":true, "configurable":true, "blocks_movement":true, "blocks_vision":true,
 		"property_schema":[
 			{"field":"material", "type":"enum", "values":["brick", "concrete", "steel", "reinforced_steel", "titanium", "grate", "electromagnetic", "breachable_concrete", "breachable_brick"], "default":"brick", "labels":{"brick":"Brick", "concrete":"Concrete", "steel":"Steel", "reinforced_steel":"Reinforced Steel", "titanium":"Titanium", "grate":"Grate", "electromagnetic":"Electromagnetic", "breachable_concrete":"Breachable Concrete", "breachable_brick":"Breachable Brick"}},
 			{"field":"is_breachable_wall", "type":"bool", "default":false},
@@ -495,7 +495,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"door": {
-		"archetype_id":"door", "object_group":"door", "object_type":"door", "palette_label":"Door", "facing_side":"SW",
+		"archetype_id":"door", "object_group":"door", "object_type":"door", "palette_label":"Door", "placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "facing_side":"SW",
 		"visual_family":"door", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true,
 		"configurable":true,
 		"display_name_template":"{material_label} {door_type_label} Door",
@@ -522,7 +522,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"platform": {
 		"archetype_id":"platform", "object_group":"platform", "object_type":"platform", "palette_label":"Platform",
-		"placement_mode":"object", "display_name_template":"Platform", "configurable":true, "blocks_movement":false, "blocks_vision":false, "walkable":true,
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Platform", "configurable":true, "blocks_movement":false, "blocks_vision":false, "walkable":true,
 		"property_schema":[
 			{"field":"platform_mode", "type":"enum", "values":["elevator", "rotator", "elevator_rotator"], "default":"elevator", "labels":{"elevator":"Elevator", "rotator":"Rotator", "elevator_rotator":"Elevator + Rotator"}},
 			{"field":"platform_level", "type":"int", "default":0},
@@ -538,7 +538,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"terminal": {
-		"archetype_id":"terminal", "object_group":"terminal", "object_type":"terminal", "palette_label":"Terminal", "facing_side":"SW",
+		"archetype_id":"terminal", "object_group":"terminal", "object_type":"terminal", "palette_label":"Terminal", "placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "facing_side":"SW",
 		"visual_family":"terminal", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true,
 		"configurable":true,
 		"property_schema":[
@@ -564,7 +564,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"bipob": {
 		"archetype_id":"bipob", "object_group":"bipob", "group":"bipob", "constructor_group":"characters", "constructor_category":"Characters", "constructor_tab":"characters", "object_type":"bipob", "palette_label":"Bipob",
-		"placement_mode":"object", "display_name_template":"Bipob", "configurable":true, "blocks_movement":true, "blocks_vision":false, "visual_family":"bipob", "visual_surface":"floor", "state":"disabled",
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Bipob", "configurable":true, "blocks_movement":true, "blocks_vision":false, "visual_family":"bipob", "visual_surface":"floor", "state":"disabled",
 		"bipob_type":"scout", "bipob_status":"disabled", "bipob_alignment":"friendly", "chassis_type":"wheels", "visor_type":"basic", "loadout_profile":"none",
 		"property_schema":[
 			{"field":"bipob_type", "type":"enum", "values":["scout", "engineer", "heavy"], "default":"scout", "labels":{"scout":"Scout", "engineer":"Engineer", "heavy":"Heavy"}, "tab":"Bipob"},
@@ -578,7 +578,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 
 	"enemy": {
 		"archetype_id":"enemy", "object_group":"enemy", "object_type":"enemy", "palette_label":"Enemies",
-		"placement_mode":"object", "display_name_template":"{enemy_type_label}", "configurable":true, "interactable":false,
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{enemy_type_label}", "configurable":true, "interactable":false,
 		"blocks_movement":true, "blocks_vision":false, "enemy_type":"vagus", "enemy_kind":"vagus",
 		"property_schema":[
 			{"field":"enemy_type", "type":"enum", "values":["vagus", "bug"], "default":"vagus", "labels":{"vagus":"Vagus", "bug":"Bug"}}
@@ -586,7 +586,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"station": {
 		"archetype_id":"station", "object_group":"station", "object_type":"station", "palette_label":"Station",
-		"placement_mode":"object", "display_name_template":"{station_type_label} Station", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{station_type_label} Station", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
 		"station_type":"lab", "allowed_station_types":["decrypt", "lab", "recharge", "repair", "shop"],
 		"visual_family":"station", "visual_surface":"floor", "visual_state_policy":"static", "visual_variant":"lab",
 		"state":"active", "status":"active", "is_powered":true,
@@ -608,7 +608,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"firewall": {
 		"archetype_id":"firewall", "object_group":"security", "object_type":"firewall", "palette_label":"Firewall",
-		"display_name_template":"Firewall", "placement_mode":"object", "facing_side":"SW", "configurable":true,
+		"display_name_template":"Firewall", "placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "facing_side":"SW", "configurable":true,
 		"blocks_movement":false, "blocks_vision":false, "interactable":true,
 		"visual_family":"firewall", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true,
 		"power_type":"external", "control_type":"internal", "status":"unpowered",
@@ -628,7 +628,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"item": {
 		"archetype_id":"item", "object_group":"item", "object_type":"item", "palette_label":"Digital Items", "show_in_palette":false,
-		"placement_mode":"item", "display_name_template":"{digital_item_type_label}",
+		"placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{digital_item_type_label}",
 		"configurable":true, "can_pickup":true, "interactable":true, "item_category":"digital", "item_form":"digital", "storage_route":"digital_storage", "storage_type":"digital_storage", "digital_item_type":"data_file", "item_class":"data_file", "item_type":"data_file", "state":"available", "allowed_states":["available", "collected", "disabled"],
 		"property_schema":[
 			{"field":"digital_item_type", "type":"enum", "values":["digital_key", "access_code", "data_file"], "default":"data_file", "labels":{"digital_key":"Digital Key", "access_code":"Access Code", "data_file":"Data File"}},
@@ -640,7 +640,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"digital_item": {
 		"archetype_id":"digital_item", "object_group":"item", "object_type":"item", "palette_label":"Digital Items",
-		"placement_mode":"item", "display_name_template":"{digital_item_type_label}",
+		"placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{digital_item_type_label}",
 		"configurable":true, "can_pickup":true, "interactable":true, "item_category":"digital", "item_form":"digital", "storage_route":"digital_storage", "storage_type":"digital_storage", "digital_item_type":"data_file", "item_class":"data_file", "item_type":"data_file", "state":"available", "allowed_states":["available", "collected", "disabled"],
 		"property_schema":[
 			{"field":"digital_item_type", "type":"enum", "values":["digital_key", "access_code", "data_file"], "default":"data_file", "labels":{"digital_key":"Digital Key", "access_code":"Access Code", "data_file":"Data File"}},
@@ -651,11 +651,11 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 		]
 	},
 	"access_item": {
-		"archetype_id":"access_item", "object_group":"item", "object_type":"item", "palette_label":"Access Items", "placement_mode":"item", "display_name_template":"{access_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"access", "item_form":"physical", "storage_route":"keychain", "storage_type":"keychain", "access_item_type":"key_card", "item_class":"key_card", "item_type":"key_card", "key_kind":"key_card", "key_type":"key_card", "state":"available", "allowed_states":["available", "collected", "disabled"],
+		"archetype_id":"access_item", "object_group":"item", "object_type":"item", "palette_label":"Access Items", "placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{access_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"access", "item_form":"physical", "storage_route":"keychain", "storage_type":"keychain", "access_item_type":"key_card", "item_class":"key_card", "item_type":"key_card", "key_kind":"key_card", "key_type":"key_card", "state":"available", "allowed_states":["available", "collected", "disabled"],
 		"property_schema":[{"field":"access_item_type", "type":"enum", "values":["key_card"], "default":"key_card", "labels":{"key_card":"Key Card"}}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}, {"field":"linked_door_id", "type":"object_ref", "target_group":"door", "default":""}]
 	},
 	"physical_item": {
-		"archetype_id":"physical_item", "object_group":"item", "object_type":"item", "palette_label":"Physical Items", "placement_mode":"item", "display_name_template":"{physical_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"physical", "item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "physical_item_type":"parts", "item_class":"physical_item", "item_type":"parts", "visual_asset_id":"parts_floor_01", "visual_family":"parts", "visual_surface":"floor", "state":"available", "allowed_states":["available", "collected", "disabled"],
+		"archetype_id":"physical_item", "object_group":"item", "object_type":"item", "palette_label":"Physical Items", "placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{physical_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"physical", "item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "physical_item_type":"parts", "item_class":"physical_item", "item_type":"parts", "visual_asset_id":"parts_floor_01", "visual_family":"parts", "visual_surface":"floor", "state":"available", "allowed_states":["available", "collected", "disabled"],
 		"property_schema":[{"field":"physical_item_type", "type":"enum", "values":["fuse", "reinforcement", "repair_kit", "parts"], "default":"parts", "labels":{"fuse":"Fuse", "reinforcement":"Reinforcement Kit", "repair_kit":"Repair Kit", "parts":"Parts"}}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}, {"field":"amount", "type":"int", "default":1, "min":1}]
 	},
 	"module_item": {
@@ -664,7 +664,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"power_switcher": {
 		"archetype_id":"power_switcher", "object_group":"power", "object_type":"power_switcher", "palette_label":"Power Switcher", "facing_side":"SW",
-		"placement_mode":"object", "display_name_template":"Power Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"power_breaker", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "visual_family":"power_switcher", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "mount":"floor", "blocks_movement":false, "blocks_vision":false, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[], "switcher_lines":[], "active_line_id":"",
+		"placement_mode":"object", "placement_surfaces":["floor", "wall"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":true, "display_name_template":"Power Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"power_breaker", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "visual_family":"power_switcher", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "mount":"floor", "blocks_movement":false, "blocks_vision":false, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[], "switcher_lines":[], "active_line_id":"",
 		"property_schema":[
 			FACING_SIDE_SCHEMA,
 			{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}},
@@ -689,7 +689,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"light_switcher": {
 		"archetype_id":"light_switcher", "object_group":"power", "object_type":"light_switcher", "palette_label":"Light Switcher", "facing_side":"SW",
-		"placement_mode":"wall_mounted", "display_name_template":"Light Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"light_switcher", "switcher_base_type":"power_switcher", "mount":"wall", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false, "visual_family":"light_switcher", "visual_surface":"wall", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[],
+		"placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "display_name_template":"Light Switcher", "configurable":true, "state":"switch_off", "switch_state":"off", "is_on":false, "can_be_switched":true, "switcher_type":"light_switcher", "switcher_base_type":"power_switcher", "mount":"wall", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false, "visual_family":"light_switcher", "visual_surface":"wall", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "light_group_id":"", "target_light_ids":[], "linked_light_ids":[],
 		"property_schema":[
 			FACING_SIDE_SCHEMA,
 			{"field":"switch_state", "type":"enum", "values":["off", "on"], "default":"off", "labels":{"off":"Off", "on":"On"}},
@@ -699,7 +699,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"fuse_box": {
 		"archetype_id":"fuse_box", "object_group":"power", "object_type":"fuse_box", "palette_label":"Fuse Box", "facing_side":"SW",
-		"placement_mode":"object", "display_name_template":"Fuse Box", "configurable":true, "interactable":true, "state":"inactive", "requires_fuse":true, "has_fuse":false, "fuse_present":false, "fuse_installed":false, "mount":"floor", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
+		"placement_mode":"object", "placement_surfaces":["floor", "wall"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":true, "display_name_template":"Fuse Box", "configurable":true, "interactable":true, "state":"inactive", "requires_fuse":true, "has_fuse":false, "fuse_present":false, "fuse_installed":false, "mount":"floor", "power_mode":"external_power", "control_mode":"internal_control", "is_powered":false, "blocks_movement":false, "blocks_vision":false,
 		"visual_family":"fuse_box", "visual_state_policy":"fuse_box_line_power_state", "variant_policy":"fuse_presence",
 		"property_schema":[
 			FACING_SIDE_SCHEMA,
@@ -709,14 +709,14 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"barrel": {
 		"archetype_id":"barrel", "object_group":"physical_object", "object_type":"barrel", "palette_label":"Barrel",
-		"placement_mode":"object", "display_name_template":"Barrel", "configurable":true, "weight_class":"normal", "required_bipob_power_class":"scout", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true,
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Barrel", "configurable":true, "weight_class":"normal", "required_bipob_power_class":"scout", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true,
 		"property_schema":[
 			{"field":"variant", "type":"enum", "values":["normal", "fire"], "default":"normal", "labels":{"normal":"Normal", "fire":"Fire"}}
 		]
 	},
 	"crate": {
 		"archetype_id":"crate", "object_group":"physical_object", "object_type":"crate", "palette_label":"Crate",
-		"placement_mode":"object", "display_name_template":"{crate_type_label} Crate", "configurable":true, "blocks_movement":true, "blocks_vision":false, "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "crate_type":"normal", "variant":"normal", "weight_class":"normal", "required_bipob_power_class":"scout",
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{crate_type_label} Crate", "configurable":true, "blocks_movement":true, "blocks_vision":false, "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "crate_type":"normal", "variant":"normal", "weight_class":"normal", "required_bipob_power_class":"scout",
 		"property_schema":[
 			{"field":"crate_type", "type":"enum", "values":["normal", "heavy"], "default":"normal", "labels":{"normal":"Normal crate", "heavy":"Heavy crate"}}
 		]
@@ -731,7 +731,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"case": {
 		"archetype_id":"case", "object_group":"container", "object_type":"case", "palette_label":"Case",
-		"placement_mode":"object", "display_name_template":"Case", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Case", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false,
 		"locked":true, "loot_class":"class1", "opened":false, "searched":false, "remaining_loot_count":1,
 		"visual_family":"case", "visual_surface":"floor", "visual_state_policy":"loot_case_state", "variant_policy":"loot_case_class",
 		"property_schema":[
@@ -742,15 +742,15 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"power_source": {
 		"archetype_id":"power_source", "object_group":"power", "object_type":"power_source", "palette_label":"Power Source",
-		"placement_mode":"object", "display_name_template":"Power Source", "configurable":false, "state":"on", "is_powered":true, "power_mode":"internal", "control_mode":"internal", "visual_family":"power_source", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "blocks_movement":true, "property_schema":[]
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Power Source", "configurable":false, "state":"on", "is_powered":true, "power_mode":"internal", "control_mode":"internal", "visual_family":"power_source", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "blocks_movement":true, "property_schema":[]
 	},
 	"radiator": {
 		"archetype_id":"radiator", "object_group":"cooling", "object_type":"radiator", "palette_label":"Radiator",
-		"placement_mode":"object", "display_name_template":"Radiator", "configurable":false, "cooling_device_type":"radiator", "cooling_output":1, "movable":true, "heavy_claw_movable":true, "blocks_movement":true, "property_schema":[]
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Radiator", "configurable":false, "cooling_device_type":"radiator", "cooling_output":1, "movable":true, "heavy_claw_movable":true, "blocks_movement":true, "property_schema":[]
 	},
 	"light": {
 		"archetype_id":"light", "object_group":"power", "object_type":"light", "palette_label":"Light",
-		"placement_mode":"wall_mounted", "display_name_template":"Light", "configurable":true, "state":"active", "is_powered":false, "is_on":true, "light_enabled":true, "light_group_id":"", "blocks_movement":false,
+		"placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "display_name_template":"Light", "configurable":true, "state":"active", "is_powered":false, "is_on":true, "light_enabled":true, "light_group_id":"", "blocks_movement":false,
 		"property_schema":[
 			{"field":"light_group_id", "type":"string", "default":""},
 			{"field":"light_enabled", "type":"bool", "default":true}
@@ -758,7 +758,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"power_cable_reel": {
 		"archetype_id":"power_cable_reel", "object_group":"power", "object_type":"power_cable_reel", "palette_label":"Cable Reel",
-		"placement_mode":"object", "display_name_template":"Cable Reel", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false, "cable_install_mode":"floor", "install_mode":"floor", "mount":"floor",
+		"placement_mode":"object", "placement_surfaces":["floor", "wall"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":true, "display_name_template":"Cable Reel", "configurable":true, "interactable":true, "blocks_movement":false, "blocks_vision":false, "cable_install_mode":"floor", "install_mode":"floor", "mount":"floor",
 		"cable_reel_state":"base", "connected_endpoint_count":0, "socket_connected_endpoint_count":0, "max_cable_endpoints":2,
 		"visual_family":"cable_reel", "visual_surface":"floor", "visual_state_policy":"cable_reel_connection_state", "power_visual_state_enabled":false,
 		"property_schema":[
@@ -768,15 +768,15 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"fuse": {
 		"archetype_id":"fuse", "object_group":"item", "show_in_palette":false, "object_type":"fuse", "palette_label":"Fuse",
-		"placement_mode":"item", "display_name_template":"Fuse", "configurable":false, "visual_asset_id":"fuse_floor_01", "visual_family":"fuse", "visual_surface":"floor", "property_schema":[]
+		"placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Fuse", "configurable":false, "visual_asset_id":"fuse_floor_01", "visual_family":"fuse", "visual_surface":"floor", "property_schema":[]
 	},
 	"repair_kit": {
 		"archetype_id":"repair_kit", "object_group":"item", "show_in_palette":false, "object_type":"repair_kit", "palette_label":"Repair Kit",
-		"placement_mode":"item", "display_name_template":"Repair Kit", "configurable":false, "visual_asset_id":"repair_kit_floor_01", "visual_family":"repair_kit", "visual_surface":"floor", "property_schema":[]
+		"placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Repair Kit", "configurable":false, "visual_asset_id":"repair_kit_floor_01", "visual_family":"repair_kit", "visual_surface":"floor", "property_schema":[]
 	},
 	"reinforcement": {
 		"archetype_id":"reinforcement", "object_group":"item", "show_in_palette":false, "object_type":"reinforcement", "palette_label":"Reinforcement Kit",
-		"placement_mode":"item", "display_name_template":"Reinforcement Kit", "configurable":false, "visual_asset_id":"reinforcement_floor_01", "visual_family":"reinforcement", "visual_surface":"floor", "property_schema":[]
+		"placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Reinforcement Kit", "configurable":false, "visual_asset_id":"reinforcement_floor_01", "visual_family":"reinforcement", "visual_surface":"floor", "property_schema":[]
 	},
 	"module_external": {
 		"archetype_id":"module_external", "object_group":"item", "show_in_palette":false, "object_type":"module_external", "palette_label":"External Module",
@@ -788,7 +788,7 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"floor": {
 		"archetype_id":"floor", "object_group":"floor", "object_type":"floor", "palette_label":"Floor",
-		"placement_mode":"object", "display_name_template":"{material_label} Floor",
+		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{material_label} Floor",
 		"blocks_movement":false, "blocks_vision":false, "configurable":true, "replaces_tile_with":"floor",
 		"property_schema":[
 			{"field":"material", "type":"enum", "values":["concrete", "steel", "titan"], "default":"concrete", "labels":{"concrete":"Concrete", "steel":"Steel", "titan":"Titan"}},
@@ -846,44 +846,72 @@ static func _schema_field_values(definition: Dictionary, field_names: Array) -> 
 			result.append(default_value)
 	return result
 
+static func _normalized_placement_surfaces(values_variant: Variant) -> Array[String]:
+	var surfaces: Array[String] = []
+	if values_variant is Array:
+		for surface_variant in Array(values_variant):
+			var surface: String = str(surface_variant).strip_edges().to_lower()
+			if surface in ["floor", "wall"] and not surfaces.has(surface):
+				surfaces.append(surface)
+	elif values_variant is String:
+		var surface: String = str(values_variant).strip_edges().to_lower()
+		if surface in ["floor", "wall"]:
+			surfaces.append(surface)
+	return surfaces
+
 static func get_constructor_placement_contract(prefab_id: String) -> Dictionary:
-	var canonical_id: String = canonical_prefab_id(prefab_id)
+	var requested_id: String = prefab_id.strip_edges().to_lower()
+	var canonical_id: String = canonical_prefab_id(requested_id)
 	var definition: Dictionary = _get_constructor_prefab_definition(canonical_id)
 	if definition.is_empty():
 		return {}
 
-	var placement_mode: String = str(definition.get("placement_mode", "object")).strip_edges().to_lower()
-	var object_group: String = str(definition.get("object_group", definition.get("group", ""))).strip_edges().to_lower()
-	var mount: String = str(definition.get("mount", "")).strip_edges().to_lower()
-	var install_mode: String = str(definition.get("install_mode", definition.get("cable_install_mode", ""))).strip_edges().to_lower()
-	var visual_surface: String = str(definition.get("visual_surface", "")).strip_edges().to_lower()
-	var schema_mount_values: Array[String] = _schema_field_values(definition, ["mount", "install_mode", "cable_install_mode"])
-	var has_floor_schema: bool = schema_mount_values.has("floor")
-	var has_wall_schema: bool = schema_mount_values.has("wall")
-	var is_wall_default: bool = placement_mode == "wall_mounted" or mount == "wall" or install_mode == "wall" or visual_surface == "wall"
-	var is_floor_default: bool = placement_mode in ["object", "item", "tile", "floor"] or mount == "floor" or install_mode == "floor" or visual_surface == "floor"
-	var is_structural_tile: bool = object_group in ["wall", "floor", "door", "platform"]
-	var is_routing_link: bool = str(definition.get("generic_power_role", "")).strip_edges().to_lower() == "cable_link"
+	var alias_defaults: Dictionary = {}
+	if PREFAB_ALIAS_DEFAULTS.has(requested_id):
+		alias_defaults = Dictionary(PREFAB_ALIAS_DEFAULTS[requested_id]).duplicate(true)
+	var placement_mode: String = str(alias_defaults.get("placement_mode", definition.get("placement_mode", "object"))).strip_edges().to_lower()
+	if placement_mode.is_empty():
+		placement_mode = "object"
 
-	var supports_wall: bool = is_wall_default or has_wall_schema or is_routing_link
-	var supports_floor: bool = is_floor_default or has_floor_schema or is_structural_tile or object_group == "item"
-	if placement_mode == "wall_mounted" and not has_floor_schema:
-		supports_floor = false
-	if placement_mode == "item":
-		supports_floor = true
-	if object_group == "wall":
-		supports_floor = true
+	var placement_surfaces: Array[String] = _normalized_placement_surfaces(definition.get("placement_surfaces", []))
+	if placement_surfaces.is_empty():
+		var schema_mount_values: Array[String] = _schema_field_values(definition, ["mount", "install_mode", "cable_install_mode"])
+		for schema_surface in schema_mount_values:
+			if schema_surface in ["floor", "wall"] and not placement_surfaces.has(schema_surface):
+				placement_surfaces.append(schema_surface)
+	if placement_surfaces.is_empty():
+		return {}
 
-	var default_placement_mode: String = placement_mode
-	if default_placement_mode.is_empty():
-		default_placement_mode = "object"
+	var alias_surfaces: Array[String] = _normalized_placement_surfaces(alias_defaults.get("placement_surfaces", []))
+	if not alias_surfaces.is_empty():
+		placement_surfaces = alias_surfaces
+
+	var default_placement_surface: String = str(alias_defaults.get("default_placement_surface", definition.get("default_placement_surface", ""))).strip_edges().to_lower()
+	if not placement_surfaces.has(default_placement_surface):
+		default_placement_surface = str(placement_surfaces[0])
+
+	var supports_floor: bool = placement_surfaces.has("floor")
+	var supports_wall: bool = placement_surfaces.has("wall")
+	var floor_only: bool = supports_floor and not supports_wall
+	var wall_only: bool = supports_wall and not supports_floor
+	var requires_floor_anchor_when_wall_mounted: bool = bool(definition.get("requires_floor_anchor_when_wall_mounted", supports_wall))
+	if alias_defaults.has("requires_floor_anchor_when_wall_mounted"):
+		requires_floor_anchor_when_wall_mounted = bool(alias_defaults.get("requires_floor_anchor_when_wall_mounted"))
+
 	return {
+		"requested_prefab_id": requested_id,
 		"canonical_prefab_id": canonical_id,
-		"default_placement_mode": default_placement_mode,
+		"default_placement_mode": placement_mode,
+		"default_placement_surface": default_placement_surface,
+		"placement_surfaces": placement_surfaces,
 		"supports_floor": supports_floor,
 		"supports_wall": supports_wall,
-		"wall_only": supports_wall and not supports_floor,
-		"requires_floor_anchor": supports_wall,
+		"floor_only": floor_only,
+		"wall_only": wall_only,
+		"requires_floor": floor_only,
+		"requires_wall": wall_only,
+		"requires_floor_anchor_when_wall_mounted": requires_floor_anchor_when_wall_mounted,
+		"requires_floor_anchor": requires_floor_anchor_when_wall_mounted,
 		"changes_passability": bool(definition.get("changes_passability", definition.get("blocks_movement", false)))
 	}
 
@@ -1123,7 +1151,7 @@ const OBJECT_LIBRARY := {
 	"reinforced_steel_wall": {"group":"wall","name":"Reinforced Steel Wall","material":"reinforced_steel","durability":40,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
 	"titanium_wall": {"group":"wall","name":"Titanium Wall","material":"titanium","durability":100,"blocks_movement":true,"blocks_vision":true,"placeable_in_constructor":false},
 	"energy_wall": {"group":"wall","name":"Energy Wall","material":"energy_flow","durability":1,"blocks_movement":true,"blocks_vision":false,"invulnerable_while_powered":true,"power_mode":"external_power","placeable_in_constructor":false},
-	"power_cable": {"group":"power","name":"Power Cable","state":"ok","durability":5,"power_mode":"external_power","control_mode":"internal_control","generic_power_role":"cable_link","is_powered":false,"power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","power_source_id":"","physical_connection_source_id":"","is_connected":true,"connected":true,"disconnected":false,"connected_side":true,"cut":false,"damaged":false,"broken":false,"is_hidden":false,"hidden_installation":false,"route_surface":"floor","cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal","cable_path_cells":[],"cable_length":0},
+	"power_cable": {"group":"power","name":"Power Cable","placement_surfaces":["floor", "wall"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":true,"state":"ok","durability":5,"power_mode":"external_power","control_mode":"internal_control","generic_power_role":"cable_link","is_powered":false,"power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","power_source_id":"","physical_connection_source_id":"","is_connected":true,"connected":true,"disconnected":false,"connected_side":true,"cut":false,"damaged":false,"broken":false,"is_hidden":false,"hidden_installation":false,"route_surface":"floor","cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal","cable_path_cells":[],"cable_length":0},
 	"circuit_breaker": {"group":"power","name":"Circuit Breaker","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"switch_on","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
 	"circuit_switch": {"group":"power","name":"Circuit Switch","placeable_in_constructor":false,"state":"switch_off","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"input_wire_id":"","output_1_wire_id":"","output_2_wire_id":"","output_3_wire_id":"","active_output_index":1},
 	"legacy_fuse_box_library": {"group":"power","name":"Fuse Box","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"installed","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
@@ -1131,14 +1159,14 @@ const OBJECT_LIBRARY := {
 	"fuse_box_empty": {"group":"power","name":"Fuse Box Empty","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"empty","durability":8,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"requires_fuse":true,"fuse_installed":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
 	"legacy_light_library": {"group":"power","name":"Light","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"active","durability":6,"power_mode":"external_power","control_mode":"internal_control","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"brightness":1.0,"color":"#ffffff"},
 	"light_switch": {"group":"power","name":"Light Switch","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"switch_off","durability":6,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":false,"can_be_switched":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
-	"power_socket": {"group":"power","object_group":"power","object_type":"power_socket","archetype_id":"power_socket","palette_label":"Power Socket","name":"Power Socket","display_name_template":"Power Socket","placement_mode":"object","configurable":true,"interactable":true,"blocks_movement":false,"blocks_vision":false,"state":"disconnected","status":"inactive","durability":8,"power_mode":"external_power","control_mode":"internal_control","generic_power_role":"socket_input","socket_role":"socket_input","visual_family":"power_socket","visual_state_policy":"power_socket_connection_state","power_visual_state_enabled":false,"has_connected_cable":false,"connected_endpoint_count":0,"socket_connected_endpoint_count":0,"is_powered":false,"power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","power_source_id":"","physical_connection_source_id":"","is_connected":false,"connected":false,"disconnected":true,"connected_side":false,"damaged":false,"broken":false,"can_connect_cable":true,"mount":"floor","install_mode":"floor","property_schema":[FACING_SIDE_SCHEMA,{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}}]},
-	"power_cable_reel": {"group":"item","name":"Power Cable Reel","placement_mode":"wall_mounted","state":"disconnected","generic_power_role":"cable_endpoint","power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5,"is_connected":false,"connected":false,"disconnected":true,"connected_side":false,"connected_side_1":false,"connected_side_2":false,"end_1_state":"on_reel","end_1_target_id":"","end_1_path_cells":[],"end_1_cable_length":0,"end_2_state":"on_reel","end_2_target_id":"","end_2_path_cells":[],"end_2_cable_length":0,"cable_endpoint_a_id":"","cable_endpoint_b_id":"","cable_path_cells":[],"cable_length":0,"cut":false,"damaged":false,"broken":false,"cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal"},
+	"power_socket": {"group":"power","placement_surfaces":["floor", "wall"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":true,"object_group":"power","object_type":"power_socket","archetype_id":"power_socket","palette_label":"Power Socket","name":"Power Socket","display_name_template":"Power Socket","placement_mode":"object","configurable":true,"interactable":true,"blocks_movement":false,"blocks_vision":false,"state":"disconnected","status":"inactive","durability":8,"power_mode":"external_power","control_mode":"internal_control","generic_power_role":"socket_input","socket_role":"socket_input","visual_family":"power_socket","visual_state_policy":"power_socket_connection_state","power_visual_state_enabled":false,"has_connected_cable":false,"connected_endpoint_count":0,"socket_connected_endpoint_count":0,"is_powered":false,"power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","power_source_id":"","physical_connection_source_id":"","is_connected":false,"connected":false,"disconnected":true,"connected_side":false,"damaged":false,"broken":false,"can_connect_cable":true,"mount":"floor","install_mode":"floor","property_schema":[FACING_SIDE_SCHEMA,{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}}]},
+	"power_cable_reel": {"group":"item","name":"Power Cable Reel","placement_surfaces":["floor", "wall"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":true,"placement_mode":"wall_mounted","state":"disconnected","generic_power_role":"cable_endpoint","power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5,"is_connected":false,"connected":false,"disconnected":true,"connected_side":false,"connected_side_1":false,"connected_side_2":false,"end_1_state":"on_reel","end_1_target_id":"","end_1_path_cells":[],"end_1_cable_length":0,"end_2_state":"on_reel","end_2_target_id":"","end_2_path_cells":[],"end_2_cable_length":0,"cable_endpoint_a_id":"","cable_endpoint_b_id":"","cable_path_cells":[],"cable_length":0,"cut":false,"damaged":false,"broken":false,"cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal"},
 	"power_source_class_1": {"group":"power","name":"Power Source C1","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":1,"outlet_capacity":4,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
 	"power_source_class_2": {"group":"power","name":"Power Source C2","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":2,"outlet_capacity":5,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
 	"power_source_class_3": {"group":"power","name":"Power Source C3","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":3,"outlet_capacity":6,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
 	"external_radiator": {"group":"cooling","name":"External Radiator","placeable_in_constructor":false,"state":"active","cooling_device_type":"radiator","cooling_output":1,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20},
 	"external_air_cooler": {"group":"cooling","object_group":"cooling","object_type":"external_air_cooler","placeable_in_constructor":false,"palette_label":"Air Cooling","name":"External Air Cooler","display_name_template":"Air Cooling","placement_mode":"object","configurable":true,"interactable":true,"state":"off","status":"active","is_powered":false,"power_mode":"external_power","control_mode":"internal_control","cooling_device_type":"air_cooler","cooling_output":2,"directed_airflow":true,"generic_airflow_role":"fan","airflow_roles":["fan","airflow_source"],"fan_enabled":false,"fan_speed":0,"airflow_range":0,"cooling_state":"uncooled","airflow_direction":"sw","facing_side":"SW","facing_dir":"SW","allowed_airflow_directions":["ne","nw","se","sw"],"visual_family":"air_cooling","visual_surface":"floor","visual_state_policy":"powered_three_state","variant_policy":"airflow_direction","visual_variant":"sw","power_visual_state_enabled":true,"movable":true,"heavy_claw_movable":true,"material":"metal","blocks_movement":true,"blocks_vision":false,"durability":20,"property_schema":[{"field":"airflow_direction","type":"enum","values":["ne","nw","se","sw"],"default":"sw","labels":{"ne":"NE","nw":"NW","se":"SE","sw":"SW"}},{"field":"state","type":"enum","values":["base","off","on"],"default":"off","labels":{"base":"Base","off":"Off","on":"On"}},{"field":"fan_enabled","type":"bool","default":false},{"field":"airflow_range","type":"int","default":0,"min":0}]},
-	"metal_cooling_block": {"group":"cooling","object_group":"cooling","object_type":"metal_cooling_block","placeable_in_constructor":true,"palette_label":"Cooling block","name":"Cooling block","display_name_template":"Cooling block","placement_mode":"object","visual_family":"air_cooling","visual_surface":"floor","visual_asset_id":"air_cooling_base_floor_sw_01","state":"base","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
+	"metal_cooling_block": {"group":"cooling","placement_surfaces":["floor"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":false,"object_group":"cooling","object_type":"metal_cooling_block","placeable_in_constructor":true,"palette_label":"Cooling block","name":"Cooling block","display_name_template":"Cooling block","placement_mode":"object","visual_family":"air_cooling","visual_surface":"floor","visual_asset_id":"air_cooling_base_floor_sw_01","state":"base","material":"metal","cooling_amplifier":true,"movable":true,"heavy_claw_movable":true,"blocks_movement":true,"blocks_vision":false,"durability":30},
 	"external_water_pipe": {"group":"cooling","object_group":"cooling","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","object_type":"external_water_pipe","archetype_id":"external_water_pipe","palette_label":"External Water Pipe","name":"External Water Pipe","display_name_template":"External Water Pipe","state":"active","cooling_device_type":"water_pipe","cooling_output":2,"passive_cooling":true,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":15,"placement_mode":"wall_mounted","mount":"wall","install_mode":"wall","is_wall_mounted":true,"changes_passability":false,"configurable":true,"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"water_pipe","cooling_system_type":"water_pipe","cooling_contour_id":"","cooling_contour_mode":"auto","cooling_contour_member_ids":[],"cooling_system_tab":true,"routing_label":"Water Pipe","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},{"field":"cooling_contour_id","type":"string","default":"","internal":true,"legacy":true,"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"cooling_contour_member_ids","type":"object_ref_array","target_group":"cooling","default":[],"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}]},
 	"external_air_duct": {"group":"cooling","object_group":"cooling","constructor_group":"cooling_system","constructor_category":"Cooling System","constructor_tab":"cooling_system","object_type":"external_air_duct","archetype_id":"external_air_duct","palette_label":"External Air Duct","name":"External Air Duct","display_name_template":"External Air Duct","state":"active","cooling_device_type":"air_duct","carries_airflow":true,"passive_cooling":true,"generic_airflow_role":"airflow_path_cell","airflow_roles":["airflow_path_cell"],"blocks_airflow":false,"movable":false,"material":"metal","blocks_movement":false,"blocks_vision":false,"durability":12,"placement_mode":"wall_mounted","mount":"wall","install_mode":"wall","is_wall_mounted":true,"changes_passability":false,"configurable":true,"route_mode":"inner","wall_routing_mode":"inner","routing_kind":"air_duct","cooling_system_type":"air_duct","cooling_contour_id":"","cooling_contour_mode":"auto","cooling_contour_member_ids":[],"cooling_system_tab":true,"routing_label":"Air Duct","wall_side_1":"NW","wall_side_2":"SE","visual_family":"wall_routing_utility","visual_surface":"wall","wall_routing_visual_enabled":true,"property_schema":[{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},{"field":"cooling_contour_id","type":"string","default":"","internal":true,"legacy":true,"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"cooling_contour_member_ids","type":"object_ref_array","target_group":"cooling","default":[],"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}]},
 	"module_external": {"group":"item","name":"Module External","item_form":"physical","storage_type":"pocket","can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
@@ -1159,9 +1187,9 @@ const OBJECT_LIBRARY := {
 	"data_file_opened": {"group":"item","name":"Data File Opened","item_form":"digital","storage_type":"digital_buffer","can_place_in_digital_buffer":true,"item_family":"data_file","digital_state":"opened","consumable":false,"fits_targets":["terminal","firewall"]},
 	"data_file_encrypted": {"group":"item","name":"Data File Encrypted","item_form":"digital","storage_type":"digital_buffer","can_place_in_digital_buffer":true,"item_family":"data_file","digital_state":"encrypted","consumable":false,"fits_targets":["terminal","firewall"]},
 	"data_file_damaged": {"group":"item","name":"Data File Damaged","item_form":"digital","storage_type":"digital_buffer","can_place_in_digital_buffer":true,"item_family":"data_file","digital_state":"damaged","consumable":false,"fits_targets":["terminal","firewall"]},
-	"normal_crate": {"group":"physical_object","name":"Normal Crate","weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"heavy_crate": {"group":"physical_object","name":"Heavy Crate","placeable_in_constructor":false,"weight_class":"heavy","required_bipob_power_class":"engineer","durability":14,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"movable_platform_block": {"group":"physical_object","name":"Movable Platform Block","weight_class":"block","required_bipob_power_class":"juggernaut","durability":20,"blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"disabled_bipop_scout": {"group":"physical_object","name":"Disabled Bipop Scout","weight_class":"normal","required_bipob_power_class":"scout","durability":10},"disabled_bipop_engineer": {"group":"physical_object","name":"Disabled Bipop Engineer","weight_class":"heavy","required_bipob_power_class":"engineer","durability":15},"disabled_bipop_juggernaut": {"group":"physical_object","name":"Disabled Bipop Juggernaut","weight_class":"block","required_bipob_power_class":"juggernaut","durability":25},"legacy_barrel_library": {"group":"physical_object","name":"Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"explosive_barrel": {"group":"physical_object","name":"Explosive Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":6,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"on_destroy":"explode"},"debris": {"group":"physical_object","name":"Debris","weight_class":"normal","required_bipob_power_class":"scout","durability":1,"blocks_movement":false,"terrain_tag":"debris","movement_debuff":-1},
+	"normal_crate": {"group":"physical_object","name":"Normal Crate","weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"heavy_crate": {"group":"physical_object","name":"Heavy Crate","placeable_in_constructor":false,"weight_class":"heavy","required_bipob_power_class":"engineer","durability":14,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"movable_platform_block": {"group":"physical_object","name":"Movable Platform Block","weight_class":"block","required_bipob_power_class":"juggernaut","durability":20,"blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"disabled_bipop_scout": {"group":"physical_object","name":"Disabled Bipop Scout","weight_class":"normal","required_bipob_power_class":"scout","durability":10},"disabled_bipop_engineer": {"group":"physical_object","name":"Disabled Bipop Engineer","weight_class":"heavy","required_bipob_power_class":"engineer","durability":15},"disabled_bipop_juggernaut": {"group":"physical_object","name":"Disabled Bipop Juggernaut","weight_class":"block","required_bipob_power_class":"juggernaut","durability":25},"legacy_barrel_library": {"group":"physical_object","name":"Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"explosive_barrel": {"group":"physical_object","name":"Explosive Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":6,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"on_destroy":"explode"},"debris": {"group":"physical_object","placement_surfaces":["floor"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":false,"name":"Debris","weight_class":"normal","required_bipob_power_class":"scout","durability":1,"blocks_movement":false,"terrain_tag":"debris","movement_debuff":-1},
 	"enemy_robot": {"group":"threat","name":"Enemy Robot","state":"active","behavior_state":"patrolling","durability":20,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_light"],"heat_signature":true,"magnetic":true,"drain_energy_pool":20,"drained_this_turn":false,"detection_range":3,"vision_range":3,"radar_range":3,"thermal_range":0,"detection_modes":["vision","radar"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":5,"drops":["parts_medium"],"on_destroy":["drop_items","debris"]},
-	"turret": {"group":"threat","name":"Turret","state":"active","behavior_state":"idle","durability":15,"blocks_movement":true,"blocks_vision":false,"power_mode":"external_power","power_network_id":"power_net_A","is_powered":true,"control_mode":"external_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_light"],"heat_signature":true,"magnetic":true,"drain_energy_pool":15,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":0,"thermal_range":4,"detection_modes":["vision","thermal"],"detection_shape":"cardinal","detection_cone_enabled":false,"detection_direction":"forward","attack_range":4,"attack_damage":4,"can_be_controlled_by_terminal":true,"required_processor_level":1,"drops":["parts_medium"],"on_destroy":["drop_items","debris"]},
+	"turret": {"group":"threat","placement_surfaces":["floor"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":false,"name":"Turret","state":"active","behavior_state":"idle","durability":15,"blocks_movement":true,"blocks_vision":false,"power_mode":"external_power","power_network_id":"power_net_A","is_powered":true,"control_mode":"external_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_light"],"heat_signature":true,"magnetic":true,"drain_energy_pool":15,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":0,"thermal_range":4,"detection_modes":["vision","thermal"],"detection_shape":"cardinal","detection_cone_enabled":false,"detection_direction":"forward","attack_range":4,"attack_damage":4,"can_be_controlled_by_terminal":true,"required_processor_level":1,"drops":["parts_medium"],"on_destroy":["drop_items","debris"]},
 	"bug": {"group":"threat","name":"Bug","show_in_palette":false,"state":"active","behavior_state":"patrolling","durability":8,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["organic"],"heat_signature":true,"magnetic":false,"drain_energy_pool":5,"drained_this_turn":false,"detection_range":2,"vision_range":2,"radar_range":0,"thermal_range":0,"detection_modes":["vision"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":1,"attack_damage":2,"drops":["sample","parts_small"],"on_destroy":["drop_items"]},
 	"vagus": {"group":"threat","name":"Vagus","show_in_palette":false,"state":"active","behavior_state":"idle","durability":30,"blocks_movement":true,"blocks_vision":false,"power_mode":"internal_power","power_network_id":"","is_powered":true,"control_mode":"internal_control","controlled_by":[],"scan_level":0,"material_tags":["metal","armor_heavy"],"heat_signature":true,"magnetic":true,"drain_energy_pool":30,"drained_this_turn":false,"detection_range":4,"vision_range":4,"radar_range":4,"thermal_range":4,"detection_modes":["vision","radar","thermal"],"detection_shape":"radius","detection_cone_enabled":false,"detection_direction":"forward","attack_range":2,"attack_damage":7,"drops":["mission_item","parts_large"],"on_destroy":["drop_items","debris"]}
 }
