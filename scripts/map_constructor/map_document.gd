@@ -8,7 +8,7 @@ static func from_edit_state(snapshot: Dictionary, map_id: String = "test_map") -
 		"selected_entity_kind": str(snapshot.get("selected_entity_kind", "definition_preview")),
 		"selected_entity_id": str(snapshot.get("selected_entity_id", "")),
 		"active_tool_mode": str(snapshot.get("active_tool_mode", "place")),
-		"app_mode": str(snapshot.get("app_mode", "edit")),
+		"app_mode": "edit",
 		"selected_cell": Dictionary(snapshot.get("selected_cell", {"x": -1, "y": -1})),
 		"next_instance_index": int(snapshot.get("next_instance_index", 1)),
 	}
@@ -16,7 +16,7 @@ static func from_edit_state(snapshot: Dictionary, map_id: String = "test_map") -
 		"version": VERSION,
 		"map_id": map_id,
 		"grid": {"columns": 6, "rows": 5},
-		"objects": Array(snapshot.get("placed_objects", snapshot.get("objects", []))).duplicate(true),
+		"objects": _serialize_objects(Array(snapshot.get("placed_objects", snapshot.get("objects", [])))),
 		"editor_state": editor_state,
 		"metadata": Dictionary(snapshot.get("metadata", {})).duplicate(true),
 	}
@@ -29,7 +29,7 @@ static func to_edit_snapshot(document: Dictionary) -> Dictionary:
 		"selected_entity_kind": str(editor_state.get("selected_entity_kind", "definition_preview")),
 		"selected_entity_id": str(editor_state.get("selected_entity_id", "")),
 		"active_tool_mode": str(editor_state.get("active_tool_mode", "place")),
-		"app_mode": str(editor_state.get("app_mode", "edit")),
+		"app_mode": "edit",
 		"selected_cell": Dictionary(editor_state.get("selected_cell", {"x": -1, "y": -1})),
 		"next_instance_index": int(editor_state.get("next_instance_index", 1)),
 		"placed_objects": Array(document.get("objects", [])).duplicate(true),
@@ -37,3 +37,14 @@ static func to_edit_snapshot(document: Dictionary) -> Dictionary:
 
 static func is_valid(document: Dictionary) -> bool:
 	return int(document.get("version", 0)) == VERSION and document.has("objects") and document.has("grid") and document.has("editor_state")
+
+static func _serialize_objects(objects: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value: Variant in objects:
+		var data: Dictionary = Dictionary(value).duplicate(true)
+		data.erase("power_state")
+		var runtime_state: Dictionary = Dictionary(data.get("runtime_state", {})).duplicate(true)
+		runtime_state.erase("power_state")
+		data["runtime_state"] = runtime_state
+		result.append(data)
+	return result
