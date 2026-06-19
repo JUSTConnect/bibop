@@ -385,15 +385,17 @@ const WALL_MOUNT_BAND_RATIO: float = 0.3
 
 func _ready() -> void:
 	if _grid_manager == null:
-		var parent_grid: GridManager = get_parent() as GridManager
-		if parent_grid != null:
-			initialize_from_grid(parent_grid)
+		_grid_manager = get_parent() as GridManager
+	_connect_grid_manager_invalidation()
+	if _grid_manager != null:
+		request_rebuild()
 
 func _exit_tree() -> void:
 	_disconnect_grid_manager_invalidation()
 
 func set_grid_manager(grid: GridManager) -> void:
 	if _grid_manager == grid:
+		_connect_grid_manager_invalidation()
 		return
 	_disconnect_grid_manager_invalidation()
 	_grid_manager = grid
@@ -7663,6 +7665,14 @@ func draw_world_overlay_markers() -> void:
 		var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -10.0)
 		draw_string(ThemeDB.fallback_font, center + Vector2(-12.0, 4.0), marker, HORIZONTAL_ALIGNMENT_LEFT, 48.0, 14, Color(1.0, 0.95, 0.4))
 
+func get_projected_grid_direction(cell: Vector2i, grid_direction: Vector2i) -> Vector2:
+	var direction: Vector2 = grid_to_iso(cell + grid_direction) - grid_to_iso(cell)
+	if direction.length_squared() <= 0.0:
+		direction = grid_to_iso(cell + Vector2i.RIGHT) - grid_to_iso(cell)
+	if direction.length_squared() <= 0.0:
+		return Vector2.RIGHT
+	return direction.normalized()
+
 func draw_fan_platform_marker() -> void:
 	if _grid_manager == null or not _grid_manager.has_method("get_fan_platform_marker"):
 		return
@@ -7671,10 +7681,7 @@ func draw_fan_platform_marker() -> void:
 		return
 	var cell: Vector2i = Vector2i(marker.get("position", Vector2i(-1, -1)))
 	var direction_i: Vector2i = Vector2i(marker.get("direction", Vector2i.RIGHT))
-	var direction: Vector2 = Vector2(direction_i.x, direction_i.y)
-	if direction.length_squared() <= 0.0:
-		direction = Vector2.RIGHT
-	direction = direction.normalized()
+	var direction: Vector2 = get_projected_grid_direction(cell, direction_i)
 	var perpendicular: Vector2 = Vector2(-direction.y, direction.x)
 	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -8.0)
 	var tip: Vector2 = center + direction * 18.0

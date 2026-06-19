@@ -604,9 +604,12 @@ func reset_hidden_discoveries(emit_signal: bool = true) -> void:
 func place_debug_hidden_route_node(cell_position_arg: Vector2i) -> void:
 	if not is_in_bounds(cell_position_arg):
 		return
-	set_tile(cell_position_arg, TILE_HIDDEN_ROUTE_NODE)
+	if is_boundary_cell(cell_position_arg):
+		return
+
+	map_data[cell_position_arg.y][cell_position_arg.x] = TILE_HIDDEN_ROUTE_NODE
 	discovered_hidden_route_nodes.erase(get_position_key(cell_position_arg))
-	emit_visual_invalidation("visual_state", [])
+	emit_visual_invalidation("hidden_route_node", [cell_position_arg])
 
 func emit_visual_invalidation(reason: String = "grid_state", changed_cells: Array = []) -> void:
 	grid_visual_invalidated.emit(reason, changed_cells.duplicate())

@@ -50,11 +50,33 @@ func _init() -> void:
 
 	_expect(not grid_source.contains("queue_redraw("), "GridManager source must not call Canvas redraw")
 
+	var projected_right: Vector2 = renderer.get_projected_grid_direction(cell, Vector2i.RIGHT)
+	var expected_right: Vector2 = (renderer.grid_to_iso(cell + Vector2i.RIGHT) - renderer.grid_to_iso(cell)).normalized()
+	_expect(_vectors_nearly_equal(projected_right, expected_right), "fan marker RIGHT direction must use iso screen-space projection")
+
+	grid.remove_child(renderer)
+	await process_frame
+	_expect(not renderer.is_grid_visual_invalidation_connected(), "renderer must disconnect invalidation signal after leaving tree")
+
+	grid.add_child(renderer)
+	await process_frame
+	_expect(renderer.is_grid_visual_invalidation_connected(), "renderer must reconnect invalidation signal after re-entering tree")
+	before_count = renderer.debug_rebuild_request_count
+	invalidations.clear()
+	grid.set_tile(Vector2i(4, 4), GridManager.TILE_EXIT)
+	_expect(renderer.debug_rebuild_request_count == before_count + 1, "reconnected renderer must rebuild exactly once for next invalidation")
+
+	invalidations.clear()
+	var debug_cell := Vector2i(5, 4)
+	grid.place_debug_hidden_route_node(debug_cell)
+	_expect(invalidations.size() == 1, "place_debug_hidden_route_node must emit exactly one invalidation")
+	_expect(_has_invalidation("hidden_route_node", debug_cell), "place_debug_hidden_route_node invalidation must include changed cell")
+
 	grid.remove_child(renderer)
 	renderer.queue_free()
 	await process_frame
 	invalidations.clear()
-	grid.set_tile(Vector2i(4, 4), GridManager.TILE_EXIT)
+	grid.set_tile(Vector2i(4, 5), GridManager.TILE_EXIT)
 	_expect(invalidations.size() == 1, "cleanup must leave only test callback connected")
 
 	grid.queue_free()
@@ -76,6 +98,9 @@ func _has_invalidation(reason: String, cell: Vector2i) -> bool:
 		if Array(event.get("changed_cells", [])).has(cell):
 			return true
 	return false
+
+func _vectors_nearly_equal(a: Vector2, b: Vector2, epsilon: float = 0.001) -> bool:
+	return a.distance_to(b) <= epsilon
 
 func _expect(condition: bool, message: String) -> void:
 	if not condition:
