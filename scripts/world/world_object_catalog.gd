@@ -744,6 +744,20 @@ static func _get_constructor_prefab_definition(canonical_id: String) -> Dictiona
 		return Dictionary(OBJECT_LIBRARY[canonical_id]).duplicate(true)
 	return {}
 
+static func get_constructor_prefab_definition(prefab_id: String) -> Dictionary:
+	var canonical_id: String = canonical_prefab_id(prefab_id)
+	return _get_constructor_prefab_definition(canonical_id)
+
+static func get_constructor_prefab_property_schema(prefab_id: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var definition: Dictionary = get_constructor_prefab_definition(prefab_id)
+	var raw_schema: Variant = definition.get("property_schema", [])
+	if raw_schema is Array:
+		for entry_variant in raw_schema:
+			if entry_variant is Dictionary:
+				result.append(Dictionary(entry_variant).duplicate(true))
+	return result
+
 static func _schema_field_values(definition: Dictionary, field_names: Array) -> Array[String]:
 	var result: Array[String] = []
 	var raw_schema: Variant = definition.get("property_schema", [])
@@ -833,7 +847,8 @@ static func get_constructor_placement_contract(prefab_id: String) -> Dictionary:
 		"requires_wall": wall_only,
 		"requires_floor_anchor_when_wall_mounted": requires_floor_anchor_when_wall_mounted,
 		"requires_floor_anchor": requires_floor_anchor_when_wall_mounted,
-		"changes_passability": bool(definition.get("changes_passability", definition.get("blocks_movement", false)))
+		"changes_passability": bool(definition.get("changes_passability", definition.get("blocks_movement", false))),
+		"blocks_movement": bool(definition.get("blocks_movement", false))
 	}
 
 static func is_legacy_prefab_alias(value: String) -> bool:

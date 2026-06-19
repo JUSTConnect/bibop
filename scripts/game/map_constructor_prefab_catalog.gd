@@ -87,7 +87,9 @@ const CATEGORY_BY_PREFAB: Dictionary = {
 # MapConstructorPrefabCatalog owns constructor palette presentation metadata only.
 # MissionManager owns runtime orchestration, filtering, validation, geometry, occupancy, and mission state.
 
-static func _get_presentation_catalog() -> Dictionary:
+static var _presentation_catalog_cache: Dictionary = {}
+
+static func _build_presentation_catalog() -> Dictionary:
 	var metadata: Dictionary = {
 		"floor": {"display_name":"Floor","category":"Structural","subcategory":"Configurable Floor","system_roles":["navigation"],"tags":["floor","walkable","structural","configurable","archetype"],"description":"Configurable Floor archetype. Choose material, covering, visual style, and state properties in the inspector.","placement_hint":"Place the base Floor, then configure properties.","is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"stepped_floor": {"display_name":"Stepped Floor","category":"Structural","subcategory":"Floor","system_roles":["navigation"],"tags":["floor","walkable","elevation"],"description":"Walkable stepped floor tile.","placement_hint":"Use for alternate floor visuals.","is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
@@ -132,6 +134,14 @@ static func _get_presentation_catalog() -> Dictionary:
 		"power_cable_reel": {"display_name":"Cable Reel","category":"Power","subcategory":"Power Utility","system_roles":["power_network"],"tags":["power","cable","reel","floor","wall","utility"],"description":"Cable reel utility node. Use the inspector mount parameter to choose floor or wall visual mode.","placement_hint":"Place the unified Cable Reel, then choose Floor or Wall in the inspector.","is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":true,"can_have_links":false,"default_state":{}},
 	}
 	return metadata
+
+static func _presentation_catalog() -> Dictionary:
+	if _presentation_catalog_cache.is_empty():
+		_presentation_catalog_cache = _build_presentation_catalog()
+	return _presentation_catalog_cache
+
+static func _get_presentation_catalog() -> Dictionary:
+	return _presentation_catalog()
 
 
 static func get_category_order() -> Array[String]:
@@ -195,10 +205,12 @@ static func normalize_presentation_row(row: Dictionary) -> Dictionary:
 	normalized["prefab_id"] = prefab_id
 	normalized["id"] = prefab_id
 	normalized["canonical_object_type"] = WorldObjectCatalogRef.canonical_object_type(prefab_id)
-	var archetype_definition: Dictionary = WorldObjectCatalogRef.get_archetype_definition(canonical_prefab_id)
-	if not archetype_definition.is_empty():
+	var prefab_definition: Dictionary = WorldObjectCatalogRef.get_constructor_prefab_definition(canonical_prefab_id)
+	if not prefab_definition.is_empty():
 		normalized["archetype_id"] = canonical_prefab_id
-		normalized["object_group"] = str(archetype_definition.get("object_group", normalized.get("object_group", "")))
+		normalized["object_group"] = str(prefab_definition.get("object_group", prefab_definition.get("group", normalized.get("object_group", ""))))
+		normalized["configurable"] = bool(prefab_definition.get("configurable", false))
+		normalized["property_schema"] = WorldObjectCatalogRef.get_constructor_prefab_property_schema(canonical_prefab_id)
 	if not normalized.has("label") or str(normalized.get("label", "")).is_empty():
 		normalized["label"] = str(normalized.get("display_name", prefab_id.capitalize()))
 	if not normalized.has("display_name") or str(normalized.get("display_name", "")).is_empty():

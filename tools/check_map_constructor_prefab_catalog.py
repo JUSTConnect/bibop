@@ -21,13 +21,21 @@ forbidden_world_tokens = ['CONSTRUCTOR_PALETTE_PREFAB_ORDER', 'CONSTRUCTOR_PALET
 checks.append(('WorldObjectCatalog no longer owns constructor presentation inventories', not any(token in world for token in forbidden_world_tokens)))
 forbidden_inventory = ['WALL_MOUNTED_PREFABS', 'FLOOR_PREFABS', 'FLOOR_AND_WALL_PREFABS', 'PLACEMENT_DEFAULTS']
 checks.append(('presentation catalog has no placement inventory tables', not any(token in catalog for token in forbidden_inventory)))
-presentation_body = re.search(r'static func _get_presentation_catalog\(\).*?\n\treturn metadata', catalog, re.S)
+presentation_body = re.search(r'static func _build_presentation_catalog\(\).*?\n\treturn metadata', catalog, re.S)
 forbidden_keys = ['"placement_mode"', '"placement_surfaces"', '"default_placement_surface"', '"supports_floor"', '"supports_wall"', '"floor_only"', '"wall_only"', '"requires_floor"', '"requires_wall"', '"requires_floor_anchor"', '"requires_floor_anchor_when_wall_mounted"', '"changes_passability"', '"blocks_movement"']
 checks.append(('presentation rows do not hardcode placement contract keys', presentation_body is not None and not any(key in presentation_body.group(0) for key in forbidden_keys)))
 checks.append(('presentation rows do not hardcode gameplay default_state', presentation_body is not None and not re.search(r'"default_state"\s*:\s*\{\s*[^}]', presentation_body.group(0))))
 lookup_body = re.search(r'static func get_prefab_presentation\(.*?\nstatic func normalize_presentation_row', catalog, re.S)
 checks.append(('catalog includes canonical alias fallback logic', lookup_body is not None and 'canonical_id' in lookup_body.group(0) and 'catalog.has(canonical_id)' in lookup_body.group(0)))
 checks.append(('catalog preserves requested alias identifiers', lookup_body is not None and 'requested_prefab_id' in lookup_body.group(0) and 'base_row["prefab_id"] = requested_id' in lookup_body.group(0)))
+normalize_body = re.search(r'static func normalize_presentation_row\(.*?\nstatic func get_catalog_entries', catalog, re.S)
+checks.append(('presentation catalog uses constructor prefab definitions', normalize_body is not None and 'get_constructor_prefab_definition' in normalize_body.group(0)))
+checks.append(('presentation catalog uses constructor prefab schemas', normalize_body is not None and 'get_constructor_prefab_property_schema' in normalize_body.group(0)))
+checks.append(('presentation catalog does not use archetype definitions for configurability', normalize_body is not None and 'get_archetype_definition' not in normalize_body.group(0)))
+checks.append(('presentation inventory does not duplicate property schemas', presentation_body is not None and '"property_schema"' not in presentation_body.group(0)))
+placement_body = re.search(r'static func get_constructor_placement_contract\(.*?\nstatic func ', world, re.S)
+checks.append(('placement contract returns blocks_movement', placement_body is not None and '"blocks_movement"' in placement_body.group(0)))
+checks.append(('presentation catalog cache remains in use', 'static var _presentation_catalog_cache' in catalog and '_build_presentation_catalog' in catalog and '_presentation_catalog' in catalog))
 failed = [name for name, ok in checks if not ok]
 if failed:
     for name in failed:

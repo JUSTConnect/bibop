@@ -32,11 +32,44 @@ const REQUIRED_ALIASES: Dictionary = {
 	"module_internal":"module_item", "module_external":"module_item", "concrete_floor":"floor", "breachable_wall":"wall"
 }
 
+const EXPECTED_CONFIGURABLE: Dictionary = {
+	"power_cable_reel":true, "power_source":false, "power_cable":false, "power_socket":true, "fuse_box":true, "power_switcher":true, "light":true, "light_switcher":true,
+	"radiator":false, "external_water_pipe":true, "external_air_duct":true, "metal_cooling_block":false, "crate":true, "barrel":true, "wall":true, "floor":true, "platform":true, "station":true,
+	"digital_item":true, "access_item":true, "physical_item":true, "module_item":true, "turret":false, "enemy":true, "bipob":true, "terminal":true, "door":true, "firewall":true, "debris":false, "case":true
+}
+
+const EXPECTED_SCHEMA_FIELDS: Dictionary = {
+	"door":["door_type", "material", "access_type", "state"],
+	"terminal":["terminal_type", "power_type", "control_type", "status"],
+	"wall":["material", "is_breachable_wall"],
+	"module_item":["module_item_type", "state"],
+	"power_switcher":["mount", "switch_state"],
+	"fuse_box":["mount", "has_fuse"],
+	"power_socket":["mount"]
+}
+
 var failures: Array[String] = []
 
 func _assert(condition: bool, message: String) -> void:
 	if not condition:
 		failures.append(message)
+
+func _schema_field_names(schema: Array[Dictionary]) -> Array[String]:
+	var field_names: Array[String] = []
+	for entry in schema:
+		var field_name: String = str(entry.get("field", "")).strip_edges()
+		if not field_name.is_empty():
+			field_names.append(field_name)
+	return field_names
+
+func _assert_schema_valid(id: String, schema: Array[Dictionary]) -> void:
+	var seen_fields: Dictionary = {}
+	for entry in schema:
+		_assert(entry is Dictionary, "schema entry is not dictionary for %s" % id)
+		var field_name: String = str(entry.get("field", "")).strip_edges()
+		_assert(not field_name.is_empty(), "schema field empty for %s" % id)
+		_assert(not seen_fields.has(field_name), "schema field duplicated for %s: %s" % [id, field_name])
+		seen_fields[field_name] = true
 
 func _initialize() -> void:
 	var rows: Array[Dictionary] = Catalog.get_catalog_entries()
@@ -50,14 +83,25 @@ func _initialize() -> void:
 		_assert(str(row.get("category", "")) == str(EXPECTED_CATEGORIES.get(id, "")), "category mismatch for %s" % id)
 		var contract := WorldObjectCatalog.get_constructor_placement_contract(id)
 		_assert(not contract.is_empty(), "missing placement contract for %s" % id)
+		_assert(contract.has("blocks_movement"), "placement contract missing blocks_movement for %s" % id)
 		_assert(str(row.get("canonical_prefab_id", "")) == str(contract.get("canonical_prefab_id", "")), "canonical mismatch for %s" % id)
 		_assert(str(row.get("prefab_id", "")) == id and str(row.get("requested_prefab_id", "")) == id, "requested id not preserved for %s" % id)
 		for field in ["default_placement_mode", "default_placement_surface", "supports_floor", "supports_wall", "floor_only", "wall_only", "requires_floor", "requires_wall", "requires_floor_anchor", "requires_floor_anchor_when_wall_mounted", "changes_passability", "blocks_movement"]:
 			_assert(row.get(field) == contract.get(field), "%s mismatch for %s" % [field, id])
 		_assert(Array(row.get("placement_surfaces", [])) == Array(contract.get("placement_surfaces", [])), "surfaces mismatch for %s" % id)
+		_assert(row.has("configurable"), "row missing configurable for %s" % id)
+		_assert(bool(row.get("configurable", false)) == bool(EXPECTED_CONFIGURABLE.get(id, false)), "configurable fixture mismatch for %s" % id)
+		var definition: Dictionary = WorldObjectCatalog.get_constructor_prefab_definition(str(row.get("canonical_prefab_id", id)))
+		_assert(bool(row.get("configurable", false)) == bool(definition.get("configurable", false)), "configurable canonical mismatch for %s" % id)
+		var schema: Array[Dictionary] = WorldObjectCatalog.get_constructor_prefab_property_schema(str(row.get("canonical_prefab_id", id)))
+		_assert(Array(row.get("property_schema", [])) == schema, "property schema mismatch for %s" % id)
+		_assert_schema_valid(id, schema)
 		if bool(row.get("configurable", false)):
-			var schema := WorldObjectCatalog.get_archetype_property_schema(str(row.get("canonical_prefab_id", id)))
 			_assert(not schema.is_empty(), "configurable prefab exposes no editable canonical schema: %s" % id)
+		if EXPECTED_SCHEMA_FIELDS.has(id):
+			var field_names: Array[String] = _schema_field_names(schema)
+			for expected_field in Array(EXPECTED_SCHEMA_FIELDS[id]):
+				_assert(field_names.has(str(expected_field)), "%s schema missing %s" % [id, expected_field])
 	_assert(ids == EXPECTED_IDS, "visible prefab sequence changed: %s" % str(ids))
 	_assert(Catalog.get_category_order() == EXPECTED_CATEGORY_ORDER, "category order contract changed: %s" % str(Catalog.get_category_order()))
 	for hidden_alias in REQUIRED_ALIASES.keys():
@@ -72,7 +116,28 @@ func _initialize() -> void:
 	_assert(not bool(unknown.get("supports_floor", true)), "unknown emitted fallback floor support")
 	var override_row := Catalog.normalize_presentation_row({"id":"door", "supports_wall":not bool(WorldObjectCatalog.get_constructor_placement_contract("door").get("supports_wall", false))})
 	_assert(bool(override_row.get("supports_wall", false)) == bool(WorldObjectCatalog.get_constructor_placement_contract("door").get("supports_wall", false)), "presentation overrode gameplay contract")
+	var power_socket_meta := Catalog.normalize_presentation_row(Catalog.get_prefab_presentation("power_socket"))
+	_assert(bool(power_socket_meta.get("configurable", false)), "power_socket lost configurable=true")
+	var power_socket_schema: Array[Dictionary] = WorldObjectCatalog.get_constructor_prefab_property_schema("power_socket")
+	_assert(not power_socket_schema.is_empty(), "power_socket constructor schema missing")
+	_assert(_schema_field_names(power_socket_schema).has("mount"), "power_socket schema missing mount")
 	var manager := MissionManager.new()
+	var manager_catalog_rows: Array[Dictionary] = manager.get_map_constructor_prefab_catalog()
+	var manager_power_socket: Dictionary = {}
+	for manager_row in manager_catalog_rows:
+		if str(manager_row.get("id", "")) == "power_socket":
+			manager_power_socket = manager_row
+			break
+	_assert(not manager_power_socket.is_empty(), "MissionManager catalog missing power_socket")
+	_assert(bool(manager_power_socket.get("configurable", false)), "MissionManager power_socket lost configurable=true")
+	var manager_power_socket_schema: Array[Dictionary] = []
+	for entry_variant in Array(manager_power_socket.get("property_schema", [])):
+		if entry_variant is Dictionary:
+			manager_power_socket_schema.append(Dictionary(entry_variant))
+	_assert(_schema_field_names(manager_power_socket_schema).has("mount"), "MissionManager power_socket schema missing mount")
+	var power_socket_contract: Dictionary = WorldObjectCatalog.get_constructor_placement_contract("power_socket")
+	for field in ["default_placement_mode", "default_placement_surface", "supports_floor", "supports_wall", "changes_passability", "blocks_movement"]:
+		_assert(manager_power_socket.get(field) == power_socket_contract.get(field), "MissionManager power_socket %s mismatch" % field)
 	var api_rows := manager.get_map_constructor_prefab_palette_rows({})
 	_assert(bool(api_rows.get("ok", false)), "MissionManager palette API failed")
 	_assert(Array(api_rows.get("categories", [])) == ["Power", "Cooling system", "Movable", "Environments", "Item", "Traps", "Robots", "Control", "Other"], "MissionManager category order changed")
