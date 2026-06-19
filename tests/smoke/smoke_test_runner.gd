@@ -5,7 +5,12 @@ const TESTS: Array = [
 	preload("res://tests/smoke/test_test_room_loading.gd"),
 	preload("res://tests/smoke/test_power_interaction.gd"),
 	preload("res://tests/smoke/test_document_roundtrip.gd"),
+	preload("res://tests/smoke/test_document_migration.gd"),
 	preload("res://tests/smoke/test_visual_resolution.gd"),
+	preload("res://tests/smoke/test_command_history.gd"),
+	preload("res://tests/smoke/test_passability.gd"),
+	preload("res://tests/smoke/test_agent_path.gd"),
+	preload("res://tests/smoke/test_context_actions.gd"),
 ]
 
 func _init() -> void:
