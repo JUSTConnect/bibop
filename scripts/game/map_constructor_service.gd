@@ -23,37 +23,17 @@ func _parse_wall_entity_cell(entity_id: String, fallback_cell: Vector2i = Vector
 	return fallback_cell
 
 func _remove_world_object_record_by_id(entity_id: String) -> bool:
-	var removed: bool = false
-	for index in range(manager.mission_world_objects.size() - 1, -1, -1):
-		var existing: Dictionary = manager._safe_dictionary(manager.mission_world_objects[index])
-		if str(existing.get("id", "")) == entity_id:
-			manager.mission_world_objects.remove_at(index)
-			removed = true
-	for cell_variant in manager.world_objects_by_cell.keys().duplicate():
-		var lookup_data: Dictionary = manager._safe_dictionary(manager.world_objects_by_cell.get(cell_variant, {}))
-		if str(lookup_data.get("id", "")) == entity_id:
-			manager.world_objects_by_cell.erase(cell_variant)
-	for cell_variant in manager.wall_mounted_objects_by_cell.keys().duplicate():
-		var mounted_objects: Array = Array(manager.wall_mounted_objects_by_cell.get(cell_variant, []))
-		for index in range(mounted_objects.size() - 1, -1, -1):
-			var mounted_data: Dictionary = manager._safe_dictionary(mounted_objects[index])
-			if str(mounted_data.get("id", "")) == entity_id:
-				mounted_objects.remove_at(index)
-		if mounted_objects.is_empty():
-			manager.wall_mounted_objects_by_cell.erase(cell_variant)
-		else:
-			manager.wall_mounted_objects_by_cell[cell_variant] = mounted_objects
-	return removed
+	if manager.world_state_store == null or not manager.world_state_store.has_object(entity_id):
+		return false
+	var result: Dictionary = manager.world_state_store.remove_object_by_id(entity_id)
+	return bool(result.get("ok", false))
 
 func _add_map_constructor_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 	if object_data.is_empty():
 		return
 	if str(object_data.get("placement_mode", "")).strip_edges().to_lower() == "wall_mounted" or bool(object_data.get("is_wall_mounted", false)):
 		object_data["position"] = cell
-		manager.mission_world_objects.append(object_data)
-		var mounted_objects_at_cell: Array = Array(manager.wall_mounted_objects_by_cell.get(cell, []))
-		mounted_objects_at_cell.append(object_data)
-		manager.wall_mounted_objects_by_cell[cell] = mounted_objects_at_cell
+		manager.world_state_store.upsert_object(object_data)
 		return
 	manager.set_world_object_at_cell(cell, object_data)
 
@@ -326,9 +306,7 @@ func _remove_map_constructor_entity_by_id(entity_kind: String, entity_id: String
 					continue
 				if not bool(item_data.get("created_by_map_constructor", false)):
 					return {"ok": false, "message": "Cannot remove non-constructor item.", "object_id": entity_id, "warnings": []}
-				items.remove_at(index)
-				manager.cell_items[cell] = items
-				manager.mission_world_objects.erase(item_data)
+				manager.world_state_store.remove_object_by_id(entity_id)
 				PowerSystemRef.recalculate_network(manager.mission_world_objects, "")
 				manager.refresh_world_cooling_received()
 				manager._record_map_constructor_change("delete", {"entity_kind":"item", "entity_id":entity_id, "object_type":str(item_data.get("item_type", item_data.get("object_type", "item"))), "cell":cell, "summary":"Deleted item %s" % entity_id, "undo_hint":"Cannot directly undo; use cleanup/autofix/patch undo systems when applicable."})
@@ -1069,9 +1047,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 				var item_data: Dictionary = items[index]
 				if str(item_data.get("id", "")) != entity_id:
 					continue
-				items[index] = data
-				manager.cell_items[cell] = items
-				manager._sync_world_item_record(data)
+				manager.world_state_store.upsert_object(data)
 				found_item = true
 				break
 			if found_item:
@@ -1121,8 +1097,7 @@ func apply_map_constructor_property_update(entity_kind: String, entity_id: Strin
 					var items: Array[Dictionary] = manager.get_items_at_cell(cell)
 					for item_index in range(items.size()):
 						if str(items[item_index].get("id", "")) == key_id:
-							items[item_index] = linked_key
-							manager.cell_items[cell] = items
+							manager.world_state_store.upsert_object(linked_key)
 							break
 	result["ok"] = true
 	result["value"] = new_value

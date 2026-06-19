@@ -33,6 +33,7 @@ jobs:
           python tools/check_map_constructor_sections.py
           python tools/check_constructor_placement_contract.py
           python tools/check_map_constructor_prefab_catalog.py
+          python tools/check_world_state_store.py
 
       - name: Godot import smoke
         run: |
@@ -41,6 +42,10 @@ jobs:
       - name: GDScript parser/load gate
         run: |
           godot --headless --path . --script res://tools/ci/parse_all_gd.gd
+
+      - name: World state store behavior gate
+        run: |
+          godot --headless --path . --script res://tools/ci/check_world_state_store.gd
 
       - name: Constructor placement behavior gate
         run: |
