@@ -87,7 +87,9 @@ const CATEGORY_BY_PREFAB: Dictionary = {
 # MapConstructorPrefabCatalog owns constructor palette presentation metadata only.
 # MissionManager owns runtime orchestration, filtering, validation, geometry, occupancy, and mission state.
 
-static func _get_presentation_catalog() -> Dictionary:
+static var _presentation_catalog_cache: Dictionary = {}
+
+static func _build_presentation_catalog() -> Dictionary:
 	var metadata: Dictionary = {
 		"floor": {"display_name":"Floor","category":"Structural","subcategory":"Configurable Floor","system_roles":["navigation"],"tags":["floor","walkable","structural","configurable","archetype"],"description":"Configurable Floor archetype. Choose material, covering, visual style, and state properties in the inspector.","placement_hint":"Place the base Floor, then configure properties.","is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
 		"stepped_floor": {"display_name":"Stepped Floor","category":"Structural","subcategory":"Floor","system_roles":["navigation"],"tags":["floor","walkable","elevation"],"description":"Walkable stepped floor tile.","placement_hint":"Use for alternate floor visuals.","is_destructive":false,"is_diagnostic":false,"is_expected_invalid_tool":false,"can_have_power_network":false,"can_have_links":false,"default_state":{}},
@@ -133,6 +135,10 @@ static func _get_presentation_catalog() -> Dictionary:
 	}
 	return metadata
 
+static func _presentation_catalog() -> Dictionary:
+	if _presentation_catalog_cache.is_empty():
+		_presentation_catalog_cache = _build_presentation_catalog()
+	return _presentation_catalog_cache
 
 static func get_category_order() -> Array[String]:
 	return CATEGORY_ORDER.duplicate()
@@ -141,7 +147,7 @@ static func get_prefab_order() -> Array[String]:
 	return PREFAB_ORDER.duplicate()
 
 static func get_presentation_catalog_snapshot() -> Dictionary:
-	return _get_presentation_catalog().duplicate(true)
+	return _presentation_catalog().duplicate(true)
 
 static func get_prefab_presentation(prefab_id: String) -> Dictionary:
 	var requested_id: String = prefab_id.strip_edges().to_lower()
@@ -151,7 +157,7 @@ static func get_prefab_presentation(prefab_id: String) -> Dictionary:
 	if placement_contract.is_empty():
 		return {}
 	var canonical_id: String = str(placement_contract.get("canonical_prefab_id", WorldObjectCatalogRef.canonical_prefab_id(requested_id))).strip_edges().to_lower()
-	var catalog: Dictionary = _get_presentation_catalog()
+	var catalog: Dictionary = _presentation_catalog()
 	var base_row: Dictionary = {}
 	if catalog.has(canonical_id):
 		base_row = Dictionary(catalog[canonical_id]).duplicate(true)
@@ -196,9 +202,14 @@ static func normalize_presentation_row(row: Dictionary) -> Dictionary:
 	normalized["id"] = prefab_id
 	normalized["canonical_object_type"] = WorldObjectCatalogRef.canonical_object_type(prefab_id)
 	var archetype_definition: Dictionary = WorldObjectCatalogRef.get_archetype_definition(canonical_prefab_id)
+	var property_schema: Array[Dictionary] = WorldObjectCatalogRef.get_archetype_property_schema(canonical_prefab_id)
 	if not archetype_definition.is_empty():
 		normalized["archetype_id"] = canonical_prefab_id
 		normalized["object_group"] = str(archetype_definition.get("object_group", normalized.get("object_group", "")))
+		normalized["configurable"] = bool(archetype_definition.get("configurable", false))
+	else:
+		normalized["configurable"] = false
+	normalized["property_schema"] = property_schema.duplicate(true)
 	if not normalized.has("label") or str(normalized.get("label", "")).is_empty():
 		normalized["label"] = str(normalized.get("display_name", prefab_id.capitalize()))
 	if not normalized.has("display_name") or str(normalized.get("display_name", "")).is_empty():
