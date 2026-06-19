@@ -179,6 +179,8 @@ func _initialize() -> void:
 	var alias_prefab: Dictionary = Dictionary(alias_result.get("prefab", {}))
 	_assert(str(alias_prefab.get("prefab_id", "")) == "fuse_box_installed", "MissionManager alias requested ID lost")
 	_assert(bool(alias_prefab.get("configurable", false)) == bool(WorldObjectCatalog.get_constructor_prefab_definition("fuse_box").get("configurable", false)), "MissionManager alias configurable not canonical")
+	manager.free()
+	manager = null
 	if failures.is_empty():
 		print("Map constructor prefab catalog checks passed.")
 		quit(0)
