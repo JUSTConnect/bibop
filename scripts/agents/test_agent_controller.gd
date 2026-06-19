@@ -34,6 +34,21 @@ func step(repository: RefCounted, columns: int, rows: int) -> Dictionary:
 		"message": "Agent reached goal." if path[1] == goal() else "Agent moved to %s." % str(path[1]),
 	}
 
+func run_until_stop(repository: RefCounted, columns: int, rows: int, max_steps: int = 64) -> Dictionary:
+	var steps: int = 0
+	var last_result: Dictionary = {"moved": false, "message": "No movement."}
+	while steps < max_steps and not reached_goal():
+		last_result = step(repository, columns, rows)
+		if not bool(last_result.get("moved", false)):
+			break
+		steps += 1
+	return {
+		"steps": steps,
+		"reached_goal": reached_goal(),
+		"cell": cell(),
+		"message": str(last_result.get("message", "Agent stopped.")),
+	}
+
 func cell() -> Vector2i:
 	var value: Variant = state.get("cell")
 	return value if value is Vector2i else Vector2i.ZERO
