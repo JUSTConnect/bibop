@@ -10,5 +10,9 @@
   "object_door": {
     "texture": "res://assets/visual/isometric/objects/object_door.png",
     "fallback_marker": "D"
+  },
+  "power_cable_01": {
+    "texture": "res://assets/visual/isometric/objects/power_cable_01.png",
+    "fallback_marker": "C"
   }
 }
