@@ -7758,8 +7758,6 @@ func _request_cable_reel_trail_redraw() -> void:
 	var room_visual_renderer: RoomVisualRenderer = get_room_visual_renderer()
 	if room_visual_renderer != null:
 		room_visual_renderer.queue_redraw()
-	elif grid_manager != null:
-		grid_manager.queue_redraw()
 
 func return_held_cable_end_to_reel() -> Dictionary:
 	var held: Dictionary = _get_held_cable_end_metadata()

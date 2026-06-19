@@ -5,7 +5,6 @@
 
 [node name="Field" type="Node2D" unique_id=435219368]
 script = ExtResource("2_grid")
-debug_draw_legacy_grid = false
 
 [node name="RoomVisualRenderer" type="Node2D" parent="." unique_id=469338091]
 script = ExtResource("1_32vmb")

@@ -365,6 +365,7 @@ var _iso_floor_asset_texture_cache: Dictionary = {}
 var _iso_ground_asset_texture_cache: Dictionary = {}
 var _grid_manager: GridManager = null
 var _rebuild_requested: bool = false
+var debug_rebuild_request_count: int = 0
 
 var selected_iso_cell: Vector2i = Vector2i(-1, -1)
 var selected_iso_route_cells: Array[Vector2i] = []
@@ -382,8 +383,25 @@ const WALL_SIDE_ORDER: Array[String] = ["north", "east", "south", "west"]
 const WALL_MASS_RATIO: float = 0.7
 const WALL_MOUNT_BAND_RATIO: float = 0.3
 
+func _enter_tree() -> void:
+	if _grid_manager == null:
+		_grid_manager = get_parent() as GridManager
+	_connect_grid_manager_invalidation()
+
+func _ready() -> void:
+	if _grid_manager != null:
+		request_rebuild()
+
+func _exit_tree() -> void:
+	_disconnect_grid_manager_invalidation()
+
 func set_grid_manager(grid: GridManager) -> void:
+	if _grid_manager == grid:
+		_connect_grid_manager_invalidation()
+		return
+	_disconnect_grid_manager_invalidation()
 	_grid_manager = grid
+	_connect_grid_manager_invalidation()
 	request_rebuild()
 
 func initialize_from_grid(grid: GridManager) -> void:
@@ -392,7 +410,22 @@ func initialize_from_grid(grid: GridManager) -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	set_grid_manager(grid)
 
+func _connect_grid_manager_invalidation() -> void:
+	if _grid_manager != null and not _grid_manager.grid_visual_invalidated.is_connected(_on_grid_visual_invalidated):
+		_grid_manager.grid_visual_invalidated.connect(_on_grid_visual_invalidated)
+
+func _disconnect_grid_manager_invalidation() -> void:
+	if _grid_manager != null and _grid_manager.grid_visual_invalidated.is_connected(_on_grid_visual_invalidated):
+		_grid_manager.grid_visual_invalidated.disconnect(_on_grid_visual_invalidated)
+
+func _on_grid_visual_invalidated(_reason: String, _changed_cells: Array) -> void:
+	request_rebuild()
+
+func is_grid_visual_invalidation_connected() -> bool:
+	return _grid_manager != null and _grid_manager.grid_visual_invalidated.is_connected(_on_grid_visual_invalidated)
+
 func request_rebuild() -> void:
+	debug_rebuild_request_count += 1
 	_rebuild_requested = true
 	rebuild_visuals()
 	queue_redraw()
@@ -3348,7 +3381,7 @@ func get_iso_visual_debug_report() -> Dictionary:
 	if has_grid_manager:
 		map_width = _grid_manager.get_map_width()
 		map_height = _grid_manager.get_map_height()
-		legacy_grid_should_draw = _grid_manager.should_draw_legacy_grid()
+		legacy_grid_should_draw = false
 	var iso_active: bool = is_iso_renderer_active()
 	var floor_enabled: bool = should_render_iso_floor_visuals()
 	var wall_enabled: bool = should_render_iso_wall_visuals()
@@ -7620,6 +7653,46 @@ func draw_iso_fog_wall_overlay(cell: Vector2i) -> void:
 			var next_top_index: int = (edge_index + 1) % top_face.size()
 			draw_line(top_face[edge_index], top_face[next_top_index], Color(0.5, 0.6, 0.75, 0.75), 1.0)
 
+func draw_world_overlay_markers() -> void:
+	if _grid_manager == null or not _grid_manager.has_method("get_world_overlay_markers"):
+		return
+	var markers: Dictionary = Dictionary(_grid_manager.call("get_world_overlay_markers"))
+	for cell_variant in markers.keys():
+		var cell: Vector2i = Vector2i(cell_variant)
+		if _grid_manager.has_method("is_cell_visible") and not _grid_manager.is_cell_visible(cell):
+			continue
+		var marker: String = str(markers.get(cell_variant, ""))
+		if marker.is_empty():
+			continue
+		var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -10.0)
+		draw_string(ThemeDB.fallback_font, center + Vector2(-12.0, 4.0), marker, HORIZONTAL_ALIGNMENT_LEFT, 48.0, 14, Color(1.0, 0.95, 0.4))
+
+func get_projected_grid_direction(cell: Vector2i, grid_direction: Vector2i) -> Vector2:
+	var direction: Vector2 = grid_to_iso(cell + grid_direction) - grid_to_iso(cell)
+	if direction.length_squared() <= 0.0:
+		direction = grid_to_iso(cell + Vector2i.RIGHT) - grid_to_iso(cell)
+	if direction.length_squared() <= 0.0:
+		return Vector2.RIGHT
+	return direction.normalized()
+
+func draw_fan_platform_marker() -> void:
+	if _grid_manager == null or not _grid_manager.has_method("get_fan_platform_marker"):
+		return
+	var marker: Dictionary = Dictionary(_grid_manager.call("get_fan_platform_marker"))
+	if not bool(marker.get("active", false)):
+		return
+	var cell: Vector2i = Vector2i(marker.get("position", Vector2i(-1, -1)))
+	var direction_i: Vector2i = Vector2i(marker.get("direction", Vector2i.RIGHT))
+	var direction: Vector2 = get_projected_grid_direction(cell, direction_i)
+	var perpendicular: Vector2 = Vector2(-direction.y, direction.x)
+	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -8.0)
+	var tip: Vector2 = center + direction * 18.0
+	var base: Vector2 = center - direction * 5.0
+	var left: Vector2 = base + perpendicular * 10.0
+	var right: Vector2 = base - perpendicular * 10.0
+	draw_colored_polygon(PackedVector2Array([tip, left, right]), Color(0.97, 0.97, 1.0, 0.96))
+	draw_line(base, tip, Color(0.18, 0.28, 0.45, 0.9), 2.0)
+
 func draw_iso_fog_overlay() -> void:
 	# Visual-only fog overlay pass for isometric prototypes.
 	# GridManager visibility helpers are read here; gameplay fog logic is not modified.
@@ -7795,6 +7868,8 @@ func _draw() -> void:
 	draw_iso_mouse_selection_overlay()
 	draw_map_constructor_visual_overlay_passes()
 	draw_selected_interaction_target_overlay()
+	draw_world_overlay_markers()
+	draw_fan_platform_marker()
 
 	if should_render_iso_fog_visuals():
 		draw_iso_fog_overlay()

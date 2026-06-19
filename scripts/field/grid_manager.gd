@@ -1,6 +1,8 @@
 extends Node2D
 class_name GridManager
 
+signal grid_visual_invalidated(reason: String, changed_cells: Array)
+
 const TILE_FLOOR := 0
 const TILE_WALL := 1
 const TILE_DOOR := 2
@@ -41,8 +43,6 @@ const FLOOR_HEAVY_DAMAGE_WHEELED_MOVE_MODIFIER := -1
 @export var cell_size: int = 64
 @export var fog_enabled: bool = true
 @export var reveal_radius: int = 1
-@export var debug_draw_legacy_grid: bool = false
-
 var debug_draw_undiscovered_hidden_nodes: bool = false
 var fan_platform_marker_position: Vector2i = Vector2i(-1, -1)
 var fan_platform_marker_direction: Vector2i = Vector2i.RIGHT
@@ -66,43 +66,12 @@ var map_data: Array = [
 
 
 var mission_initial_map_data: Array = []
-@onready var room_visual_renderer: RoomVisualRenderer = get_node_or_null("RoomVisualRenderer")
 
-var tile_colors := {
-	TILE_FLOOR: Color(0.16, 0.16, 0.18),
-	TILE_WALL: Color(0.05, 0.05, 0.06),
-	TILE_DOOR: Color(0.45, 0.25, 0.08),
-	TILE_KEY: Color(0.95, 0.75, 0.15),
-	TILE_EXIT: Color(0.15, 0.65, 0.35),
-	TILE_TERMINAL: Color(0.6, 0.25, 0.75),
-	TILE_DIGITAL_DOOR: Color(0.1, 0.4, 0.85),
-	TILE_COMPONENT: Color(0.9, 0.45, 0.15),
-	TILE_HIDDEN_ROUTE_NODE: Color(0.16, 0.16, 0.18),
-	TILE_ROUTE_GATE: Color(0.12, 0.56, 0.7),
-	TILE_HOT_NODE: Color(1.0, 0.25, 0.1),
-	TILE_AIRFLOW_TERMINAL: Color(0.75, 0.2, 0.85),
-	TILE_FAN_PLATFORM: Color(0.45, 0.47, 0.52),
-	TILE_PLATFORM_CONTROL: Color(0.95, 0.8, 0.22),
-	TILE_FAN_CONTROL: Color(0.2, 0.8, 1.0),
-	TILE_AIRFLOW: Color(0.45, 0.85, 1.0, 0.65),
-	TILE_PLATFORM_CONTROL_LEFT: Color(0.95, 0.68, 0.2),
-	TILE_PLATFORM_CONTROL_RIGHT: Color(0.8, 0.9, 0.24),
-	TILE_FAN_SPEED_UP_CONTROL: Color(0.2, 0.82, 1.0),
-	TILE_FAN_SPEED_DOWN_CONTROL: Color(0.33, 0.24, 0.72),
-	TILE_CABLE_REEL: Color(0.95, 0.62, 0.2),
-	TILE_SOCKET: Color(0.2, 0.55, 0.95),
-	TILE_POWERED_GATE: Color(0.92, 0.38, 0.2),
-	TILE_CABLE: Color(0.22, 0.88, 0.72),
-	TILE_STEPPED_FLOOR: Color(0.46, 0.42, 0.36),
-}
 
 func _ready() -> void:
 	cache_initial_mission_layout()
 	setup_fog_arrays()
-	# GridManager remains gameplay truth; RoomVisualRenderer is visual-only.
-	if room_visual_renderer != null:
-		room_visual_renderer.initialize_from_grid(self)
-	request_visual_refresh()
+	emit_visual_invalidation("ready", [])
 
 
 func duplicate_map_layout(layout: Array) -> Array:
@@ -183,8 +152,8 @@ func reset_mission_layout(mission_index: int) -> void:
 		map_data = duplicate_map_layout(get_mission10_layout())
 	else:
 		map_data = duplicate_map_layout(mission_initial_map_data)
-	reset_hidden_discoveries()
-	request_visual_refresh()
+	reset_hidden_discoveries(false)
+	emit_visual_invalidation("map_layout", [])
 
 func apply_mission_layout(layout: Array) -> bool:
 	if layout.is_empty():
@@ -203,116 +172,18 @@ func apply_mission_layout(layout: Array) -> bool:
 	if expected_row_width <= 0:
 		return false
 	map_data = duplicate_map_layout(layout)
-	reset_hidden_discoveries()
-	request_visual_refresh()
+	reset_hidden_discoveries(false)
+	emit_visual_invalidation("map_layout", [])
 	return true
 
 func reset_fog_of_war() -> void:
 	setup_fog_arrays()
-	request_visual_refresh()
-
-func should_draw_legacy_grid() -> bool:
-	if not debug_draw_legacy_grid:
-		return false
-	var renderer: RoomVisualRenderer = get_room_visual_renderer_for_visual_mode()
-	if renderer != null and renderer.is_iso_renderer_active():
-		return false
-	return true
-
-func get_room_visual_renderer_for_visual_mode() -> RoomVisualRenderer:
-	var renderer_node: Node = room_visual_renderer
-	if renderer_node == null:
-		renderer_node = get_node_or_null("RoomVisualRenderer")
-	if renderer_node != null and renderer_node is RoomVisualRenderer:
-		return renderer_node as RoomVisualRenderer
-	return null
-
-func get_visual_render_mode_summary() -> Dictionary:
-	var renderer: RoomVisualRenderer = get_room_visual_renderer_for_visual_mode()
-	var renderer_found: bool = renderer != null
-	var renderer_active: bool = false
-	if renderer_found:
-		renderer_active = renderer.is_iso_renderer_active()
-	var legacy_will_draw: bool = should_draw_legacy_grid()
-	return {
-		"legacy_grid_debug_enabled": debug_draw_legacy_grid,
-		"legacy_grid_will_draw": legacy_will_draw,
-		"room_visual_renderer_found": renderer_found,
-		"iso_renderer_active": renderer_active,
-		"single_render_path_ok": not (legacy_will_draw and renderer_active)
-	}
-
-func _draw() -> void:
-	if not should_draw_legacy_grid():
-		return
-	for y in range(map_data.size()):
-		for x in range(map_data[y].size()):
-			var grid_position: Vector2i = Vector2i(x, y)
-			var tile_type: int = map_data[y][x]
-			var cell_position: Vector2 = Vector2(x * cell_size, y * cell_size)
-			var rect: Rect2 = Rect2(cell_position, Vector2(cell_size, cell_size))
-			
-			var color: Color = tile_colors.get(tile_type, Color.MAGENTA)
-			if tile_type == TILE_HIDDEN_ROUTE_NODE and not is_hidden_route_node_discovered(grid_position):
-				color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
-			
-			draw_rect(rect, color, true)
-			if tile_type == TILE_AIRFLOW:
-				var floor_color: Color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
-				draw_rect(rect, floor_color, true)
-				var strip_size: Vector2 = Vector2(cell_size * 0.52, cell_size * 0.12)
-				var strip_rect: Rect2 = Rect2(rect.get_center() - strip_size * 0.5, strip_size)
-				draw_rect(strip_rect, Color(0.56, 0.88, 1.0, 0.72), true)
-				draw_circle(rect.get_center(), cell_size * 0.12, Color(0.78, 0.95, 1.0, 0.85))
-			if tile_type == TILE_CABLE:
-				var cable_floor_color: Color = tile_colors.get(TILE_FLOOR, Color(0.16, 0.16, 0.18))
-				draw_rect(rect, cable_floor_color, true)
-				var cable_strip_size: Vector2 = Vector2(cell_size * 0.46, cell_size * 0.1)
-				var cable_strip_rect: Rect2 = Rect2(rect.get_center() - cable_strip_size * 0.5, cable_strip_size)
-				draw_rect(cable_strip_rect, Color(0.22, 0.88, 0.72, 0.92), true)
-				draw_circle(rect.get_center(), cell_size * 0.09, Color(0.38, 0.97, 0.84, 0.96))
-			draw_rect(rect, Color(0.35, 0.35, 0.38), false, 2.0)
-
-			if grid_position == fan_platform_marker_position:
-				draw_fan_platform_marker(rect)
-			if tile_type == TILE_HIDDEN_ROUTE_NODE:
-				if is_hidden_route_node_discovered(grid_position):
-					var discovered_marker_radius: float = cell_size * 0.15
-					draw_circle(rect.get_center(), discovered_marker_radius, Color(0.45, 0.95, 1.0))
-				elif debug_draw_undiscovered_hidden_nodes:
-					var marker_size: float = cell_size * 0.14
-					var marker_rect: Rect2 = Rect2(rect.get_center() - Vector2(marker_size * 0.5, marker_size * 0.5), Vector2(marker_size, marker_size))
-					draw_rect(marker_rect, Color(0.24, 0.08, 0.32, 0.95), false, 2.0)
-			
-			if fog_enabled:
-				draw_fog_for_cell(grid_position, rect)
-			if world_overlay_markers.has(grid_position) and is_cell_visible(grid_position):
-				_draw_world_overlay_marker(rect, str(world_overlay_markers[grid_position]))
-
-func _draw_world_overlay_marker(rect: Rect2, marker: String) -> void:
-	if marker.is_empty():
-		return
-	var font: Font = ThemeDB.fallback_font
-	if font == null:
-		return
-	var font_size: int = 14
-	var text_size: Vector2 = font.get_string_size(marker, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
-	var pos: Vector2 = rect.get_center() - text_size * 0.5 + Vector2(0, text_size.y * 0.35)
-	draw_string(font, pos, marker, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(1.0, 0.95, 0.4))
+	emit_visual_invalidation("visual_state", [])
 
 func set_world_overlay_markers(markers: Dictionary) -> void:
 	world_overlay_markers = markers.duplicate()
-	request_visual_refresh()
+	emit_visual_invalidation("world_overlay_markers", world_overlay_markers.keys())
 				
-func draw_fog_for_cell(grid_position: Vector2i, rect: Rect2) -> void:
-	if is_cell_visible(grid_position):
-		return
-	
-	if is_explored(grid_position):
-		draw_rect(rect, Color(0.0, 0.0, 0.0, 0.55), true)
-	else:
-		draw_rect(rect, Color(0.02, 0.02, 0.025, 1.0), true)
-		
 func get_map_width() -> int:
 	if map_data.is_empty():
 		return 0
@@ -410,11 +281,11 @@ func set_floor_visual_state(cell: Vector2i, state: Dictionary) -> void:
 		bool(state.get("mirror_v", false)),
 		str(state.get("floor_height", state.get("floor_visual_height", state.get("ground_height", FLOOR_HEIGHT_DEFAULT))))
 	)
-	request_visual_refresh()
+	emit_visual_invalidation("visual_state", [])
 
 func clear_floor_visual_state(cell: Vector2i) -> void:
 	floor_visual_states.erase(_get_floor_state_key(cell))
-	request_visual_refresh()
+	emit_visual_invalidation("visual_state", [])
 
 func get_floor_visual_state(cell: Vector2i) -> Dictionary:
 	if not is_in_bounds(cell):
@@ -454,7 +325,7 @@ func get_floor_visual_state_overrides() -> Array[Dictionary]:
 
 func clear_floor_visual_states() -> void:
 	floor_visual_states.clear()
-	request_visual_refresh()
+	emit_visual_invalidation("visual_state", [])
 
 func get_floor_family_for_cell(cell: Vector2i) -> String:
 	return str(get_floor_visual_state(cell).get("family", FLOOR_FAMILY_METAL))
@@ -566,7 +437,7 @@ func set_tile(grid_position: Vector2i, tile_type: int) -> void:
 		tile_type = TILE_WALL
 	
 	map_data[grid_position.y][grid_position.x] = tile_type
-	request_visual_refresh()
+	emit_visual_invalidation("tile", [grid_position])
 
 func is_boundary_cell(cell: Vector2i) -> bool:
 	if not is_in_bounds(cell):
@@ -587,10 +458,9 @@ func build_constructor_map(width: int, height: int) -> Dictionary:
 			else:
 				row.append(TILE_FLOOR)
 		map_data.append(row)
-	reset_hidden_discoveries()
+	reset_hidden_discoveries(false)
 	setup_fog_arrays()
-	request_visual_refresh()
-	queue_redraw()
+	emit_visual_invalidation("constructor_map", [])
 	return {"ok": true, "message": "Constructor map created.", "width": safe_width, "height": safe_height}
 
 func enforce_boundary_walls() -> void:
@@ -600,32 +470,18 @@ func enforce_boundary_walls() -> void:
 			if not is_boundary_cell(cell):
 				continue
 			map_data[y][x] = TILE_WALL
-	request_visual_refresh()
+	emit_visual_invalidation("visual_state", [])
 
 
 func set_fan_platform_marker(marker_position: Vector2i, direction_vector: Vector2i) -> void:
 	fan_platform_marker_position = marker_position
 	fan_platform_marker_direction = direction_vector
-	request_visual_refresh()
+	emit_visual_invalidation("visual_state", [])
 
 func clear_fan_platform_marker() -> void:
 	fan_platform_marker_position = Vector2i(-1, -1)
 	fan_platform_marker_direction = Vector2i.RIGHT
-	request_visual_refresh()
-
-func draw_fan_platform_marker(rect: Rect2) -> void:
-	var direction := Vector2(fan_platform_marker_direction.x, fan_platform_marker_direction.y)
-	if direction.length_squared() <= 0.0:
-		direction = Vector2.RIGHT
-	direction = direction.normalized()
-	var perpendicular := Vector2(-direction.y, direction.x)
-	var center := rect.get_center()
-	var tip := center + direction * cell_size * 0.28
-	var base := center - direction * cell_size * 0.08
-	var left := base + perpendicular * cell_size * 0.16
-	var right := base - perpendicular * cell_size * 0.16
-	draw_colored_polygon(PackedVector2Array([tip, left, right]), Color(0.97, 0.97, 1.0, 0.96))
-	draw_line(base, tip, Color(0.18, 0.28, 0.45, 0.9), 2.0)
+	emit_visual_invalidation("visual_state", [])
 
 func setup_fog_arrays() -> void:
 	visible_cells.clear()
@@ -657,7 +513,7 @@ func reveal_cell(grid_position: Vector2i) -> void:
 func reveal_current_cell_only(origin_position: Vector2i) -> void:
 	clear_visible_cells()
 	reveal_cell(origin_position)
-	request_visual_refresh()
+	emit_visual_invalidation("visual_state", [])
 
 func reveal_around(center_position: Vector2i) -> void:
 	clear_visible_cells()
@@ -667,7 +523,7 @@ func reveal_around(center_position: Vector2i) -> void:
 			var target_position := center_position + Vector2i(x_offset, y_offset)
 			reveal_cell(target_position)
 	
-	request_visual_refresh()
+	emit_visual_invalidation("visual_state", [])
 
 func is_vision_blocking_tile(tile_type: int) -> bool:
 	return tile_type == TILE_WALL
@@ -718,7 +574,7 @@ func reveal_by_vision(origin_position: Vector2i, direction_vector: Vector2i, vis
 			reveal_visible_target(origin_position, center_position + side_vector * offset)
 			reveal_visible_target(origin_position, center_position - side_vector * offset)
 
-	request_visual_refresh()
+	emit_visual_invalidation("visual_state", [])
 
 func get_visible_cells() -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
@@ -738,23 +594,37 @@ func discover_hidden_route_node(cell_position_arg: Vector2i) -> void:
 	if get_tile(cell_position_arg) != TILE_HIDDEN_ROUTE_NODE:
 		return
 	discovered_hidden_route_nodes[get_position_key(cell_position_arg)] = true
-	request_visual_refresh()
+	emit_visual_invalidation("visual_state", [])
 
-func reset_hidden_discoveries() -> void:
+func reset_hidden_discoveries(emit_signal: bool = true) -> void:
 	discovered_hidden_route_nodes.clear()
-	request_visual_refresh()
+	if emit_signal:
+		emit_visual_invalidation("hidden_route_discoveries", [])
 
 func place_debug_hidden_route_node(cell_position_arg: Vector2i) -> void:
 	if not is_in_bounds(cell_position_arg):
 		return
-	set_tile(cell_position_arg, TILE_HIDDEN_ROUTE_NODE)
-	discovered_hidden_route_nodes.erase(get_position_key(cell_position_arg))
-	request_visual_refresh()
+	if is_boundary_cell(cell_position_arg):
+		return
 
-func request_visual_refresh() -> void:
-	queue_redraw()
-	if room_visual_renderer != null:
-		room_visual_renderer.request_rebuild()
+	map_data[cell_position_arg.y][cell_position_arg.x] = TILE_HIDDEN_ROUTE_NODE
+	discovered_hidden_route_nodes.erase(get_position_key(cell_position_arg))
+	emit_visual_invalidation("hidden_route_node", [cell_position_arg])
+
+func emit_visual_invalidation(reason: String = "grid_state", changed_cells: Array = []) -> void:
+	grid_visual_invalidated.emit(reason, changed_cells.duplicate())
+
+func request_visual_refresh(reason: String = "external_refresh", changed_cells: Array = []) -> void:
+	emit_visual_invalidation(reason, changed_cells)
+
+func get_world_overlay_markers() -> Dictionary:
+	return world_overlay_markers.duplicate(true)
+
+func get_world_overlay_marker(cell: Vector2i) -> String:
+	return str(world_overlay_markers.get(cell, ""))
+
+func get_fan_platform_marker() -> Dictionary:
+	return {"position": fan_platform_marker_position, "direction": fan_platform_marker_direction, "active": fan_platform_marker_position.x >= 0 and fan_platform_marker_position.y >= 0}
 	
 func is_cell_visible(grid_position: Vector2i) -> bool:
 	if not is_in_bounds(grid_position):
