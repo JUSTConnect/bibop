@@ -3262,7 +3262,7 @@ func get_map_constructor_prefab_catalog() -> Array[Dictionary]:
 	return MapConstructorPrefabCatalogRef.get_catalog_entries()
 
 func _get_map_constructor_prefab_metadata_catalog() -> Dictionary:
-	return MapConstructorPrefabCatalogRef._get_presentation_catalog()
+	return MapConstructorPrefabCatalogRef.get_presentation_catalog_snapshot()
 
 func get_map_constructor_prefab_metadata(prefab_id: String) -> Dictionary:
 	var presentation: Dictionary = MapConstructorPrefabCatalogRef.get_prefab_presentation(prefab_id)
@@ -3318,9 +3318,20 @@ func get_map_constructor_prefab_palette_rows(options: Dictionary = {}) -> Dictio
 			if only_placeable and not bool(place_check.get("ok", false)):
 				continue
 		rows.append(row)
-	categories.sort()
+	var category_order: Array[String] = MapConstructorPrefabCatalogRef.get_category_order()
+	categories.sort_custom(func(a: String, b: String) -> bool:
+		var a_index: int = category_order.find(a)
+		var b_index: int = category_order.find(b)
+		if a_index != b_index:
+			if a_index < 0:
+				return false
+			if b_index < 0:
+				return true
+			return a_index < b_index
+		return a < b
+	)
 	roles.sort()
-	var prefab_order: Array[String] = WorldObjectCatalogRef.CONSTRUCTOR_PALETTE_PREFAB_ORDER
+	var prefab_order: Array[String] = MapConstructorPrefabCatalogRef.get_prefab_order()
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var a_index: int = prefab_order.find(str(a.get("id", "")))
 		var b_index: int = prefab_order.find(str(b.get("id", "")))
