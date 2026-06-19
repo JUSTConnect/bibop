@@ -34,6 +34,14 @@ checks.append(('MissionManager does not derive configurable independently', not 
 checks.append(('presentation catalog uses cache', 'static var _presentation_catalog_cache' in catalog and 'static func _presentation_catalog()' in catalog and '_build_presentation_catalog()' in catalog))
 checks.append(('get_prefab_presentation does not rebuild full catalog', lookup_body is not None and '_build_presentation_catalog' not in lookup_body.group(0) and '_presentation_catalog()' in lookup_body.group(0)))
 checks.append(('catalog preserves requested alias identifiers', lookup_body is not None and 'requested_prefab_id' in lookup_body.group(0) and 'base_row["prefab_id"] = requested_id' in lookup_body.group(0)))
+normalize_body = re.search(r'static func normalize_presentation_row\(.*?\nstatic func get_catalog_entries', catalog, re.S)
+checks.append(('presentation catalog uses constructor prefab definitions', normalize_body is not None and 'get_constructor_prefab_definition' in normalize_body.group(0)))
+checks.append(('presentation catalog uses constructor prefab schemas', normalize_body is not None and 'get_constructor_prefab_property_schema' in normalize_body.group(0)))
+checks.append(('presentation catalog does not use archetype definitions for configurability', normalize_body is not None and 'get_archetype_definition' not in normalize_body.group(0)))
+checks.append(('presentation inventory does not duplicate property schemas', presentation_body is not None and '"property_schema"' not in presentation_body.group(0)))
+placement_body = re.search(r'static func get_constructor_placement_contract\(.*?\nstatic func ', world, re.S)
+checks.append(('placement contract returns blocks_movement', placement_body is not None and '"blocks_movement"' in placement_body.group(0)))
+checks.append(('presentation catalog cache remains in use', 'static var _presentation_catalog_cache' in catalog and '_build_presentation_catalog' in catalog and '_presentation_catalog' in catalog))
 failed = [name for name, ok in checks if not ok]
 if failed:
     for name in failed:

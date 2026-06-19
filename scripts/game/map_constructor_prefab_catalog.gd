@@ -140,6 +140,10 @@ static func _presentation_catalog() -> Dictionary:
 		_presentation_catalog_cache = _build_presentation_catalog()
 	return _presentation_catalog_cache
 
+static func _get_presentation_catalog() -> Dictionary:
+	return _presentation_catalog()
+
+
 static func get_category_order() -> Array[String]:
 	return CATEGORY_ORDER.duplicate()
 
@@ -201,15 +205,12 @@ static func normalize_presentation_row(row: Dictionary) -> Dictionary:
 	normalized["prefab_id"] = prefab_id
 	normalized["id"] = prefab_id
 	normalized["canonical_object_type"] = WorldObjectCatalogRef.canonical_object_type(prefab_id)
-	var archetype_definition: Dictionary = WorldObjectCatalogRef.get_archetype_definition(canonical_prefab_id)
-	var property_schema: Array[Dictionary] = WorldObjectCatalogRef.get_archetype_property_schema(canonical_prefab_id)
-	if not archetype_definition.is_empty():
+	var prefab_definition: Dictionary = WorldObjectCatalogRef.get_constructor_prefab_definition(canonical_prefab_id)
+	if not prefab_definition.is_empty():
 		normalized["archetype_id"] = canonical_prefab_id
-		normalized["object_group"] = str(archetype_definition.get("object_group", normalized.get("object_group", "")))
-		normalized["configurable"] = bool(archetype_definition.get("configurable", false))
-	else:
-		normalized["configurable"] = false
-	normalized["property_schema"] = property_schema.duplicate(true)
+		normalized["object_group"] = str(prefab_definition.get("object_group", prefab_definition.get("group", normalized.get("object_group", ""))))
+		normalized["configurable"] = bool(prefab_definition.get("configurable", false))
+		normalized["property_schema"] = WorldObjectCatalogRef.get_constructor_prefab_property_schema(canonical_prefab_id)
 	if not normalized.has("label") or str(normalized.get("label", "")).is_empty():
 		normalized["label"] = str(normalized.get("display_name", prefab_id.capitalize()))
 	if not normalized.has("display_name") or str(normalized.get("display_name", "")).is_empty():
