@@ -1,7 +1,9 @@
 extends RefCounted
 
-var cell: Vector2i = Vector2i.ZERO
-var goal: Vector2i = Vector2i.ZERO
+const INVALID_CELL := Vector2i(-1, -1)
+
+var cell: Vector2i = INVALID_CELL
+var goal: Vector2i = INVALID_CELL
 var path: Array[Vector2i] = []
 var reached_goal: bool = false
 var last_block_reason: String = ""
