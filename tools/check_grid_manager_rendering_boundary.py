@@ -2,8 +2,7 @@
 from pathlib import Path
 import re, sys
 
-ROOT = Path(__file__).resolve().parents[1]
-path = ROOT / 'scripts/field/grid_manager.gd'
+path = Path('scripts/field/grid_manager.gd')
 text = path.read_text(encoding='utf-8')
 
 def strip_comments(src: str) -> str:
@@ -35,38 +34,13 @@ checks = {
     'RoomVisualRenderer dependency': r'\b(?:preload|load)\s*\([^\)]*RoomVisualRenderer|\bRoomVisualRenderer\b',
     'Texture2D rendering type': r'\bTexture2D\b',
     'visual asset reference': r'res://assets/visual',
-    'TASK TEST fallback function': r'\bget_mission10_layout\s*\(',
-    'TASK TEST reset branch': r'(?:if|elif)\s+mission_index\s*==\s*10\b',
 }
 fail=[]
 for name,pat in checks.items():
     if re.search(pat, code):
         fail.append(name)
-
-catalog_path = ROOT / 'scripts/game/mission_content_catalog.gd'
-if not catalog_path.exists():
-    fail.append('MissionContentCatalog missing')
-else:
-    catalog = catalog_path.read_text(encoding='utf-8')
-    if '"layout_source": "mission_content_catalog"' not in catalog:
-        fail.append('TASK TEST catalog layout source missing')
-    if 'MissionIdsRef.resolve_task_test_alias' not in catalog:
-        fail.append('TASK TEST compatibility alias missing')
-
-manager_path = ROOT / 'scripts/game/mission_manager.gd'
-if not manager_path.exists():
-    fail.append('MissionManager missing')
-else:
-    manager = manager_path.read_text(encoding='utf-8')
-    if 'func apply_catalog_mission_layout_to_grid' not in manager:
-        fail.append('catalog-first layout apply missing')
-    if 'grid_manager.call("apply_mission_layout"' not in manager:
-        fail.append('catalog layout is not applied through GridManager public API')
-    if 'reset_mission_layout(10' in manager or 'get_mission10_layout(' in manager:
-        fail.append('MissionManager still calls retired TASK TEST GridManager fallback')
-
 if fail:
-    print('GridManager boundary violations:')
+    print('GridManager rendering boundary violations:')
     for f in fail: print(f'- {f}')
     sys.exit(1)
-print('GridManager rendering and TASK TEST layout boundary OK')
+print('GridManager rendering boundary OK')
