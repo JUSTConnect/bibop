@@ -2,6 +2,8 @@ extends SceneTree
 
 const GridManagerScene = preload("res://scripts/field/grid_manager.gd")
 const RoomVisualRendererScene = preload("res://scripts/field/room_visual_renderer.gd")
+const MissionContentCatalogRef = preload("res://scripts/game/mission_content_catalog.gd")
+const MissionIdsRef = preload("res://scripts/game/mission_ids.gd")
 
 var failures: Array[String] = []
 var invalidations: Array[Dictionary] = []
@@ -16,6 +18,39 @@ func _init() -> void:
 
 	var grid_source := FileAccess.open("res://scripts/field/grid_manager.gd", FileAccess.READ).get_as_text()
 	_expect(not grid_source.contains("func _draw("), "GridManager must not expose legacy _draw fallback")
+	_expect(not grid_source.contains("func get_mission10_layout("), "GridManager must not contain a TASK TEST layout fallback")
+	_expect(not grid_source.contains("mission_index == 10"), "GridManager must not contain a TASK TEST reset branch")
+	_expect(not grid.has_method("get_mission10_layout"), "GridManager must not expose get_mission10_layout")
+
+	var catalog: MissionContentCatalog = MissionContentCatalogRef.new()
+	var canonical_layout: Array = catalog.get_mission_layout(MissionIdsRef.TASK_TEST_LAYOUT_ID)
+	var alias_layout: Array = catalog.get_mission_layout(MissionIdsRef.TASK_TEST_COMPAT_MISSION_ID)
+	_expect(not canonical_layout.is_empty(), "task_test catalog layout must exist")
+	_expect(var_to_str(canonical_layout) == var_to_str(alias_layout), "mission_10 alias must resolve to canonical task_test layout")
+	_expect(catalog.get_mission_layout_size(MissionIdsRef.TASK_TEST_LAYOUT_ID) == Vector2i(16, 10), "task_test catalog layout must remain 16x10")
+	_expect(catalog.get_mission_start_cell(MissionIdsRef.TASK_TEST_COMPAT_MISSION_ID) == Vector2i(1, 1), "mission_10 alias must preserve start cell")
+	_expect(catalog.get_mission_exit_cells(MissionIdsRef.TASK_TEST_LAYOUT_ID).has(Vector2i(14, 7)), "task_test catalog must preserve exit cell")
+
+	_expect(grid.apply_mission_layout(canonical_layout), "GridManager must accept canonical catalog layout")
+	var applied_snapshot := var_to_str(grid.map_data)
+	_expect(applied_snapshot == var_to_str(canonical_layout), "canonical catalog layout must be applied exactly")
+	var absent_layout: Array = catalog.get_mission_layout("absent_layout_fixture")
+	_expect(absent_layout.is_empty(), "unknown catalog layout must resolve empty")
+	_expect(not grid.apply_mission_layout(absent_layout), "missing catalog layout must fail closed")
+	_expect(var_to_str(grid.map_data) == applied_snapshot, "missing catalog layout must not mutate active grid")
+	var malformed_layout: Array = [[1, 1, 1], [1, 0]]
+	_expect(not grid.apply_mission_layout(malformed_layout), "malformed catalog layout must fail closed")
+	_expect(var_to_str(grid.map_data) == applied_snapshot, "malformed catalog layout must not mutate active grid")
+
+	grid.reset_mission_layout(4)
+	_expect(grid.map_data.size() == 8 and Array(grid.map_data[0]).size() == 8, "legacy mission 4 reset must remain available")
+	grid.reset_mission_layout(6)
+	_expect(grid.get_tile(Vector2i(4, 3)) == GridManager.TILE_HOT_NODE, "legacy mission 6 reset must remain unchanged")
+	grid.reset_mission_layout(9)
+	_expect(grid.get_tile(Vector2i(3, 3)) == GridManager.TILE_STEPPED_FLOOR, "legacy mission 9 reset must remain unchanged")
+	grid.reset_mission_layout(4)
+	invalidations.clear()
+
 	var cell := Vector2i(2, 2)
 	grid.set_tile(cell, GridManager.TILE_COMPONENT)
 	_expect(grid.get_tile(cell) == GridManager.TILE_COMPONENT, "set_tile must update domain map data")
@@ -81,7 +116,7 @@ func _init() -> void:
 
 	grid.queue_free()
 	if failures.is_empty():
-		print("GridManager renderer contract OK")
+		print("GridManager renderer and TASK TEST catalog contract OK")
 		quit(0)
 	else:
 		for failure in failures:

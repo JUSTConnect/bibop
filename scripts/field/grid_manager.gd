@@ -120,21 +120,6 @@ func get_mission9_layout() -> Array:
 		[1, 0, 1, 1, 0, 0, 4, 1],
 		[1, 1, 1, 1, 1, 1, 1, 1],
 	]
-func get_mission10_layout() -> Array:
-	# Compatibility-only TASK TEST emergency layout fallback. Normal TASK TEST
-	# startup loads canonical `task_test` layout data through MissionContentCatalog.
-	return [
-		[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-		[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-		[1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-		[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-		[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1],
-		[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-		[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1],
-		[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 1],
-		[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-		[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-	]
 
 func reset_mission_layout(mission_index: int) -> void:
 	if mission_initial_map_data.is_empty():
@@ -146,10 +131,6 @@ func reset_mission_layout(mission_index: int) -> void:
 		map_data = duplicate_map_layout(get_mission6_layout())
 	elif mission_index == 9:
 		map_data = duplicate_map_layout(get_mission9_layout())
-	elif mission_index == 10:
-		# Compatibility-only path for legacy callers. Normal TASK TEST startup
-		# applies the canonical `task_test` catalog layout before this fallback.
-		map_data = duplicate_map_layout(get_mission10_layout())
 	else:
 		map_data = duplicate_map_layout(mission_initial_map_data)
 	reset_hidden_discoveries(false)
