@@ -4,7 +4,6 @@ class_name RuntimeActionPanelBridge
 const RuntimeControlPanelRef = preload("res://scripts/ui/runtime/runtime_control_panel.gd")
 const RuntimeInteractionPanelRef = preload("res://scripts/ui/runtime/runtime_interaction_panel.gd")
 const RuntimeInteractionPresenterRef = preload("res://scripts/ui/runtime/runtime_interaction_presenter.gd")
-const RuntimeNotificationsRef = preload("res://scripts/ui/runtime/runtime_notifications.gd")
 const RuntimeHeavyClawPresenterRef = preload("res://scripts/ui/runtime/runtime_heavy_claw_presenter.gd")
 
 const RESOURCE_COLOR_HIGH: Color = Color(0.250, 0.850, 0.480, 1.0)
@@ -116,55 +115,6 @@ func exit_interaction_mode() -> void:
 	RuntimeInteractionPanelRef.exit_mode(ui)
 
 
-func process_feedback(delta: float) -> void:
-	if ui.app_screen_mode != ui.AppScreenMode.GAMEPLAY:
-		return
-
-	RuntimeNotificationsRef.process_runtime_notification_timer(ui, delta)
-
-	if ui.bipob == null:
-		return
-
-	refresh_controls()
-
-	if RuntimeHeavyClawPresenterRef.is_drag_active(ui):
-		return
-
-	var target_data: Dictionary = get_target_data()
-	var target_object: Dictionary = Dictionary(target_data.get("target_object", {}))
-	var action_view_model: Dictionary = get_action_view_model()
-	var actions: Array = Array(target_data.get("actions", []))
-	var physical_actions: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(actions, target_object)
-	var heavy_claw_descriptor: Dictionary = RuntimeInteractionPanelRef.get_heavy_claw_descriptor(target_data)
-
-	var is_heavy_claw_movable_target: bool = RuntimeInteractionPanelRef.is_heavy_claw_movable_target(target_object)
-	var has_interactable: bool = not target_object.is_empty() and bool(action_view_model.get("has_interaction_target", false))
-	var has_physical_interactable: bool = has_interactable and not is_heavy_claw_movable_target and not physical_actions.is_empty()
-
-	var has_actions_left: bool = int(ui.bipob.actions_left) > 0
-	var manipulator_blocked: bool = has_physical_interactable and is_manipulator_blocked(target_object, physical_actions)
-	var heavy_claw_available: bool = not heavy_claw_descriptor.is_empty() and bool(heavy_claw_descriptor.get("enabled", false)) and has_actions_left
-	var pulse_alpha: float = 0.72 + 0.28 * abs(sin(float(Time.get_ticks_msec()) / 170.0))
-
-	if ui.runtime_action_button != null:
-		if manipulator_blocked and has_actions_left:
-			ui.runtime_action_button.modulate = Color(1.0, 0.38, 0.38, 1.0)
-		elif has_physical_interactable and has_actions_left and not ui.runtime_interaction_mode_active:
-			ui.runtime_action_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
-		else:
-			ui._clear_selected_pulse(ui.runtime_action_button)
-
-	if ui.runtime_heavy_claw_button != null:
-		if is_heavy_claw_movable_target and heavy_claw_available:
-			ui.runtime_heavy_claw_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
-		else:
-			ui._clear_selected_pulse(ui.runtime_heavy_claw_button)
-
-	if ui.runtime_end_turn_button != null:
-		if ui.bipob != null and int(ui.bipob.actions_left) <= 0:
-			ui.runtime_end_turn_button.modulate = Color(1.0, 1.0, 1.0, pulse_alpha)
-		else:
-			ui.runtime_end_turn_button.modulate = Color.WHITE
 
 func on_move_forward_pressed() -> void:
 	RuntimeHeavyClawPresenterRef.on_forward_pressed(ui)
@@ -254,7 +204,6 @@ func get_world_action_target_id(target_object: Dictionary, fallback_name: String
 
 
 func refresh_world_actions_panel(target_object: Dictionary, actions: Array, selected_action: String) -> void:
-	refresh_controls()
 	RuntimeInteractionPresenterRef.refresh_world_actions_panel(ui, {"target_object": target_object, "actions": actions, "selected_action": selected_action})
 
 

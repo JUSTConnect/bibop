@@ -1,7 +1,6 @@
-extends Node
+extends RefCounted
 class_name MapConstructorInspectorStructureLayerService
 
-const CHECK_INTERVAL := 0.25
 const SEPARATOR_GROUP := "map_constructor_inspector_structure_separator"
 const SEPARATOR_NAME_PREFIX := "InspectorBlockSeparator"
 const IDENTITY_SECTION_NAME := "SharedIdentitySection"
@@ -11,28 +10,10 @@ const SECTION_META_LAYER := "map_constructor_structure_layer"
 const SECTION_META_ENTITY_KIND := "entity_kind"
 const SECTION_META_ENTITY_ID := "entity_id"
 
-var _check_timer: float = 0.0
-
-func _process(delta: float) -> void:
-	_check_timer -= delta
-	if _check_timer > 0.0:
+static func apply_structure(ui: Object, content: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	if ui == null or not is_instance_valid(ui) or content == null or not is_instance_valid(content):
 		return
-	_check_timer = CHECK_INTERVAL
-	var ui: Object = _get_game_ui()
-	if ui == null or not is_instance_valid(ui):
-		return
-	var panel: Control = _get_property(ui, "runtime_map_constructor_inspector_panel") as Control
-	if panel == null or not is_instance_valid(panel):
-		return
-	var content: VBoxContainer = _find_inspector_content(panel)
-	if content == null or not is_instance_valid(content):
-		return
-	var entity_kind: String = str(_get_property(ui, "selected_map_constructor_entity_kind")).strip_edges()
-	var entity_id: String = str(_get_property(ui, "selected_map_constructor_entity_id")).strip_edges()
-	if entity_kind.is_empty() or entity_id.is_empty():
-		return
-	var data: Dictionary = _get_selected_entity_data(ui, entity_kind, entity_id)
-	if data.is_empty():
+	if entity_kind.strip_edges().is_empty() or entity_id.strip_edges().is_empty() or data.is_empty():
 		return
 	_remove_existing_separators(content)
 	var identity: VBoxContainer = _ensure_identity_section(ui, content, entity_kind, entity_id, data)
@@ -45,29 +26,24 @@ func _process(delta: float) -> void:
 	_rebuild_block_separators(ui, content)
 
 
-func _get_game_ui() -> Object:
-	if get_tree() == null:
-		return null
-	var scene: Node = get_tree().current_scene
-	if scene != null:
-		var direct_ui: Node = scene.get_node_or_null("UI")
-		if _looks_like_game_ui(direct_ui):
-			return direct_ui
-		if _looks_like_game_ui(scene):
-			return scene
-	var root: Window = get_tree().root
-	if root != null:
-		var main_ui: Node = root.get_node_or_null("Main/UI")
-		if _looks_like_game_ui(main_ui):
-			return main_ui
-	return null
+static func apply_from_ui(ui: Object) -> void:
+	if ui == null or not is_instance_valid(ui):
+		return
+	var panel: Control = _get_property(ui, "runtime_map_constructor_inspector_panel") as Control
+	if panel == null or not is_instance_valid(panel):
+		return
+	var content: VBoxContainer = _find_inspector_content(panel)
+	if content == null or not is_instance_valid(content):
+		return
+	var state: Object = _get_property(ui, "map_constructor_state") as Object
+	var entity_kind: String = str(state.get("selected_map_constructor_entity_kind") if state != null else "").strip_edges()
+	var entity_id: String = str(state.get("selected_map_constructor_entity_id") if state != null else "").strip_edges()
+	if entity_kind.is_empty() or entity_id.is_empty():
+		return
+	apply_structure(ui, content, entity_kind, entity_id, _get_selected_entity_data(ui, entity_kind, entity_id))
 
 
-func _looks_like_game_ui(node: Object) -> bool:
-	return node != null and _has_property(node, "runtime_map_constructor_inspector_panel") and _has_property(node, "mission_manager_runtime")
-
-
-func _ensure_identity_section(ui: Object, content: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> VBoxContainer:
+static func _ensure_identity_section(ui: Object, content: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> VBoxContainer:
 	var existing: VBoxContainer = _find_tagged_section(content, IDENTITY_SECTION_NAME)
 	if existing != null and is_instance_valid(existing) and str(existing.get_meta(SECTION_META_ENTITY_KIND, "")) == entity_kind and str(existing.get_meta(SECTION_META_ENTITY_ID, "")) == entity_id:
 		_remove_other_identity_sections(content, existing)
@@ -78,7 +54,7 @@ func _ensure_identity_section(ui: Object, content: VBoxContainer, entity_kind: S
 	return section
 
 
-func _create_identity_section(ui: Object, entity_kind: String, entity_id: String, data: Dictionary) -> VBoxContainer:
+static func _create_identity_section(ui: Object, entity_kind: String, entity_id: String, data: Dictionary) -> VBoxContainer:
 	var section: VBoxContainer = _create_section_container(ui, "1. Identity")
 	section.name = IDENTITY_SECTION_NAME
 	section.set_meta(SECTION_META_LAYER, true)
@@ -89,7 +65,7 @@ func _create_identity_section(ui: Object, entity_kind: String, entity_id: String
 	return section
 
 
-func _add_identity_name_row(ui: Object, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+static func _add_identity_name_row(ui: Object, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	var line_edit := LineEdit.new()
 	line_edit.text = str(data.get("display_name", data.get("name", "")))
 	line_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -114,7 +90,7 @@ func _add_identity_name_row(ui: Object, section: VBoxContainer, entity_kind: Str
 	section.add_child(_create_property_row(ui, "Name", row_controls))
 
 
-func _add_identity_description_row(ui: Object, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+static func _add_identity_description_row(ui: Object, section: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	var desc_edit := TextEdit.new()
 	desc_edit.text = str(data.get("description", data.get("custom_description", ""))).strip_edges()
 	desc_edit.placeholder_text = "No description."
@@ -137,7 +113,7 @@ func _add_identity_description_row(ui: Object, section: VBoxContainer, entity_ki
 	section.add_child(_create_property_row(ui, "Description", row_controls))
 
 
-func _ensure_status_section(ui: Object, content: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> VBoxContainer:
+static func _ensure_status_section(ui: Object, content: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> VBoxContainer:
 	var existing: VBoxContainer = _find_tagged_section(content, STATUS_SECTION_NAME)
 	if existing == null or not is_instance_valid(existing) or str(existing.get_meta(SECTION_META_ENTITY_KIND, "")) != entity_kind or str(existing.get_meta(SECTION_META_ENTITY_ID, "")) != entity_id:
 		if existing != null and is_instance_valid(existing):
@@ -150,7 +126,7 @@ func _ensure_status_section(ui: Object, content: VBoxContainer, entity_kind: Str
 	return existing
 
 
-func _create_status_section(ui: Object, entity_kind: String, entity_id: String, data: Dictionary) -> VBoxContainer:
+static func _create_status_section(ui: Object, entity_kind: String, entity_id: String, data: Dictionary) -> VBoxContainer:
 	var section: VBoxContainer = _create_section_container(ui, "2. Status")
 	section.name = STATUS_SECTION_NAME
 	section.set_meta(SECTION_META_LAYER, true)
@@ -162,13 +138,13 @@ func _create_status_section(ui: Object, entity_kind: String, entity_id: String, 
 	return section
 
 
-func _refresh_status_section(section: VBoxContainer, data: Dictionary) -> void:
+static func _refresh_status_section(section: VBoxContainer, data: Dictionary) -> void:
 	_set_named_label_text(section, "ObjectTypeValue", _get_object_type_text(data))
 	_set_named_label_text(section, "TotalStateValue", _get_total_state_text(data))
 	_set_named_label_text(section, "PowerStateValue", _get_power_state_text(data))
 
 
-func _add_status_value_row(ui: Object, section: VBoxContainer, label_text: String, value_text: String, value_name: String) -> void:
+static func _add_status_value_row(ui: Object, section: VBoxContainer, label_text: String, value_text: String, value_name: String) -> void:
 	var label := Label.new()
 	label.name = value_name
 	label.text = value_text
@@ -178,7 +154,7 @@ func _add_status_value_row(ui: Object, section: VBoxContainer, label_text: Strin
 	section.add_child(_create_property_row(ui, label_text, label))
 
 
-func _set_named_label_text(node: Node, target_name: String, value_text: String) -> void:
+static func _set_named_label_text(node: Node, target_name: String, value_text: String) -> void:
 	if node == null:
 		return
 	var label: Label = node.find_child(target_name, true, false) as Label
@@ -186,12 +162,12 @@ func _set_named_label_text(node: Node, target_name: String, value_text: String) 
 		label.text = value_text
 
 
-func _get_object_type_text(data: Dictionary) -> String:
+static func _get_object_type_text(data: Dictionary) -> String:
 	var value: String = str(data.get("object_type", data.get("item_type", data.get("type", "unknown")))).strip_edges()
 	return value if not value.is_empty() else "unknown"
 
 
-func _get_power_state_text(data: Dictionary) -> String:
+static func _get_power_state_text(data: Dictionary) -> String:
 	var explicit_state: String = str(data.get("object_power_state", data.get("power_state", ""))).strip_edges().to_lower()
 	if explicit_state in ["powered", "unpowered", "none"]:
 		return explicit_state
@@ -200,7 +176,7 @@ func _get_power_state_text(data: Dictionary) -> String:
 	return "none"
 
 
-func _get_total_state_text(data: Dictionary) -> String:
+static func _get_total_state_text(data: Dictionary) -> String:
 	var explicit_total: String = str(data.get("object_total_state", "")).strip_edges().to_lower()
 	if explicit_total == "ready":
 		return "Ready"
@@ -215,7 +191,7 @@ func _get_total_state_text(data: Dictionary) -> String:
 	return "Ready"
 
 
-func _find_configurable_section(content: VBoxContainer) -> VBoxContainer:
+static func _find_configurable_section(content: VBoxContainer) -> VBoxContainer:
 	for child in content.get_children():
 		if not (child is VBoxContainer):
 			continue
@@ -227,7 +203,7 @@ func _find_configurable_section(content: VBoxContainer) -> VBoxContainer:
 	return null
 
 
-func _order_top_sections(content: VBoxContainer, ordered_sections: Array) -> void:
+static func _order_top_sections(content: VBoxContainer, ordered_sections: Array) -> void:
 	var index: int = 0
 	for section_variant in ordered_sections:
 		if section_variant == null:
@@ -239,7 +215,7 @@ func _order_top_sections(content: VBoxContainer, ordered_sections: Array) -> voi
 		index += 1
 
 
-func _remove_identity_sections(content: VBoxContainer) -> void:
+static func _remove_identity_sections(content: VBoxContainer) -> void:
 	var remove_nodes: Array[Node] = []
 	for child in content.get_children():
 		if child is VBoxContainer and _is_identity_section(child):
@@ -249,7 +225,7 @@ func _remove_identity_sections(content: VBoxContainer) -> void:
 		node.queue_free()
 
 
-func _remove_other_identity_sections(content: VBoxContainer, keep: Node) -> void:
+static func _remove_other_identity_sections(content: VBoxContainer, keep: Node) -> void:
 	var remove_nodes: Array[Node] = []
 	for child in content.get_children():
 		if child == keep:
@@ -261,7 +237,7 @@ func _remove_other_identity_sections(content: VBoxContainer, keep: Node) -> void
 		node.queue_free()
 
 
-func _remove_legacy_status_sections(content: VBoxContainer) -> void:
+static func _remove_legacy_status_sections(content: VBoxContainer) -> void:
 	var remove_nodes: Array[Node] = []
 	for child in content.get_children():
 		if not (child is VBoxContainer):
@@ -276,7 +252,7 @@ func _remove_legacy_status_sections(content: VBoxContainer) -> void:
 		node.queue_free()
 
 
-func _rebuild_block_separators(ui: Object, content: VBoxContainer) -> void:
+static func _rebuild_block_separators(ui: Object, content: VBoxContainer) -> void:
 	_remove_existing_separators(content)
 	var block_indexes: Array[int] = []
 	for index in range(content.get_child_count()):
@@ -296,7 +272,7 @@ func _rebuild_block_separators(ui: Object, content: VBoxContainer) -> void:
 		inserted += 1
 
 
-func _create_separator(ui: Object, index: int) -> Control:
+static func _create_separator(ui: Object, index: int) -> Control:
 	var separator := PanelContainer.new()
 	separator.name = "%s%d" % [SEPARATOR_NAME_PREFIX, index]
 	separator.add_to_group(SEPARATOR_GROUP)
@@ -307,7 +283,7 @@ func _create_separator(ui: Object, index: int) -> Control:
 	return separator
 
 
-func _make_separator_style(color: Color) -> StyleBoxFlat:
+static func _make_separator_style(color: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(color.r, color.g, color.b, 0.90)
 	style.content_margin_top = 1
@@ -315,7 +291,7 @@ func _make_separator_style(color: Color) -> StyleBoxFlat:
 	return style
 
 
-func _remove_existing_separators(content: VBoxContainer) -> void:
+static func _remove_existing_separators(content: VBoxContainer) -> void:
 	var remove_nodes: Array[Node] = []
 	for child in content.get_children():
 		if _is_separator(child):
@@ -325,7 +301,7 @@ func _remove_existing_separators(content: VBoxContainer) -> void:
 		node.queue_free()
 
 
-func _create_section_container(ui: Object, title: String) -> VBoxContainer:
+static func _create_section_container(ui: Object, title: String) -> VBoxContainer:
 	var section: VBoxContainer = null
 	if ui != null and is_instance_valid(ui) and ui.has_method("_create_inspector_section"):
 		section = ui.call("_create_inspector_section", title) as VBoxContainer
@@ -339,18 +315,18 @@ func _create_section_container(ui: Object, title: String) -> VBoxContainer:
 	return section
 
 
-func _set_section_title(section: Node, title: String) -> void:
+static func _set_section_title(section: Node, title: String) -> void:
 	var label: Label = _find_first_label(section)
 	if label != null and is_instance_valid(label):
 		label.text = title
 
 
-func _get_section_title(section: Node) -> String:
+static func _get_section_title(section: Node) -> String:
 	var label: Label = _find_first_label(section)
 	return str(label.text) if label != null else ""
 
 
-func _is_identity_section(node: Node) -> bool:
+static func _is_identity_section(node: Node) -> bool:
 	if node == null:
 		return false
 	if str(node.name) == IDENTITY_SECTION_NAME:
@@ -359,17 +335,17 @@ func _is_identity_section(node: Node) -> bool:
 	return title == "1. identity" or title == "identity" or title.ends_with(" identity")
 
 
-func _is_tagged_identity_or_status(node: Node) -> bool:
+static func _is_tagged_identity_or_status(node: Node) -> bool:
 	return str(node.name) == IDENTITY_SECTION_NAME or str(node.name) == STATUS_SECTION_NAME
 
 
-func _is_separator(node: Node) -> bool:
+static func _is_separator(node: Node) -> bool:
 	if node == null:
 		return false
 	return node.is_in_group(SEPARATOR_GROUP) or str(node.name).begins_with(SEPARATOR_NAME_PREFIX)
 
 
-func _is_inspector_block(node: Node) -> bool:
+static func _is_inspector_block(node: Node) -> bool:
 	if node == null or not (node is Control):
 		return false
 	if _is_separator(node):
@@ -381,7 +357,7 @@ func _is_inspector_block(node: Node) -> bool:
 	return not label_text.is_empty()
 
 
-func _create_property_row(ui: Object, label_text: String, control: Control) -> Control:
+static func _create_property_row(ui: Object, label_text: String, control: Control) -> Control:
 	if ui != null and is_instance_valid(ui) and ui.has_method("_create_property_row"):
 		return ui.call("_create_property_row", label_text, control)
 	var row := HBoxContainer.new()
@@ -397,11 +373,15 @@ func _create_property_row(ui: Object, label_text: String, control: Control) -> C
 	return row
 
 
-func _apply_entity_updates(ui: Object, entity_kind: String, entity_id: String, updates: Dictionary, hint_text: String = "Updated.") -> void:
+static func _apply_entity_updates(ui: Object, entity_kind: String, entity_id: String, updates: Dictionary, hint_text: String = "Updated.") -> void:
 	if ui == null or not is_instance_valid(ui):
 		return
 	if ui.has_method("_apply_map_constructor_property_updates"):
 		ui.call("_apply_map_constructor_property_updates", entity_kind, entity_id, updates, hint_text)
+		if ui.has_method("_refresh_map_constructor_inspector_structure"):
+			ui.call("_refresh_map_constructor_inspector_structure")
+		if ui.has_method("request_constructor_previews_refresh"):
+			ui.call("request_constructor_previews_refresh", "inspector_property_updated")
 		return
 	var manager: Object = _get_property(ui, "mission_manager_runtime") as Object
 	if manager == null or not is_instance_valid(manager):
@@ -421,7 +401,7 @@ func _apply_entity_updates(ui: Object, entity_kind: String, entity_id: String, u
 		ui.call_deferred("_refresh_map_constructor_panels")
 
 
-func _get_selected_entity_data(ui: Object, entity_kind: String, entity_id: String) -> Dictionary:
+static func _get_selected_entity_data(ui: Object, entity_kind: String, entity_id: String) -> Dictionary:
 	var manager: Object = _get_property(ui, "mission_manager_runtime") as Object
 	if manager == null or not is_instance_valid(manager) or not manager.has_method("get_map_constructor_entity_by_id"):
 		return {}
@@ -437,14 +417,14 @@ func _get_selected_entity_data(ui: Object, entity_kind: String, entity_id: Strin
 	return {}
 
 
-func _find_tagged_section(content: VBoxContainer, section_name: String) -> VBoxContainer:
+static func _find_tagged_section(content: VBoxContainer, section_name: String) -> VBoxContainer:
 	for child in content.get_children():
 		if str(child.name) == section_name and child is VBoxContainer:
 			return child as VBoxContainer
 	return null
 
 
-func _find_inspector_content(panel: Control) -> VBoxContainer:
+static func _find_inspector_content(panel: Control) -> VBoxContainer:
 	var scroll: ScrollContainer = _find_first_scroll(panel)
 	if scroll == null:
 		return null
@@ -454,7 +434,7 @@ func _find_inspector_content(panel: Control) -> VBoxContainer:
 	return null
 
 
-func _find_first_scroll(node: Node) -> ScrollContainer:
+static func _find_first_scroll(node: Node) -> ScrollContainer:
 	if node is ScrollContainer:
 		return node as ScrollContainer
 	for child in node.get_children():
@@ -464,7 +444,7 @@ func _find_first_scroll(node: Node) -> ScrollContainer:
 	return null
 
 
-func _find_first_label(node: Node) -> Label:
+static func _find_first_label(node: Node) -> Label:
 	if node is Label:
 		return node as Label
 	for child in node.get_children():
@@ -474,20 +454,20 @@ func _find_first_label(node: Node) -> Label:
 	return null
 
 
-func _ui_color(ui: Object, property_name: String, fallback: Color) -> Color:
+static func _ui_color(ui: Object, property_name: String, fallback: Color) -> Color:
 	var value: Variant = _get_property(ui, property_name)
 	if value is Color:
 		return value
 	return fallback
 
 
-func _get_property(target: Object, property_name: String) -> Variant:
+static func _get_property(target: Object, property_name: String) -> Variant:
 	if target == null or not _has_property(target, property_name):
 		return null
 	return target.get(property_name)
 
 
-func _has_property(target: Object, property_name: String) -> bool:
+static func _has_property(target: Object, property_name: String) -> bool:
 	if target == null:
 		return false
 	for property_data in target.get_property_list():
