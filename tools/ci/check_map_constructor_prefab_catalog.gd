@@ -52,8 +52,7 @@ const EXPECTED_SCHEMA_FIELDS: Dictionary = {
 var failures: Array[String] = []
 
 func _checkpoint(label: String) -> void:
-	print("PREFAB_GATE: %s" % label)
-	OS.flush_stdout()
+	printerr("PREFAB_GATE: %s" % label)
 
 func _assert(condition: bool, message: String) -> void:
 	if not condition:
