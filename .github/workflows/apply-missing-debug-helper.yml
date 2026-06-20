@@ -1,0 +1,72 @@
+name: Apply missing debug helper fix
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/restore-debug-world-object-helper
+
+      - name: Restore WorldStateStore-backed helper
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/game/mission_manager.gd")
+          text = path.read_text(encoding="utf-8")
+          signature = "func _place_debug_world_object(object_type: String, object_id: String, cell: Vector2i, overrides: Dictionary = {}) -> Dictionary:"
+          marker = "func seed_world_cooling_debug_scenario(origin: Vector2i = Vector2i(8, 8)) -> void:"
+
+          if signature in text:
+              raise SystemExit("helper already exists")
+          if text.count(marker) != 1:
+              raise SystemExit(f"expected one insertion marker, found {text.count(marker)}")
+
+          helper = '''func _place_debug_world_object(object_type: String, object_id: String, cell: Vector2i, overrides: Dictionary = {}) -> Dictionary:
+          \tif object_type.is_empty() or object_id.is_empty():
+          \t\treturn {}
+          \tvar existing := get_world_object_by_id(object_id)
+          \tif not existing.is_empty():
+          \t\tworld_state_store.remove_object_by_id(object_id)
+          \tvar object_data := WorldObjectCatalogRef.create_world_object(object_type, object_id)
+          \tif object_data.is_empty():
+          \t\treturn {}
+          \tobject_data["id"] = object_id
+          \tobject_data["position"] = cell
+          \tfor key in overrides.keys():
+          \t\tobject_data[key] = overrides[key]
+          \tvar upsert_result: Dictionary = world_state_store.upsert_object(object_data)
+          \tif not bool(upsert_result.get("ok", false)):
+          \t\tif debug_world_logs:
+          \t\t\tpush_warning("Failed to place debug world object %s: %s" % [object_id, str(upsert_result.get("reason", "unknown"))])
+          \t\treturn {}
+          \treturn Dictionary(upsert_result.get("object", object_data)).duplicate(true)
+
+          '''
+
+          path.write_text(text.replace(marker, helper + marker, 1), encoding="utf-8")
+          PY
+
+      - name: Validate targeted diff
+        run: |
+          git diff --check
+          test "$(git diff --name-only)" = "scripts/game/mission_manager.gd"
+          grep -q '^func _place_debug_world_object' scripts/game/mission_manager.gd
+          python tools/check_world_state_store.py
+          python tools/check_map_constructor_prefab_catalog.py
+
+      - name: Commit fix to dedicated branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/game/mission_manager.gd
+          git commit -m "Fix missing debug world object helper"
+          git push origin HEAD:fix/restore-debug-world-object-helper
