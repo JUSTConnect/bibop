@@ -276,7 +276,39 @@ var grid_manager: Node = null
 var platform_last_tick_action_index: int = -1
 
 func replace_world_state_snapshot(objects: Array[Dictionary]) -> Dictionary:
+	var bounds_check := _validate_world_state_store_snapshot_bounds(objects)
+	if not bool(bounds_check.get("ok", false)):
+		return bounds_check
 	return world_state_store.replace_snapshot(objects)
+
+func _upsert_world_state_object(object_data: Dictionary) -> Dictionary:
+	var bounds_check := _validate_world_state_store_object_bounds(object_data)
+	if not bool(bounds_check.get("ok", false)):
+		return bounds_check
+	return world_state_store.upsert_object(object_data)
+
+func _move_world_state_object(object_id: String, destination: Vector2i, structural_patch: Dictionary = {}) -> Dictionary:
+	var bounds_check := _validate_world_state_store_cell_bounds(destination)
+	if not bool(bounds_check.get("ok", false)):
+		return bounds_check
+	return world_state_store.move_object(object_id, destination, structural_patch)
+
+func _validate_world_state_store_snapshot_bounds(objects: Array[Dictionary]) -> Dictionary:
+	for object_data in objects:
+		var bounds_check := _validate_world_state_store_object_bounds(object_data)
+		if not bool(bounds_check.get("ok", false)):
+			var result := bounds_check.duplicate(true)
+			result["object_id"] = str(object_data.get("id", ""))
+			return result
+	return {"ok": true, "warnings": []}
+
+func _validate_world_state_store_object_bounds(object_data: Dictionary) -> Dictionary:
+	if grid_manager == null or not grid_manager.has_method("is_in_bounds"):
+		return {"ok": true, "warnings": []}
+	var cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	if cell == Vector2i(-1, -1):
+		return {"ok": true, "warnings": []}
+	return _validate_world_state_store_cell_bounds(cell)
 
 func _commit_runtime_world_snapshot(mutated_objects: Array[Dictionary], action: String) -> Dictionary:
 	return world_state_store.apply_non_structural_snapshot(mutated_objects, action)
@@ -1878,7 +1910,7 @@ func apply_map_constructor_patch(patch: Dictionary, options: Dictionary = {}) ->
 func rollback_last_map_constructor_patch() -> Dictionary:
 	if _map_constructor_last_patch_snapshot.is_empty():
 		return {"ok": false, "message": "No patch to rollback."}
-	world_state_store.replace_snapshot(Array(_map_constructor_last_patch_snapshot.get("mission_world_objects", [])).duplicate(true))
+	replace_world_state_snapshot(Array(_map_constructor_last_patch_snapshot.get("mission_world_objects", [])).duplicate(true))
 	# Cell item lookup is derived from world_state_store.
 	_rebuild_wall_mounted_world_object_lookup()
 	if grid_manager != null and grid_manager.has_method("clear_floor_visual_states"):
@@ -2145,14 +2177,16 @@ func _sync_map_constructor_grid_snapshot_state() -> void:
 	constructor_map_height = int(grid_manager.call("get_height"))
 
 func _refresh_map_constructor_state_after_preset_apply() -> void:
-	world_state_store.replace_snapshot(mission_world_objects)
+	var snapshot_result := replace_world_state_snapshot(mission_world_objects)
+	if not bool(snapshot_result.get("ok", false)):
+		return
 	for object_variant in mission_world_objects:
 		if not (object_variant is Dictionary):
 			continue
 		var object_data: Dictionary = Dictionary(object_variant)
 		var object_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 		if object_cell != Vector2i(-1, -1):
-			world_state_store.upsert_object(object_data)
+			_upsert_world_state_object(object_data)
 	if grid_manager != null and grid_manager.has_method("enforce_boundary_walls"):
 		grid_manager.call("enforce_boundary_walls")
 	if grid_manager != null and grid_manager.has_method("request_visual_refresh"):
@@ -2327,7 +2361,7 @@ func _seed_debug_world_objects() -> void:
 			object_data["power_network_id"] = "power_net_A"
 		if object_data.get("id", "") == "fuse_box_empty_1":
 			object_data["power_network_id"] = ""
-	world_state_store.replace_snapshot(seed_objects)
+	replace_world_state_snapshot(seed_objects)
 	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
 	if debug_world_cooling_scenario_enabled:
@@ -2350,7 +2384,7 @@ func _place_debug_world_object(object_type: String, object_id: String, cell: Vec
 	object_data["position"] = cell
 	for key in overrides.keys():
 		object_data[key] = overrides[key]
-	var upsert_result: Dictionary = world_state_store.upsert_object(object_data)
+	var upsert_result: Dictionary = _upsert_world_state_object(object_data)
 	if not bool(upsert_result.get("ok", false)):
 		if debug_world_logs:
 			push_warning("Failed to place debug world object %s: %s" % [object_id, str(upsert_result.get("reason", "unknown"))])
@@ -3149,7 +3183,7 @@ func try_set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> Di
 	if not bool(placement.get("ok", false)):
 		push_warning("World object placement failed: %s" % str(placement.get("reason", "unknown")))
 		return placement
-	var result: Dictionary = world_state_store.upsert_object(normalized)
+	var result: Dictionary = _upsert_world_state_object(normalized)
 	if bool(result.get("ok", false)):
 		refresh_generic_cable_runtime_state(str(normalized.get("power_network_id", "")))
 		refresh_world_cooling_received()
@@ -3181,12 +3215,12 @@ func add_item_at_cell(cell: Vector2i, item_data: Dictionary) -> void:
 		normalized["object_type"] = "item"
 	if not normalized.has("can_pickup"):
 		normalized["can_pickup"] = true
-	world_state_store.upsert_object(normalized)
+	_upsert_world_state_object(normalized)
 
 func _sync_world_item_record(item_data: Dictionary) -> void:
 	if str(item_data.get("id", "")).strip_edges().is_empty():
 		return
-	world_state_store.upsert_object(item_data)
+	_upsert_world_state_object(item_data)
 
 func _remove_world_item_record(item_id: String) -> void:
 	if item_id.strip_edges().is_empty():
@@ -5903,7 +5937,7 @@ func apply_map_constructor_state_preset(entity_kind: String, entity_id: String, 
 					continue
 				items[index] = data
 				for item_row in items:
-					world_state_store.upsert_object(item_row)
+					_upsert_world_state_object(item_row)
 				updated_item = true
 				break
 			if updated_item:
@@ -7212,7 +7246,7 @@ func update_world_object_by_id(id: String, new_data: Dictionary) -> void:
 	var data: Dictionary = new_data.duplicate(true)
 	data["id"] = id
 	data = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(data))
-	world_state_store.upsert_object(data)
+	_upsert_world_state_object(data)
 	refresh_generic_cable_runtime_state(str(data.get("power_network_id", "")))
 	refresh_world_cooling_received()
 	return
@@ -7254,7 +7288,7 @@ func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -
 		result["message"] = "Target cell is occupied."
 		return result
 	object_data = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
-	world_state_store.move_object(object_id, target_cell, object_data)
+	_move_world_state_object(object_id, target_cell, object_data)
 	refresh_world_cooling_received()
 	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
@@ -9108,7 +9142,7 @@ func validate_power_network_debug_scenario() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_terminal", "terminal", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_overheat_shutdown_platform", "lifting_platform", "power_debug_source_overheat_shutdown", {"is_powered": true, "state": "active"}))
 	for object_data in temp_objects:
-		world_state_store.upsert_object(object_data)
+		_upsert_world_state_object(object_data)
 		var object_id := str(object_data.get("id", "")).strip_edges()
 		if not object_id.is_empty():
 			temp_ids[object_id] = true
@@ -9712,7 +9746,7 @@ func validate_full_power_system_runtime() -> Array[String]:
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_broken_source", "power_source_class_1", "power_debug_source_recovery_broken", {"state": "overheated", "is_powered": false, "broken": true, "overheated_state_before": "active", "current_heat": 4, "working_heat": 1, "cooling_received": 6, "overheat_threshold": 4}))
 	temp_objects.append(_build_power_network_debug_object("power_debug_source_recovery_broken_terminal", "terminal", "power_debug_source_recovery_broken", {"is_powered": false, "state": "unpowered"}))
 	for object_data in temp_objects:
-		world_state_store.upsert_object(object_data)
+		_upsert_world_state_object(object_data)
 		cleanup_ids.append(str(object_data.get("id", "")))
 	var recovery_a := execute_power_source_recovery_apply("power_debug_source_recovery")
 	var source_a := get_world_object_by_id("power_debug_source_recovery_source")
@@ -9779,7 +9813,7 @@ func validate_full_power_system_runtime() -> Array[String]:
 	runtime_object["destroyed"] = false
 	runtime_object["state_before_unpowered"] = "active"
 	runtime_object["powered_state_before_unpowered"] = "active"
-	world_state_store.upsert_object(runtime_object)
+	_upsert_world_state_object(runtime_object)
 	cleanup_ids.append("power_debug_runtime_save_fields")
 	var runtime_snapshot := get_world_object_runtime_state()
 	var saved_entry: Dictionary = runtime_snapshot.get("power_debug_runtime_save_fields", {})
@@ -9849,7 +9883,7 @@ func validate_cooling_and_cable_runtime() -> Array[String]:
 	var radiator := {"id":"temp_cooling_radiator", "object_group":"cooling", "object_type":"cooling_radiator", "position":Vector2i(131, 100), "cooling_device_type":"radiator", "cooling_output":2, "state":"active", "is_powered":true}
 	var cable := {"id":"temp_validation_cable", "object_group":"cable", "object_type":"power_cable", "position":Vector2i(132, 100), "connected":true, "disconnected":false, "cut":false, "state":"active"}
 	for obj in [source, radiator, cable]:
-		world_state_store.upsert_object(obj)
+		_upsert_world_state_object(obj)
 	var cool_preview_before := str(get_world_object_runtime_state())
 	preview_cooling_application("")
 	if str(get_world_object_runtime_state()) != cool_preview_before:
@@ -9860,7 +9894,7 @@ func validate_cooling_and_cable_runtime() -> Array[String]:
 	if bool(cable.get("connected", true)):
 		warnings.append("cut_cable_should_disconnect")
 	var repair_item := {"id":"temp_repair_kit_cable", "object_group":"item", "object_type":"item", "position":Vector2i(133, 100), "item_type":"repair_kit"}
-	world_state_store.upsert_object(repair_item)
+	_upsert_world_state_object(repair_item)
 
 	cable["damaged"] = true
 	use_inventory_item_on_world_object("temp_repair_kit_cable", "temp_validation_cable")
@@ -11547,7 +11581,7 @@ func apply_world_object_runtime_state(saved_state: Dictionary) -> void:
 			candidate_object[key] = runtime_updates[key]
 		candidate_object["id"] = object_id
 		candidate_object["position"] = new_position
-		world_state_store.upsert_object(candidate_object)
+		_upsert_world_state_object(candidate_object)
 	refresh_world_cooling_received()
 	recalculate_power_network("power_net_A")
 	refresh_world_cooling_received()
@@ -12648,7 +12682,7 @@ func validate_platform_timer_tick_debug_scenario() -> Array[String]:
 	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_instant", "instant", Vector2i(88, 80), {"height_level": 0}))
 	temp_platforms.append(_build_platform_timer_tick_debug_platform("debug_timer_tick_permanent", "permanent", Vector2i(90, 80), {"pending_activation": true, "permanent_state": "active", "height_level": 0}))
 	for temp_platform in temp_platforms:
-		world_state_store.upsert_object(temp_platform)
+		_upsert_world_state_object(temp_platform)
 	var temp_cells := {}
 	var has_temp_overlap := false
 	for temp_platform in temp_platforms:
@@ -13166,7 +13200,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	var mechanical_door := {"id": mechanical_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(103, 100), "state": "closed", "is_locked": true, "lock_type": "mechanical_key", "required_key_id": "temp_validation_mechanical_key", "is_powered": true}
 	var digital_door := {"id": digital_door_id, "object_group": "door", "object_type": "door", "position": Vector2i(104, 100), "state": "closed", "is_locked": true, "lock_type": "access_code", "is_powered": true}
 	for obj in [terminal, linked_door, unlinked_door, mechanical_door, digital_door]:
-		world_state_store.upsert_object(obj)
+		_upsert_world_state_object(obj)
 		temp_ids.append(str(obj.get("id", "")))
 	var av := get_terminal_action_availability(terminal_id, "hack")
 	if not bool(av.get("available", false)): warnings.append("active_powered_terminal_unavailable")
@@ -13202,7 +13236,7 @@ func validate_terminal_and_door_runtime() -> Array[String]:
 	var encrypted_key := {"id":"temp_validation_encrypted_key", "object_group":"item", "object_type":"item", "position":Vector2i(108, 100), "item_type":"digital_key", "digital_state":"encrypted"}
 	var good_digital := {"id":"temp_validation_good_digital", "object_group":"item", "object_type":"item", "position":Vector2i(109, 100), "item_type":"access_code"}
 	for key_obj in [mechanical_key, wrong_key, damaged_key, encrypted_key, good_digital]:
-		world_state_store.upsert_object(key_obj); temp_ids.append(str(key_obj.get("id", "")))
+		_upsert_world_state_object(key_obj); temp_ids.append(str(key_obj.get("id", "")))
 	if not bool(can_use_access_item_on_door(mechanical_key["id"], mechanical_door_id).get("success", false)): warnings.append("mechanical_key_gate_failed")
 	if not bool(pickup_world_item(mechanical_key["id"]).get("success", false)): warnings.append("mechanical_key_pickup_failed")
 	if not get_world_object_by_id(mechanical_key["id"]).is_empty(): warnings.append("picked_up_key_world_copy_remains")
@@ -13280,7 +13314,7 @@ func validate_platform_scan_visibility_runtime() -> Array[String]:
 	if snapshot_a != snapshot_b:
 		warnings.append("scan/report helpers are not read-only")
 	var hidden_cable := {"id":"temp_hidden_cable", "object_group":"cable", "object_type":"power_cable", "position":Vector2i(140, 100), "hidden":true, "hidden_cable":true, "visible_with_xray":true}
-	world_state_store.upsert_object(hidden_cable)
+	_upsert_world_state_object(hidden_cable)
 
 	var basic_visible := is_world_object_visible_to_player(hidden_cable, "basic")
 	var xray_result := get_scan_result_for_object("temp_hidden_cable", "xray")
@@ -13316,7 +13350,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	if not caps.has("manipulator_level") or not caps.has("connector_level") or not caps.has("processor_level"):
 		warnings.append("capability_defaults_missing")
 	var req_obj := {"id":"temp_req_obj", "object_group":"item", "object_type":"item", "position":Vector2i(120, 100), "required_manipulator_level":1, "required_connector_level":1, "required_processor_level":1}
-	world_state_store.upsert_object(req_obj); temp_ids.append("temp_req_obj")
+	_upsert_world_state_object(req_obj); temp_ids.append("temp_req_obj")
 	var req := check_world_object_requirements("temp_req_obj", "use")
 	for r in ["manipulator_level_too_low","connector_level_too_low","processor_level_too_low"]:
 		if not Array(req.get("reasons", [])).has(r): warnings.append("requirements_missing_%s" % r)
@@ -13324,7 +13358,7 @@ func validate_inventory_tools_modules_runtime() -> Array[String]:
 	var digital_item := {"id":"temp_item_digital", "object_group":"item", "object_type":"item", "position":Vector2i(122, 100), "item_form":"digital", "can_place_in_digital_buffer":true}
 	var digital_blocked := {"id":"temp_item_digital_blocked", "object_group":"item", "object_type":"item", "position":Vector2i(123, 100), "item_form":"digital", "can_place_in_digital_buffer":false}
 	for obj in [physical_item, digital_item, digital_blocked]:
-		world_state_store.upsert_object(obj); temp_ids.append(str(obj.get("id", "")))
+		_upsert_world_state_object(obj); temp_ids.append(str(obj.get("id", "")))
 	if not bool(pickup_world_item("temp_item_physical").get("success", false)): warnings.append("physical_pickup_failed")
 	if not Array(runtime_inventory_state.get("pocket_items", [])).has("temp_item_physical"): warnings.append("physical_pickup_not_routed_to_pocket")
 	if get_manipulator_held_item_id() == "temp_item_physical": warnings.append("physical_pickup_routed_to_manipulator_before_pocket")

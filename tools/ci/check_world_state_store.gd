@@ -4,6 +4,7 @@ const WorldStateStoreRef = preload("res://scripts/world/world_state_store.gd")
 const MissionManagerRef = preload("res://scripts/game/mission_manager.gd")
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const BipobAirflowRuntimeStateRef = preload("res://scripts/game/bipob_airflow_runtime_state.gd")
+const FacingSideUtilsRef = preload("res://scripts/visual/facing_side_utils.gd")
 
 var failures: Array[String] = []
 var signal_events: Array[Dictionary] = []
@@ -74,6 +75,8 @@ func _objects_wall_sides_are_iso_only(objects: Array[Dictionary]) -> bool:
 	return true
 
 func _run_store_checks() -> void:
+	_expect(FacingSideUtilsRef.is_wall_side("nw") and FacingSideUtilsRef.is_wall_side("ne") and FacingSideUtilsRef.is_wall_side("sw") and FacingSideUtilsRef.is_wall_side("se"), "FacingSideUtils owns iso wall sides")
+	_expect(not FacingSideUtilsRef.is_wall_side("north") and FacingSideUtilsRef.normalize_legacy_wall_side_alias("north") == "nw", "FacingSideUtils treats north as legacy alias only")
 	var store: WorldStateStore = WorldStateStoreRef.new()
 	store.changed.connect(_on_store_changed)
 	_expect(bool(store.add_object(_obj("door_a", Vector2i(1, 1))).get("ok", false)), "adding primary succeeds")
@@ -161,6 +164,16 @@ func _run_store_checks() -> void:
 	invalid._objects_by_id["key_a"] = {"id": "field_b", "position": Vector2i.ZERO}
 	invalid._object_order.append("key_a")
 	_expect(not invalid.validate_consistency().is_empty(), "key/field id mismatch detected")
+	var structural_invalid := WorldStateStoreRef.new()
+	structural_invalid._objects_by_id["missing_pos"] = {"id":"missing_pos", "object_group":"device", "object_type":"terminal"}
+	structural_invalid._objects_by_id["malformed_pos"] = {"id":"malformed_pos", "object_group":"device", "object_type":"terminal", "position":"bad"}
+	structural_invalid._objects_by_id["negative_pos"] = {"id":"negative_pos", "object_group":"device", "object_type":"terminal", "position":Vector2i(-1, 0)}
+	structural_invalid._objects_by_id["missing_side"] = {"id":"missing_side", "object_group":"terminal", "object_type":"terminal", "position":Vector2i(1, 1), "placement_mode":"wall_mounted", "mount":"wall", "is_wall_mounted":true}
+	structural_invalid._objects_by_id["invalid_side"] = _wall("invalid_side", Vector2i(1, 2), "ceiling")
+	structural_invalid._object_order.append_array(["missing_pos", "malformed_pos", "negative_pos", "missing_side", "invalid_side"])
+	var structural_warnings: Array[String] = structural_invalid.validate_consistency()
+	for expected_warning in ["missing_position:missing_pos", "malformed_position:malformed_pos", "negative_position:negative_pos", "missing_wall_side:missing_side", "invalid_wall_side:invalid_side"]:
+		_expect(structural_warnings.has(expected_warning), "validate_consistency reports missing_position/malformed_position/negative_position/missing_wall_side/invalid_wall_side: %s" % expected_warning)
 	var bridge_store: WorldStateStore = WorldStateStoreRef.new()
 	bridge_store.changed.connect(_on_store_changed)
 	bridge_store.add_object(_obj("bridge_a", Vector2i(20, 20)))
@@ -214,6 +227,15 @@ func _run_mission_manager_checks() -> void:
 	var out_of_bounds: Dictionary = manager.try_set_world_object_at_cell(Vector2i(4, 4), _obj("mm_oob", Vector2i(4, 4)))
 	_expect(not bool(out_of_bounds.get("ok", true)), "MissionManager rejects out-of-bounds placement before store commit")
 	_expect(manager.get_world_object_by_id("mm_oob").is_empty(), "out-of-bounds MissionManager placement is not committed")
+	manager.add_item_at_cell(Vector2i(4, 4), _item("mm_oob_item", Vector2i(4, 4)))
+	_expect(manager.get_world_object_by_id("mm_oob_item").is_empty(), "out-of-bounds item is rejected")
+	manager._sync_world_item_record(_item("mm_oob_sync_item", Vector2i(4, 4)))
+	_expect(manager.get_world_object_by_id("mm_oob_sync_item").is_empty(), "out-of-bounds _sync_world_item_record is rejected")
+	var before_oob_snapshot: Dictionary = manager.world_state_store.get_diagnostic_snapshot()
+	var rejected_snapshot: Dictionary = manager.replace_world_state_snapshot([_obj("mm_in_bounds", Vector2i(1, 1)), _obj("mm_snapshot_oob", Vector2i(4, 4))])
+	_expect(not bool(rejected_snapshot.get("ok", true)), "snapshot with one out-of-bounds object is fully rejected")
+	_expect(var_to_str(before_oob_snapshot) == var_to_str(manager.world_state_store.get_diagnostic_snapshot()), "failed out-of-bounds snapshot preserves state and indexes")
+	_expect(manager.get_world_object_by_id("mm_in_bounds").is_empty(), "failed out-of-bounds snapshot does not partially commit")
 	manager.set_grid_manager_ref(null)
 	manager.set_world_object_at_cell(Vector2i(5, 5), _obj("mm_primary", Vector2i(5, 5)))
 	manager.set_world_object_at_cell(Vector2i(5, 5), _wall("mm_wall", Vector2i(5, 5), "nw"))

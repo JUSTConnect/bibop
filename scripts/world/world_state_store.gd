@@ -5,6 +5,7 @@ signal changed(change: Dictionary)
 
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformOccupancyServiceRef = preload("res://scripts/game/platform/platform_occupancy_service.gd")
+const FacingSideUtilsRef = preload("res://scripts/visual/facing_side_utils.gd")
 const LAYER_SURFACE := "surface"
 const LAYER_PLATFORM := "platform"
 const LAYER_OCCUPANT := "occupant"
@@ -250,6 +251,7 @@ func validate_consistency() -> Array[String]:
 		var field_id := _object_id(object_data)
 		if object_id != field_id: warnings.append("object_id_key_mismatch:%s:%s" % [object_id, field_id])
 		if not order_seen.has(object_id): warnings.append("object_missing_order:%s" % object_id)
+		_validate_structural_consistency(object_id, object_data, warnings)
 		_validate_object_index_membership(object_id, object_data, warnings)
 	_validate_index_ids(_primary_object_id_by_cell, warnings, false, LAYER_PRIMARY)
 	for pair in [[_surface_ids_by_cell, LAYER_SURFACE], [_platform_ids_by_cell, LAYER_PLATFORM], [_occupant_ids_by_cell, LAYER_OCCUPANT], [_route_ids_by_cell, LAYER_ROUTE], [_item_ids_by_cell, LAYER_ITEM], [_wall_mount_ids_by_cell, LAYER_WALL], [_visual_ids_by_cell, LAYER_VISUAL]]:
@@ -392,6 +394,16 @@ func _duplicate_objects_by_id(source: Dictionary) -> Dictionary:
 	for id in source.keys():
 		result[str(id)] = Dictionary(source[id]).duplicate(true)
 	return result
+func _validate_structural_consistency(object_id: String, object_data: Dictionary, warnings: Array[String]) -> void:
+	var structural := _validate_structural_object(object_data)
+	if bool(structural.get("ok", false)):
+		return
+	var reason := str(structural.get("reason", ""))
+	if reason in ["missing_position", "malformed_position", "negative_position", "missing_wall_side", "invalid_wall_side"]:
+		warnings.append("%s:%s" % [reason, object_id])
+	elif not reason.is_empty():
+		warnings.append("structural_invalid:%s:%s" % [reason, object_id])
+
 func _validate_object_index_membership(object_id: String, object_data: Dictionary, warnings: Array[String]) -> void:
 	var layer := _layer(object_data)
 	var cell := _cell(object_data)
@@ -485,9 +497,10 @@ func _validate_wall_side(object_data: Dictionary) -> Dictionary:
 		raw_side = str(object_data.get("mount_side", ""))
 	else:
 		return _fail("missing_wall_side")
+	if raw_side.strip_edges().is_empty(): return _fail("missing_wall_side")
 	var side := _normalize_side(raw_side)
-	if side.is_empty(): return _fail("missing_wall_side")
-	if not (side in ["nw", "ne", "sw", "se"]): return _fail("invalid_wall_side")
+	if side.is_empty(): return _fail("invalid_wall_side")
+	if not FacingSideUtilsRef.is_wall_side(side): return _fail("invalid_wall_side")
 	return _ok({"wall_side": side})
 
 func _cell(object_data: Dictionary) -> Vector2i:
@@ -495,13 +508,7 @@ func _cell(object_data: Dictionary) -> Vector2i:
 	return Vector2i(parsed.get("cell", Vector2i(-1, -1))) if bool(parsed.get("ok", false)) else Vector2i(-1, -1)
 func _wall_side(object_data: Dictionary) -> String: return _normalize_side(str(object_data.get("wall_side", object_data.get("mount_side", ""))))
 func _normalize_side(side: String) -> String:
-	var text := side.strip_edges().to_lower()
-	match text:
-		"north": return "nw"
-		"east": return "ne"
-		"south": return "se"
-		"west": return "sw"
-	return text
+	return FacingSideUtilsRef.normalize_legacy_wall_side_alias(side)
 func _object_id(object_data: Dictionary) -> String: return str(object_data.get("id", "")).strip_edges()
 func _patch_has_id_change(object_id: String, patch: Dictionary) -> bool: return patch.has("id") and str(patch.get("id", "")).strip_edges() != object_id
 func _ok(extra: Dictionary = {}) -> Dictionary:
