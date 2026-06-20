@@ -11,6 +11,7 @@ var cell_items: Dictionary = {}
 var last_threat_warning_ids: Dictionary = {}
 var debug_world_logs := false
 var enable_debug_seed := false
+var debug_world_cooling_scenario_enabled: bool = false
 
 func _ready() -> void:
 	if enable_debug_seed:
@@ -75,6 +76,8 @@ func setup_world_objects_for_mission(mission_id: String) -> void:
 					add_item_at_cell(Vector2i(1, 3), object_data)
 	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
+	if debug_world_cooling_scenario_enabled:
+		seed_world_cooling_debug_scenario()
 	last_threat_warning_ids.clear()
 	if debug_world_logs:
 		var scenario_warnings := validate_world_object_scenario()
@@ -172,8 +175,91 @@ func _seed_debug_world_objects() -> void:
 			object_data["power_network_id"] = ""
 	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
 	refresh_world_cooling_received()
+	if debug_world_cooling_scenario_enabled:
+		seed_world_cooling_debug_scenario()
 	if debug_world_logs:
 		_debug_world_summary()
+
+func _place_debug_world_object(object_type: String, object_id: String, cell: Vector2i, overrides: Dictionary = {}) -> Dictionary:
+	if object_type.is_empty() or object_id.is_empty():
+		return {}
+	var existing := get_world_object_by_id(object_id)
+	if not existing.is_empty():
+		var existing_cell := Vector2i(existing.get("position", cell))
+		world_objects_by_cell.erase(existing_cell)
+		mission_world_objects.erase(existing)
+	var object_data := WorldObjectCatalog.create_world_object(object_type, object_id)
+	if object_data.is_empty():
+		return {}
+	object_data["id"] = object_id
+	object_data["position"] = cell
+	for key in overrides.keys():
+		object_data[key] = overrides[key]
+	var replaced := get_world_object_at_cell(cell)
+	if not replaced.is_empty() and String(replaced.get("id", "")) == object_id:
+		mission_world_objects.erase(replaced)
+	world_objects_by_cell[cell] = object_data
+	if not mission_world_objects.has(object_data):
+		mission_world_objects.append(object_data)
+	return object_data
+
+func seed_world_cooling_debug_scenario(origin: Vector2i = Vector2i(8, 8)) -> void:
+	_place_debug_world_object("information_terminal", "terminal_c2_radiator", origin + Vector2i(0, 0), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("external_radiator", "cooling_radiator_a", origin + Vector2i(1, 0))
+	_place_debug_world_object("information_terminal", "terminal_c2_radiator_metal", origin + Vector2i(0, 2), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("external_radiator", "cooling_radiator_b", origin + Vector2i(1, 2))
+	_place_debug_world_object("metal_cooling_block", "cooling_metal_block_b", origin + Vector2i(2, 2))
+	_place_debug_world_object("information_terminal", "terminal_c2_air", origin + Vector2i(0, 4), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("external_air_cooler", "cooling_air_direct_c", origin + Vector2i(-1, 4), {"facing_dir": "right"})
+	_place_debug_world_object("information_terminal", "terminal_c2_water", origin + Vector2i(0, 6), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("external_water_pipe", "cooling_water_d", origin + Vector2i(1, 6))
+	_place_debug_world_object("information_terminal", "terminal_c2_duct", origin + Vector2i(3, 8), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("external_air_cooler", "cooling_air_duct_e", origin + Vector2i(0, 8), {"facing_dir": "right"})
+	_place_debug_world_object("external_air_duct", "cooling_air_duct_e1", origin + Vector2i(1, 8))
+	_place_debug_world_object("external_air_duct", "cooling_air_duct_e2", origin + Vector2i(2, 8))
+	_place_debug_world_object("information_terminal", "terminal_c2_air_water", origin + Vector2i(0, 10), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
+	_place_debug_world_object("external_air_cooler", "cooling_air_combo_f", origin + Vector2i(-1, 10), {"facing_dir": "right"})
+	_place_debug_world_object("external_water_pipe", "cooling_water_combo_f", origin + Vector2i(0, 11))
+	_place_debug_world_object("power_source_class_3", "power_source_c3_cooled", origin + Vector2i(0, 12), {"working_heat": 3, "current_heat": 3, "overheat_threshold": 3, "state": "active"})
+	_place_debug_world_object("external_water_pipe", "cooling_water_g", origin + Vector2i(1, 12))
+	refresh_world_cooling_received()
+	PowerSystem.recalculate_network(mission_world_objects, "power_net_A")
+	refresh_world_cooling_received()
+
+func validate_world_cooling_debug_scenario() -> Array[String]:
+	var warnings: Array[String] = []
+	# Manual validation checklist:
+	# 1) Class 2 terminal without cooling should fail hack due to temporary overheat.
+	# 2) Class 2 terminal with cooling 1+ should be safe from terminal temporary overheat.
+	# 3) CPU internal overheat is separate and may still fail hack first.
+	var expected := {
+		"terminal_c2_radiator": 1,
+		"terminal_c2_radiator_metal": 2,
+		"terminal_c2_air": 2,
+		"terminal_c2_water": 2,
+		"terminal_c2_duct": 2,
+		"terminal_c2_air_water": 4
+	}
+	for object_id in expected.keys():
+		var object_data := get_world_object_by_id(String(object_id))
+		if object_data.is_empty():
+			warnings.append("Missing debug object: %s." % String(object_id))
+			continue
+		var received := int(object_data.get("cooling_received", -1))
+		var target := int(expected[object_id])
+		if received != target:
+			warnings.append("%s cooling_received expected %d, got %d." % [String(object_id), target, received])
+	var power_source := get_world_object_by_id("power_source_c3_cooled")
+	if power_source.is_empty():
+		warnings.append("Missing debug object: power_source_c3_cooled.")
+	else:
+		if String(power_source.get("state", "")) != "active":
+			warnings.append("power_source_c3_cooled state expected active, got %s." % String(power_source.get("state", "")))
+		var current_heat := int(power_source.get("current_heat", 999))
+		var threshold := int(power_source.get("overheat_threshold", 0))
+		if current_heat >= threshold:
+			warnings.append("power_source_c3_cooled current_heat must be below threshold (%d >= %d)." % [current_heat, threshold])
+	return warnings
 
 func _debug_world_summary() -> void:
 	for object_data in mission_world_objects:
@@ -425,6 +511,7 @@ func get_world_heat_debug_summary_text() -> String:
 	var cooled_heat_targets := 0
 	var max_cooling_received := 0
 	var invalid_cooling_metadata := 0
+	var has_cooling_debug_scenario := not get_world_object_by_id("terminal_c2_radiator").is_empty()
 	for object_data in mission_world_objects:
 		var group := String(object_data.get("object_group", ""))
 		var object_type := String(object_data.get("object_type", ""))
@@ -458,7 +545,7 @@ func get_world_heat_debug_summary_text() -> String:
 				invalid_cooling_metadata += 1
 		if object_cooling_type == "air_cooler" and not object_data.has("facing_dir"):
 			invalid_cooling_metadata += 1
-	return "WorldHeat: terminals=%d overheated=%d | power_sources=%d overheated=%d | invalid_heat=%d | missing_threshold=%d | cooling_devices=%d | cooled_targets=%d | max_cooling=%d | invalid_cooling=%d" % [
+	var summary := "WorldHeat: terminals=%d overheated=%d | power_sources=%d overheated=%d | invalid_heat=%d | missing_threshold=%d | cooling_devices=%d | cooled_targets=%d | max_cooling=%d | invalid_cooling=%d" % [
 		terminals_count,
 		overheated_terminals,
 		power_sources_count,
@@ -470,3 +557,10 @@ func get_world_heat_debug_summary_text() -> String:
 		max_cooling_received,
 		invalid_cooling_metadata
 	]
+	if has_cooling_debug_scenario:
+		var validation_warnings := validate_world_cooling_debug_scenario()
+		if debug_world_logs and not validation_warnings.is_empty():
+			for warning in validation_warnings:
+				push_warning("[WorldCoolingValidation] %s" % warning)
+		summary += " | cooling_validation_issues=%d" % validation_warnings.size()
+	return summary
