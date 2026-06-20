@@ -14,6 +14,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: ScreenRouter static gate
+        run: |
+          python3 tools/check_screen_router.py
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -38,7 +42,6 @@ jobs:
           python tools/check_world_state_store.py
           python tools/check_runtime_readiness_service.py
           python tools/check_event_driven_runtime_hud.py
-          python tools/check_screen_router.py
 
       - name: Godot import smoke
         run: |
