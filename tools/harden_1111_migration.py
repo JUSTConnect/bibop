@@ -24,8 +24,16 @@ source = source.replace(
     anchor,
     anchor + '''game = replace_once(
     game,
-    'func _on_main_settings_pressed() -> void:\n\tshow_placeholder_screen("Settings")\nfunc _on_main_about_pressed() -> void:\n\tshow_placeholder_screen("About")\n',
-    'func _on_main_settings_pressed() -> void:\n\tnavigate_to_screen(AppScreenMode.SETTINGS_PLACEHOLDER)\nfunc _on_main_about_pressed() -> void:\n\tnavigate_to_screen(AppScreenMode.ABOUT_PLACEHOLDER)\n',
+    """func _on_main_settings_pressed() -> void:
+\tshow_placeholder_screen("Settings")
+func _on_main_about_pressed() -> void:
+\tshow_placeholder_screen("About")
+""",
+    """func _on_main_settings_pressed() -> void:
+\tnavigate_to_screen(AppScreenMode.SETTINGS_PLACEHOLDER)
+func _on_main_about_pressed() -> void:
+\tnavigate_to_screen(AppScreenMode.ABOUT_PLACEHOLDER)
+""",
     "main placeholder modes",
 )
 ''',
