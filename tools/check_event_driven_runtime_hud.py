@@ -6,12 +6,15 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
 
+
 def text(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
+
 
 def expect(condition: bool, message: str) -> None:
     if not condition:
         errors.append(message)
+
 
 def function_block(source: str, name: str) -> str:
     match = re.search(rf"func {re.escape(name)}\([^\n]*\)(?: -> [^:\n]+)?:\n", source)
@@ -20,10 +23,13 @@ def function_block(source: str, name: str) -> str:
     end = source.find("\nfunc ", match.end())
     return source[match.start(): end if end != -1 else len(source)]
 
+
 project = text("project.godot")
 expect("RuntimeHudRepair" not in project, "RuntimeHudRepair autoload remains")
 expect("MapConstructorInspectorStructure=" not in project, "MapConstructorInspectorStructure autoload remains")
 expect(not (ROOT / "scripts/ui/runtime/runtime_hud_repair_service.gd").exists(), "runtime HUD repair service still exists")
+expect(not (ROOT / "tools/apply_1127_fixes.py").exists(), "one-shot PR patch helper remains in repository")
+expect(not (ROOT / ".github/workflows/apply-pr-1127-fixes.yml").exists(), "one-shot PR patch workflow remains in repository")
 
 inspector = text("scripts/ui/map_constructor/map_constructor_inspector_structure_layer.gd")
 for token in ["func _process", "CHECK_INTERVAL", "get_tree(", "current_scene"]:
