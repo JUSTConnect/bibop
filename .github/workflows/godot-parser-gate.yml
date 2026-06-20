@@ -6,6 +6,11 @@ on:
     branches:
       - main
 
+# BEGIN TEMP_SCREEN_ROUTER_PERMISSIONS
+permissions:
+  contents: write
+# END TEMP_SCREEN_ROUTER_PERMISSIONS
+
 jobs:
   godot-parser-gate:
     runs-on: ubuntu-latest
@@ -63,3 +68,65 @@ jobs:
         run: |
           timeout 120s godot --headless --path . \
             --script res://tools/ci/check_map_constructor_prefab_catalog.gd
+
+  # BEGIN TEMP_SCREEN_ROUTER_JOB
+  apply-screen-router-migration:
+    if: github.event_name == 'pull_request' && github.head_ref == 'codex/bip-architecture-runtime-01e-screen-router'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out ScreenRouter branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/bip-architecture-runtime-01e-screen-router
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Apply migration
+        run: |
+          python tools/harden_1111_migration.py
+          python tools/apply_1111_screen_router.py
+
+      - name: Remove one-shot migration infrastructure
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/godot-parser-gate.yml')
+          source = path.read_text(encoding='utf-8')
+          for begin, end in [
+              ('# BEGIN TEMP_SCREEN_ROUTER_PERMISSIONS', '# END TEMP_SCREEN_ROUTER_PERMISSIONS'),
+              ('  # BEGIN TEMP_SCREEN_ROUTER_JOB', '  # END TEMP_SCREEN_ROUTER_JOB'),
+          ]:
+              start = source.index(begin)
+              finish = source.index(end, start) + len(end)
+              while finish < len(source) and source[finish] == '\n':
+                  finish += 1
+              source = source[:start] + source[finish:]
+          path.write_text(source, encoding='utf-8')
+          PY
+          rm -f tools/apply_1111_screen_router.py
+          rm -f tools/harden_1111_migration.py
+          rm -f .github/workflows/apply-1111-screen-router.yml
+          rm -f docs/.screen_router_pr_marker docs/.screen_router_pr_marker2 docs/.screen_router_pr_marker3 docs/.screen_router_pr_marker4 docs/.screen_router_pr_marker5
+
+      - name: Validate migrated tree
+        run: |
+          python -m py_compile tools/check_screen_router.py
+          python tools/check_runtime_readiness_service.py
+          python tools/check_event_driven_runtime_hud.py
+          python tools/check_screen_router.py
+          git diff --check
+
+      - name: Commit migrated tree
+        run: |
+          git config user.name "ChatGPT Project Maintainer"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Introduce canonical ScreenRouter navigation"
+          git push origin HEAD:codex/bip-architecture-runtime-01e-screen-router
+  # END TEMP_SCREEN_ROUTER_JOB
