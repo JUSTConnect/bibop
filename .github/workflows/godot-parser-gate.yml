@@ -127,15 +127,30 @@ jobs:
           rm -f tools/apply_1111_screen_router.py
           rm -f tools/harden_1111_migration.py
           rm -f .github/workflows/apply-1111-screen-router.yml
-          rm -f docs/.screen_router_pr_marker docs/.screen_router_pr_marker2 docs/.screen_router_pr_marker3 docs/.screen_router_pr_marker4 docs/.screen_router_pr_marker5 docs/screen_router_migration_failure.md
+          rm -f docs/.screen_router_pr_marker docs/.screen_router_pr_marker2 docs/.screen_router_pr_marker3 docs/.screen_router_pr_marker4 docs/.screen_router_pr_marker5 docs/screen_router_migration_failure.md docs/screen_router_validation_failure.md
 
       - name: Validate migrated tree
         run: |
-          python -m py_compile tools/check_screen_router.py
-          python tools/check_runtime_readiness_service.py
-          python tools/check_event_driven_runtime_hud.py
-          python tools/check_screen_router.py
-          git diff --check
+          set +e
+          {
+            python -m py_compile tools/check_screen_router.py
+            python tools/check_runtime_readiness_service.py
+            python tools/check_event_driven_runtime_hud.py
+            python tools/check_screen_router.py
+            git diff --check
+          } > /tmp/screen_router_validation.log 2>&1
+          status=$?
+          cat /tmp/screen_router_validation.log
+          if [ "$status" -ne 0 ]; then
+            mkdir -p docs
+            tail -n 100 /tmp/screen_router_validation.log > docs/screen_router_validation_failure.md
+            git config user.name "ChatGPT Project Maintainer"
+            git config user.email "actions@users.noreply.github.com"
+            git add docs/screen_router_validation_failure.md
+            git commit -m "Capture ScreenRouter validation failure" || true
+            git push origin HEAD:codex/bip-architecture-runtime-01e-screen-router
+            exit "$status"
+          fi
 
       - name: Commit migrated tree
         run: |
