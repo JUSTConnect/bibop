@@ -6,9 +6,6 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-
 jobs:
   godot-parser-gate:
     runs-on: ubuntu-latest
@@ -71,44 +68,3 @@ jobs:
         run: |
           timeout 120s godot --headless --path . \
             --script res://tools/ci/check_map_constructor_prefab_catalog.gd
-
-  patch-screen-router-gameplay-lifecycle:
-    if: github.event_name == 'pull_request' && github.head_ref == 'codex/bip-architecture-runtime-01e-screen-router'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out ScreenRouter branch
-        uses: actions/checkout@v4
-        with:
-          ref: codex/bip-architecture-runtime-01e-screen-router
-          fetch-depth: 0
-
-      - name: Forget destroyed gameplay screen
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('scripts/ui/game_ui.gd')
-          source = path.read_text(encoding='utf-8')
-          old = '''func _destroy_gameplay_runtime() -> void:
-\t_deactivate_map_constructor_mode()
-\t_teardown_runtime_hud()
-'''
-          new = '''func _destroy_gameplay_runtime() -> void:
-\t_deactivate_map_constructor_mode()
-\t_teardown_runtime_hud()
-\tif screen_router != null:
-\t\tscreen_router.forget_screen(ScreenRouterRef.SCREEN_GAMEPLAY)
-'''
-          if source.count(old) != 1:
-              raise RuntimeError(f'expected one gameplay destroy anchor, found {source.count(old)}')
-          path.write_text(source.replace(old, new, 1), encoding='utf-8')
-          PY
-
-      - name: Commit lifecycle fix
-        run: |
-          git config user.name "ChatGPT Project Maintainer"
-          git config user.email "actions@users.noreply.github.com"
-          git add scripts/ui/game_ui.gd
-          git commit -m "Forget destroyed gameplay screen in ScreenRouter"
-          git push origin HEAD:codex/bip-architecture-runtime-01e-screen-router
