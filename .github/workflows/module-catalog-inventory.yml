@@ -1,0 +1,22 @@
+name: Module Catalog Inventory
+
+on:
+  push:
+    branches:
+      - codex/bip-architecture-coordinators-02a-module-catalogs
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build inventory
+        run: python tools/inventory_bipob_module_catalogs.py
+      - name: Upload inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: module-catalog-inventory
+          path: docs/module_catalog_inventory.tmp.md
