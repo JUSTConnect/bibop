@@ -97,10 +97,10 @@ jobs:
           cat /tmp/screen_router_migration.log
           if [ "$status" -ne 0 ]; then
             mkdir -p docs
-            tail -n 80 /tmp/screen_router_migration.log > docs/screen_router_migration_failure.log
+            tail -n 80 /tmp/screen_router_migration.log > docs/screen_router_migration_failure.md
             git config user.name "ChatGPT Project Maintainer"
             git config user.email "actions@users.noreply.github.com"
-            git add docs/screen_router_migration_failure.log
+            git add docs/screen_router_migration_failure.md
             git commit -m "Capture ScreenRouter migration failure" || true
             git push origin HEAD:codex/bip-architecture-runtime-01e-screen-router
             exit "$status"
@@ -127,7 +127,7 @@ jobs:
           rm -f tools/apply_1111_screen_router.py
           rm -f tools/harden_1111_migration.py
           rm -f .github/workflows/apply-1111-screen-router.yml
-          rm -f docs/.screen_router_pr_marker docs/.screen_router_pr_marker2 docs/.screen_router_pr_marker3 docs/.screen_router_pr_marker4 docs/.screen_router_pr_marker5 docs/screen_router_migration_failure.log
+          rm -f docs/.screen_router_pr_marker docs/.screen_router_pr_marker2 docs/.screen_router_pr_marker3 docs/.screen_router_pr_marker4 docs/.screen_router_pr_marker5 docs/screen_router_migration_failure.md
 
       - name: Validate migrated tree
         run: |
