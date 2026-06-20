@@ -9,10 +9,10 @@ const FLOOR_NE: String = "ne"
 const FLOOR_SW: String = "sw"
 const FLOOR_SE: String = "se"
 
-const WALL_SIDE_NORTH: String = "north"
-const WALL_SIDE_EAST: String = "east"
-const WALL_SIDE_SOUTH: String = "south"
-const WALL_SIDE_WEST: String = "west"
+const LEGACY_WALL_SIDE_NORTH: String = "north"
+const LEGACY_WALL_SIDE_EAST: String = "east"
+const LEGACY_WALL_SIDE_SOUTH: String = "south"
+const LEGACY_WALL_SIDE_WEST: String = "west"
 const WALL_SIDE_NW: String = "nw"
 const WALL_SIDE_NE: String = "ne"
 const WALL_SIDE_SW: String = "sw"
@@ -24,16 +24,14 @@ const MIRROR_VERTICAL: String = "vertical"
 const MIRROR_UNSAFE: String = "unsafe"
 
 const FLOOR_FACING_VALUES: Array[String] = [FLOOR_NW, FLOOR_NE, FLOOR_SW, FLOOR_SE]
-const WALL_SIDE_VALUES: Array[String] = [
-	WALL_SIDE_NORTH,
-	WALL_SIDE_EAST,
-	WALL_SIDE_SOUTH,
-	WALL_SIDE_WEST,
-	WALL_SIDE_NW,
-	WALL_SIDE_NE,
-	WALL_SIDE_SW,
-	WALL_SIDE_SE
-]
+const ISO_WALL_SIDE_VALUES: Array[String] = [WALL_SIDE_NW, WALL_SIDE_NE, WALL_SIDE_SW, WALL_SIDE_SE]
+const LEGACY_CARDINAL_WALL_SIDE_ALIASES: Dictionary = {
+	"north": WALL_SIDE_NW,
+	"east": WALL_SIDE_NE,
+	"south": WALL_SIDE_SE,
+	"west": WALL_SIDE_SW
+}
+const WALL_SIDE_VALUES: Array[String] = ISO_WALL_SIDE_VALUES
 
 static func normalize_floor_facing(value: String, fallback: String = FLOOR_SE) -> String:
 	var normalized: String = str(value).strip_edges().to_lower()
@@ -41,17 +39,23 @@ static func normalize_floor_facing(value: String, fallback: String = FLOOR_SE) -
 		return normalized
 	return fallback if FLOOR_FACING_VALUES.has(fallback) else FLOOR_SE
 
-static func normalize_wall_side(value: String, fallback: String = WALL_SIDE_SW) -> String:
+static func normalize_legacy_wall_side_alias(value: String) -> String:
 	var normalized: String = str(value).strip_edges().to_lower()
-	if WALL_SIDE_VALUES.has(normalized):
+	if ISO_WALL_SIDE_VALUES.has(normalized):
 		return normalized
-	return fallback if WALL_SIDE_VALUES.has(fallback) else WALL_SIDE_SW
+	return str(LEGACY_CARDINAL_WALL_SIDE_ALIASES.get(normalized, ""))
+
+static func normalize_wall_side(value: String, fallback: String = WALL_SIDE_SW) -> String:
+	var normalized: String = normalize_legacy_wall_side_alias(value)
+	if ISO_WALL_SIDE_VALUES.has(normalized):
+		return normalized
+	return fallback if ISO_WALL_SIDE_VALUES.has(fallback) else WALL_SIDE_SW
 
 static func is_floor_facing(value: String) -> bool:
 	return FLOOR_FACING_VALUES.has(str(value).strip_edges().to_lower())
 
 static func is_wall_side(value: String) -> bool:
-	return WALL_SIDE_VALUES.has(str(value).strip_edges().to_lower())
+	return ISO_WALL_SIDE_VALUES.has(str(value).strip_edges().to_lower())
 
 static func floor_facing_to_grid_direction(value: String) -> Vector2i:
 	match normalize_floor_facing(value):
@@ -75,13 +79,13 @@ static func grid_direction_to_floor_facing(direction: Vector2i) -> String:
 
 static func wall_side_to_interaction_direction(side: String) -> Vector2i:
 	match normalize_wall_side(side):
-		WALL_SIDE_NORTH, WALL_SIDE_NW:
+		WALL_SIDE_NW:
 			return Vector2i(0, -1)
-		WALL_SIDE_EAST, WALL_SIDE_NE:
+		WALL_SIDE_NE:
 			return Vector2i(1, 0)
-		WALL_SIDE_SOUTH, WALL_SIDE_SE:
+		WALL_SIDE_SE:
 			return Vector2i(0, 1)
-		WALL_SIDE_WEST, WALL_SIDE_SW:
+		WALL_SIDE_SW:
 			return Vector2i(-1, 0)
 		_:
 			return Vector2i(-1, 0)
