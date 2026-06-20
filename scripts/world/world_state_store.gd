@@ -47,13 +47,14 @@ func add_object(object_data: Dictionary) -> Dictionary:
 	if not bool(placement.get("ok", false)): return placement
 	var objects := _duplicate_objects_by_id(_objects_by_id)
 	var order: Array[String] = _object_order.duplicate()
-	objects[object_id] = object_data.duplicate(true)
+	objects[object_id] = Dictionary(placement.get("object", object_data)).duplicate(true)
 	order.append(object_id)
 	var built := _build_state_from_maps(objects, order)
 	if not bool(built.get("ok", false)): return built
-	_commit_state(objects, order, Dictionary(built.get("indexes", {})))
-	changed.emit({"action": "add", "object_id": object_id, "current_cell": _cell(object_data), "layer": _layer(object_data), "warnings": []})
-	return _ok({"object": object_data.duplicate(true)})
+	_commit_state(Dictionary(built.get("objects_by_id", objects)), Array(built.get("object_order", order)), Dictionary(built.get("indexes", {})))
+	var canonical_object: Dictionary = get_object_by_id(object_id)
+	changed.emit({"action": "add", "object_id": object_id, "current_cell": _cell(canonical_object), "layer": _layer(canonical_object), "warnings": []})
+	return _ok({"object": canonical_object})
 
 func upsert_object(object_data: Dictionary) -> Dictionary:
 	return _upsert_object_internal(object_data, "upsert")
@@ -66,14 +67,15 @@ func _upsert_object_internal(object_data: Dictionary, action: String = "") -> Di
 	if not bool(placement.get("ok", false)): return placement
 	var objects := _duplicate_objects_by_id(_objects_by_id)
 	var order: Array[String] = _object_order.duplicate()
-	objects[object_id] = object_data.duplicate(true)
+	objects[object_id] = Dictionary(placement.get("object", object_data)).duplicate(true)
 	if not order.has(object_id): order.append(object_id)
 	var built := _build_state_from_maps(objects, order)
 	if not bool(built.get("ok", false)): return built
-	_commit_state(objects, order, Dictionary(built.get("indexes", {})))
+	_commit_state(Dictionary(built.get("objects_by_id", objects)), Array(built.get("object_order", order)), Dictionary(built.get("indexes", {})))
+	var canonical_object: Dictionary = get_object_by_id(object_id)
 	if not action.is_empty():
-		changed.emit({"action": action, "object_id": object_id, "current_cell": _cell(object_data), "layer": _layer(object_data), "warnings": []})
-	return _ok({"object": object_data.duplicate(true)})
+		changed.emit({"action": action, "object_id": object_id, "current_cell": _cell(canonical_object), "layer": _layer(canonical_object), "warnings": []})
+	return _ok({"object": canonical_object})
 
 func update_object_state(object_id: String, patch: Dictionary) -> Dictionary:
 	if not _objects_by_id.has(object_id): return _fail("missing_object_id")
@@ -156,7 +158,7 @@ func validate_structural_placement(object_data: Dictionary, destination: Vector2
 		for id in Array(_wall_side_bucket(_wall_mount_ids_by_cell_and_side, destination, side)):
 			if str(id) != replacing_object_id: conflicts.append(str(id))
 	if not conflicts.is_empty(): return _fail("%s_cell_occupied" % layer, [], conflicts)
-	return _ok({"layer": layer, "conflicting_object_ids": []})
+	return _ok({"layer": layer, "conflicting_object_ids": [], "object": Dictionary(structural.get("object", object_data)).duplicate(true)})
 
 func apply_non_structural_snapshot(mutated_objects: Array[Dictionary], action: String = "batch_update_state") -> Dictionary:
 	var seen: Dictionary = {}
@@ -292,6 +294,8 @@ func _build_state_from_maps(objects: Dictionary, order: Array[String]) -> Dictio
 		if str(object_id) != _object_id(object_data): return _fail("object_id_key_mismatch")
 		var structural := _validate_structural_object(object_data)
 		if not bool(structural.get("ok", false)): return structural
+		object_data = Dictionary(structural.get("object", object_data)).duplicate(true)
+		objects[object_id] = object_data
 		var conflict := _validate_against_indexes(object_data, indexes, str(object_id))
 		if not bool(conflict.get("ok", false)): return conflict
 		_index_into(indexes, str(object_id), object_data)
@@ -451,10 +455,15 @@ func _validate_structural_object(object_data: Dictionary) -> Dictionary:
 	if not bool(parsed.get("ok", false)): return parsed
 	var cell: Vector2i = Vector2i(parsed.get("cell", Vector2i(-1, -1)))
 	if cell.x < 0 or cell.y < 0: return _fail("negative_position")
+	var canonical: Dictionary = object_data.duplicate(true)
+	canonical["position"] = cell
 	if _is_wall_mounted(object_data):
 		var side_check := _validate_wall_side(object_data)
 		if not bool(side_check.get("ok", false)): return side_check
-	return _ok({"cell": cell})
+		canonical["wall_side"] = str(side_check.get("wall_side", ""))
+		if canonical.has("mount_side"):
+			canonical["mount_side"] = str(side_check.get("wall_side", ""))
+	return _ok({"cell": cell, "object": canonical})
 
 func _parse_cell(object_data: Dictionary) -> Dictionary:
 	if not object_data.has("position"):
@@ -478,7 +487,7 @@ func _validate_wall_side(object_data: Dictionary) -> Dictionary:
 		return _fail("missing_wall_side")
 	var side := _normalize_side(raw_side)
 	if side.is_empty(): return _fail("missing_wall_side")
-	if not (side in ["north", "east", "south", "west"]): return _fail("invalid_wall_side")
+	if not (side in ["nw", "ne", "sw", "se"]): return _fail("invalid_wall_side")
 	return _ok({"wall_side": side})
 
 func _cell(object_data: Dictionary) -> Vector2i:
@@ -486,7 +495,13 @@ func _cell(object_data: Dictionary) -> Vector2i:
 	return Vector2i(parsed.get("cell", Vector2i(-1, -1))) if bool(parsed.get("ok", false)) else Vector2i(-1, -1)
 func _wall_side(object_data: Dictionary) -> String: return _normalize_side(str(object_data.get("wall_side", object_data.get("mount_side", ""))))
 func _normalize_side(side: String) -> String:
-	return side.strip_edges().to_lower()
+	var text := side.strip_edges().to_lower()
+	match text:
+		"north": return "nw"
+		"east": return "ne"
+		"south": return "se"
+		"west": return "sw"
+	return text
 func _object_id(object_data: Dictionary) -> String: return str(object_data.get("id", "")).strip_edges()
 func _patch_has_id_change(object_id: String, patch: Dictionary) -> bool: return patch.has("id") and str(patch.get("id", "")).strip_edges() != object_id
 func _ok(extra: Dictionary = {}) -> Dictionary:
