@@ -6,12 +6,16 @@ on:
       - codex/bip-architecture-runtime-01e-screen-router
     paths:
       - .github/workflows/apply-1111-screen-router.yml
+  pull_request:
+    paths:
+      - .github/workflows/apply-1111-screen-router.yml
 
 permissions:
   contents: write
 
 jobs:
   apply-screen-router:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Check out stacked branch
@@ -27,10 +31,7 @@ jobs:
 
           path = Path("tools/apply_1111_screen_router.py")
           source = path.read_text(encoding="utf-8")
-          source = source.replace(
-              'app_screen_mode = mode_value as AppScreenMode',
-              'app_screen_mode = mode_value',
-          )
+          source = source.replace('app_screen_mode = mode_value as AppScreenMode', 'app_screen_mode = mode_value')
           source = source.replace(
               '\tif bool(payload.get("start_mission", false)):\n\t\t_on_start_mission_button_pressed()\n\tcall_deferred("_attach_runtime_gameplay_view")',
               '\tif bool(payload.get("start_mission", false)):\n\t\t_on_start_mission_button_pressed()\n\tif screen_router != null:\n\t\tscreen_router.set_active_payload({"start_mission": false, "preserve_profile": true})\n\tcall_deferred("_attach_runtime_gameplay_view")',
@@ -83,13 +84,11 @@ def function_block(source: str, name: str) -> str:
             expect(forbidden not in block, f"navigation wrapper {public_name} still mutates screen tree via {forbidden}")
 '''
           new_public_audit = '''    block = function_block(game, public_name)
-    expect(not block.is_empty() if hasattr(block, "is_empty") else bool(block), f"missing public navigation wrapper: {public_name}")
+    expect(bool(block), f"missing public navigation wrapper: {public_name}")
     if block:
         for forbidden in ["_build_fullscreen_root", "add_child(", "queue_free()", ".visible = true", ".visible = false"]:
             expect(forbidden not in block, f"navigation wrapper {public_name} still mutates screen tree via {forbidden}")
 '''
-          # The generated file is Python; use a plain bool expression rather than GDScript's is_empty.
-          new_public_audit = new_public_audit.replace('not block.is_empty() if hasattr(block, "is_empty") else bool(block)', 'bool(block)')
           if old_public_audit not in source:
               raise RuntimeError("public wrapper audit block missing")
           source = source.replace(old_public_audit, new_public_audit, 1)
