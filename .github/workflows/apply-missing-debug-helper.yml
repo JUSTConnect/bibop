@@ -2,12 +2,16 @@ name: Apply missing debug helper fix
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/restore-debug-world-object-helper
 
 permissions:
   contents: write
 
 jobs:
   apply-fix:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Check out fix branch
