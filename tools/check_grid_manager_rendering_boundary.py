@@ -62,6 +62,8 @@ else:
         fail.append('catalog-first layout apply missing')
     if 'grid_manager.call("apply_mission_layout"' not in manager:
         fail.append('catalog layout is not applied through GridManager public API')
+    if 'reset_mission_layout(10' in manager or 'get_mission10_layout(' in manager:
+        fail.append('MissionManager still calls retired TASK TEST GridManager fallback')
 
 if fail:
     print('GridManager boundary violations:')
