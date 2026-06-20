@@ -1,6 +1,7 @@
 extends RefCounted
 class_name MapConstructorUIBridge
 
+
 var owner_ui: Object = null
 var map_constructor_state: Object = null
 var palette_panel: PanelContainer = null
@@ -119,157 +120,16 @@ func make_constructor_warning_item(category: String, severity: String, message: 
 	}
 
 
-func infer_warning_category_from_text(text: String) -> String:
-	var lower_text: String = text.to_lower()
-
-	if lower_text.contains("power") or lower_text.contains("battery"):
-		return "power"
-	if lower_text.contains("data") or lower_text.contains("interface") or lower_text.contains("network"):
-		return "data"
-	if lower_text.contains("external"):
-		return "external"
-	if lower_text.contains("cool") or lower_text.contains("air") or lower_text.contains("intake"):
-		return "cooling"
-	if lower_text.contains("thermal") or lower_text.contains("heat"):
-		return "thermal"
-	if lower_text.contains("damage") or lower_text.contains("repair"):
-		return "damage"
-	if lower_text.contains("overlay") or lower_text.contains("tube") or lower_text.contains("duct"):
-		return "overlay"
-	if lower_text.contains("storage") or lower_text.contains("box"):
-		return "storage"
-	if lower_text.contains("place") or lower_text.contains("slot") or lower_text.contains("cell"):
-		return "placement"
-	if lower_text.contains("consistency") or lower_text.contains("invalid"):
-		return "consistency"
-
-	return "general"
-
-
-func infer_warning_severity_from_text(text: String) -> String:
-	var lower_text: String = text.to_lower()
-
-	if lower_text.contains("critical") or lower_text.contains("missing") or lower_text.contains("invalid"):
-		return "danger"
-
-	if lower_text.contains("warning") or lower_text.contains("required") or lower_text.contains("high"):
-		return "warning"
-
-	if lower_text.contains("info") or lower_text.contains("hypothetical"):
-		return "info"
-
-	return "warning"
-
-
-func get_constructor_warning_items(bipob_ref: Object) -> Array[Dictionary]:
+func get_constructor_warning_items(readiness_result: Dictionary) -> Array[Dictionary]:
 	var items: Array[Dictionary] = []
-	if bipob_ref == null:
-		return items
-
-	if bipob_ref.has_method("is_virtual_power_available") and not bool(bipob_ref.call("is_virtual_power_available")):
-		items.append(make_constructor_warning_item("power", "danger", "Virtual power network is incomplete.", "Install Battery and Power Block, then connect through automatic virtual wiring."))
-
-	if bipob_ref.has_method("is_internal_data_network_available") and not bool(bipob_ref.call("is_internal_data_network_available")):
-		items.append(make_constructor_warning_item("data", "warning", "Internal data network is incomplete.", "Install Internal Interface and required processing/data modules."))
-
-	if bipob_ref.has_method("is_external_data_network_available") and not bool(bipob_ref.call("is_external_data_network_available")):
-		items.append(make_constructor_warning_item("external", "warning", "External devices do not have a complete data bridge.", "Install External Interface and Internal Interface."))
-
-	if bipob_ref.has_method("has_air_cooling_requiring_intake") and bipob_ref.has_method("has_external_air_intake"):
-		if bool(bipob_ref.call("has_air_cooling_requiring_intake")) and not bool(bipob_ref.call("has_external_air_intake")):
-			items.append(make_constructor_warning_item("cooling", "warning", "Air cooling requires an external Air Intake.", "Place Air Intake Node on an external slot."))
-
-	if bipob_ref.has_method("get_highest_internal_preview_heat"):
-		var highest_heat: int = int(bipob_ref.call("get_highest_internal_preview_heat"))
-		if highest_heat >= 5:
-			items.append(make_constructor_warning_item("thermal", "danger", "Thermal preview reaches critical heat 5.", "Add cooling, move hot modules apart, or plan overlay cooling."))
-		elif highest_heat >= 4:
-			items.append(make_constructor_warning_item("thermal", "warning", "Thermal preview has high heat 4.", "Consider cooler/radiator placement before mission use."))
-
-	if bipob_ref.has_method("get_damage_preview_critical_count") and bipob_ref.has_method("get_damage_preview_warning_count"):
-		var damage_critical_count: int = int(bipob_ref.call("get_damage_preview_critical_count"))
-		var damage_warning_count: int = int(bipob_ref.call("get_damage_preview_warning_count"))
-		if damage_critical_count > 0:
-			items.append(make_constructor_warning_item("damage", "danger", "Damage preview has %d critical module(s)." % damage_critical_count, "Lower heat below damage threshold."))
-		elif damage_warning_count > 0:
-			items.append(make_constructor_warning_item("damage", "warning", "Damage preview has %d module(s) near threshold." % damage_warning_count, "Add cooling or move modules before using active abilities."))
-
-	if bipob_ref.has_method("get_overlay_heat_diff_compact_text"):
-		var overlay_text: String = str(bipob_ref.call("get_overlay_heat_diff_compact_text"))
-		if not overlay_text.contains("changed 0"):
-			items.append(make_constructor_warning_item("overlay", "info", "Overlay paths may improve hypothetical thermal preview.", "Overlay effects are informational until later gameplay rules."))
-
-	if bipob_ref.has_method("get_constructor_consistency_issue_count"):
-		var consistency_count: int = int(bipob_ref.call("get_constructor_consistency_issue_count"))
-		if consistency_count > 0:
-			items.append(make_constructor_warning_item("consistency", "danger", "Constructor consistency has %d issue(s)." % consistency_count, "Run Checkpoint and fix missing metadata or invalid records."))
-	elif bipob_ref.has_method("get_constructor_consistency_check_text"):
-		var consistency_text: String = str(bipob_ref.call("get_constructor_consistency_check_text"))
-		if not consistency_text.contains("OK") and not consistency_text.contains("ok"):
-			items.append(make_constructor_warning_item("consistency", "warning", "Constructor consistency needs review.", "Open Checkpoint or Overlay Check."))
-
-	if bipob_ref.has_method("get_constructor_warning_lines"):
-		var warning_lines: Array = _safe_array(bipob_ref.call("get_constructor_warning_lines"))
-		for warning_line_variant in warning_lines:
-			var line_text: String = str(warning_line_variant)
-			if line_text.is_empty():
-				continue
-			var already_covered: bool = false
-			for item in items:
-				if str(item.get("message", "")) == line_text:
-					already_covered = true
-					break
-			if not already_covered:
-				var inferred_category: String = infer_warning_category_from_text(line_text)
-				items.append(make_constructor_warning_item(inferred_category, infer_warning_severity_from_text(line_text), line_text, get_warning_category_hint(inferred_category)))
-
+	for item in readiness_result.get("items", []):
+		if item is Dictionary:
+			items.append((item as Dictionary).duplicate(true))
 	return items
 
 
-func get_constructor_readiness_state(bipob_ref: Object) -> Dictionary:
-	var constructor_ready: bool = false
-	var label: String = "NOT READY"
-	var severity: String = "warning"
-	var hint: String = "Review constructor warnings."
-	if bipob_ref == null:
-		return {"ready": constructor_ready, "label": label, "severity": severity, "hint": hint, "danger_count": 0, "warning_count": 0}
-
-	if bipob_ref.has_method("is_constructor_ready"):
-		constructor_ready = bool(bipob_ref.call("is_constructor_ready"))
-	elif bipob_ref.has_method("get_constructor_readiness_compact_text"):
-		var ready_text: String = str(bipob_ref.call("get_constructor_readiness_compact_text"))
-		var ready_lower: String = ready_text.to_lower()
-		constructor_ready = ready_lower.contains("ready") and not ready_lower.contains("not ready")
-
-	if constructor_ready:
-		label = "READY"
-		severity = "ok"
-		hint = "Configuration passes current constructor readiness checks."
-
-	var warning_items: Array[Dictionary] = get_constructor_warning_items(bipob_ref)
-	var danger_count: int = 0
-	var warning_count: int = 0
-	for item in warning_items:
-		var item_severity: String = str(item.get("severity", "warning"))
-		if item_severity == "danger":
-			danger_count += 1
-		elif item_severity == "warning":
-			warning_count += 1
-
-	if danger_count > 0:
-		label = "BLOCKED"
-		severity = "danger"
-		hint = "Fix critical constructor issues first."
-	elif warning_count > 0 and constructor_ready:
-		label = "READY WITH WARNINGS"
-		severity = "warning"
-		hint = "Configuration can continue, but warnings remain."
-	elif warning_count > 0:
-		label = "NOT READY"
-		severity = "warning"
-		hint = "Fix warnings or complete required modules."
-
-	return {"ready": constructor_ready, "label": label, "severity": severity, "hint": hint, "danger_count": danger_count, "warning_count": warning_count}
+func get_constructor_readiness_state(readiness_result: Dictionary) -> Dictionary:
+	return readiness_result.duplicate(true)
 
 
 func get_warning_severity_rank(severity: String) -> int:
@@ -294,12 +154,12 @@ func sort_warning_items_for_display(items: Array[Dictionary]) -> Array[Dictionar
 	return sorted_items
 
 
-func build_warning_panel(bipob_ref: Object) -> Control:
-	return create_constructor_warning_readiness_panel(bipob_ref)
+func build_warning_panel(readiness_result: Dictionary) -> Control:
+	return create_constructor_warning_readiness_panel(readiness_result)
 
 
-func create_constructor_readiness_banner(bipob_ref: Object) -> Control:
-	var state: Dictionary = get_constructor_readiness_state(bipob_ref)
+func create_constructor_readiness_banner(readiness_result: Dictionary) -> Control:
+	var state: Dictionary = get_constructor_readiness_state(readiness_result)
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_badge_style(panel, get_warning_severity_role(str(state.get("severity", "warning"))))
 	var root: VBoxContainer = VBoxContainer.new()
@@ -347,7 +207,7 @@ func create_warning_item_card(item: Dictionary) -> Control:
 	return panel
 
 
-func create_constructor_warning_readiness_panel(bipob_ref: Object) -> Control:
+func create_constructor_warning_readiness_panel(readiness_result: Dictionary) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_owner_panel_style(panel, true)
 	var root: VBoxContainer = VBoxContainer.new()
@@ -358,8 +218,8 @@ func create_constructor_warning_readiness_panel(bipob_ref: Object) -> Control:
 	title.text = "READINESS / WARNINGS"
 	_apply_owner_label_style(title, false, true)
 	root.add_child(title)
-	root.add_child(create_constructor_readiness_banner(bipob_ref))
-	var items: Array[Dictionary] = get_constructor_warning_items(bipob_ref)
+	root.add_child(create_constructor_readiness_banner(readiness_result))
+	var items: Array[Dictionary] = get_constructor_warning_items(readiness_result)
 	if items.is_empty():
 		root.add_child(create_warning_item_card(make_constructor_warning_item("general", "ok", "No constructor warnings.", "Configuration is clean for the current rule set.")))
 	else:
