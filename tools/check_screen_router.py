@@ -49,9 +49,9 @@ for screen_id in [
 ]:
     expect(screen_id in game, f"screen is not registered/routed: {screen_id}")
 
-for match in re.finditer(r"_build_fullscreen_root\(", game):
+for match in re.finditer(r"(?<!func )_build_fullscreen_root\(", game):
     function_name = function_at(game, match.start())
-    expect(function_name.startswith("_screen_factory_") or function_name == "_build_fullscreen_root", f"direct top-level root creation outside factory: {function_name}")
+    expect(function_name.startswith("_screen_factory_"), f"direct top-level root creation outside factory: {function_name}")
 
 for match in re.finditer(r"^\s*app_screen_mode\s*=", game, re.M):
     function_name = function_at(game, match.start())
