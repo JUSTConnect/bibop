@@ -3,6 +3,8 @@ from pathlib import Path
 import re
 import sys
 
+# Static architecture audit. Runtime behavior is exercised separately by
+# tools/ci/check_event_driven_runtime_hud.gd in the Godot parser/load gate.
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
 
