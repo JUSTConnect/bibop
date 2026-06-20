@@ -594,6 +594,7 @@ func _destroy_gameplay_runtime() -> void:
 	if mission_manager_runtime != null and is_instance_valid(mission_manager_runtime):
 		mission_manager_runtime.queue_free()
 	bipob = null
+	latest_constructor_readiness_result = {}
 	field_runtime = null
 	mission_manager_runtime = null
 	runtime_storage_panel_collapsed = false
@@ -628,7 +629,7 @@ func _on_runtime_bipob_status_changed() -> void:
 
 
 func _refresh_constructor_readiness_result() -> Dictionary:
-	latest_constructor_readiness_result = RuntimeReadinessServiceRef.evaluate_constructor(bipob)
+	latest_constructor_readiness_result = RuntimeReadinessServiceRef.evaluate_constructor(bipob).duplicate(true)
 	return latest_constructor_readiness_result
 
 func _get_latest_constructor_readiness_result() -> Dictionary:
@@ -885,7 +886,7 @@ func _make_constructor_warning_item(category: String, severity: String, message:
 
 func _get_constructor_warning_items() -> Array[Dictionary]:
 	_ensure_map_constructor_ui_bridge()
-	return map_constructor_ui_bridge.get_constructor_warning_items(bipob)
+	return map_constructor_ui_bridge.get_constructor_warning_items(_get_latest_constructor_readiness_result())
 
 
 func _get_constructor_readiness_state() -> Dictionary:
@@ -904,7 +905,7 @@ func _sort_warning_items_for_display(items: Array[Dictionary]) -> Array[Dictiona
 
 func _create_constructor_readiness_banner() -> Control:
 	_ensure_map_constructor_ui_bridge()
-	return map_constructor_ui_bridge.create_constructor_readiness_banner(bipob)
+	return map_constructor_ui_bridge.create_constructor_readiness_banner(_get_latest_constructor_readiness_result())
 
 
 func _create_warning_item_card(item: Dictionary) -> Control:
@@ -914,7 +915,7 @@ func _create_warning_item_card(item: Dictionary) -> Control:
 
 func _create_constructor_warning_readiness_panel() -> Control:
 	_ensure_map_constructor_ui_bridge()
-	return map_constructor_ui_bridge.build_warning_panel(bipob)
+	return map_constructor_ui_bridge.build_warning_panel(_get_latest_constructor_readiness_result())
 
 
 func _load_cached_module_type_icon_texture(path: String) -> Texture2D:
@@ -7315,6 +7316,7 @@ func _load_bipob_profile(profile_id: String) -> void:
 	_apply_constructor_profile_dimensions(profile_id)
 	_apply_constructor_profile_state(constructor_profiles[profile_id])
 	active_bipob_profile_id = profile_id
+	_refresh_constructor_readiness_result()
 	_update_bipob_selector_visuals()
 
 func _switch_active_bipob(profile_id: String) -> void:
@@ -9863,6 +9865,7 @@ func _toggle_map_constructor_mode() -> void:
 		return
 	map_constructor_state.map_constructor_mode_active = true
 	map_constructor_state.map_constructor_validation_overlay_visible = true
+	_refresh_constructor_readiness_result()
 	_set_room_visual_map_constructor_editor_render_active(true)
 	_request_map_constructor_overlay_refresh()
 	if bipob != null:
@@ -14596,6 +14599,7 @@ func _build_map_constructor_overlay_power() -> Array[Dictionary]:
 	return result
 
 func _refresh_map_constructor_browser() -> void:
+	_refresh_constructor_readiness_result()
 	_ensure_map_constructor_ui_bridge()
 	map_constructor_ui_bridge.refresh(self)
 

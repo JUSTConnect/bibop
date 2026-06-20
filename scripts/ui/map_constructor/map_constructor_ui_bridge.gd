@@ -1,7 +1,6 @@
 extends RefCounted
 class_name MapConstructorUIBridge
 
-const RuntimeReadinessServiceRef = preload("res://scripts/game/runtime_readiness_service.gd")
 
 var owner_ui: Object = null
 var map_constructor_state: Object = null
@@ -121,16 +120,16 @@ func make_constructor_warning_item(category: String, severity: String, message: 
 	}
 
 
-func get_constructor_warning_items(bipob_ref: Object) -> Array[Dictionary]:
-	var result: Dictionary = RuntimeReadinessServiceRef.evaluate_constructor(bipob_ref)
+func get_constructor_warning_items(readiness_result: Dictionary) -> Array[Dictionary]:
 	var items: Array[Dictionary] = []
-	for item in result.get("items", []):
-		items.append(item)
+	for item in readiness_result.get("items", []):
+		if item is Dictionary:
+			items.append((item as Dictionary).duplicate(true))
 	return items
 
 
-func get_constructor_readiness_state(bipob_ref: Object) -> Dictionary:
-	return RuntimeReadinessServiceRef.evaluate_constructor(bipob_ref)
+func get_constructor_readiness_state(readiness_result: Dictionary) -> Dictionary:
+	return readiness_result.duplicate(true)
 
 
 func get_warning_severity_rank(severity: String) -> int:
@@ -155,12 +154,12 @@ func sort_warning_items_for_display(items: Array[Dictionary]) -> Array[Dictionar
 	return sorted_items
 
 
-func build_warning_panel(bipob_ref: Object) -> Control:
-	return create_constructor_warning_readiness_panel(bipob_ref)
+func build_warning_panel(readiness_result: Dictionary) -> Control:
+	return create_constructor_warning_readiness_panel(readiness_result)
 
 
-func create_constructor_readiness_banner(bipob_ref: Object) -> Control:
-	var state: Dictionary = get_constructor_readiness_state(bipob_ref)
+func create_constructor_readiness_banner(readiness_result: Dictionary) -> Control:
+	var state: Dictionary = get_constructor_readiness_state(readiness_result)
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_badge_style(panel, get_warning_severity_role(str(state.get("severity", "warning"))))
 	var root: VBoxContainer = VBoxContainer.new()
@@ -208,7 +207,7 @@ func create_warning_item_card(item: Dictionary) -> Control:
 	return panel
 
 
-func create_constructor_warning_readiness_panel(bipob_ref: Object) -> Control:
+func create_constructor_warning_readiness_panel(readiness_result: Dictionary) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
 	_apply_owner_panel_style(panel, true)
 	var root: VBoxContainer = VBoxContainer.new()
@@ -219,8 +218,8 @@ func create_constructor_warning_readiness_panel(bipob_ref: Object) -> Control:
 	title.text = "READINESS / WARNINGS"
 	_apply_owner_label_style(title, false, true)
 	root.add_child(title)
-	root.add_child(create_constructor_readiness_banner(bipob_ref))
-	var items: Array[Dictionary] = get_constructor_warning_items(bipob_ref)
+	root.add_child(create_constructor_readiness_banner(readiness_result))
+	var items: Array[Dictionary] = get_constructor_warning_items(readiness_result)
 	if items.is_empty():
 		root.add_child(create_warning_item_card(make_constructor_warning_item("general", "ok", "No constructor warnings.", "Configuration is clean for the current rule set.")))
 	else:

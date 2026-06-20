@@ -1051,17 +1051,7 @@ func get_constructor_consistency_check_text() -> String:
 	return get_constructor_consistency_text()
 
 func get_constructor_consistency_issue_count() -> int:
-	var count: int = 0
-	var text: String = ""
-	if has_method("get_constructor_consistency_text"):
-		text = get_constructor_consistency_text()
-	elif has_method("get_constructor_consistency_check_text"):
-		text = get_constructor_consistency_check_text()
-	for line in text.split("\n"):
-		var lower_line: String = str(line).to_lower()
-		if lower_line.contains("missing") or lower_line.contains("invalid") or lower_line.contains("error"):
-			count += 1
-	return count
+	return get_constructor_consistency_issue_lines().size()
 
 func recalculate_module_stats() -> void:
 	# MVP module model: aggregate passive stats from functional installed modules.
@@ -3242,6 +3232,86 @@ func get_all_constructor_modules() -> Array[BipobModule]:
 
 	return modules
 
+func _get_unique_module_ids(modules: Array) -> Array[String]:
+	var ids: Array[String] = []
+	for module_variant in modules:
+		var module: BipobModule = module_variant
+		if module == null:
+			continue
+		var module_id: String = module.id
+		if not module_id.is_empty() and not ids.has(module_id):
+			ids.append(module_id)
+	ids.sort()
+	return ids
+
+func get_virtual_power_affected_module_ids() -> Array[String]:
+	var modules: Array[BipobModule] = []
+	for module in get_unique_internal_modules():
+		if module == null:
+			continue
+		if module.internal_role == "battery" or module.internal_role == "power_block":
+			modules.append(module)
+	return _get_unique_module_ids(modules)
+
+func get_internal_data_affected_module_ids() -> Array[String]:
+	var modules: Array[BipobModule] = []
+	for module in get_unique_internal_modules():
+		if module != null and module.internal_role == "internal_interface":
+			modules.append(module)
+	return _get_unique_module_ids(modules)
+
+func get_external_data_affected_module_ids() -> Array[String]:
+	var modules: Array[BipobModule] = []
+	for module in get_unique_internal_modules():
+		if module == null:
+			continue
+		if module.internal_role == "internal_interface" or module.internal_role == "external_interface":
+			modules.append(module)
+	return _get_unique_module_ids(modules)
+
+func get_air_cooling_affected_module_ids() -> Array[String]:
+	var modules: Array[BipobModule] = []
+	for module in get_unique_internal_modules():
+		if module != null and module.requires_air_intake:
+			modules.append(module)
+	for module in get_unique_external_modules():
+		if module != null and module.id == "air_intake_v1":
+			modules.append(module)
+	return _get_unique_module_ids(modules)
+
+func get_thermal_preview_affected_module_ids() -> Array[String]:
+	var modules: Array[BipobModule] = []
+	for module in get_unique_internal_modules():
+		if module != null and get_preview_heat_after_cooling_for_internal_module(module) >= 4:
+			modules.append(module)
+	return _get_unique_module_ids(modules)
+
+func get_damage_preview_affected_module_ids() -> Array[String]:
+	var modules: Array[BipobModule] = []
+	for module in get_unique_internal_modules():
+		if module == null or not module.can_be_damaged:
+			continue
+		var preview_heat: int = get_preview_heat_after_cooling_for_internal_module(module)
+		if preview_heat >= get_module_damage_threshold(module) - 1:
+			modules.append(module)
+	return _get_unique_module_ids(modules)
+
+func has_overlay_preview_changes() -> bool:
+	for module in get_unique_internal_modules():
+		if module != null and get_overlay_heat_delta_for_module(module) != 0:
+			return true
+	return false
+
+func get_overlay_preview_affected_module_ids() -> Array[String]:
+	var modules: Array[BipobModule] = []
+	for module in get_unique_internal_modules():
+		if module != null and get_overlay_heat_delta_for_module(module) != 0:
+			modules.append(module)
+	return _get_unique_module_ids(modules)
+
+func get_constructor_consistency_affected_module_ids() -> Array[String]:
+	return _get_unique_module_ids(get_all_constructor_modules())
+
 func get_allowed_constructor_placement_types() -> Array[String]:
 	return ["internal", "external", "none"]
 
@@ -3745,18 +3815,41 @@ func get_constructor_planning_checkpoint_compact_text() -> String:
 	]
 func get_constructor_readiness_summary_text() -> String:
 	var result: Dictionary = RuntimeReadinessServiceRef.evaluate_constructor(self)
+	var systems: Dictionary = result.get("systems", {})
+	var power: Dictionary = systems.get("power", {})
+	var internal_data: Dictionary = systems.get("internal_data", {})
+	var external_data: Dictionary = systems.get("external_data", {})
+	var thermal: Dictionary = systems.get("thermal", {})
+	var air_intake: Dictionary = systems.get("air_intake", {})
 	var lines: Array[String] = []
 	lines.append("Constructor readiness:")
-	lines.append("- Status: %s" % str(result.get("label", "READY")).capitalize())
-	lines.append("- Warnings: %d" % get_warning_count())
+	lines.append("- Power: %s" % str(power.get("status", "unavailable")))
+	lines.append("- Internal data: %s" % str(internal_data.get("status", "unavailable")))
+	lines.append("- External data: %s" % str(external_data.get("status", "unavailable")))
+	lines.append("- Thermal: %s" % str(thermal.get("status", "unknown")))
+	lines.append("- Air intake: %s" % str(air_intake.get("status", "unknown")))
+	lines.append("- Warnings: %d" % _get_readiness_result_item_count(result))
 	return "\n".join(lines)
 
 func get_constructor_readiness_compact_text() -> String:
 	var result: Dictionary = RuntimeReadinessServiceRef.evaluate_constructor(self)
-	return "Readiness: %s | Warnings %d" % [
-		str(result.get("label", "READY")).capitalize(),
-		get_warning_count()
+	var systems: Dictionary = result.get("systems", {})
+	var power: Dictionary = systems.get("power", {})
+	var internal_data: Dictionary = systems.get("internal_data", {})
+	var external_data: Dictionary = systems.get("external_data", {})
+	var thermal: Dictionary = systems.get("thermal", {})
+	var air_intake: Dictionary = systems.get("air_intake", {})
+	return "Readiness: Power %s | Data %s/%s | Thermal %s | Air %s | Warnings %d" % [
+		str(power.get("status", "unavailable")),
+		str(internal_data.get("status", "unavailable")),
+		str(external_data.get("status", "unavailable")),
+		str(thermal.get("status", "unknown")),
+		str(air_intake.get("status", "unknown")),
+		_get_readiness_result_item_count(result)
 	]
+
+func _get_readiness_result_item_count(result: Dictionary) -> int:
+	return int(result.get("warning_count", 0)) + int(result.get("danger_count", 0)) + int(result.get("info_count", 0))
 
 func get_virtual_connection_summary_text() -> String:
 	var power_available := is_virtual_power_available()
