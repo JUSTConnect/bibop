@@ -51,6 +51,10 @@ const EXPECTED_SCHEMA_FIELDS: Dictionary = {
 
 var failures: Array[String] = []
 
+func _checkpoint(label: String) -> void:
+	print("PREFAB_GATE: %s" % label)
+	OS.flush_stdout()
+
 func _assert(condition: bool, message: String) -> void:
 	if not condition:
 		failures.append(message)
@@ -73,6 +77,7 @@ func _assert_schema_valid(id: String, schema: Array[Dictionary]) -> void:
 		seen_fields[field_name] = true
 
 func _initialize() -> void:
+	_checkpoint("static_catalog:start")
 	var rows: Array[Dictionary] = Catalog.get_catalog_entries()
 	var ids: Array[String] = []
 	for row in rows:
@@ -150,7 +155,11 @@ func _initialize() -> void:
 	var power_socket_schema: Array[Dictionary] = WorldObjectCatalog.get_constructor_prefab_property_schema("power_socket")
 	_assert(not power_socket_schema.is_empty(), "power_socket constructor schema missing")
 	_assert(_schema_field_names(power_socket_schema).has("mount"), "power_socket schema missing mount")
+	_checkpoint("static_catalog:done")
+	_checkpoint("manager_new:start")
 	var manager := MissionManager.new()
+	_checkpoint("manager_new:done")
+	_checkpoint("manager_catalog:start")
 	var manager_catalog_rows: Array[Dictionary] = manager.get_map_constructor_prefab_catalog()
 	var manager_power_socket: Dictionary = {}
 	for manager_row in manager_catalog_rows:
@@ -167,24 +176,33 @@ func _initialize() -> void:
 	var power_socket_contract: Dictionary = WorldObjectCatalog.get_constructor_placement_contract("power_socket")
 	for field in ["default_placement_mode", "default_placement_surface", "supports_floor", "supports_wall", "changes_passability", "blocks_movement"]:
 		_assert(manager_power_socket.get(field) == power_socket_contract.get(field), "MissionManager power_socket %s mismatch" % field)
-	var api_rows := manager.get_map_constructor_prefab_palette_rows({})
-	_assert(bool(api_rows.get("ok", false)), "MissionManager palette API failed")
-	_assert(Array(api_rows.get("categories", [])) == ["Power", "Cooling system", "Movable", "Environments", "Item", "Traps", "Robots", "Control", "Other"], "MissionManager category order changed")
 	var public_catalog: Array[Dictionary] = manager.get_map_constructor_prefab_catalog()
 	_assert(public_catalog.size() == EXPECTED_IDS.size(), "MissionManager catalog size changed")
 	var first_public_row: Dictionary = public_catalog[0]
 	_assert(first_public_row.has("configurable"), "MissionManager catalog row lost configurable")
+	_checkpoint("manager_catalog:done")
+	_checkpoint("manager_palette:start")
+	var api_rows := manager.get_map_constructor_prefab_palette_rows({})
+	_assert(bool(api_rows.get("ok", false)), "MissionManager palette API failed")
+	_assert(Array(api_rows.get("categories", [])) == ["Power", "Cooling system", "Movable", "Environments", "Item", "Traps", "Robots", "Control", "Other"], "MissionManager category order changed")
+	_checkpoint("manager_palette:done")
+	_checkpoint("manager_metadata:start")
 	var alias_result := manager.get_map_constructor_prefab_metadata("fuse_box_installed")
 	_assert(bool(alias_result.get("ok", false)), "MissionManager alias metadata failed")
 	var alias_prefab: Dictionary = Dictionary(alias_result.get("prefab", {}))
 	_assert(str(alias_prefab.get("prefab_id", "")) == "fuse_box_installed", "MissionManager alias requested ID lost")
 	_assert(bool(alias_prefab.get("configurable", false)) == bool(WorldObjectCatalog.get_constructor_prefab_definition("fuse_box").get("configurable", false)), "MissionManager alias configurable not canonical")
+	_checkpoint("manager_metadata:done")
+	_checkpoint("manager_free:start")
 	manager.free()
+	_checkpoint("manager_free:done")
 	manager = null
 	if failures.is_empty():
 		print("Map constructor prefab catalog checks passed.")
+		_checkpoint("quit")
 		quit(0)
 		return
 	for failure in failures:
 		push_error(failure)
+	_checkpoint("quit")
 	quit(1)
