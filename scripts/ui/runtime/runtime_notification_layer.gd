@@ -89,21 +89,6 @@ func from_legacy_hint(message: String, duration: float = DEFAULT_DURATION) -> vo
 	notify(message, classify_legacy_hint(message), duration)
 
 
-func process_runtime_notification_timer(ui_owner: Object, delta: float) -> void:
-	if ui_owner == null or not is_instance_valid(ui_owner):
-		return
-	var timer: float = float(_get_object_property(ui_owner, "runtime_notification_timer"))
-	var runtime_label: Label = _get_object_property(ui_owner, "runtime_notification_label") as Label
-	if timer > 0.0:
-		timer = maxf(0.0, timer - delta)
-		if _object_has_property(ui_owner, "runtime_notification_timer"):
-			ui_owner.set("runtime_notification_timer", timer)
-		if runtime_label != null and is_instance_valid(runtime_label):
-			var pulse: float = 0.70 + 0.30 * abs(sin(float(Time.get_ticks_msec()) / 180.0))
-			runtime_label.modulate = Color(1, 1, 1, pulse)
-	elif runtime_label != null and is_instance_valid(runtime_label):
-		refresh_runtime_notification_fallback(ui_owner)
-
 
 func refresh_runtime_notification_fallback(ui_owner: Object) -> void:
 	if ui_owner == null or not is_instance_valid(ui_owner):
@@ -185,6 +170,8 @@ func _sync_legacy_ui_hint_target(ui_owner: Object, message: String, kind: String
 		ui_owner.set("runtime_notification_timer", duration)
 	if _object_has_property(ui_owner, "runtime_notification_role"):
 		ui_owner.set("runtime_notification_role", kind)
+	if ui_owner.has_method("_restart_runtime_notification_timeout"):
+		ui_owner.call("_restart_runtime_notification_timeout", maxf(duration, 0.0))
 
 
 func _make_style(bg: Color, border: Color) -> StyleBoxFlat:

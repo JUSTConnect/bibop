@@ -8,10 +8,6 @@ static func show_hint(ui, message: String) -> void:
 	show_runtime_notification(ui, message)
 
 
-static func process_runtime_notification_timer(_ui, _delta: float) -> void:
-	# Notification expiry is one-shot Timer driven; frame processing is intentionally empty.
-	return
-
 
 static func refresh_runtime_notification_fallback(ui) -> void:
 	if ui.runtime_notification_label == null:
@@ -53,4 +49,4 @@ static func show_runtime_notification(ui, message: String) -> void:
 	if ui.runtime_notification_panel != null:
 		ui.runtime_notification_panel.add_theme_stylebox_override("panel", ui._make_panel_style(ui.UI_COLOR_PANEL_DARK, color, 1, 8))
 	if ui.has_method("_restart_runtime_notification_timeout"):
-		ui.call("_restart_runtime_notification_timeout")
+		ui.call("_restart_runtime_notification_timeout", 7.0)

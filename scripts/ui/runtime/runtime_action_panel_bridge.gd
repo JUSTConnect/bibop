@@ -115,14 +115,6 @@ func exit_interaction_mode() -> void:
 	RuntimeInteractionPanelRef.exit_mode(ui)
 
 
-func process_feedback(_delta: float) -> void:
-	# Correctness updates are event driven; per-frame work is limited to non-domain drag animation.
-	if ui == null or ui.app_screen_mode != ui.AppScreenMode.GAMEPLAY:
-		return
-
-	if RuntimeHeavyClawPresenterRef.is_drag_active(ui):
-		return
-
 
 func on_move_forward_pressed() -> void:
 	RuntimeHeavyClawPresenterRef.on_forward_pressed(ui)

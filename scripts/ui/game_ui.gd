@@ -32,6 +32,10 @@ class InternalIsoPreviewControl:
 
 	func _ready() -> void:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		add_to_group("game_ui_internal_preview")
+		resized.connect(request_refresh)
+		visibility_changed.connect(request_refresh)
+		request_refresh()
 
 	func request_refresh() -> void:
 		queue_redraw()
@@ -55,6 +59,10 @@ class SelectedModuleMiniPreviewControl:
 
 	func _ready() -> void:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		add_to_group("game_ui_selected_module_preview")
+		resized.connect(request_refresh)
+		visibility_changed.connect(request_refresh)
+		request_refresh()
 
 	func request_refresh() -> void:
 		queue_redraw()
@@ -73,6 +81,10 @@ class ConstructorValidationOverlayControl:
 
 	func _ready() -> void:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		add_to_group("game_ui_validation_overlay_preview")
+		resized.connect(request_refresh)
+		visibility_changed.connect(request_refresh)
+		request_refresh()
 
 	func request_refresh() -> void:
 		queue_redraw()
@@ -592,6 +604,7 @@ func _ensure_gameplay_runtime_created() -> bool:
 
 func _destroy_gameplay_runtime() -> void:
 	_deactivate_map_constructor_mode()
+	_teardown_runtime_hud()
 	if bipob != null and is_instance_valid(bipob):
 		bipob.queue_free()
 	if field_runtime != null and is_instance_valid(field_runtime):
@@ -627,6 +640,8 @@ func _sync_runtime_bipob_visual_state() -> void:
 func _on_runtime_bipob_status_changed() -> void:
 	request_runtime_hud_refresh("status_changed")
 	_refresh_constructor_readiness_result()
+	if map_constructor_state.map_constructor_mode_active:
+		_refresh_map_constructor_inspector_structure()
 	update_status()
 	update_diagnostic_status()
 	update_terminal_response_hud()
@@ -636,6 +651,7 @@ func _on_runtime_bipob_status_changed() -> void:
 
 func _refresh_constructor_readiness_result() -> Dictionary:
 	latest_constructor_readiness_result = RuntimeReadinessServiceRef.evaluate_constructor(bipob).duplicate(true)
+	request_constructor_previews_refresh("readiness_changed")
 	return latest_constructor_readiness_result
 
 func _get_latest_constructor_readiness_result() -> Dictionary:
@@ -4679,21 +4695,47 @@ func _create_bipob_switcher_panel() -> PanelContainer:
 	return RuntimeBipobSwitcherRef.build(self, runtime_hud_root, margin, top_offset)
 
 
+
+func _request_preview_group_refresh(group_name: StringName) -> void:
+	if get_tree() == null:
+		return
+	for preview_node in get_tree().get_nodes_in_group(group_name):
+		if preview_node != null and is_instance_valid(preview_node) and preview_node.has_method("request_refresh"):
+			preview_node.call("request_refresh")
+
+
+func request_internal_preview_refresh(_reason: String = "state_changed") -> void:
+	_request_preview_group_refresh(&"game_ui_internal_preview")
+
+
+func request_selected_module_preview_refresh(_reason: String = "state_changed") -> void:
+	_request_preview_group_refresh(&"game_ui_selected_module_preview")
+
+
+func request_constructor_validation_overlay_refresh(_reason: String = "state_changed") -> void:
+	_request_preview_group_refresh(&"game_ui_validation_overlay_preview")
+
+
+func request_constructor_previews_refresh(reason: String = "state_changed") -> void:
+	request_internal_preview_refresh(reason)
+	request_selected_module_preview_refresh(reason)
+	request_constructor_validation_overlay_refresh(reason)
+
+
+func _refresh_map_constructor_inspector_structure() -> void:
+	MapConstructorInspectorStructureRef.apply_from_ui(self)
+
 func _initialize_runtime_hud() -> void:
 	if runtime_hud_initialized and runtime_hud_root != null and is_instance_valid(runtime_hud_root):
 		_set_runtime_hud_visible(true)
-		request_runtime_hud_refresh("runtime_hud_initialized")
+		request_runtime_hud_refresh("runtime_hud_reused")
+		request_constructor_previews_refresh("runtime_hud_reused")
 		return
 	_apply_runtime_hud_layout()
 	runtime_hud_initialized = true
-	_bind_runtime_hud_signals()
 	_set_runtime_hud_visible(true)
 	request_runtime_hud_refresh("runtime_hud_created")
-
-
-func _bind_runtime_hud_signals() -> void:
-	# Bipob signals are connected by _wire_runtime_bipob_signals(); this hook documents HUD lifecycle ownership.
-	pass
+	request_constructor_previews_refresh("runtime_hud_created")
 
 
 func request_runtime_hud_refresh(reason: String = "state_changed") -> void:
@@ -4703,9 +4745,11 @@ func request_runtime_hud_refresh(reason: String = "state_changed") -> void:
 	call_deferred("_refresh_runtime_hud_from_state", reason)
 
 
-func _refresh_runtime_hud_from_state(reason: String = "state_changed") -> void:
+func _refresh_runtime_hud_from_state(_reason: String = "state_changed") -> void:
 	runtime_hud_refresh_pending = false
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
+		return
+	if not runtime_hud_initialized or runtime_hud_root == null or not is_instance_valid(runtime_hud_root):
 		return
 	_refresh_runtime_mission_objective_label()
 	_refresh_runtime_interaction_controls()
@@ -4719,32 +4763,106 @@ func _set_runtime_hud_visible(visible_state: bool) -> void:
 		runtime_hud_root.visible = visible_state
 
 
-func _teardown_runtime_hud() -> void:
-	runtime_hud_initialized = false
-	runtime_hud_refresh_pending = false
-	if runtime_notification_tween != null:
-		runtime_notification_tween.kill()
-	runtime_notification_tween = null
-	if runtime_notification_timeout != null and is_instance_valid(runtime_notification_timeout):
-		runtime_notification_timeout.stop()
-	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
-		remove_child(runtime_hud_root)
-		runtime_hud_root.queue_free()
-	runtime_hud_root = null
+func _restore_persistent_runtime_buttons_to_command_panel() -> void:
+	if command_panel == null or not is_instance_valid(command_panel):
+		return
+	var command_list: Node = command_panel.get_node_or_null("CommandList")
+	if command_list == null:
+		return
+	for button in [restart_mission_button, return_to_box_button, settings_button, exit_main_menu_button]:
+		if button != null and is_instance_valid(button):
+			_safe_reparent_control(button, command_list)
+
+
+func _clear_runtime_hud_bindings() -> void:
 	runtime_mission_field_host = null
+	runtime_bipob_switcher_panel = null
+	runtime_menu_button = null
+	runtime_menu_overlay = null
+	runtime_pocket_flyout = null
+	runtime_storage_flyout = null
+	runtime_storage_panel = null
+	runtime_storage_panel_body = null
+	runtime_storage_collapse_button = null
 	runtime_energy_label = null
 	runtime_actions_label = null
 	runtime_info_actions_label = null
 	mission_goal_value_label = null
 	runtime_notification_label = null
 	runtime_notification_panel = null
+	runtime_terminal_response_panel = null
+	runtime_terminal_response_label = null
 	runtime_base_controls_grid = null
+	runtime_interaction_actions_row = null
+	runtime_move_forward_button = null
+	runtime_move_backward_button = null
+	runtime_turn_left_button = null
+	runtime_turn_right_button = null
+	runtime_action_button = null
+	runtime_connect_button = null
+	runtime_heavy_claw_button = null
+	runtime_cut_button = null
+	runtime_end_turn_button = null
 	runtime_world_actions_panel = null
 	runtime_world_actions_target_label = null
 	runtime_world_actions_state_label = null
 	runtime_world_actions_behavior_label = null
 	runtime_world_actions_list = null
 	runtime_world_actions_no_actions_label = null
+	runtime_world_actions_selected_button = null
+	runtime_manipulator_content_label = null
+	runtime_buffer_content_label = null
+	runtime_key_summary_label = null
+	runtime_pocket_title_label = null
+	runtime_digital_title_label = null
+	runtime_digital_store_title_label = null
+	runtime_object_info_panel = null
+	runtime_map_constructor_palette_panel = null
+	runtime_map_constructor_inspector_panel = null
+	runtime_map_constructor_inspector_scroll = null
+	runtime_map_constructor_overview_hud_panel = null
+	runtime_map_constructor_overview_hud_scroll = null
+	runtime_map_constructor_validation_overlay_control = null
+	runtime_map_constructor_place_confirm_panel = null
+	runtime_mission_bipob_cards.clear()
+	runtime_manipulator_slots.clear()
+	runtime_pocket_slots.clear()
+	runtime_digital_slots.clear()
+	runtime_pocket_take_buttons.clear()
+	runtime_digital_load_buttons.clear()
+	runtime_key_slots.clear()
+	runtime_interaction_actions_signature = ""
+	last_world_action_target_id = ""
+	last_world_action_actions_key = ""
+	last_world_action_selected = ""
+	last_world_action_state_key = ""
+	runtime_selected_interaction_target.clear()
+
+
+func _teardown_runtime_hud() -> void:
+	runtime_hud_initialized = false
+	runtime_hud_refresh_pending = false
+	runtime_notification_timer = 0.0
+	if runtime_notification_tween != null:
+		runtime_notification_tween.kill()
+	runtime_notification_tween = null
+	if runtime_notification_timeout != null and is_instance_valid(runtime_notification_timeout):
+		runtime_notification_timeout.stop()
+	_restore_persistent_runtime_buttons_to_command_panel()
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
+		remove_child(runtime_hud_root)
+		runtime_hud_root.queue_free()
+	runtime_hud_root = null
+	_clear_runtime_hud_bindings()
+
+
+func _relayout_runtime_hud() -> void:
+	if not runtime_hud_initialized or runtime_hud_root == null or not is_instance_valid(runtime_hud_root):
+		return
+	_apply_runtime_hud_layout()
+	_set_runtime_hud_visible(true)
+	request_runtime_hud_refresh("viewport_resized")
+	request_constructor_previews_refresh("viewport_resized")
 
 
 func explicit_rebuild_runtime_hud() -> void:
@@ -4942,14 +5060,20 @@ func _ensure_runtime_notification_timeout() -> void:
 	runtime_notification_timeout.timeout.connect(_on_runtime_notification_timeout)
 
 
-func _restart_runtime_notification_timeout() -> void:
+func _restart_runtime_notification_timeout(duration: float = 7.0) -> void:
 	_ensure_runtime_notification_timeout()
 	if runtime_notification_tween != null:
 		runtime_notification_tween.kill()
 	runtime_notification_tween = null
-	if runtime_notification_timeout != null:
-		runtime_notification_timeout.start(7.0)
-	if runtime_notification_label != null:
+	if runtime_notification_timeout != null and is_instance_valid(runtime_notification_timeout):
+		runtime_notification_timeout.stop()
+	if duration <= 0.0:
+		_on_runtime_notification_timeout()
+		return
+	runtime_notification_timer = duration
+	if runtime_notification_timeout != null and is_instance_valid(runtime_notification_timeout):
+		runtime_notification_timeout.start(duration)
+	if runtime_notification_label != null and is_instance_valid(runtime_notification_label):
 		runtime_notification_tween = create_tween()
 		runtime_notification_tween.set_loops()
 		runtime_notification_tween.tween_property(runtime_notification_label, "modulate", Color(1, 1, 1, 0.70), 0.35)
@@ -4957,10 +5081,12 @@ func _restart_runtime_notification_timeout() -> void:
 
 
 func _on_runtime_notification_timeout() -> void:
+	runtime_notification_timer = 0.0
 	if runtime_notification_tween != null:
 		runtime_notification_tween.kill()
 	runtime_notification_tween = null
 	_refresh_runtime_notification_fallback()
+
 
 func _refresh_runtime_notification_fallback() -> void:
 	RuntimeNotifications.refresh_runtime_notification_fallback(self)
@@ -5362,8 +5488,6 @@ func _ready() -> void:
 		exit_main_menu_button.pressed.connect(_on_runtime_exit_to_main_menu_pressed)
 		command_list.add_child(exit_main_menu_button)
 
-	_initialize_runtime_hud()
-	call_deferred("_attach_runtime_gameplay_view")
 	_assert_single_active_major_screen()
 
 	if move_forward_button != null:
@@ -5529,7 +5653,7 @@ func _hide_runtime_mission_ui() -> void:
 func _set_gameplay_visible(visible_state: bool) -> void:
 	if not visible_state:
 		_hide_runtime_mission_ui()
-		_teardown_runtime_hud()
+		_set_runtime_hud_visible(false)
 	if command_panel != null:
 		command_panel.visible = false
 	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
@@ -6550,8 +6674,9 @@ func _on_viewport_size_changed() -> void:
 		if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
 			update_box_status()
 	if runtime_hud_root != null and is_instance_valid(runtime_hud_root) and runtime_hud_root.visible:
-		_initialize_runtime_hud()
+		_relayout_runtime_hud()
 		call_deferred("_attach_runtime_gameplay_view")
+	request_constructor_previews_refresh("viewport_resized")
 func _apply_box_screen_fullscreen_layout() -> void:
 	if box_menu_root != null and is_instance_valid(box_menu_root):
 		return
@@ -6739,6 +6864,7 @@ func hide_box_screen() -> void:
 	update_diagnostic_status()
 	
 func update_box_status() -> void:
+	request_constructor_previews_refresh("box_status_updated")
 	if bipob == null:
 		return
 	_ensure_action_panel_scrollable()
@@ -9510,11 +9636,11 @@ func _on_repair_back_pressed() -> void:
 func _on_placeholder_back_pressed() -> void:
 	match placeholder_return_screen_mode:
 		AppScreenMode.GAMEPLAY:
+			app_screen_mode = AppScreenMode.GAMEPLAY
 			_hide_all_app_screens()
 			_initialize_runtime_hud()
 			_set_gameplay_visible(true)
 			call_deferred("_attach_runtime_gameplay_view")
-			app_screen_mode = AppScreenMode.GAMEPLAY
 		AppScreenMode.MAIN_MENU:
 			show_main_menu_screen()
 		AppScreenMode.CENTER:
@@ -9711,13 +9837,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_update_map_keyboard_pan(delta)
 	_process_map_constructor_edge_scroll(delta)
-	_process_runtime_interaction_feedback(delta)
 	refresh_object_info_position()
 
-
-func _process_runtime_interaction_feedback(_delta: float) -> void:
-	if runtime_action_panel_bridge != null:
-		runtime_action_panel_bridge.process_feedback(_delta)
 
 
 func set_runtime_selected_interaction_target(target: Dictionary) -> void:
@@ -10700,6 +10821,8 @@ func _add_map_constructor_tab_header(parent: VBoxContainer, available_width: flo
 
 func _refresh_map_constructor_panels() -> void:
 	MapConstructorScreenRef.refresh(self)
+	_refresh_map_constructor_inspector_structure()
+	request_constructor_previews_refresh("map_constructor_panels")
 	_refresh_map_constructor_overview_hud()
 
 
@@ -12349,7 +12472,8 @@ func _add_map_constructor_object_link_sections(link_section: VBoxContainer, enti
 
 func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
 	MapConstructorInspectorRef.refresh(self, cell, preferred_entity_kind, preferred_entity_id)
-	MapConstructorInspectorStructureRef.apply_from_ui(self)
+	_refresh_map_constructor_inspector_structure()
+	request_constructor_previews_refresh("inspector_selection_changed")
 
 func _resolve_wall_material_target_for_selection(entity_info: Dictionary, data: Dictionary, fallback_cell: Vector2i) -> Dictionary:
 	return MapConstructorFloorWallControls.resolve_wall_material_target_for_selection(self, entity_info, data, fallback_cell)
@@ -12701,6 +12825,7 @@ func _update_terminal_response_hud() -> void:
 		runtime_terminal_response_label.text = response_text
 
 func update_status() -> void:
+	request_runtime_hud_refresh("status_updated")
 	if bipob == null:
 		return
 

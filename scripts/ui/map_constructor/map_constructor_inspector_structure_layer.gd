@@ -378,6 +378,10 @@ static func _apply_entity_updates(ui: Object, entity_kind: String, entity_id: St
 		return
 	if ui.has_method("_apply_map_constructor_property_updates"):
 		ui.call("_apply_map_constructor_property_updates", entity_kind, entity_id, updates, hint_text)
+		if ui.has_method("_refresh_map_constructor_inspector_structure"):
+			ui.call("_refresh_map_constructor_inspector_structure")
+		if ui.has_method("request_constructor_previews_refresh"):
+			ui.call("request_constructor_previews_refresh", "inspector_property_updated")
 		return
 	var manager: Object = _get_property(ui, "mission_manager_runtime") as Object
 	if manager == null or not is_instance_valid(manager):
