@@ -1,0 +1,165 @@
+from pathlib import Path
+import re
+
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / 'scripts/bipob/bipob_controller.gd'
+OUT = ROOT / 'scripts/bipob'
+text = SRC.read_text()
+
+# helpers
+
+def extract_block(start_marker: str, end_marker: str) -> str:
+    a = text.index(start_marker)
+    b = text.index(end_marker, a)
+    return text[a:b]
+
+def extract_func(name: str) -> str:
+    m = re.search(rf'(?m)^func {re.escape(name)}\s*\(', text)
+    if not m: raise ValueError(name)
+    start = m.start()
+    n = re.search(r'(?m)^func [A-Za-z0-9_]+\s*\(', text[m.end():])
+    end = m.end()+n.start() if n else len(text)
+    return text[start:end].rstrip()+"\n"
+
+def static_func(src: str) -> str:
+    return src.replace('func ', 'static func ', 1)
+
+# external dictionary exactly, renamed
+external_block = extract_block('const EXTERNAL_MODULE_CATALOG: Dictionary = {', 'const INTERNAL_SIZE_X')
+external_block = external_block.replace('const EXTERNAL_MODULE_CATALOG: Dictionary', 'const EXTERNAL_MODULES: Dictionary', 1).rstrip()
+
+# internal specs exact array
+f = extract_func('add_internal_mvp_modules_to_box')
+a = f.index('var internal_specs: Array[Dictionary] = [')
+# find matching closing ] by lines; known before for spec
+b = f.index('\n\tfor spec in internal_specs:', a)
+spec_block = f[a:b].replace('var internal_specs: Array[Dictionary] =', 'const INTERNAL_MODULE_SPECS: Array[Dictionary] =', 1)
+spec_block = '\n'.join(line[1:] if line.startswith('\t') else line for line in spec_block.splitlines())
+
+catalog_helpers = [
+'get_internal_category_for_module_id','get_internal_family_for_module_id','get_module_version_for_module_id',
+'get_internal_battery_capacity','get_internal_storage_capacity','get_internal_actions_capacity','get_internal_hack_level',
+'get_internal_gpu_value','get_internal_sensor_range_bonus','get_internal_sensor_visibility_bonus','get_internal_cooling_value',
+'get_internal_power_distribution','get_internal_power_ports','get_internal_interface_role','get_internal_interface_ports',
+'get_internal_description_for_module_id','get_internal_overheat_for_module_id','get_internal_energy_effect_text',
+'get_internal_special_effect_text','get_internal_role_for_module_id','get_module_description_for_id'
+]
+helper_text = '\n\n'.join(static_func(extract_func(n)).rstrip() for n in catalog_helpers)
+
+catalog = f'''extends RefCounted
+class_name BipobModuleCatalog
+
+const BipobCapabilityServiceRef = preload("res://scripts/game/bipob_capability_service.gd")
+
+const EXTERNAL_SIDE_TOP := "top"
+const EXTERNAL_SIDE_BOTTOM := "bottom"
+const EXTERNAL_SIDE_LEFT := "left"
+const EXTERNAL_SIDE_RIGHT := "right"
+const EXTERNAL_SIDE_FRONT := "front"
+const EXTERNAL_SIDE_BACK := "back"
+
+const EXTERNAL_SIDE_ORDER: Array[String] = [
+\tEXTERNAL_SIDE_TOP,
+\tEXTERNAL_SIDE_FRONT,
+\tEXTERNAL_SIDE_LEFT,
+\tEXTERNAL_SIDE_RIGHT,
+\tEXTERNAL_SIDE_BACK,
+\tEXTERNAL_SIDE_BOTTOM
+]
+
+const EXTERNAL_CATEGORY_MAP: Dictionary = {{"movement":"Gear","sensor":"Sensors","manipulator":"Manipulator","connector":"Interface","tool":"Tools","repair":"Tools","weapon":"Weapons","armor":"Defense","other":"Other"}}
+
+const MODULE_ALIASES: Dictionary = {{
+\t"manipulator_v1": "manipulator_arm_v1",
+\t"manipulator_tentacle_v1": "manipulator_arm_v1",
+\t"manipulator_magnetic_v1": "magnetic_manipulator_v1",
+\t"interface_v1": "external_interface_connector_v1",
+\t"connector_v1": "external_interface_connector_v1",
+\t"shock_device_v1": "shocker_v1",
+\t"hammer_v1": "sledgehammer_v1",
+\t"repair_module_v1": "repair_v1",
+\t"energy_shield_v1": "shield_module_v1"
+}}
+
+{external_block}
+
+{spec_block}
+
+static func resolve_module_id(module_id: String) -> String:
+\tvar normalized_id := str(module_id).strip_edges()
+\treturn str(MODULE_ALIASES.get(normalized_id, normalized_id))
+
+static func get_external_definition(module_id: String) -> Dictionary:
+\tvar normalized_id := resolve_module_id(module_id)
+\tvar definition: Variant = EXTERNAL_MODULES.get(normalized_id, {{}})
+\treturn Dictionary(definition).duplicate(true) if definition is Dictionary else {{}}
+
+static func get_external_module_ids() -> Array[String]:
+\tvar result: Array[String] = []
+\tfor module_id_variant in EXTERNAL_MODULES.keys():
+\t\tresult.append(str(module_id_variant))
+\treturn result
+
+static func is_external_module_id(module_id: String) -> bool:
+\treturn EXTERNAL_MODULES.has(resolve_module_id(module_id))
+
+static func get_external_side_order() -> Array[String]:
+\treturn EXTERNAL_SIDE_ORDER.duplicate()
+
+static func get_external_category_map() -> Dictionary:
+\treturn EXTERNAL_CATEGORY_MAP.duplicate(true)
+
+static func get_internal_module_specs() -> Array[Dictionary]:
+\tvar result: Array[Dictionary] = []
+\tfor spec_variant in INTERNAL_MODULE_SPECS:
+\t\tresult.append(Dictionary(spec_variant).duplicate(true))
+\treturn result
+
+static func get_internal_spec(module_id: String) -> Dictionary:
+\tfor spec_variant in INTERNAL_MODULE_SPECS:
+\t\tvar spec: Dictionary = spec_variant
+\t\tif str(spec.get("id", "")) == module_id:
+\t\t\treturn spec.duplicate(true)
+\treturn {{}}
+
+static func is_internal_module_id(module_id: String) -> bool:
+\treturn not get_internal_spec(module_id).is_empty()
+
+static func get_internal_definition(module_id: String) -> Dictionary:
+\tvar spec := get_internal_spec(module_id)
+\tif spec.is_empty():
+\t\treturn {{}}
+\treturn {{
+\t\t"id": module_id,
+\t\t"name": str(spec.get("name", module_id)),
+\t\t"size": Vector3i(spec.get("size", Vector3i.ONE)),
+\t\t"family": get_internal_family_for_module_id(module_id),
+\t\t"category": get_internal_category_for_module_id(module_id),
+\t\t"role": get_internal_role_for_module_id(module_id),
+\t\t"version": get_module_version_for_module_id(module_id),
+\t\t"battery_capacity": get_internal_battery_capacity(module_id),
+\t\t"storage_capacity": get_internal_storage_capacity(module_id),
+\t\t"actions_capacity": get_internal_actions_capacity(module_id),
+\t\t"hack_level": get_internal_hack_level(module_id),
+\t\t"gpu_value": get_internal_gpu_value(module_id),
+\t\t"sensor_range_bonus": get_internal_sensor_range_bonus(module_id),
+\t\t"sensor_visibility_bonus": get_internal_sensor_visibility_bonus(module_id),
+\t\t"cooling_value": get_internal_cooling_value(module_id),
+\t\t"power_distribution": get_internal_power_distribution(module_id),
+\t\t"power_ports": get_internal_power_ports(module_id),
+\t\t"interface_role": get_internal_interface_role(module_id),
+\t\t"ports": get_internal_interface_ports(module_id),
+\t\t"description": get_internal_description_for_module_id(module_id),
+\t\t"heat": get_internal_overheat_for_module_id(module_id),
+\t\t"energy_effect": get_internal_energy_effect_text(module_id),
+\t\t"special_effect": get_internal_special_effect_text(module_id)
+\t}}
+
+static func validate_catalog() -> Dictionary:
+\tvar errors: Array[String] = []
+\tvar seen: Dictionary = {{}}
+\tfor module_id_variant in EXTERNAL_MODULES.keys():
+\t\tvar module_id := str(module_id_variant)
+\t\tif seen.has(module_id):
+\t\t\terrors.append("Duplicate module id: %s" % module_id)
+\t\tseen[module_id] = true
