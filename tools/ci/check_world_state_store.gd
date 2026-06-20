@@ -174,7 +174,7 @@ func _run_mission_manager_checks() -> void:
 	var manager: Node = MissionManagerRef.new()
 	var bounds_grid := BoundsGridManager.new()
 	manager.set_grid_manager_ref(bounds_grid)
-	var out_of_bounds := manager.try_set_world_object_at_cell(Vector2i(4, 4), _obj("mm_oob", Vector2i(4, 4)))
+	var out_of_bounds: Dictionary = manager.try_set_world_object_at_cell(Vector2i(4, 4), _obj("mm_oob", Vector2i(4, 4)))
 	_expect(not bool(out_of_bounds.get("ok", true)), "MissionManager rejects out-of-bounds placement before store commit")
 	_expect(manager.get_world_object_by_id("mm_oob").is_empty(), "out-of-bounds MissionManager placement is not committed")
 	manager.set_grid_manager_ref(null)
