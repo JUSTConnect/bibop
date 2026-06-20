@@ -1,6 +1,7 @@
 name: Module Catalog Inventory
 
 on:
+  pull_request:
   push:
     branches:
       - codex/bip-architecture-coordinators-02a-module-catalogs
