@@ -8,6 +8,13 @@ const BipobAirflowRuntimeStateRef = preload("res://scripts/game/bipob_airflow_ru
 var failures: Array[String] = []
 var signal_events: Array[Dictionary] = []
 
+class BoundsGridManager:
+	extends Node
+	var width := 2
+	var height := 2
+	func is_in_bounds(cell: Vector2i) -> bool:
+		return cell.x >= 0 and cell.y >= 0 and cell.x < width and cell.y < height
+
 func _initialize() -> void:
 	_run_store_checks()
 	_run_mission_manager_checks()
@@ -50,6 +57,7 @@ func _visual(id: String, cell: Vector2i) -> Dictionary:
 
 func _run_store_checks() -> void:
 	var store: WorldStateStore = WorldStateStoreRef.new()
+	store.changed.connect(_on_store_changed)
 	_expect(bool(store.add_object(_obj("door_a", Vector2i(1, 1))).get("ok", false)), "adding primary succeeds")
 	_expect(bool(store.add_item(Vector2i(1, 1), _item("item_a", Vector2i(1, 1))).get("ok", false)), "primary + item coexist")
 	_expect(bool(store.add_object(_cable("cable_a", Vector2i(1, 1))).get("ok", false)), "primary + cable coexist")
@@ -60,19 +68,42 @@ func _run_store_checks() -> void:
 	_expect(bool(store.add_object(_visual("visual_a", Vector2i(3, 3))).get("ok", false)), "visual floor can be added")
 	_expect(bool(store.add_object(_obj("device_a", Vector2i(3, 3))).get("ok", false)), "visual floor + gameplay object coexist")
 	var before_count := store.get_object_count()
+	var before_snapshot := store.get_diagnostic_snapshot()
+	var before_events := signal_events.size()
 	_expect(not bool(store.add_object(_obj("door_b", Vector2i(1, 1))).get("ok", true)), "second primary fails")
 	_expect(store.get_object_count() == before_count, "failed add preserves count")
+	_expect(var_to_str(before_snapshot) == var_to_str(store.get_diagnostic_snapshot()), "failed add preserves indexes and order")
+	_expect(signal_events.size() == before_events, "failed add emits no success event")
+	_expect(not bool(store.add_object({"id":"missing_pos", "object_group":"device", "object_type":"terminal"}).get("ok", true)), "missing position is rejected")
+	_expect(not bool(store.add_object({"id":"bad_pos", "object_group":"device", "object_type":"terminal", "position":"1,1"}).get("ok", true)), "malformed position is rejected")
+	_expect(not bool(store.add_object(_obj("negative_pos", Vector2i(-1, 0))).get("ok", true)), "negative position is rejected")
+	_expect(not bool(store.add_object({"id":"missing_side", "object_group":"terminal", "object_type":"terminal", "position":Vector2i(8, 8), "placement_mode":"wall_mounted", "mount":"wall", "is_wall_mounted":true}).get("ok", true)), "missing wall side is rejected")
+	_expect(not bool(store.add_object(_wall("bad_side", Vector2i(8, 8), "ceiling")).get("ok", true)), "invalid wall side is rejected")
+	var before_move_state := store.get_diagnostic_snapshot()
+	before_events = signal_events.size()
 	var failed_move := store.move_object("device_a", Vector2i(1, 1))
 	_expect(not bool(failed_move.get("ok", true)), "moving primary into occupied primary fails")
 	_expect(str(store.get_primary_object_at_cell(Vector2i(3, 3)).get("id", "")) == "device_a", "failed move leaves old primary index")
+	_expect(var_to_str(before_move_state) == var_to_str(store.get_diagnostic_snapshot()), "failed move preserves indexes and order")
+	_expect(signal_events.size() == before_events, "failed move emits no success event")
+	var before_failed_snapshot_state := store.get_diagnostic_snapshot()
+	before_events = signal_events.size()
 	var failed_snapshot := store.replace_snapshot([_obj("ok", Vector2i.ZERO), _obj("bad", Vector2i.ZERO)])
 	_expect(not bool(failed_snapshot.get("ok", true)), "conflicting snapshot fails")
 	_expect(store.get_object_count() == before_count, "failed snapshot preserves live state")
+	_expect(var_to_str(before_failed_snapshot_state) == var_to_str(store.get_diagnostic_snapshot()), "failed snapshot preserves previous state and indexes")
+	_expect(signal_events.size() == before_events, "failed snapshot emits no success event")
+	_expect(not bool(store.replace_snapshot([_obj("snapshot_ok", Vector2i(11, 11)), _wall("snapshot_bad_side", Vector2i(11, 11), "")]).get("ok", true)), "snapshot rejects missing wall side")
 	_expect(not bool(store.move_object("door_a", Vector2i(4, 4), {"id": "hacked"}).get("ok", true)), "move id patch fails")
 	_expect(not bool(store.update_object_state("door_a", {"id": "hacked"}).get("ok", true)), "state id patch fails")
 	_expect(store.get_wall_mounted_objects_at_cell_side(Vector2i(1, 1), "north").size() == 1, "side lookup returns north object")
 	_expect(store.get_wall_mounted_objects_at_cell_side(Vector2i(1, 1), "east").size() == 1, "side lookup returns east object")
 	_expect(not bool(store.add_object(_wall("wall_n2", Vector2i(1, 1), "north")).get("ok", true)), "same wall side conflict fails")
+	var before_update_structure_state := store.get_diagnostic_snapshot()
+	before_events = signal_events.size()
+	_expect(not bool(store.update_object_structure("wall_e", {"wall_side": "north"}).get("ok", true)), "conflicting wall side update fails")
+	_expect(var_to_str(before_update_structure_state) == var_to_str(store.get_diagnostic_snapshot()), "failed update_structure preserves indexes and order")
+	_expect(signal_events.size() == before_events, "failed update_structure emits no success event")
 	_expect(bool(store.update_object_structure("wall_e", {"wall_side": "south"}).get("ok", false)), "wall side update succeeds")
 	_expect(store.get_wall_mounted_objects_at_cell_side(Vector2i(1, 1), "east").is_empty(), "old wall side index clears")
 	_expect(store.get_wall_mounted_objects_at_cell_side(Vector2i(1, 1), "south").size() == 1, "new wall side index updates")
@@ -141,6 +172,12 @@ func _run_store_checks() -> void:
 
 func _run_mission_manager_checks() -> void:
 	var manager: Node = MissionManagerRef.new()
+	var bounds_grid := BoundsGridManager.new()
+	manager.set_grid_manager_ref(bounds_grid)
+	var out_of_bounds := manager.try_set_world_object_at_cell(Vector2i(4, 4), _obj("mm_oob", Vector2i(4, 4)))
+	_expect(not bool(out_of_bounds.get("ok", true)), "MissionManager rejects out-of-bounds placement before store commit")
+	_expect(manager.get_world_object_by_id("mm_oob").is_empty(), "out-of-bounds MissionManager placement is not committed")
+	manager.set_grid_manager_ref(null)
 	manager.set_world_object_at_cell(Vector2i(5, 5), _obj("mm_primary", Vector2i(5, 5)))
 	manager.set_world_object_at_cell(Vector2i(5, 5), _wall("mm_wall", Vector2i(5, 5), "north"))
 	_expect(str(manager.get_world_object_by_id("mm_primary").get("id", "")) == "mm_primary", "adding wall does not remove primary")
@@ -216,5 +253,6 @@ func _run_mission_manager_checks() -> void:
 		"debug seed power network mismatch: %s" % var_to_str(seeded_power)
 	)
 	_expect(manager.world_state_store.validate_consistency().is_empty(), "MissionManager store consistency remains valid")
+	bounds_grid.free()
 	manager.free()
 	manager = null

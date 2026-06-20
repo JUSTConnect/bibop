@@ -3138,6 +3138,9 @@ func get_runtime_cell_block_reason(cell: Vector2i) -> String:
 func try_set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> Dictionary:
 	if object_data.is_empty():
 		return {"ok": false, "reason": "empty_object", "warnings": []}
+	var bounds_check := _validate_world_state_store_cell_bounds(cell)
+	if not bool(bounds_check.get("ok", false)):
+		return bounds_check
 	var normalized: Dictionary = WorldObjectCatalogRef.normalize_door_state_fields(WorldObjectCatalogRef.normalize_world_object_contract(object_data))
 	normalized["position"] = cell
 	var incoming_id: String = str(normalized.get("id", "")).strip_edges()
@@ -3151,6 +3154,13 @@ func try_set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> Di
 		refresh_generic_cable_runtime_state(str(normalized.get("power_network_id", "")))
 		refresh_world_cooling_received()
 	return result
+
+func _validate_world_state_store_cell_bounds(cell: Vector2i) -> Dictionary:
+	if grid_manager == null or not grid_manager.has_method("is_in_bounds"):
+		return {"ok": true, "warnings": []}
+	if not bool(grid_manager.call("is_in_bounds", cell)):
+		return {"ok": false, "reason": "cell_out_of_bounds", "warnings": []}
+	return {"ok": true, "warnings": []}
 
 func set_world_object_at_cell(cell: Vector2i, object_data: Dictionary) -> void:
 	try_set_world_object_at_cell(cell, object_data)

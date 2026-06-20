@@ -141,9 +141,11 @@ func remove_first_item_at_cell(cell: Vector2i) -> Dictionary:
 	return remove_object_by_id(str(ids[0]))
 
 func validate_structural_placement(object_data: Dictionary, destination: Vector2i, replacing_object_id: String = "") -> Dictionary:
+	var structural := _validate_structural_object(object_data)
+	if not bool(structural.get("ok", false)): return structural
 	var object_id := _object_id(object_data)
-	if object_id.is_empty(): return _fail("empty_object_id")
-	if object_data.has("id") and str(object_data.get("id", "")).strip_edges() != object_id: return _fail("empty_object_id")
+	var actual_cell: Vector2i = Vector2i(structural.get("cell", destination))
+	if actual_cell != destination: return _fail("position_destination_mismatch")
 	var layer := _layer(object_data)
 	var conflicts: Array[String] = []
 	if layer == LAYER_PRIMARY:
@@ -288,6 +290,8 @@ func _build_state_from_maps(objects: Dictionary, order: Array[String]) -> Dictio
 		if not seen_order.has(str(object_id)): return _fail("object_missing_order")
 		var object_data: Dictionary = objects[object_id]
 		if str(object_id) != _object_id(object_data): return _fail("object_id_key_mismatch")
+		var structural := _validate_structural_object(object_data)
+		if not bool(structural.get("ok", false)): return structural
 		var conflict := _validate_against_indexes(object_data, indexes, str(object_id))
 		if not bool(conflict.get("ok", false)): return conflict
 		_index_into(indexes, str(object_id), object_data)
@@ -439,19 +443,50 @@ func _is_visual_only_floor_ground_object(object_data: Dictionary) -> bool:
 	var height := str(object_data.get("floor_height_level", object_data.get("floor_visual_height", object_data.get("ground_height", object_data.get("height_level", ""))))).strip_edges().to_lower()
 	var groups: Array[String] = ["floor", "ground", "floor_visual", "visual_floor", "floor_height", "raised_ground"]
 	return group in groups or category in groups or object_type in ["stepped_floor", "raised_ground", "ground_low", "ground_halflow", "ground_low_01", "ground_halflow_01", "floor_stepped", "step_1", "step_2"] or object_type.begins_with("floor_") or object_type.begins_with("ground_") or texture in ["ground_low_01", "ground_low_01.png", "ground_low", "ground_halflow_01", "ground_halflow_01.png", "ground_halflow", "floor_stepped"] or height in ["step_1", "step_2", "ground_low", "ground_halflow", "low", "halflow"]
-func _cell(object_data: Dictionary) -> Vector2i:
-	var raw: Variant = object_data.get("position", Vector2i(-1, -1))
+func _validate_structural_object(object_data: Dictionary) -> Dictionary:
+	var object_id := _object_id(object_data)
+	if object_id.is_empty(): return _fail("empty_object_id")
+	if object_data.has("id") and str(object_data.get("id", "")).strip_edges() != object_id: return _fail("empty_object_id")
+	var parsed := _parse_cell(object_data)
+	if not bool(parsed.get("ok", false)): return parsed
+	var cell: Vector2i = Vector2i(parsed.get("cell", Vector2i(-1, -1)))
+	if cell.x < 0 or cell.y < 0: return _fail("negative_position")
+	if _is_wall_mounted(object_data):
+		var side_check := _validate_wall_side(object_data)
+		if not bool(side_check.get("ok", false)): return side_check
+	return _ok({"cell": cell})
+
+func _parse_cell(object_data: Dictionary) -> Dictionary:
+	if not object_data.has("position"):
+		return _fail("missing_position")
+	var raw: Variant = object_data.get("position")
 	if raw is Vector2i:
-		return raw
+		return _ok({"cell": raw})
 	if raw is Vector2:
-		return Vector2i(int(raw.x), int(raw.y))
-	if raw is Array and raw.size() >= 2:
-		return Vector2i(int(raw[0]), int(raw[1]))
-	return Vector2i(-1, -1)
+		return _ok({"cell": Vector2i(int(raw.x), int(raw.y))})
+	if raw is Array and raw.size() >= 2 and (raw[0] is int or raw[0] is float) and (raw[1] is int or raw[1] is float):
+		return _ok({"cell": Vector2i(int(raw[0]), int(raw[1]))})
+	return _fail("malformed_position")
+
+func _validate_wall_side(object_data: Dictionary) -> Dictionary:
+	var raw_side := ""
+	if object_data.has("wall_side"):
+		raw_side = str(object_data.get("wall_side", ""))
+	elif object_data.has("mount_side"):
+		raw_side = str(object_data.get("mount_side", ""))
+	else:
+		return _fail("missing_wall_side")
+	var side := _normalize_side(raw_side)
+	if side.is_empty(): return _fail("missing_wall_side")
+	if not (side in ["north", "east", "south", "west"]): return _fail("invalid_wall_side")
+	return _ok({"wall_side": side})
+
+func _cell(object_data: Dictionary) -> Vector2i:
+	var parsed := _parse_cell(object_data)
+	return Vector2i(parsed.get("cell", Vector2i(-1, -1))) if bool(parsed.get("ok", false)) else Vector2i(-1, -1)
 func _wall_side(object_data: Dictionary) -> String: return _normalize_side(str(object_data.get("wall_side", object_data.get("mount_side", ""))))
 func _normalize_side(side: String) -> String:
-	var text := side.strip_edges().to_lower()
-	return "north" if text.is_empty() else text
+	return side.strip_edges().to_lower()
 func _object_id(object_data: Dictionary) -> String: return str(object_data.get("id", "")).strip_edges()
 func _patch_has_id_change(object_id: String, patch: Dictionary) -> bool: return patch.has("id") and str(patch.get("id", "")).strip_edges() != object_id
 func _ok(extra: Dictionary = {}) -> Dictionary:

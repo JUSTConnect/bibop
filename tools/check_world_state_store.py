@@ -21,6 +21,10 @@ if not move or "object_id_is_immutable" not in move.group(0): errors.append("mov
 if "object_id_key_mismatch" not in store: errors.append("validate_consistency must check key/field id equality")
 if "func apply_non_structural_snapshot" not in store or "structural_field_changed" not in store:
     errors.append("WorldStateStore must provide atomic non-structural snapshot commit validation")
+for needle in ["missing_position", "malformed_position", "negative_position", "missing_wall_side", "invalid_wall_side", "_validate_structural_object", "_validate_wall_side"]:
+    if needle not in store: errors.append(f"WorldStateStore missing structural validation contract: {needle}")
+if 'return "north" if text.is_empty() else text' in store:
+    errors.append("WorldStateStore must not silently default empty wall sides to north")
 if 'changed.emit({"action": action' not in store:
     errors.append("batch snapshot commit must emit one action event")
 if re.search(r"^var\s+[^_].*(ids_by_cell|object_id_by_cell)", store, re.M): errors.append("derived indexes must remain private")
@@ -29,7 +33,7 @@ for prop in ["mission_world_objects", "world_objects_by_cell", "wall_mounted_obj
     if not m: errors.append(f"MissionManager missing compatibility getter {prop}")
     elif re.search(r"\n\s*set\s*\(", m.group(0)): errors.append(f"{prop} compatibility property must not define a setter")
 if "_rebuild_store_from_compatibility_snapshots" in manager: errors.append("silent compatibility rebuild helper must be absent")
-for needle in ["WorldStateStoreRef", "var world_state_store: WorldStateStore", "replace_world_state_snapshot", "try_set_world_object_at_cell", "validate_structural_placement"]:
+for needle in ["WorldStateStoreRef", "var world_state_store: WorldStateStore", "replace_world_state_snapshot", "try_set_world_object_at_cell", "validate_structural_placement", "_validate_world_state_store_cell_bounds", "cell_out_of_bounds"]:
     if needle not in manager: errors.append(f"MissionManager missing store integration: {needle}")
 try_set = re.search(r"func\s+try_set_world_object_at_cell\b[\s\S]*?(?=\nfunc\s|\Z)", manager)
 if not try_set or "get_world_object_at_cell" in try_set.group(0) or "remove_object_by_id" in try_set.group(0):
@@ -52,6 +56,11 @@ for path in (ROOT / "scripts").rglob("*.gd"):
     text = path.read_text()
     for pattern_text, label in banned_patterns:
         if re.search(pattern_text, text): errors.append(f"{label} in {rel}")
+gate_path = ROOT / "tools/ci/check_world_state_store.gd"
+gate = gate_path.read_text() if gate_path.exists() else ""
+for needle in ["missing position is rejected", "malformed position is rejected", "negative position is rejected", "MissionManager rejects out-of-bounds placement", "missing wall side is rejected", "invalid wall side is rejected", "failed snapshot preserves previous state and indexes"]:
+    if needle not in gate: errors.append(f"executable WorldStateStore gate missing validation coverage: {needle}")
+
 if "func _commit_runtime_world_snapshot" not in manager or "apply_non_structural_snapshot" not in manager:
     errors.append("MissionManager must expose a snapshot commit bridge")
 if "func recalculate_power_network" not in manager or "_commit_runtime_world_snapshot" not in re.search(r"func\s+recalculate_power_network\b[\s\S]*?(?=\nfunc\s|\Z)", manager).group(0):
