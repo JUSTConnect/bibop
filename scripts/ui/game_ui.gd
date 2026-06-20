@@ -18,6 +18,7 @@ const MapConstructorSessionStateRef = preload("res://scripts/ui/map_constructor/
 const MapConstructorRefreshCoordinatorRef = preload("res://scripts/ui/map_constructor/map_constructor_refresh_coordinator.gd")
 const MapConstructorUIBridgeRef = preload("res://scripts/ui/map_constructor/map_constructor_ui_bridge.gd")
 const MissionContentCatalogRef = preload("res://scripts/game/mission_content_catalog.gd")
+const RuntimeReadinessServiceRef = preload("res://scripts/game/runtime_readiness_service.gd")
 
 
 class InternalIsoPreviewControl:
@@ -197,6 +198,7 @@ var runtime_world_actions_no_actions_label: Label = null
 var runtime_world_actions_selected_button: Button = null
 var map_constructor_state: MapConstructorSessionState = MapConstructorSessionStateRef.new()
 var map_constructor_ui_bridge: MapConstructorUIBridge = null
+var latest_constructor_readiness_result: Dictionary = {}
 var runtime_action_panel_bridge = null
 var runtime_map_constructor_palette_panel: PanelContainer = null
 var runtime_map_constructor_inspector_panel: PanelContainer = null
@@ -579,6 +581,7 @@ func _ensure_gameplay_runtime_created() -> bool:
 		bipob.mission_manager = mission_manager_runtime
 	_initialize_runtime_profiles_if_needed()
 	_connect_bipob_runtime_signals_once()
+	_refresh_constructor_readiness_result()
 	_set_gameplay_visible(false)
 	return true
 
@@ -616,11 +619,22 @@ func _sync_runtime_bipob_visual_state() -> void:
 		field_runtime.call("request_visual_refresh")
 
 func _on_runtime_bipob_status_changed() -> void:
+	_refresh_constructor_readiness_result()
 	update_status()
 	update_diagnostic_status()
 	update_terminal_response_hud()
 	update_box_status()
 	call_deferred("_sync_runtime_bipob_visual_state")
+
+
+func _refresh_constructor_readiness_result() -> Dictionary:
+	latest_constructor_readiness_result = RuntimeReadinessServiceRef.evaluate_constructor(bipob)
+	return latest_constructor_readiness_result
+
+func _get_latest_constructor_readiness_result() -> Dictionary:
+	if latest_constructor_readiness_result.is_empty():
+		return _refresh_constructor_readiness_result()
+	return latest_constructor_readiness_result
 
 func _safe_has_bipob_method(method_name: String) -> bool:
 	if bipob == null:
@@ -760,74 +774,33 @@ func _get_constructor_status_badges() -> Array[Dictionary]:
 	var badges: Array[Dictionary] = []
 	if bipob == null:
 		return badges
-
-	if bipob.has_method("is_virtual_power_available"):
-		if bipob.is_virtual_power_available():
-			badges.append({"label": "POWER OK", "role": "ok"})
-		else:
-			badges.append({"label": "POWER MISSING", "role": "danger"})
-
-	if bipob.has_method("is_internal_data_network_available"):
-		if bipob.is_internal_data_network_available():
-			badges.append({"label": "DATA OK", "role": "ok"})
-		else:
-			badges.append({"label": "DATA MISSING", "role": "warning"})
-
-	if bipob.has_method("is_external_data_network_available"):
-		if bipob.is_external_data_network_available():
-			badges.append({"label": "EXT LINK OK", "role": "ok"})
-		else:
-			badges.append({"label": "EXT LINK MISSING", "role": "warning"})
-
-	if bipob.has_method("has_air_cooling_requiring_intake") and bipob.has_method("has_external_air_intake"):
-		if bipob.has_air_cooling_requiring_intake():
-			if bipob.has_external_air_intake():
-				badges.append({"label": "AIR OK", "role": "ok"})
-			else:
-				badges.append({"label": "AIR REQUIRED", "role": "warning"})
-
-	if bipob.has_method("get_highest_internal_preview_heat"):
-		var highest_heat: int = bipob.get_highest_internal_preview_heat()
-		if highest_heat >= 5:
-			badges.append({"label": "THERMAL CRITICAL", "role": "danger"})
-		elif highest_heat >= 4:
-			badges.append({"label": "THERMAL WARNING", "role": "warning"})
-		elif highest_heat > 0:
-			badges.append({"label": "THERMAL OK", "role": "ok"})
-		else:
-			badges.append({"label": "THERMAL IDLE", "role": "neutral"})
-
-	if bipob.has_method("get_overlay_heat_diff_compact_text"):
-		var overlay_changed: bool = false
-		if bipob.has_method("get_overlay_thermal_contribution_compact_text"):
-			var compact_text: String = bipob.get_overlay_thermal_contribution_compact_text()
-			overlay_changed = not compact_text.contains("affected 0")
-		if overlay_changed:
-			badges.append({"label": "OVERLAY ACTIVE", "role": "info"})
-		else:
-			badges.append({"label": "OVERLAY HYPOTH", "role": "neutral"})
-
-	if bipob.has_method("get_damage_planning_compact_text"):
-		var damage_text: String = bipob.get_damage_planning_compact_text()
-		if damage_text.contains("critical 0 / warning 0"):
-			badges.append({"label": "DAMAGE LOW", "role": "ok"})
-		elif damage_text.contains("critical 0"):
-			badges.append({"label": "DAMAGE WARN", "role": "warning"})
-		else:
-			badges.append({"label": "DAMAGE CRIT", "role": "danger"})
-
-	var warning_count: int = 0
-	if bipob.has_method("get_warning_count"):
-		warning_count = bipob.get_warning_count()
-	elif bipob.has_method("get_constructor_warning_lines"):
-		var warning_lines: Array[String] = bipob.get_constructor_warning_lines()
-		warning_count = warning_lines.size()
-
-	if warning_count <= 0:
-		badges.append({"label": "NO WARNINGS", "role": "ok"})
+	var result: Dictionary = _get_latest_constructor_readiness_result()
+	var codes: Dictionary = {}
+	for item in result.get("items", []):
+		codes[str(item.get("code", ""))] = item
+	badges.append({"label": "POWER MISSING", "role": "danger"} if codes.has("missing_virtual_power") else {"label": "POWER OK", "role": "ok"})
+	badges.append({"label": "DATA MISSING", "role": "warning"} if codes.has("missing_internal_data") else {"label": "DATA OK", "role": "ok"})
+	badges.append({"label": "EXT LINK MISSING", "role": "warning"} if codes.has("missing_external_data_bridge") else {"label": "EXT LINK OK", "role": "ok"})
+	if codes.has("missing_air_intake"):
+		badges.append({"label": "AIR REQUIRED", "role": "warning"})
+	if codes.has("thermal_critical"):
+		badges.append({"label": "THERMAL CRITICAL", "role": "danger"})
+	elif codes.has("thermal_warning"):
+		badges.append({"label": "THERMAL WARNING", "role": "warning"})
 	else:
-		badges.append({"label": "WARNINGS %d" % warning_count, "role": "warning"})
-
+		badges.append({"label": "THERMAL OK", "role": "ok"})
+	if codes.has("overlay_preview_active"):
+		badges.append({"label": "OVERLAY ACTIVE", "role": "info"})
+	else:
+		badges.append({"label": "OVERLAY HYPOTH", "role": "neutral"})
+	if codes.has("damage_critical"):
+		badges.append({"label": "DAMAGE CRIT", "role": "danger"})
+	elif codes.has("damage_warning"):
+		badges.append({"label": "DAMAGE WARN", "role": "warning"})
+	else:
+		badges.append({"label": "DAMAGE LOW", "role": "ok"})
+	var total_count: int = int(result.get("danger_count", 0)) + int(result.get("warning_count", 0)) + int(result.get("info_count", 0))
+	badges.append({"label": "NO WARNINGS", "role": "ok"} if total_count <= 0 else {"label": "WARNINGS %d" % total_count, "role": "warning"})
 	return badges
 
 
@@ -910,24 +883,13 @@ func _make_constructor_warning_item(category: String, severity: String, message:
 	return map_constructor_ui_bridge.make_constructor_warning_item(category, severity, message, hint)
 
 
-func _infer_warning_category_from_text(text: String) -> String:
-	_ensure_map_constructor_ui_bridge()
-	return map_constructor_ui_bridge.infer_warning_category_from_text(text)
-
-
-func _infer_warning_severity_from_text(text: String) -> String:
-	_ensure_map_constructor_ui_bridge()
-	return map_constructor_ui_bridge.infer_warning_severity_from_text(text)
-
-
 func _get_constructor_warning_items() -> Array[Dictionary]:
 	_ensure_map_constructor_ui_bridge()
 	return map_constructor_ui_bridge.get_constructor_warning_items(bipob)
 
 
 func _get_constructor_readiness_state() -> Dictionary:
-	_ensure_map_constructor_ui_bridge()
-	return map_constructor_ui_bridge.get_constructor_readiness_state(bipob)
+	return _get_latest_constructor_readiness_result()
 
 
 func _get_warning_severity_rank(severity: String) -> int:

@@ -36,6 +36,7 @@ jobs:
           python tools/check_constructor_placement_contract.py
           python tools/check_map_constructor_prefab_catalog.py
           python tools/check_world_state_store.py
+          python tools/check_runtime_readiness_service.py
 
       - name: Godot import smoke
         run: |
@@ -45,6 +46,7 @@ jobs:
         run: |
           godot --headless --path . --script res://tools/ci/parse_all_gd.gd
           godot --headless --path . --script res://tools/ci/check_map_constructor_session_state_contract.gd
+          godot --headless --path . --script res://tools/ci/check_runtime_readiness_service.gd
 
       - name: World state store behavior gate
         run: |

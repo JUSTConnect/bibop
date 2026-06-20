@@ -30,6 +30,7 @@ const RUNTIME_MODE_LEGACY_STORY := "legacy_story"
 const RUNTIME_MODE_TASK_TEST := "task_test"
 const RUNTIME_MODE_UNKNOWN := "unknown"
 const MissionIdsRef = preload("res://scripts/game/mission_ids.gd")
+const RuntimeReadinessServiceRef = preload("res://scripts/game/runtime_readiness_service.gd")
 const LEGACY_STORY_MISSION_MIN_INDEX := MissionIdsRef.LEGACY_STORY_MISSION_MIN_INDEX
 const LEGACY_STORY_MISSION_MAX_INDEX := MissionIdsRef.LEGACY_STORY_MISSION_MAX_INDEX
 const RETIRED_LEGACY_MISSION_INDEXES: Array[int] = MissionIdsRef.RETIRED_LEGACY_MISSION_INDEXES
@@ -965,34 +966,11 @@ func get_pre_mission_warning_text() -> String:
 	return "Warnings before mission:\n- %s" % "\n- ".join(warnings)
 
 func get_constructor_warning_lines() -> Array[String]:
-	var warnings: Array[String] = []
-
-	if has_air_cooling_requiring_intake() and not has_external_air_intake():
-		warnings.append("Air cooling requires Air Intake Node on external body.")
-
-	if not is_virtual_power_available():
-		warnings.append("Virtual power unavailable: Battery and Power Block required.")
-
-	if not is_internal_data_network_available():
-		warnings.append("Internal data network unavailable: Internal Interface required.")
-
-	if not is_external_data_network_available():
-		warnings.append("External data bridge unavailable: Internal Interface and External Interface required.")
-
-	var critical_count: int = 0
-	var warning_heat_count: int = 0
-	for module in get_unique_internal_modules():
-		var final_heat := int(get_internal_module_heat_breakdown(module).get("final_heat", 0))
-		if final_heat >= 4:
-			warning_heat_count += 1
-		if final_heat >= THERMAL_CRITICAL_HEAT:
-			critical_count += 1
-	if warning_heat_count > 0:
-		warnings.append("Thermal warning: %d module(s) at heat 4+." % warning_heat_count)
-	if critical_count > 0:
-		warnings.append("Thermal critical preview: %d module(s) at heat 5." % critical_count)
-
-	return warnings
+	var result: Dictionary = RuntimeReadinessServiceRef.evaluate_constructor(self)
+	var lines: Array[String] = []
+	for item in result.get("items", []):
+		lines.append(str(item.get("message", "")))
+	return lines
 
 func get_constructor_warning_summary_text() -> String:
 	var warnings: Array[String] = get_constructor_warning_lines()
@@ -3566,7 +3544,8 @@ func get_air_intake_readiness_word() -> String:
 	return "missing"
 
 func get_warning_count() -> int:
-	return get_constructor_warning_lines().size()
+	var result: Dictionary = RuntimeReadinessServiceRef.evaluate_constructor(self)
+	return int(result.get("warning_count", 0)) + int(result.get("danger_count", 0)) + int(result.get("info_count", 0))
 
 
 func get_installed_external_summary_text() -> String:
@@ -3765,23 +3744,17 @@ func get_constructor_planning_checkpoint_compact_text() -> String:
 		consistency_count
 	]
 func get_constructor_readiness_summary_text() -> String:
+	var result: Dictionary = RuntimeReadinessServiceRef.evaluate_constructor(self)
 	var lines: Array[String] = []
 	lines.append("Constructor readiness:")
-	lines.append("- Power: %s" % get_status_word(is_virtual_power_available()))
-	lines.append("- Internal data: %s" % get_status_word(is_internal_data_network_available()))
-	lines.append("- External data: %s" % get_status_word(is_external_data_network_available()))
-	lines.append("- Thermal: %s" % get_thermal_status_word())
-	lines.append("- Air intake: %s" % get_air_intake_readiness_word())
+	lines.append("- Status: %s" % str(result.get("label", "READY")).capitalize())
 	lines.append("- Warnings: %d" % get_warning_count())
 	return "\n".join(lines)
 
 func get_constructor_readiness_compact_text() -> String:
-	return "Readiness: Power %s | Data %s/%s | Thermal %s | Air %s | Warnings %d" % [
-		get_status_word(is_virtual_power_available()),
-		get_status_word(is_internal_data_network_available()),
-		get_status_word(is_external_data_network_available()),
-		get_thermal_status_word(),
-		get_air_intake_readiness_word(),
+	var result: Dictionary = RuntimeReadinessServiceRef.evaluate_constructor(self)
+	return "Readiness: %s | Warnings %d" % [
+		str(result.get("label", "READY")).capitalize(),
 		get_warning_count()
 	]
 
