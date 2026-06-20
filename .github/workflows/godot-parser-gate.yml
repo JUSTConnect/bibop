@@ -57,4 +57,5 @@ jobs:
 
       - name: Map Constructor prefab catalog gate
         run: |
-          godot --headless --path . --script res://tools/ci/check_map_constructor_prefab_catalog.gd
+          timeout 120s godot --headless --path . \
+            --script res://tools/ci/check_map_constructor_prefab_catalog.gd
