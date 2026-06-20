@@ -64,6 +64,16 @@ func get_active_screen_id() -> StringName:
 	return _active_screen_id
 
 
+func get_active_payload() -> Dictionary:
+	return _active_payload.duplicate(true)
+
+
+func set_active_payload(payload: Dictionary) -> void:
+	if _active_screen_id == &"":
+		return
+	_active_payload = payload.duplicate(true)
+
+
 func get_back_stack_size() -> int:
 	return _back_stack.size()
 
@@ -81,8 +91,14 @@ func get_screen(screen_id: StringName) -> Control:
 
 
 func reset(screen_id: StringName, payload: Dictionary = {}) -> bool:
+	if not has_screen(screen_id):
+		return _fail(screen_id, "invalid_screen_id")
+	var previous_stack: Array[Dictionary] = _back_stack.duplicate(true)
 	_back_stack.clear()
-	return _open(screen_id, payload, TRANSITION_RESET)
+	if _open(screen_id, payload, TRANSITION_RESET):
+		return true
+	_back_stack = previous_stack
+	return false
 
 
 func replace(screen_id: StringName, payload: Dictionary = {}) -> bool:
@@ -96,13 +112,16 @@ func push(screen_id: StringName, payload: Dictionary = {}) -> bool:
 func back() -> bool:
 	if _back_stack.is_empty():
 		return _fail(&"", "back_stack_empty")
-	var target: Dictionary = _back_stack.pop_back()
-	return _open(
+	var target: Dictionary = _back_stack.back()
+	var opened: bool = _open(
 		StringName(target.get("screen_id", &"")),
 		Dictionary(target.get("payload", {})),
 		TRANSITION_BACK,
 		target.get("focus", null)
 	)
+	if opened:
+		_back_stack.pop_back()
+	return opened
 
 
 func refresh_active(payload: Dictionary = {}) -> bool:
