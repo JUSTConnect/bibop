@@ -34,6 +34,8 @@ checks = {
     'RoomVisualRenderer dependency': r'\b(?:preload|load)\s*\([^\)]*RoomVisualRenderer|\bRoomVisualRenderer\b',
     'Texture2D rendering type': r'\bTexture2D\b',
     'visual asset reference': r'res://assets/visual',
+    'TASK TEST fallback layout builder': r'\bget_mission10_layout\s*\(',
+    'TASK TEST reset branch': r'(?:if|elif)\s+mission_index\s*==\s*10\b',
 }
 fail=[]
 for name,pat in checks.items():
@@ -43,4 +45,4 @@ if fail:
     print('GridManager rendering boundary violations:')
     for f in fail: print(f'- {f}')
     sys.exit(1)
-print('GridManager rendering boundary OK')
+print('GridManager rendering and TASK TEST fallback boundary OK')
