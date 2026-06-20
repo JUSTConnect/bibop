@@ -92,6 +92,10 @@ func _run() -> void:
 	ok = _expect(router.get_back_stack_size() == 1, "push must create one back-stack entry") and ok
 	ok = _expect(not a_root.visible and b_root != null and b_root.visible, "push must hide A and show B") and ok
 
+	ok = _expect(not router.reset(&"missing"), "invalid reset must fail") and ok
+	ok = _expect(router.get_active_screen_id() == &"b", "invalid reset must preserve the active screen") and ok
+	ok = _expect(router.get_back_stack_size() == 1, "invalid reset must preserve back-stack history") and ok
+
 	ok = _expect(router.back(), "back() must return to A") and ok
 	await process_frame
 	ok = _expect(router.get_active_screen_id() == &"a" and a_root.visible, "back must restore A") and ok
