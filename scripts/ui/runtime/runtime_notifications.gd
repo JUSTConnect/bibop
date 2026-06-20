@@ -8,14 +8,9 @@ static func show_hint(ui, message: String) -> void:
 	show_runtime_notification(ui, message)
 
 
-static func process_runtime_notification_timer(ui, delta: float) -> void:
-	if ui.runtime_notification_timer > 0.0:
-		ui.runtime_notification_timer = maxf(0.0, ui.runtime_notification_timer - delta)
-		if ui.runtime_notification_label != null:
-			var pulse: float = 0.70 + 0.30 * abs(sin(float(Time.get_ticks_msec()) / 180.0))
-			ui.runtime_notification_label.modulate = Color(1, 1, 1, pulse)
-	elif ui.runtime_notification_label != null:
-		refresh_runtime_notification_fallback(ui)
+static func process_runtime_notification_timer(_ui, _delta: float) -> void:
+	# Notification expiry is one-shot Timer driven; frame processing is intentionally empty.
+	return
 
 
 static func refresh_runtime_notification_fallback(ui) -> void:
@@ -48,6 +43,7 @@ static func show_runtime_notification(ui, message: String) -> void:
 	ui.runtime_notification_role = get_runtime_notification_role(message)
 	ui.runtime_notification_timer = 7.0
 	ui.runtime_notification_label.text = message
+	ui.runtime_notification_label.modulate = Color.WHITE
 	var color: Color = ui.UI_COLOR_ACCENT
 	if ui.runtime_notification_role == "ok":
 		color = ui.UI_COLOR_OK
@@ -56,3 +52,5 @@ static func show_runtime_notification(ui, message: String) -> void:
 	ui.runtime_notification_label.add_theme_color_override("font_color", color)
 	if ui.runtime_notification_panel != null:
 		ui.runtime_notification_panel.add_theme_stylebox_override("panel", ui._make_panel_style(ui.UI_COLOR_PANEL_DARK, color, 1, 8))
+	if ui.has_method("_restart_runtime_notification_timeout"):
+		ui.call("_restart_runtime_notification_timeout")

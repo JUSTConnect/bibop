@@ -10,6 +10,7 @@ const RuntimeBipobSwitcherRef = preload("res://scripts/ui/runtime/runtime_bipob_
 const RuntimeObjectHudRef = preload("res://scripts/ui/runtime/runtime_object_hud.gd")
 const MapConstructorScreenRef = preload("res://scripts/ui/map_constructor/map_constructor_screen.gd")
 const MapConstructorInspectorRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector.gd")
+const MapConstructorInspectorStructureRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_structure_layer.gd")
 const MapConstructorPropertyControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_property_controls.gd")
 const MapConstructorPropertyUpdateServiceRef = preload("res://scripts/game/map_constructor_property_update_service.gd")
 const MapConstructorLinkControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_link_controls.gd")
@@ -32,7 +33,7 @@ class InternalIsoPreviewControl:
 	func _ready() -> void:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	func _process(_delta: float) -> void:
+	func request_refresh() -> void:
 		queue_redraw()
 
 	func _draw() -> void:
@@ -55,7 +56,7 @@ class SelectedModuleMiniPreviewControl:
 	func _ready() -> void:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	func _process(_delta: float) -> void:
+	func request_refresh() -> void:
 		queue_redraw()
 
 	func _draw() -> void:
@@ -73,7 +74,7 @@ class ConstructorValidationOverlayControl:
 	func _ready() -> void:
 		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	func _process(_delta: float) -> void:
+	func request_refresh() -> void:
 		queue_redraw()
 
 	func _draw() -> void:
@@ -126,6 +127,10 @@ var runtime_notification_panel: PanelContainer = null
 var runtime_terminal_response_panel: PanelContainer = null
 var runtime_terminal_response_label: Label = null
 var runtime_notification_timer: float = 0.0
+var runtime_notification_timeout: Timer = null
+var runtime_notification_tween: Tween = null
+var runtime_hud_initialized: bool = false
+var runtime_hud_refresh_pending: bool = false
 var runtime_notification_role: String = "neutral"
 var runtime_interaction_actions_signature: String = ""
 
@@ -620,6 +625,7 @@ func _sync_runtime_bipob_visual_state() -> void:
 		field_runtime.call("request_visual_refresh")
 
 func _on_runtime_bipob_status_changed() -> void:
+	request_runtime_hud_refresh("status_changed")
 	_refresh_constructor_readiness_result()
 	update_status()
 	update_diagnostic_status()
@@ -4655,7 +4661,7 @@ func _select_runtime_mission_bipob(index: int) -> void:
 	_set_active_mission_bipob(index)
 	update_diagnostic_status()
 	_refresh_runtime_storage_panel()
-	_refresh_runtime_interaction_controls()
+	request_runtime_hud_refresh("profile_changed")
 	show_hint("Active Bipob: %s" % _get_mission_bipob_display_name(mission_bipobs[index], index))
 
 
@@ -4671,6 +4677,79 @@ func _create_bipob_switcher_panel() -> PanelContainer:
 	var margin: float = _get_runtime_margin()
 	var top_offset: float = margin + RuntimeMissionMenuRef.MENU_BUTTON_SIZE.y + 6.0
 	return RuntimeBipobSwitcherRef.build(self, runtime_hud_root, margin, top_offset)
+
+
+func _initialize_runtime_hud() -> void:
+	if runtime_hud_initialized and runtime_hud_root != null and is_instance_valid(runtime_hud_root):
+		_set_runtime_hud_visible(true)
+		request_runtime_hud_refresh("runtime_hud_initialized")
+		return
+	_apply_runtime_hud_layout()
+	runtime_hud_initialized = true
+	_bind_runtime_hud_signals()
+	_set_runtime_hud_visible(true)
+	request_runtime_hud_refresh("runtime_hud_created")
+
+
+func _bind_runtime_hud_signals() -> void:
+	# Bipob signals are connected by _wire_runtime_bipob_signals(); this hook documents HUD lifecycle ownership.
+	pass
+
+
+func request_runtime_hud_refresh(reason: String = "state_changed") -> void:
+	if runtime_hud_refresh_pending:
+		return
+	runtime_hud_refresh_pending = true
+	call_deferred("_refresh_runtime_hud_from_state", reason)
+
+
+func _refresh_runtime_hud_from_state(reason: String = "state_changed") -> void:
+	runtime_hud_refresh_pending = false
+	if app_screen_mode != AppScreenMode.GAMEPLAY:
+		return
+	_refresh_runtime_mission_objective_label()
+	_refresh_runtime_interaction_controls()
+
+
+func _set_runtime_hud_visible(visible_state: bool) -> void:
+	if command_panel != null:
+		command_panel.visible = false
+		command_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
+		runtime_hud_root.visible = visible_state
+
+
+func _teardown_runtime_hud() -> void:
+	runtime_hud_initialized = false
+	runtime_hud_refresh_pending = false
+	if runtime_notification_tween != null:
+		runtime_notification_tween.kill()
+	runtime_notification_tween = null
+	if runtime_notification_timeout != null and is_instance_valid(runtime_notification_timeout):
+		runtime_notification_timeout.stop()
+	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
+		remove_child(runtime_hud_root)
+		runtime_hud_root.queue_free()
+	runtime_hud_root = null
+	runtime_mission_field_host = null
+	runtime_energy_label = null
+	runtime_actions_label = null
+	runtime_info_actions_label = null
+	mission_goal_value_label = null
+	runtime_notification_label = null
+	runtime_notification_panel = null
+	runtime_base_controls_grid = null
+	runtime_world_actions_panel = null
+	runtime_world_actions_target_label = null
+	runtime_world_actions_state_label = null
+	runtime_world_actions_behavior_label = null
+	runtime_world_actions_list = null
+	runtime_world_actions_no_actions_label = null
+
+
+func explicit_rebuild_runtime_hud() -> void:
+	_teardown_runtime_hud()
+	_initialize_runtime_hud()
 
 
 func _apply_runtime_hud_layout() -> void:
@@ -4850,6 +4929,38 @@ func _get_runtime_secondary_objective_text() -> String:
 		return objective_hint
 	return str(view_model.get("goal_text", "No active objective")).strip_edges()
 
+
+
+func _ensure_runtime_notification_timeout() -> void:
+	if runtime_notification_timeout != null and is_instance_valid(runtime_notification_timeout):
+		return
+	runtime_notification_timeout = Timer.new()
+	runtime_notification_timeout.name = "RuntimeNotificationTimeout"
+	runtime_notification_timeout.one_shot = true
+	runtime_notification_timeout.wait_time = 7.0
+	add_child(runtime_notification_timeout)
+	runtime_notification_timeout.timeout.connect(_on_runtime_notification_timeout)
+
+
+func _restart_runtime_notification_timeout() -> void:
+	_ensure_runtime_notification_timeout()
+	if runtime_notification_tween != null:
+		runtime_notification_tween.kill()
+	runtime_notification_tween = null
+	if runtime_notification_timeout != null:
+		runtime_notification_timeout.start(7.0)
+	if runtime_notification_label != null:
+		runtime_notification_tween = create_tween()
+		runtime_notification_tween.set_loops()
+		runtime_notification_tween.tween_property(runtime_notification_label, "modulate", Color(1, 1, 1, 0.70), 0.35)
+		runtime_notification_tween.tween_property(runtime_notification_label, "modulate", Color.WHITE, 0.35)
+
+
+func _on_runtime_notification_timeout() -> void:
+	if runtime_notification_tween != null:
+		runtime_notification_tween.kill()
+	runtime_notification_tween = null
+	_refresh_runtime_notification_fallback()
 
 func _refresh_runtime_notification_fallback() -> void:
 	RuntimeNotifications.refresh_runtime_notification_fallback(self)
@@ -5146,6 +5257,7 @@ func _create_runtime_storage_panel() -> PanelContainer:
 
 
 func _ready() -> void:
+	_ensure_runtime_notification_timeout()
 	_ensure_map_constructor_ui_bridge()
 	if hint_label != null:
 		hint_label.text = "Mission 1: pick up the key-card, open the door, reach the exit."
@@ -5250,7 +5362,7 @@ func _ready() -> void:
 		exit_main_menu_button.pressed.connect(_on_runtime_exit_to_main_menu_pressed)
 		command_list.add_child(exit_main_menu_button)
 
-	_apply_runtime_hud_layout()
+	_initialize_runtime_hud()
 	call_deferred("_attach_runtime_gameplay_view")
 	_assert_single_active_major_screen()
 
@@ -5417,6 +5529,7 @@ func _hide_runtime_mission_ui() -> void:
 func _set_gameplay_visible(visible_state: bool) -> void:
 	if not visible_state:
 		_hide_runtime_mission_ui()
+		_teardown_runtime_hud()
 	if command_panel != null:
 		command_panel.visible = false
 	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
@@ -5626,7 +5739,7 @@ func start_gameplay_from_center() -> void:
 	box_opened_from_center = false
 	_hide_all_app_screens()
 	_set_active_mission_bipob(0)
-	_apply_runtime_hud_layout()
+	_initialize_runtime_hud()
 	_set_gameplay_visible(true)
 	_on_start_mission_button_pressed()
 	call_deferred("_attach_runtime_gameplay_view")
@@ -5640,7 +5753,7 @@ func _enter_gameplay_screen_without_starting_mission() -> void:
 	box_opened_from_center = false
 	_hide_all_app_screens()
 	_set_active_mission_bipob(0)
-	_apply_runtime_hud_layout()
+	_initialize_runtime_hud()
 	_set_gameplay_visible(true)
 	call_deferred("_attach_runtime_gameplay_view")
 	_assert_single_active_major_screen()
@@ -6437,7 +6550,7 @@ func _on_viewport_size_changed() -> void:
 		if box_menu_mode == BoxMenuMode.EXTERNAL or box_menu_mode == BoxMenuMode.INTERNAL:
 			update_box_status()
 	if runtime_hud_root != null and is_instance_valid(runtime_hud_root) and runtime_hud_root.visible:
-		_apply_runtime_hud_layout()
+		_initialize_runtime_hud()
 		call_deferred("_attach_runtime_gameplay_view")
 func _apply_box_screen_fullscreen_layout() -> void:
 	if box_menu_root != null and is_instance_valid(box_menu_root):
@@ -8664,7 +8777,7 @@ func _setup_mission_field_hud() -> void:
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
 	_hide_all_app_screens()
-	_apply_runtime_hud_layout()
+	_initialize_runtime_hud()
 	_set_gameplay_visible(true)
 	call_deferred("_attach_runtime_gameplay_view")
 
@@ -9398,7 +9511,7 @@ func _on_placeholder_back_pressed() -> void:
 	match placeholder_return_screen_mode:
 		AppScreenMode.GAMEPLAY:
 			_hide_all_app_screens()
-			_apply_runtime_hud_layout()
+			_initialize_runtime_hud()
 			_set_gameplay_visible(true)
 			call_deferred("_attach_runtime_gameplay_view")
 			app_screen_mode = AppScreenMode.GAMEPLAY
@@ -9602,9 +9715,9 @@ func _process(delta: float) -> void:
 	refresh_object_info_position()
 
 
-func _process_runtime_interaction_feedback(delta: float) -> void:
-	_ensure_runtime_action_panel_bridge()
-	runtime_action_panel_bridge.process_feedback(delta)
+func _process_runtime_interaction_feedback(_delta: float) -> void:
+	if runtime_action_panel_bridge != null:
+		runtime_action_panel_bridge.process_feedback(_delta)
 
 
 func set_runtime_selected_interaction_target(target: Dictionary) -> void:
@@ -12236,6 +12349,7 @@ func _add_map_constructor_object_link_sections(link_section: VBoxContainer, enti
 
 func _show_map_constructor_inspector(cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
 	MapConstructorInspectorRef.refresh(self, cell, preferred_entity_kind, preferred_entity_id)
+	MapConstructorInspectorStructureRef.apply_from_ui(self)
 
 func _resolve_wall_material_target_for_selection(entity_info: Dictionary, data: Dictionary, fallback_cell: Vector2i) -> Dictionary:
 	return MapConstructorFloorWallControls.resolve_wall_material_target_for_selection(self, entity_info, data, fallback_cell)
@@ -12407,10 +12521,12 @@ func _refresh_runtime_interaction_controls() -> void:
 func _enter_runtime_interaction_mode() -> void:
 	_ensure_runtime_action_panel_bridge()
 	runtime_action_panel_bridge.enter_interaction_mode()
+	request_runtime_hud_refresh("interaction_mode_entered")
 
 func _exit_runtime_interaction_mode() -> void:
 	_ensure_runtime_action_panel_bridge()
 	runtime_action_panel_bridge.exit_interaction_mode()
+	request_runtime_hud_refresh("interaction_mode_exited")
 
 func _on_runtime_interaction_action_pressed(action_id: String) -> void:
 	_ensure_runtime_action_panel_bridge()
@@ -12452,6 +12568,7 @@ func _get_runtime_world_action_target_id(target_object: Dictionary, fallback_nam
 func _on_world_action_panel_requested(target_object: Dictionary, actions: Array, selected_action: String) -> void:
 	_ensure_runtime_action_panel_bridge()
 	runtime_action_panel_bridge.refresh_world_actions_panel(target_object, actions, selected_action)
+	request_runtime_hud_refresh("world_action_panel_requested")
 
 func _on_drop_item_button_pressed() -> void:
 	RuntimeStoragePanelRef.handle_drop_item(self)
