@@ -20,4 +20,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: module-catalog-inventory
-          path: docs/module_catalog_inventory.tmp.md
+          path: |
+            docs/module_catalog_inventory.tmp.md
+            scripts/bipob/bipob_controller.gd
+            scripts/bipob/bipob_module.gd
