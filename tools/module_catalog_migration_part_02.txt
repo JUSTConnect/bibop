@@ -1,0 +1,114 @@
+	module.module_version = int(definition.get("version", 1))
+	module.version = "V%d" % module.module_version
+	module.battery_capacity = int(definition.get("battery_capacity", 0))
+	module.storage_capacity = int(definition.get("storage_capacity", 0))
+	module.actions_capacity = int(definition.get("actions_capacity", 0))
+	module.hack_level = int(definition.get("hack_level", 0))
+	module.energy_capacity = module.battery_capacity
+	module.action_capacity = module.actions_capacity
+	module.digital_storage_slots = module.storage_capacity
+	module.hack_value = module.hack_level
+	module.gpu_value = int(definition.get("gpu_value", 0))
+	module.sensor_range_bonus = int(definition.get("sensor_range_bonus", 0))
+	module.sensor_visibility_bonus = int(definition.get("sensor_visibility_bonus", 0))
+	module.cooling_value = int(definition.get("cooling_value", 0))
+	module.power_distribution = int(definition.get("power_distribution", 0))
+	module.interface_role = str(definition.get("interface_role", ""))
+	module.ports = int(definition.get("ports", 0))
+	module.power_ports = int(definition.get("power_ports", 0))
+	module.category = str(definition.get("category", "Other"))
+	module.description = str(definition.get("description", ""))
+	module.heat_value = int(definition.get("heat", 0))
+	module.energy_effect_text = str(definition.get("energy_effect", ""))
+	module.special_effect_text = str(definition.get("special_effect", ""))
+	module.characteristics_text = get_internal_characteristics_text(module)
+	apply_thermal_metadata(module)
+	apply_damage_metadata(module)
+	return module
+
+static func create_overlay_module(module_id: String) -> BipobModule:
+	if module_id not in ["water_tube_v1", "air_duct_v1"]:
+		return null
+	var definition := BipobModuleCatalogRef.get_internal_definition(module_id)
+	return create_internal_module(module_id, str(definition.get("name", module_id)), Vector3i(1, 1, 1))
+
+static func create_debug_found_module() -> BipobModule:
+	var module: BipobModule = BipobModuleRef.new()
+	module.id = "battery_v1"
+	module.display_name = "Battery V1"
+	module.description = "Increases max energy by 10."
+	module.energy_bonus = 10
+	module.granted_commands = []
+	return module
+
+static func create_debug_field_component() -> BipobModule:
+	var module: BipobModule = BipobModuleRef.new()
+	module.id = "cooling_v1"
+	module.module_id = "cooling_v1"
+	module.display_name = "Cooling V1"
+	module.description = "Basic cooling component for future internal builds."
+	module.energy_bonus = 0
+	module.actions_bonus = 0
+	module.vision_bonus = 0
+	module.granted_commands = []
+	return module
+
+static func create_legacy_gpu_v1_module() -> BipobModule:
+	var module: BipobModule = BipobModuleRef.new()
+	module.id = "gpu_v1"
+	module.display_name = "GPU V1"
+	module.description = "Internal processing module. Increases vision range and supports hidden node detection."
+	module.granted_commands = ["hidden_detection_support"]
+	module.vision_bonus = 0
+	return module
+
+static func create_legacy_legs_v1_module() -> BipobModule:
+	var module: BipobModule = BipobModuleRef.new()
+	module.id = "legs_v1"
+	module.display_name = "Legs V1"
+	module.placement_type = "external"
+	module.category = "locomotion"
+	module.internal_role = "none"
+	module.description = "Bottom locomotion module for stepped terrain."
+	module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right", "cross_stepped_floor"]
+	apply_thermal_metadata(module)
+	apply_damage_metadata(module)
+	return module
+
+{characteristics}
+
+{apply_thermal}
+
+{apply_damage}
+'''
+(OUT/'bipob_module_factory.gd').write_text(factory)
+
+# Controller transformations
+controller = text
+# add catalog/factory preloads before side aliases
+needle = 'const TERMINAL_MODE_CONNECTED := "connected"\n'
+controller = controller.replace(needle, needle + '\nconst BipobModuleCatalogRef = preload("res://scripts/bipob/bipob_module_catalog.gd")\nconst BipobModuleFactoryRef = preload("res://scripts/bipob/bipob_module_factory.gd")\n', 1)
+# side constants alias catalog
+for name in ['TOP','BOTTOM','LEFT','RIGHT','FRONT','BACK']:
+    controller = re.sub(rf'const EXTERNAL_SIDE_{name} := "[^"]+"', f'const EXTERNAL_SIDE_{name} := BipobModuleCatalogRef.EXTERNAL_SIDE_{name}', controller, count=1)
+# remove side order/category map/external catalog from controller
+start = controller.index('const EXTERNAL_SIDE_ORDER := [')
+end = controller.index('const MissionManagerScript', start)
+controller = controller[:start] + controller[end:]
+start = controller.index('const EXTERNAL_MODULE_CATALOG: Dictionary = {')
+end = controller.index('const INTERNAL_SIZE_X', start)
+controller = controller[:start] + controller[end:]
+# direct expressions
+controller = controller.replace('if EXTERNAL_MODULE_CATALOG.has(module.id):\n\t\treturn EXTERNAL_MODULE_CATALOG[module.id].get("size", Vector2i.ONE)', 'var catalog_size: Vector2i = BipobModuleCatalogRef.get_external_definition(module.id).get("size", Vector2i.ZERO)\n\tif catalog_size != Vector2i.ZERO:\n\t\treturn catalog_size')
+controller = controller.replace('for side_id in EXTERNAL_SIDE_ORDER:', 'for side_id in BipobModuleCatalogRef.get_external_side_order():')
+controller = controller.replace('return side_id in EXTERNAL_SIDE_ORDER', 'return side_id in BipobModuleCatalogRef.get_external_side_order()')
+controller = controller.replace('return EXTERNAL_MODULE_CATALOG.has(module.id)', 'return BipobModuleCatalogRef.is_external_module_id(module.id)')
+controller = controller.replace('if EXTERNAL_MODULE_CATALOG.has(module.id):\n\t\tvar catalog_sides: Array = EXTERNAL_MODULE_CATALOG[module.id].get("sides", [])\n\t\treturn catalog_sides.duplicate()\n\n\treturn EXTERNAL_SIDE_ORDER.duplicate()', 'var catalog_sides: Array = BipobModuleCatalogRef.get_external_definition(module.id).get("sides", [])\n\tif not catalog_sides.is_empty():\n\t\treturn catalog_sides.duplicate()\n\n\treturn BipobModuleCatalogRef.get_external_side_order()')
+# replace funcs with delegates
+repls = {
+'create_overlay_module_by_id': '''func create_overlay_module_by_id(module_id: String) -> BipobModule:\n\treturn BipobModuleFactoryRef.create_overlay_module(module_id)\n''',
+'create_external_module_by_id': '''func create_external_module_by_id(module_id: String) -> BipobModule:\n\treturn BipobModuleFactoryRef.create_external_module(module_id)\n''',
+'create_internal_module': '''func create_internal_module(module_id: String, module_name: String, module_size: Vector3i) -> BipobModule:\n\treturn BipobModuleFactoryRef.create_internal_module(module_id, module_name, module_size)\n''',
+'apply_thermal_metadata': '''func apply_thermal_metadata(module: BipobModule) -> void:\n\tBipobModuleFactoryRef.apply_thermal_metadata(module)\n''',
+'apply_damage_metadata': '''func apply_damage_metadata(module: BipobModule) -> void:\n\tBipobModuleFactoryRef.apply_damage_metadata(module)\n''',
+'get_internal_characteristics_text': '''func get_internal_characteristics_text(module: BipobModule) -> String:\n\treturn BipobModuleFactoryRef.get_internal_characteristics_text(module)\n''',
