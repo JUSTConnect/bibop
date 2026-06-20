@@ -73,7 +73,7 @@ expect(not (ROOT / "tools/apply_1111_screen_router.py").exists(), "one-shot Scre
 expect(not (ROOT / ".github/workflows/apply-1111-screen-router.yml").exists(), "one-shot ScreenRouter workflow remains")
 
 workflow = text(".github/workflows/godot-parser-gate.yml")
-expect("python tools/check_screen_router.py" in workflow, "ScreenRouter static audit is not wired")
+expect("tools/check_screen_router.py" in workflow, "ScreenRouter static audit is not wired")
 expect("check_screen_router.gd" in workflow, "ScreenRouter behavior gate is not wired")
 
 if errors:
