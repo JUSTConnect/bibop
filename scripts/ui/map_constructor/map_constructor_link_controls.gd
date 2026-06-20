@@ -30,7 +30,7 @@ static func add_link_picker(ui: Variant, section: VBoxContainer, entity_kind: St
 			ui._refresh_map_constructor_panels()
 			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
 				ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+			ui._show_map_constructor_inspector(ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 		)
 		section.add_child(button)
 	var actions: HFlowContainer = HFlowContainer.new()
@@ -52,7 +52,7 @@ static func add_link_picker(ui: Variant, section: VBoxContainer, entity_kind: St
 		ui.show_hint(ui._safe_ui_string(result.get("message", "Link cleared."), "Link cleared."))
 		ui._clear_map_constructor_link_target()
 		ui._refresh_map_constructor_panels()
-		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+		ui._show_map_constructor_inspector(ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	)
 	actions.add_child(clear_button)
 	var jump_button: Button = Button.new(); jump_button.text = "Jump/Select Target"
@@ -226,7 +226,7 @@ static func add_key_door_link_section(ui: Variant, parent: VBoxContainer, entity
 			ui._refresh_map_constructor_panels()
 			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
 				ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+			ui._show_map_constructor_inspector(ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 		)
 		section.add_child(link_button)
 	if not current_id.is_empty():
@@ -239,7 +239,7 @@ static func add_key_door_link_section(ui: Variant, parent: VBoxContainer, entity
 			ui._refresh_map_constructor_panels()
 			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
 				ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+			ui._show_map_constructor_inspector(ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 		)
 		section.add_child(unlink_button)
 	parent.add_child(section)
@@ -334,7 +334,7 @@ static func add_door_required_key_picker(ui: Variant, parent: VBoxContainer, ent
 		ui._refresh_map_constructor_panels()
 		if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
 			ui.field_runtime.call("request_visual_refresh")
-		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+		ui._show_map_constructor_inspector(ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	)
 	actions.add_child(apply_button)
 	if not current_key_id.is_empty():
@@ -347,7 +347,7 @@ static func add_door_required_key_picker(ui: Variant, parent: VBoxContainer, ent
 			ui._refresh_map_constructor_panels()
 			if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
 				ui.field_runtime.call("request_visual_refresh")
-			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+			ui._show_map_constructor_inspector(ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 		)
 		actions.add_child(clear_button)
 	section.add_child(actions)

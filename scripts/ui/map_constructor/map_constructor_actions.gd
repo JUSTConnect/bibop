@@ -45,9 +45,9 @@ static func delete_entity_by_id(ui: Variant, entity_kind: String, entity_id: Str
 static func apply_prefab_placement(ui: Variant, prefab_id: String, cell: Vector2i, options: Dictionary = {}) -> Dictionary:
 	if ui.mission_manager_runtime == null or not ui.mission_manager_runtime.has_method("place_map_constructor_prefab"):
 		return {}
-	var wall_side: String = ui._safe_ui_string(options.get("wall_side", ui.selected_map_constructor_wall_side))
-	var rotation: int = int(options.get("rotation", ui.map_constructor_pending_place_rotation))
-	var mounting_mode: String = ui._safe_ui_string(options.get("mounting_mode", ui.selected_map_constructor_mounting_mode))
+	var wall_side: String = ui._safe_ui_string(options.get("wall_side", ui.map_constructor_state.selected_map_constructor_wall_side))
+	var rotation: int = int(options.get("rotation", ui.map_constructor_state.map_constructor_pending_place_rotation))
+	var mounting_mode: String = ui._safe_ui_string(options.get("mounting_mode", ui.map_constructor_state.selected_map_constructor_mounting_mode))
 	return ui._safe_ui_dictionary(ui.mission_manager_runtime.call("place_map_constructor_prefab", prefab_id, cell, wall_side, rotation, mounting_mode))
 
 static func apply_floor_material(ui: Variant, cell: Vector2i, material_id: String, floor_height: String = "default") -> Dictionary:
@@ -55,7 +55,7 @@ static func apply_floor_material(ui: Variant, cell: Vector2i, material_id: Strin
 		return {}
 	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_floor_material", cell, material_id, floor_height))
 	ui.show_hint(ui._safe_ui_string(result.get("message", "Floor material updated."), "Floor material updated."))
-	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+	refresh_after_mutation(ui, {}, ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	return result
 
 static func clear_floor_material(ui: Variant, cell: Vector2i) -> Dictionary:
@@ -63,7 +63,7 @@ static func clear_floor_material(ui: Variant, cell: Vector2i) -> Dictionary:
 		return {}
 	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("clear_map_constructor_floor_material", cell))
 	ui.show_hint(ui._safe_ui_string(result.get("message", "Floor material cleared."), "Floor material cleared."))
-	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+	refresh_after_mutation(ui, {}, ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	return result
 
 static func apply_wall_material(ui: Variant, cell: Vector2i, side: String, material_id: String) -> Dictionary:
@@ -72,7 +72,7 @@ static func apply_wall_material(ui: Variant, cell: Vector2i, side: String, mater
 		return {}
 	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_wall_material", cell, side, material_id))
 	ui.show_hint(ui._safe_ui_string(result.get("message", "Wall material updated."), "Wall material updated."))
-	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+	refresh_after_mutation(ui, {}, ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	return result
 
 static func clear_wall_material(ui: Variant, cell: Vector2i, side: String) -> Dictionary:
@@ -81,7 +81,7 @@ static func clear_wall_material(ui: Variant, cell: Vector2i, side: String) -> Di
 		return {}
 	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("clear_map_constructor_wall_material", cell, side))
 	ui.show_hint(ui._safe_ui_string(result.get("message", "Wall material cleared."), "Wall material cleared."))
-	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+	refresh_after_mutation(ui, {}, ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	return result
 
 static func apply_wall_height(ui: Variant, cell: Vector2i, side: String, wall_height: String) -> Dictionary:
@@ -90,7 +90,7 @@ static func apply_wall_height(ui: Variant, cell: Vector2i, side: String, wall_he
 		return {}
 	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_wall_height", cell, side, wall_height))
 	ui.show_hint(ui._safe_ui_string(result.get("message", "Wall height updated."), "Wall height updated."))
-	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+	refresh_after_mutation(ui, {}, ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	return result
 
 static func apply_wall_breach_side(ui: Variant, cell: Vector2i, side: String, breach_side: String) -> Dictionary:
@@ -99,7 +99,7 @@ static func apply_wall_breach_side(ui: Variant, cell: Vector2i, side: String, br
 		return {}
 	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_wall_breach_side", cell, side, breach_side))
 	ui.show_hint(ui._safe_ui_string(result.get("message", "Breach Side updated."), "Breach Side updated."))
-	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+	refresh_after_mutation(ui, {}, ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	return result
 
 static func apply_wall_mounted_side(ui: Variant, entity_kind: String, entity_id: String, selected_side: String) -> Dictionary:
@@ -112,7 +112,7 @@ static func apply_wall_mounted_side(ui: Variant, entity_kind: String, entity_id:
 		return {}
 	var result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("set_map_constructor_wall_mounted_side", entity_kind, entity_id, normalized_side))
 	ui.show_hint(ui._safe_ui_string(result.get("message", "Updated side."), "Updated side."))
-	refresh_after_mutation(ui, {}, ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+	refresh_after_mutation(ui, {}, ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	return result
 
 static func refresh_after_mutation(ui: Variant, result: Dictionary = {}, fallback_cell: Vector2i = Vector2i(-1, -1), entity_kind: String = "", entity_id: String = "", reopen_inspector: bool = true) -> void:

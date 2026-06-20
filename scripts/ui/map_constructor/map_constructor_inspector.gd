@@ -50,8 +50,8 @@ static func build(ui: Variant, entity_kind: String, entity_id: String, data: Dic
 	header_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header_row.add_child(header_label)
 	var expand_button := Button.new()
-	expand_button.text = "▲" if ui.map_constructor_inspector_expanded else "▼"
-	expand_button.tooltip_text = "Collapse inspector" if ui.map_constructor_inspector_expanded else "Expand inspector"
+	expand_button.text = "▲" if ui.map_constructor_state.map_constructor_inspector_expanded else "▼"
+	expand_button.tooltip_text = "Collapse inspector" if ui.map_constructor_state.map_constructor_inspector_expanded else "Expand inspector"
 	expand_button.pressed.connect(ui._toggle_map_constructor_inspector_expanded)
 	header_row.add_child(expand_button)
 	inspector_stack.add_child(header_row)
@@ -426,8 +426,8 @@ static func _build_cell_panel(ui: Variant, cell: Vector2i) -> PanelContainer:
 	header_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header_row.add_child(header_label)
 	var expand_button := Button.new()
-	expand_button.text = "▲" if ui.map_constructor_inspector_expanded else "▼"
-	expand_button.tooltip_text = "Collapse inspector" if ui.map_constructor_inspector_expanded else "Expand inspector"
+	expand_button.text = "▲" if ui.map_constructor_state.map_constructor_inspector_expanded else "▼"
+	expand_button.tooltip_text = "Collapse inspector" if ui.map_constructor_state.map_constructor_inspector_expanded else "Expand inspector"
 	expand_button.pressed.connect(ui._toggle_map_constructor_inspector_expanded)
 	header_row.add_child(expand_button)
 	inspector_stack.add_child(header_row)
@@ -536,7 +536,7 @@ static func _filter_inspection_tabs(ui: Variant, tabs: Array) -> Array:
 	return filtered
 
 static func _choose_preferred_tab_id(ui: Variant, tabs: Array, model_preferred_tab: String, preferred_entity_kind: String, preferred_entity_id: String) -> String:
-	var remembered_tab: String = ui._safe_ui_string(ui.map_constructor_active_inspector_tab_id, "")
+	var remembered_tab: String = ui._safe_ui_string(ui.map_constructor_state.map_constructor_active_inspector_tab_id, "")
 
 	if not preferred_entity_id.is_empty():
 		if not remembered_tab.is_empty():
@@ -577,8 +577,8 @@ static func _choose_tab_entity(ui: Variant, tab: Dictionary, preferred_entity_ki
 		var entity: Dictionary = Dictionary(entity_variant)
 		if str(entity.get("entity_kind", "")) == preferred_entity_kind and str(entity.get("id", "")) == preferred_entity_id:
 			return entity
-	var remembered_kind: String = ui.selected_map_constructor_entity_kind
-	var remembered_id: String = ui.selected_map_constructor_entity_id
+	var remembered_kind: String = ui.map_constructor_state.selected_map_constructor_entity_kind
+	var remembered_id: String = ui.map_constructor_state.selected_map_constructor_entity_id
 	for entity_variant in entities:
 		var entity: Dictionary = Dictionary(entity_variant)
 		if str(entity.get("entity_kind", "")) == remembered_kind and str(entity.get("id", "")) == remembered_id:
@@ -622,14 +622,14 @@ static func _add_floor_wall_coverage_sections(ui: Variant, parent: VBoxContainer
 	MapConstructorFloorWallControls.add_coverage_sections(ui, parent, entity_info, cell, data, entity_kind, entity_id, type_group, include_floor_coverage, include_wall_coverage)
 
 static func _render_floor_tab(ui: Variant, parent: VBoxContainer, cell: Vector2i) -> void:
-	var previous_pending: Vector2i = ui.pending_map_constructor_cell
-	var previous_selected_cell: Vector2i = ui.selected_map_constructor_entity_cell
-	ui.pending_map_constructor_cell = cell
-	ui.selected_map_constructor_entity_cell = cell
+	var previous_pending: Vector2i = ui.map_constructor_state.pending_map_constructor_cell
+	var previous_selected_cell: Vector2i = ui.map_constructor_state.selected_map_constructor_entity_cell
+	ui.map_constructor_state.pending_map_constructor_cell = cell
+	ui.map_constructor_state.selected_map_constructor_entity_cell = cell
 	var floor_entity_info: Dictionary = {"ok": false, "cell": cell, "data": {}}
 	_add_floor_wall_coverage_sections(ui, parent, floor_entity_info, cell, {}, "", "", "floor", true, false)
-	ui.pending_map_constructor_cell = previous_pending
-	ui.selected_map_constructor_entity_cell = previous_selected_cell
+	ui.map_constructor_state.pending_map_constructor_cell = previous_pending
+	ui.map_constructor_state.selected_map_constructor_entity_cell = previous_selected_cell
 
 
 static func _render_wall_tab(ui: Variant, parent: VBoxContainer, entity: Dictionary, cell: Vector2i) -> void:
@@ -677,9 +677,9 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	var entity_id: String = ui._safe_ui_string(entity_info.get("id", ""))
 	var data: Dictionary = ui._safe_ui_dictionary(entity_info.get("data", {})).duplicate(true)
 	var cell: Vector2i = ui._safe_ui_vector2i(entity_info.get("cell", fallback_cell))
-	ui.selected_map_constructor_entity_kind = entity_kind
-	ui.selected_map_constructor_entity_id = entity_id
-	ui.selected_map_constructor_entity_cell = cell
+	ui.map_constructor_state.selected_map_constructor_entity_kind = entity_kind
+	ui.map_constructor_state.selected_map_constructor_entity_id = entity_id
+	ui.map_constructor_state.selected_map_constructor_entity_cell = cell
 	if not (entity_kind in ["world_object", "item"]):
 		_render_read_only_entity(ui, parent, entity_info, "Details")
 		return
@@ -947,18 +947,18 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 
 
 static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String = "", preferred_entity_id: String = "") -> void:
-	var previous_entity_kind: String = ui.selected_map_constructor_entity_kind
-	var previous_entity_id: String = ui.selected_map_constructor_entity_id
-	var previous_cell: Vector2i = ui.selected_map_constructor_entity_cell
+	var previous_entity_kind: String = ui.map_constructor_state.selected_map_constructor_entity_kind
+	var previous_entity_id: String = ui.map_constructor_state.selected_map_constructor_entity_id
+	var previous_cell: Vector2i = ui.map_constructor_state.selected_map_constructor_entity_cell
 	if preferred_entity_id.is_empty() and previous_cell != cell:
-		ui.map_constructor_active_inspector_tab_id = ""
-		ui.map_constructor_active_inspector_entity_id = ""
-		ui.map_constructor_active_inspector_entity_kind = ""
+		ui.map_constructor_state.map_constructor_active_inspector_tab_id = ""
+		ui.map_constructor_state.map_constructor_active_inspector_entity_id = ""
+		ui.map_constructor_state.map_constructor_active_inspector_entity_kind = ""
 	var preserve_scroll_value: int = 0
 	if ui.runtime_map_constructor_inspector_scroll != null and is_instance_valid(ui.runtime_map_constructor_inspector_scroll):
 		preserve_scroll_value = ui.runtime_map_constructor_inspector_scroll.scroll_vertical
 	clear(ui)
-	if not ui.map_constructor_mode_active:
+	if not ui.map_constructor_state.map_constructor_mode_active:
 		ui._set_runtime_bottom_hud_visible(true)
 		return
 	ui._set_runtime_bottom_hud_visible(false)
@@ -969,7 +969,7 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 	if not bool(model.get("ok", false)):
 		return
 	var selected_cell: Vector2i = ui._safe_ui_vector2i(model.get("cell", cell))
-	ui.pending_map_constructor_cell = selected_cell
+	ui.map_constructor_state.pending_map_constructor_cell = selected_cell
 	var tabs: Array = _filter_inspection_tabs(ui, ui._safe_ui_array(model.get("tabs", [])))
 	var preferred_tab_id: String = _choose_preferred_tab_id(ui, tabs, ui._safe_ui_string(model.get("preferred_tab", "floor"), "floor"), preferred_entity_kind, preferred_entity_id)
 	if preferred_tab_id.is_empty() and not preferred_entity_id.is_empty():
@@ -988,10 +988,10 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 		if tab_index < 0 or tab_index >= tabs.size():
 			return
 		var changed_tab: Dictionary = Dictionary(tabs[tab_index])
-		ui.map_constructor_active_inspector_tab_id = ui._safe_ui_string(changed_tab.get("id", ""))
+		ui.map_constructor_state.map_constructor_active_inspector_tab_id = ui._safe_ui_string(changed_tab.get("id", ""))
 		var changed_entity: Dictionary = _choose_tab_entity(ui, changed_tab, preferred_entity_kind, preferred_entity_id)
-		ui.map_constructor_active_inspector_entity_kind = ui._safe_ui_string(changed_entity.get("entity_kind", ""))
-		ui.map_constructor_active_inspector_entity_id = ui._safe_ui_string(changed_entity.get("id", ""))
+		ui.map_constructor_state.map_constructor_active_inspector_entity_kind = ui._safe_ui_string(changed_entity.get("entity_kind", ""))
+		ui.map_constructor_state.map_constructor_active_inspector_entity_id = ui._safe_ui_string(changed_entity.get("id", ""))
 	)
 	for tab_variant in tabs:
 		var tab: Dictionary = Dictionary(tab_variant)
@@ -1016,22 +1016,22 @@ static func refresh(ui: Variant, cell: Vector2i, preferred_entity_kind: String =
 			selected_tab_entity = entity
 	if tab_container.get_tab_count() > 0:
 		tab_container.current_tab = selected_tab_index
-		ui.map_constructor_active_inspector_tab_id = ui._safe_ui_string(Dictionary(tabs[selected_tab_index]).get("id", ""))
+		ui.map_constructor_state.map_constructor_active_inspector_tab_id = ui._safe_ui_string(Dictionary(tabs[selected_tab_index]).get("id", ""))
 		var selected_scroll: ScrollContainer = tab_container.get_child(selected_tab_index) as ScrollContainer
 		ui.runtime_map_constructor_inspector_scroll = selected_scroll
 		if selected_tab_entity.is_empty():
 			selected_tab_entity = _choose_tab_entity(ui, Dictionary(tabs[selected_tab_index]), preferred_entity_kind, preferred_entity_id)
 		if not selected_tab_entity.is_empty() and str(selected_tab_entity.get("entity_kind", "")) in ["world_object", "item"]:
-			ui.selected_map_constructor_entity_kind = str(selected_tab_entity.get("entity_kind", ""))
-			ui.selected_map_constructor_entity_id = str(selected_tab_entity.get("id", ""))
-			ui.selected_map_constructor_entity_cell = ui._safe_ui_vector2i(selected_tab_entity.get("cell", selected_cell))
+			ui.map_constructor_state.selected_map_constructor_entity_kind = str(selected_tab_entity.get("entity_kind", ""))
+			ui.map_constructor_state.selected_map_constructor_entity_id = str(selected_tab_entity.get("id", ""))
+			ui.map_constructor_state.selected_map_constructor_entity_cell = ui._safe_ui_vector2i(selected_tab_entity.get("cell", selected_cell))
 		else:
-			ui.selected_map_constructor_entity_kind = ""
-			ui.selected_map_constructor_entity_id = ""
-			ui.selected_map_constructor_entity_cell = selected_cell
-		ui.map_constructor_active_inspector_entity_kind = ui.selected_map_constructor_entity_kind
-		ui.map_constructor_active_inspector_entity_id = ui.selected_map_constructor_entity_id
-		if previous_entity_kind == ui.selected_map_constructor_entity_kind and previous_entity_id == ui.selected_map_constructor_entity_id:
+			ui.map_constructor_state.selected_map_constructor_entity_kind = ""
+			ui.map_constructor_state.selected_map_constructor_entity_id = ""
+			ui.map_constructor_state.selected_map_constructor_entity_cell = selected_cell
+		ui.map_constructor_state.map_constructor_active_inspector_entity_kind = ui.map_constructor_state.selected_map_constructor_entity_kind
+		ui.map_constructor_state.map_constructor_active_inspector_entity_id = ui.map_constructor_state.selected_map_constructor_entity_id
+		if previous_entity_kind == ui.map_constructor_state.selected_map_constructor_entity_kind and previous_entity_id == ui.map_constructor_state.selected_map_constructor_entity_id:
 			ui._restore_map_constructor_inspector_scroll_deferred(selected_scroll, preserve_scroll_value)
 	ui.runtime_hud_root.add_child(panel)
 	ui.runtime_hud_root.move_child(panel, ui.runtime_hud_root.get_child_count() - 1)

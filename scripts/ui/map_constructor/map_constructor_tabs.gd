@@ -20,7 +20,7 @@ static func add_tab_header(ui: Variant, parent: VBoxContainer, available_width: 
 		tab_button.tooltip_text = str(tab_data.get("tooltip", tab_data.get("label", tab_id)))
 		tab_button.clip_text = true
 		tab_button.toggle_mode = true
-		tab_button.button_pressed = tab_id == ui.map_constructor_active_tab
+		tab_button.button_pressed = tab_id == ui.map_constructor_state.map_constructor_active_tab
 		tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if tab_button.button_pressed:
 			tab_button.add_theme_stylebox_override("normal", ui._make_panel_style(ui.UI_COLOR_PANEL_DARK, ui.UI_COLOR_ACCENT, 2, 6))
@@ -36,13 +36,13 @@ static func add_tab_header(ui: Variant, parent: VBoxContainer, available_width: 
 static func set_active_tab(ui: Variant, tab_name: String) -> void:
 	if not ["map_settings", "objects", "warnings"].has(tab_name):
 		return
-	if tab_name == ui.map_constructor_active_tab:
+	if tab_name == ui.map_constructor_state.map_constructor_active_tab:
 		return
 
 	var scroll_snapshot: Dictionary = MapConstructorScrollStateServiceRef.capture_snapshot(ui)
 
 	remember_palette_scroll(ui)
-	ui.map_constructor_active_tab = tab_name
+	ui.map_constructor_state.map_constructor_active_tab = tab_name
 	ui._refresh_map_constructor_panels()
 
 	MapConstructorScrollStateServiceRef.restore_snapshot_deferred(ui, scroll_snapshot)

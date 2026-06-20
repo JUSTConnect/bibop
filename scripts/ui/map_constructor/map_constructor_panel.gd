@@ -34,12 +34,12 @@ static func build_panel(ui: Variant) -> PanelContainer:
 	list.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	scroll.add_child(list)
 	build_active_tab_content(ui, list)
-	var palette_scroll_key: String = MapConstructorScrollStateServiceRef.palette_key(str(ui.map_constructor_active_tab))
+	var palette_scroll_key: String = MapConstructorScrollStateServiceRef.palette_key(str(ui.map_constructor_state.map_constructor_active_tab))
 	MapConstructorScrollStateServiceRef.restore_scroll_deferred(ui, palette_scroll_key, scroll)
 	return panel
 
 static func build_active_tab_content(ui: Variant, list: VBoxContainer) -> void:
-	match ui.map_constructor_active_tab:
+	match ui.map_constructor_state.map_constructor_active_tab:
 		"objects":
 			ui._build_map_constructor_object_palette(list)
 		"warnings":

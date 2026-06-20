@@ -8,59 +8,59 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 	var list: VBoxContainer = parent
 	var search_edit := LineEdit.new()
 	search_edit.placeholder_text = "Search prefab (id/name/category/placement)..."
-	search_edit.text = ui.map_constructor_prefab_search_text
+	search_edit.text = ui.map_constructor_state.map_constructor_prefab_search_text
 	search_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	search_edit.text_changed.connect(func(new_text: String) -> void:
-		ui.map_constructor_prefab_search_text = new_text
+		ui.map_constructor_state.map_constructor_prefab_search_text = new_text
 		ui._refresh_map_constructor_panels()
 	)
 	list.add_child(search_edit)
 	var category_option := OptionButton.new()
 	for category_name in ui.MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES:
 		category_option.add_item(category_name)
-	var selected_category_index: int = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.find(ui.map_constructor_prefab_category_filter)
+	var selected_category_index: int = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.find(ui.map_constructor_state.map_constructor_prefab_category_filter)
 	if selected_category_index < 0:
 		selected_category_index = 0
-		ui.map_constructor_prefab_category_filter = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[0]
+		ui.map_constructor_state.map_constructor_prefab_category_filter = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[0]
 	category_option.select(selected_category_index)
 	category_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	category_option.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < ui.MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES.size():
-			ui.map_constructor_prefab_category_filter = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[index]
+			ui.map_constructor_state.map_constructor_prefab_category_filter = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_CATEGORIES[index]
 			ui._refresh_map_constructor_panels()
 	)
 	list.add_child(category_option)
 	var role_option: OptionButton = OptionButton.new()
 	for role_name in ui.MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES:
 		role_option.add_item(role_name)
-	role_option.select(maxi(0, ui.MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.find(ui.map_constructor_prefab_role_filter)))
+	role_option.select(maxi(0, ui.MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.find(ui.map_constructor_state.map_constructor_prefab_role_filter)))
 	role_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	role_option.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < ui.MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES.size():
-			ui.map_constructor_prefab_role_filter = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES[index]
+			ui.map_constructor_state.map_constructor_prefab_role_filter = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_ROLES[index]
 			ui._refresh_map_constructor_panels())
 	list.add_child(role_option)
 	var placement_option: OptionButton = OptionButton.new()
 	for mode_name in ui.MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES:
 		placement_option.add_item(mode_name)
-	placement_option.select(maxi(0, ui.MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.find(ui.map_constructor_prefab_placement_filter)))
+	placement_option.select(maxi(0, ui.MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.find(ui.map_constructor_state.map_constructor_prefab_placement_filter)))
 	placement_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	placement_option.item_selected.connect(func(index: int) -> void:
 		if index >= 0 and index < ui.MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES.size():
-			ui.map_constructor_prefab_placement_filter = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES[index]
+			ui.map_constructor_state.map_constructor_prefab_placement_filter = ui.MAP_CONSTRUCTOR_PREFAB_FILTER_PLACEMENT_MODES[index]
 			ui._refresh_map_constructor_panels())
 	list.add_child(placement_option)
-	var show_diag: CheckBox = CheckBox.new(); show_diag.text = "Show Diagnostics"; show_diag.button_pressed = ui.map_constructor_prefab_show_diagnostics; show_diag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	show_diag.toggled.connect(func(v: bool) -> void: ui.map_constructor_prefab_show_diagnostics = v; ui._refresh_map_constructor_panels())
+	var show_diag: CheckBox = CheckBox.new(); show_diag.text = "Show Diagnostics"; show_diag.button_pressed = ui.map_constructor_state.map_constructor_prefab_show_diagnostics; show_diag.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	show_diag.toggled.connect(func(v: bool) -> void: ui.map_constructor_state.map_constructor_prefab_show_diagnostics = v; ui._refresh_map_constructor_panels())
 	list.add_child(show_diag)
-	var show_invalid: CheckBox = CheckBox.new(); show_invalid.text = "Show Expected Invalid"; show_invalid.button_pressed = ui.map_constructor_prefab_show_expected_invalid; show_invalid.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	show_invalid.toggled.connect(func(v: bool) -> void: ui.map_constructor_prefab_show_expected_invalid = v; ui._refresh_map_constructor_panels())
+	var show_invalid: CheckBox = CheckBox.new(); show_invalid.text = "Show Expected Invalid"; show_invalid.button_pressed = ui.map_constructor_state.map_constructor_prefab_show_expected_invalid; show_invalid.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	show_invalid.toggled.connect(func(v: bool) -> void: ui.map_constructor_state.map_constructor_prefab_show_expected_invalid = v; ui._refresh_map_constructor_panels())
 	list.add_child(show_invalid)
-	var show_placeable: CheckBox = CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = ui.map_constructor_prefab_show_only_placeable_here; show_placeable.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	show_placeable.toggled.connect(func(v: bool) -> void: ui.map_constructor_prefab_show_only_placeable_here = v; ui._refresh_map_constructor_panels())
+	var show_placeable: CheckBox = CheckBox.new(); show_placeable.text = "Show Only Placeable Here"; show_placeable.button_pressed = ui.map_constructor_state.map_constructor_prefab_show_only_placeable_here; show_placeable.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	show_placeable.toggled.connect(func(v: bool) -> void: ui.map_constructor_state.map_constructor_prefab_show_only_placeable_here = v; ui._refresh_map_constructor_panels())
 	list.add_child(show_placeable)
 
-	if not ui.selected_map_constructor_prefab_id.is_empty():
+	if not ui.map_constructor_state.selected_map_constructor_prefab_id.is_empty():
 		var mount_row: HBoxContainer = HBoxContainer.new()
 		mount_row.add_theme_constant_override("separation", 4)
 		var mount_label: Label = Label.new()
@@ -70,14 +70,14 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 			var mode_button: Button = Button.new()
 			mode_button.text = "Stationary" if mode_id == "stationary" else "Wall-mounted"
 			mode_button.toggle_mode = true
-			mode_button.button_pressed = ui.selected_map_constructor_mounting_mode == mode_id
+			mode_button.button_pressed = ui.map_constructor_state.selected_map_constructor_mounting_mode == mode_id
 			mode_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			mode_button.pressed.connect(func() -> void:
-				ui.selected_map_constructor_mounting_mode = mode_id
-				if ui.selected_map_constructor_mounting_mode == "stationary":
-					ui.selected_map_constructor_wall_side = ""
-				if ui.pending_map_constructor_cell.x >= 0 and ui.pending_map_constructor_cell.y >= 0:
-					ui._update_map_constructor_preview_for_cell(ui.pending_map_constructor_cell)
+				ui.map_constructor_state.selected_map_constructor_mounting_mode = mode_id
+				if ui.map_constructor_state.selected_map_constructor_mounting_mode == "stationary":
+					ui.map_constructor_state.selected_map_constructor_wall_side = ""
+				if ui.map_constructor_state.pending_map_constructor_cell.x >= 0 and ui.map_constructor_state.pending_map_constructor_cell.y >= 0:
+					ui._update_map_constructor_preview_for_cell(ui.map_constructor_state.pending_map_constructor_cell)
 				ui._refresh_map_constructor_panels()
 			)
 			mount_row.add_child(mode_button)
@@ -85,14 +85,14 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 	var catalog: Array[Dictionary] = []
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_prefab_palette_rows"):
 		var palette_rows: Dictionary = ui.mission_manager_runtime.call("get_map_constructor_prefab_palette_rows", {
-			"search": ui.map_constructor_prefab_search_text,
-			"category": ui.map_constructor_prefab_category_filter,
-			"role": ui.map_constructor_prefab_role_filter,
-			"placement_mode": ui.map_constructor_prefab_placement_filter,
-			"show_expected_invalid": ui.map_constructor_prefab_show_expected_invalid,
-			"show_diagnostics": ui.map_constructor_prefab_show_diagnostics,
-			"show_only_placeable_here": ui.map_constructor_prefab_show_only_placeable_here,
-			"selected_cell": ui.pending_map_constructor_cell
+			"search": ui.map_constructor_state.map_constructor_prefab_search_text,
+			"category": ui.map_constructor_state.map_constructor_prefab_category_filter,
+			"role": ui.map_constructor_state.map_constructor_prefab_role_filter,
+			"placement_mode": ui.map_constructor_state.map_constructor_prefab_placement_filter,
+			"show_expected_invalid": ui.map_constructor_state.map_constructor_prefab_show_expected_invalid,
+			"show_diagnostics": ui.map_constructor_state.map_constructor_prefab_show_diagnostics,
+			"show_only_placeable_here": ui.map_constructor_state.map_constructor_prefab_show_only_placeable_here,
+			"selected_cell": ui.map_constructor_state.pending_map_constructor_cell
 		})
 		for row_variant in ui._safe_ui_array(palette_rows.get("rows", [])):
 			if row_variant is Dictionary:
@@ -118,7 +118,7 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		group_entries.append(entry)
 		grouped_entries[group_name] = group_entries
 	var recent_entries: Array[Dictionary] = []
-	for recent_id in ui.map_constructor_prefab_recent_ids:
+	for recent_id in ui.map_constructor_state.map_constructor_prefab_recent_ids:
 		if not catalog_by_id.has(recent_id):
 			continue
 		var recent_entry: Dictionary = ui._safe_ui_dictionary(catalog_by_id[recent_id])
@@ -159,24 +159,24 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		empty_prefab_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty_prefab_label.add_theme_color_override("font_color", ui.UI_COLOR_WARNING)
 		list.add_child(empty_prefab_label)
-	if not selected_visible and not ui.selected_map_constructor_prefab_id.is_empty():
-		ui.selected_map_constructor_prefab_id = ""
-		ui.selected_map_constructor_wall_side = ""
-		ui.available_map_constructor_wall_sides.clear()
-		ui.pending_map_constructor_cell = Vector2i(-1, -1)
+	if not selected_visible and not ui.map_constructor_state.selected_map_constructor_prefab_id.is_empty():
+		ui.map_constructor_state.selected_map_constructor_prefab_id = ""
+		ui.map_constructor_state.selected_map_constructor_wall_side = ""
+		ui.map_constructor_state.available_map_constructor_wall_sides.clear()
+		ui.map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 		ui._clear_map_constructor_preview_cell()
 	var placement_label: Label = Label.new()
 	placement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	placement_label.text = "Placement: blocked: unsupported prefab (mode: %s)" % ui.selected_map_constructor_mounting_mode
-	if ui.pending_map_constructor_cell.x >= 0 and ui.pending_map_constructor_cell.y >= 0 and not ui.selected_map_constructor_prefab_id.is_empty():
+	placement_label.text = "Placement: blocked: unsupported prefab (mode: %s)" % ui.map_constructor_state.selected_map_constructor_mounting_mode
+	if ui.map_constructor_state.pending_map_constructor_cell.x >= 0 and ui.map_constructor_state.pending_map_constructor_cell.y >= 0 and not ui.map_constructor_state.selected_map_constructor_prefab_id.is_empty():
 		if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("can_place_map_constructor_prefab"):
-			var check: Dictionary = ui._update_map_constructor_preview_for_cell(ui.pending_map_constructor_cell)
+			var check: Dictionary = ui._update_map_constructor_preview_for_cell(ui.map_constructor_state.pending_map_constructor_cell)
 			if selected_visible:
 				list.add_child(ui._create_map_constructor_wall_side_picker(str(check.get("placement_mode", ""))))
 			var reason: String = str(check.get("reason", "unsupported_prefab"))
 			match reason:
 				"ok":
-					placement_label.text = "Placement: OK (mode: %s)" % ui.selected_map_constructor_mounting_mode
+					placement_label.text = "Placement: OK (mode: %s)" % ui.map_constructor_state.selected_map_constructor_mounting_mode
 				"existing_object", "occupied_by_bipob":
 					placement_label.text = "Placement: blocked: existing object"
 				"out_of_bounds":
@@ -190,17 +190,17 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 				_:
 					placement_label.text = "Placement: blocked: unsupported prefab"
 			if str(check.get("placement_mode", "")) == "wall_mounted":
-				placement_label.text += "\nWall side: %s (R to cycle)" % ui._get_map_constructor_wall_side_label(str(check.get("wall_side", ui.selected_map_constructor_wall_side)))
+				placement_label.text += "\nWall side: %s (R to cycle)" % ui._get_map_constructor_wall_side_label(str(check.get("wall_side", ui.map_constructor_state.selected_map_constructor_wall_side)))
 	list.add_child(placement_label)
 	var favorite_toggle: Button = Button.new()
-	var selected_is_favorite: bool = bool(ui.map_constructor_prefab_favorites.get(ui.selected_map_constructor_prefab_id, false))
+	var selected_is_favorite: bool = bool(ui.map_constructor_state.map_constructor_prefab_favorites.get(ui.map_constructor_state.selected_map_constructor_prefab_id, false))
 	favorite_toggle.text = "★ Unfavorite Selected" if selected_is_favorite else "☆ Favorite Selected"
-	favorite_toggle.disabled = ui.selected_map_constructor_prefab_id.is_empty()
+	favorite_toggle.disabled = ui.map_constructor_state.selected_map_constructor_prefab_id.is_empty()
 	favorite_toggle.pressed.connect(func() -> void:
-		if ui.selected_map_constructor_prefab_id.is_empty():
+		if ui.map_constructor_state.selected_map_constructor_prefab_id.is_empty():
 			return
-		var favorite_now: bool = not bool(ui.map_constructor_prefab_favorites.get(ui.selected_map_constructor_prefab_id, false))
-		ui.map_constructor_prefab_favorites[ui.selected_map_constructor_prefab_id] = favorite_now
+		var favorite_now: bool = not bool(ui.map_constructor_state.map_constructor_prefab_favorites.get(ui.map_constructor_state.selected_map_constructor_prefab_id, false))
+		ui.map_constructor_state.map_constructor_prefab_favorites[ui.map_constructor_state.selected_map_constructor_prefab_id] = favorite_now
 		ui._refresh_map_constructor_panels()
 	)
 	list.add_child(favorite_toggle)
@@ -209,18 +209,18 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 	list.add_child(placed_title)
 	var placed_search: LineEdit = LineEdit.new()
 	placed_search.placeholder_text = "Search placed objects..."
-	placed_search.text = ui.map_constructor_placed_search_text
+	placed_search.text = ui.map_constructor_state.map_constructor_placed_search_text
 	placed_search.text_changed.connect(func(new_text: String) -> void:
-		ui.map_constructor_placed_search_text = new_text
+		ui.map_constructor_state.map_constructor_placed_search_text = new_text
 		ui._refresh_map_constructor_panels()
 	)
 	list.add_child(placed_search)
 	var placed_rows: Array[Dictionary] = ui._build_map_constructor_placed_object_rows()
-	var selected_row_exists: bool = ui.selected_map_constructor_entity_id.is_empty()
+	var selected_row_exists: bool = ui.map_constructor_state.selected_map_constructor_entity_id.is_empty()
 	for row in placed_rows:
 		var row_entity_id: String = str(row.get("id", ""))
 		var row_entity_kind: String = str(row.get("entity_kind", ""))
-		if row_entity_id == ui.selected_map_constructor_entity_id and row_entity_kind == ui.selected_map_constructor_entity_kind:
+		if row_entity_id == ui.map_constructor_state.selected_map_constructor_entity_id and row_entity_kind == ui.map_constructor_state.selected_map_constructor_entity_kind:
 			selected_row_exists = true
 	for row in placed_rows:
 		if not ui._map_constructor_placed_row_matches_search(row):
@@ -229,7 +229,7 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		var row_anchor_cell: Vector2i = ui._safe_ui_vector2i(row.get("anchor_floor_cell", row_cell))
 		var row_entity_id: String = str(row.get("id", ""))
 		var row_entity_kind: String = str(row.get("entity_kind", ""))
-		var row_selected: bool = row_entity_id == ui.selected_map_constructor_entity_id and row_entity_kind == ui.selected_map_constructor_entity_kind
+		var row_selected: bool = row_entity_id == ui.map_constructor_state.selected_map_constructor_entity_id and row_entity_kind == ui.map_constructor_state.selected_map_constructor_entity_kind
 		var row_button: Button = Button.new()
 		var row_text: String = "%s | %s | c:%s | %s" % [str(row.get("id", "")), str(row.get("type_or_prefab", "")), str(row_cell), str(row.get("category_or_placement", ""))]
 		if str(row.get("placement_mode", "")) == "wall_mounted":
@@ -247,15 +247,15 @@ static func build_object_palette(ui: Variant, parent: VBoxContainer) -> void:
 		ui._clear_map_constructor_browser_selection()
 	var browser_selection_label: Label = Label.new()
 	browser_selection_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	if ui.selected_map_constructor_entity_id.is_empty() or ui.selected_map_constructor_entity_kind.is_empty():
+	if ui.map_constructor_state.selected_map_constructor_entity_id.is_empty() or ui.map_constructor_state.selected_map_constructor_entity_kind.is_empty():
 		browser_selection_label.text = "Browser selection: none"
 	else:
-		browser_selection_label.text = "Browser selection: %s/%s @ %s" % [ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id, str(ui.selected_map_constructor_entity_cell)]
+		browser_selection_label.text = "Browser selection: %s/%s @ %s" % [ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id, str(ui.map_constructor_state.selected_map_constructor_entity_cell)]
 	list.add_child(browser_selection_label)
 
 
 static func prefab_matches_filters(ui: Variant, entry: Dictionary) -> bool:
-	var search_text: String = ui.map_constructor_prefab_search_text.strip_edges().to_lower()
+	var search_text: String = ui.map_constructor_state.map_constructor_prefab_search_text.strip_edges().to_lower()
 	var prefab_id: String = ui._safe_ui_string(entry.get("id", ""))
 	var label_text: String = ui._safe_ui_string(entry.get("display_name", entry.get("label", "")))
 	var category_text: String = ui._safe_ui_string(entry.get("category", ""))
@@ -263,11 +263,11 @@ static func prefab_matches_filters(ui: Variant, entry: Dictionary) -> bool:
 	var roles_text: String = format_variant_list(ui, entry.get("system_roles", []))
 	var tags_text: String = format_variant_list(ui, entry.get("tags", []))
 	var description: String = ui._safe_ui_string(entry.get("description", ""))
-	if ui.map_constructor_prefab_category_filter != "All" and category_text != ui.map_constructor_prefab_category_filter:
+	if ui.map_constructor_state.map_constructor_prefab_category_filter != "All" and category_text != ui.map_constructor_state.map_constructor_prefab_category_filter:
 		return false
-	if ui.map_constructor_prefab_role_filter != "All" and not get_variant_string_list(ui, entry.get("system_roles", [])).has(ui.map_constructor_prefab_role_filter):
+	if ui.map_constructor_state.map_constructor_prefab_role_filter != "All" and not get_variant_string_list(ui, entry.get("system_roles", [])).has(ui.map_constructor_state.map_constructor_prefab_role_filter):
 		return false
-	if ui.map_constructor_prefab_placement_filter != "All" and placement_mode != ui.map_constructor_prefab_placement_filter:
+	if ui.map_constructor_state.map_constructor_prefab_placement_filter != "All" and placement_mode != ui.map_constructor_state.map_constructor_prefab_placement_filter:
 		return false
 	if search_text.is_empty():
 		return true
@@ -318,20 +318,20 @@ static func mark_prefab_recent(ui: Variant, prefab_id: String) -> void:
 					visible_ids[row_id] = true
 		if not visible_ids.has(normalized_id):
 			return
-	ui.map_constructor_prefab_recent_ids.erase(normalized_id)
-	ui.map_constructor_prefab_recent_ids.push_front(normalized_id)
-	if ui.map_constructor_prefab_recent_ids.size() > ui.MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT:
-		ui.map_constructor_prefab_recent_ids.resize(ui.MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT)
+	ui.map_constructor_state.map_constructor_prefab_recent_ids.erase(normalized_id)
+	ui.map_constructor_state.map_constructor_prefab_recent_ids.push_front(normalized_id)
+	if ui.map_constructor_state.map_constructor_prefab_recent_ids.size() > ui.MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT:
+		ui.map_constructor_state.map_constructor_prefab_recent_ids.resize(ui.MAP_CONSTRUCTOR_PREFAB_RECENT_LIMIT)
 
 static func select_prefab(ui: Variant, prefab_id: String) -> void:
-	ui.selected_map_constructor_prefab_id = prefab_id
-	ui.selected_map_constructor_wall_side = ""
-	ui.selected_map_constructor_mounting_mode = "stationary"
+	ui.map_constructor_state.selected_map_constructor_prefab_id = prefab_id
+	ui.map_constructor_state.selected_map_constructor_wall_side = ""
+	ui.map_constructor_state.selected_map_constructor_mounting_mode = "stationary"
 	if ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_prefab_metadata"):
 		var metadata_result: Dictionary = ui._safe_ui_dictionary(ui.mission_manager_runtime.call("get_map_constructor_prefab_metadata", prefab_id))
 		var metadata: Dictionary = ui._safe_ui_dictionary(metadata_result.get("prefab", {}))
 		if ui._safe_ui_string(metadata.get("placement_mode", "")).to_lower() == "wall_mounted":
-			ui.selected_map_constructor_mounting_mode = "wall_mounted"
+			ui.map_constructor_state.selected_map_constructor_mounting_mode = "wall_mounted"
 	elif ui.mission_manager_runtime != null and ui.mission_manager_runtime.has_method("get_map_constructor_prefab_catalog"):
 		var catalog_entries: Array = ui._safe_ui_array(ui.mission_manager_runtime.call("get_map_constructor_prefab_catalog"))
 		for entry_variant in catalog_entries:
@@ -341,13 +341,13 @@ static func select_prefab(ui: Variant, prefab_id: String) -> void:
 			if ui._safe_ui_string(entry.get("id", "")) != prefab_id:
 				continue
 			if ui._safe_ui_string(entry.get("placement_mode", "")).to_lower() == "wall_mounted":
-				ui.selected_map_constructor_mounting_mode = "wall_mounted"
+				ui.map_constructor_state.selected_map_constructor_mounting_mode = "wall_mounted"
 			break
 	var wall_mounted_prefab_defaults: Dictionary = {"light": true, "light_switch": true, "circuit_breaker": true}
 	if bool(wall_mounted_prefab_defaults.get(prefab_id.strip_edges().to_lower(), false)):
-		ui.selected_map_constructor_mounting_mode = "wall_mounted"
-	ui.available_map_constructor_wall_sides.clear()
-	ui.pending_map_constructor_cell = Vector2i(-1, -1)
+		ui.map_constructor_state.selected_map_constructor_mounting_mode = "wall_mounted"
+	ui.map_constructor_state.available_map_constructor_wall_sides.clear()
+	ui.map_constructor_state.pending_map_constructor_cell = Vector2i(-1, -1)
 	ui._clear_map_constructor_pending_placement()
 	ui._clear_map_constructor_preview_cell()
 
@@ -530,7 +530,7 @@ static func create_prefab_preview(ui: Variant, entry: Dictionary) -> Control:
 
 static func create_prefab_tile(ui: Variant, entry: Dictionary) -> Button:
 	var prefab_id: String = ui._safe_ui_string(entry.get("id", ""))
-	var selected: bool = prefab_id == ui.selected_map_constructor_prefab_id
+	var selected: bool = prefab_id == ui.map_constructor_state.selected_map_constructor_prefab_id
 	var card: Button = Button.new()
 	card.toggle_mode = true
 	card.button_pressed = selected
@@ -623,7 +623,7 @@ static func create_prefab_tile(ui: Variant, entry: Dictionary) -> Button:
 	prefab_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	text_stack.add_child(prefab_status_label)
 
-	if ui.map_constructor_prefab_show_diagnostics:
+	if ui.map_constructor_state.map_constructor_prefab_show_diagnostics:
 		var diagnostic_bits: Array[String] = []
 		if bool(entry.get("is_destructive", false)):
 			diagnostic_bits.append("destructive")

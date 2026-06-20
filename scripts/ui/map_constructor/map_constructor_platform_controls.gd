@@ -15,9 +15,9 @@ static func render(ui: Variant, parent: VBoxContainer, entity_info: Dictionary, 
 	var entity_id: String = MapConstructorUiSafe.safe_string(entity_info.get("id", ""))
 	var data: Dictionary = PlatformTypesRef.normalize_platform_config(MapConstructorUiSafe.safe_dictionary(entity_info.get("data", {})))
 	var cell: Vector2i = ui._safe_ui_vector2i(entity_info.get("cell", fallback_cell))
-	ui.selected_map_constructor_entity_kind = entity_kind
-	ui.selected_map_constructor_entity_id = entity_id
-	ui.selected_map_constructor_entity_cell = cell
+	ui.map_constructor_state.selected_map_constructor_entity_kind = entity_kind
+	ui.map_constructor_state.selected_map_constructor_entity_id = entity_id
+	ui.map_constructor_state.selected_map_constructor_entity_cell = cell
 	var tabs: TabContainer = TabContainer.new()
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -175,7 +175,7 @@ static func _add_platform_member_checklist(ui: Variant, section: VBoxContainer, 
 				ui.field_runtime.call("request_visual_refresh")
 			if ui.bipob != null and ui.bipob.has_method("refresh_world_action_panel"):
 				ui.bipob.call("refresh_world_action_panel")
-			ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+			ui._show_map_constructor_inspector(ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 		)
 		section.add_child(check)
 
@@ -209,7 +209,7 @@ static func _add_control_cell_checkbox(ui: Variant, section: VBoxContainer, enti
 		ui._refresh_map_constructor_panels()
 		if ui.field_runtime != null and ui.field_runtime.has_method("request_visual_refresh"):
 			ui.field_runtime.call("request_visual_refresh")
-		ui._show_map_constructor_inspector(ui.selected_map_constructor_entity_cell, ui.selected_map_constructor_entity_kind, ui.selected_map_constructor_entity_id)
+		ui._show_map_constructor_inspector(ui.map_constructor_state.selected_map_constructor_entity_cell, ui.map_constructor_state.selected_map_constructor_entity_kind, ui.map_constructor_state.selected_map_constructor_entity_id)
 	)
 	section.add_child(ui._create_property_row("Control Cell", checkbox))
 
@@ -263,7 +263,7 @@ static func _add_occupants(ui: Variant, parent: VBoxContainer, platform_id: Stri
 				var jump_button: Button = Button.new()
 				jump_button.text = "Jump / Select"
 				jump_button.pressed.connect(func() -> void:
-					var occupant_cell: Vector2i = ui._safe_ui_vector2i(row.get("cell", ui.selected_map_constructor_entity_cell))
+					var occupant_cell: Vector2i = ui._safe_ui_vector2i(row.get("cell", ui.map_constructor_state.selected_map_constructor_entity_cell))
 					ui._show_map_constructor_inspector(occupant_cell, "world_object", occupant_id)
 				)
 				section.add_child(jump_button)

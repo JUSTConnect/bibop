@@ -81,17 +81,6 @@ class ConstructorValidationOverlayControl:
 
 
 
-func _get(property: StringName) -> Variant:
-	if map_constructor_state != null and map_constructor_state.has_session_property(property):
-		return map_constructor_state.get(property)
-	return null
-
-
-func _set(property: StringName, value: Variant) -> bool:
-	if map_constructor_state != null and map_constructor_state.has_session_property(property):
-		map_constructor_state.set(property, value)
-		return true
-	return false
 
 var bipob: BipobController = null
 var field_runtime: GridManager = null
