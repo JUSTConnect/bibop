@@ -2337,6 +2337,26 @@ func _seed_debug_world_objects() -> void:
 	if debug_world_logs:
 		_debug_world_summary()
 
+func _place_debug_world_object(object_type: String, object_id: String, cell: Vector2i, overrides: Dictionary = {}) -> Dictionary:
+	if object_type.is_empty() or object_id.is_empty():
+		return {}
+	var existing := get_world_object_by_id(object_id)
+	if not existing.is_empty():
+		world_state_store.remove_object_by_id(object_id)
+	var object_data := WorldObjectCatalogRef.create_world_object(object_type, object_id)
+	if object_data.is_empty():
+		return {}
+	object_data["id"] = object_id
+	object_data["position"] = cell
+	for key in overrides.keys():
+		object_data[key] = overrides[key]
+	var upsert_result: Dictionary = world_state_store.upsert_object(object_data)
+	if not bool(upsert_result.get("ok", false)):
+		if debug_world_logs:
+			push_warning("Failed to place debug world object %s: %s" % [object_id, str(upsert_result.get("reason", "unknown"))])
+		return {}
+	return Dictionary(upsert_result.get("object", object_data)).duplicate(true)
+
 func seed_world_cooling_debug_scenario(origin: Vector2i = Vector2i(8, 8)) -> void:
 	_place_debug_world_object("terminal", "terminal_c2_radiator", origin + Vector2i(0, 0), {"terminal_class": 2, "working_heat": 2, "current_heat": 2, "overheat_threshold": 3, "hack_heat": 1})
 	_place_debug_world_object("external_radiator", "cooling_radiator_a", origin + Vector2i(1, 0))
