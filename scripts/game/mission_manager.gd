@@ -2,6 +2,9 @@ extends Node
 
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 const WorldStateStoreRef = preload("res://scripts/world/world_state_store.gd")
+const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
+const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
+const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const ScanSystemRef = preload("res://scripts/world/scan_system.gd")
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const PowerSystemRef = preload("res://scripts/world/power_system.gd")
@@ -31,219 +34,6 @@ const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cool
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 const DEVICE_INTERACTION_FLOW_STATES: Array[String] = ["no_target", "unknown", "scanned", "diagnosed", "ready", "blocked", "executed_unavailable"]
-
-const ISO_PLACEHOLDER_ASSET_PATHS: Dictionary = {
-	"floor_concrete": "res://assets/visual/isometric/floor/floor_concrete_01.png",
-	"floor_steel": "res://assets/visual/isometric/floor/floor_steel_01.png",
-	"floor_titan": "res://assets/visual/isometric/floor/floor_titan_01.png",
-	"platform_floor": "res://assets/visual/isometric/floor/floor_platform_01.png",
-	"floor_default": "res://assets/visual/isometric/floor/floor_concrete_01.png",
-	"floor_stepped": "res://assets/visual/isometric/floor/floor_concrete_01.png",
-	"floor_clean_lab": "res://assets/visual/isometric/placeholders/iso_floor_clean_lab.svg",
-	"floor_dark_service": "res://assets/visual/isometric/placeholders/iso_floor_dark_service.svg",
-	"floor_hazard": "res://assets/visual/isometric/placeholders/iso_floor_hazard.svg",
-	"floor_power": "res://assets/visual/isometric/placeholders/iso_floor_power.svg",
-	"floor_damaged": "res://assets/visual/isometric/placeholders/iso_floor_damaged.svg",
-	"floor_reinforced": "res://assets/visual/isometric/placeholders/iso_floor_reinforced.svg",
-	"floor_diagnostic": "res://assets/visual/isometric/placeholders/iso_floor_diagnostic.svg",
-	"floor_door_underlay": "res://assets/visual/isometric/placeholders/iso_floor_door_underlay.svg",
-	"wall_default": "res://assets/visual/isometric/wall/concrete/wall_concrete_mid_01.png",
-	"wall_outer": "res://assets/visual/isometric/wall/outerwall/wall_outerwall_mid_01.png",
-	"wall_brick": "res://assets/visual/isometric/wall/brick/wall_brick_mid_01.png",
-	"wall_concrete": "res://assets/visual/isometric/wall/concrete/wall_concrete_mid_01.png",
-	"wall_grate": "res://assets/visual/isometric/wall/grate/wall_grate_mid_01.png",
-	"wall_damaged": "res://assets/visual/isometric/wall/concrete/wall_concrete_mid_01.png",
-	"wall_concrete_damaged": "res://assets/visual/isometric/wall/concrete/wall_concrete_mid_01.png",
-	"wall_brick_damaged": "res://assets/visual/isometric/wall/brick/wall_brick_mid_01.png",
-	"wall_steel": "res://assets/visual/isometric/wall/steel/wall_steel_mid_01.png",
-	"wall_reinforced_steel": "res://assets/visual/isometric/wall/reinforce_steel/wall_reinforcesteel_mid_01.png",
-	"wall_titan": "res://assets/visual/isometric/wall/titan/wall_titan_mid_01.png",
-	"wall_energy": "res://assets/visual/isometric/wall/reinforce_steel/wall_reinforcesteel_mid_01.png",
-	"object_door": "res://assets/visual/isometric/placeholders/iso_object_door.svg",
-	"object_terminal": "res://assets/visual/isometric/placeholders/iso_object_terminal.svg",
-	"object_key": "res://assets/visual/isometric/placeholders/iso_object_key.svg",
-	"object_component": "res://assets/visual/isometric/placeholders/iso_object_component.svg",
-	"object_socket": "res://assets/visual/isometric/placeholders/iso_object_socket.svg",
-	"object_cable": "res://assets/visual/isometric/placeholders/iso_object_cable.svg",
-	"object_generic": "res://assets/visual/isometric/placeholders/iso_object_generic.svg",
-	"object_fuse": "res://assets/visual/isometric/placeholders/iso_object_fuse.svg",
-	"object_repair_kit": "res://assets/visual/isometric/placeholders/iso_object_repair_kit.svg",
-	"object_keycard": "res://assets/visual/isometric/placeholders/iso_object_keycard.svg",
-	"object_access_code": "res://assets/visual/isometric/placeholders/iso_object_access_code.svg",
-	"object_cable_reel": "res://assets/visual/isometric/placeholders/iso_object_cable_reel.svg",
-	"cable_reel_01": "res://assets/visual/isometric/objects/cable_reel/cable_reel_base_floor.png",
-	"cable_reel_02": "res://assets/visual/isometric/objects/cable_reel/cable_reel_base_floor.png",
-	"fuse_box_in_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_base_with_floor.png",
-	"fuse_box_out_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_base_without_floor.png",
-	"fuse_box_in_wall_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_base_with_wall.png",
-	"fuse_box_out_wall_01": "res://assets/visual/isometric/objects/fuse_box/fuse_box_base_without_wall.png",
-	"light_01": "res://assets/visual/isometric/light/light_off_wall.png",
-	"light_off_wall_01": "res://assets/visual/isometric/light/light_off_wall.png",
-	"light_on_wall_01": "res://assets/visual/isometric/light/light_on_wall.png",
-	"light_on_wall_pulsar_overlay_01": "res://assets/visual/isometric/light/pulsar_overlay_light_on_wall.png",
-	"power_source_01": "res://assets/visual/isometric/objects/power_source/power_source_base_floor.png",
-	"power_switcher_off_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_off_floor.png",
-	"power_switcher_off_wall_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_off_wall.png",
-	"power_switcher_on_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_on_floor.png",
-	"power_switcher_on_wall_01": "res://assets/visual/isometric/objects/power_swicher/power_swicher_on_wall.png",
-	"radiator_01": "res://assets/visual/isometric/moovable/radiator_floor.png",
-	"radiator_floor_01": "res://assets/visual/isometric/moovable/radiator_floor.png",
-	"terminal_01": "res://assets/visual/isometric/objects/terminal/terminal_base_floor.png",
-	"barrel_01": "res://assets/visual/isometric/moovable/normal_barrel_floor.png",
-	"normal_barrel_floor_01": "res://assets/visual/isometric/moovable/normal_barrel_floor.png",
-	"case_01": "res://assets/visual/isometric/objects/case/case_locked_floor.png",
-	"steel_box_01": "res://assets/visual/isometric/moovable/heavy_crate_floor.png",
-	"fire_barrel_01": "res://assets/visual/isometric/moovable/fire_barrel_floor.png",
-	"fire_barrel_floor_01": "res://assets/visual/isometric/moovable/fire_barrel_floor.png",
-	"normal_crate_floor_01": "res://assets/visual/isometric/moovable/norma_crate_floor.png",
-	"heavy_crate_floor_01": "res://assets/visual/isometric/moovable/heavy_crate_floor.png",
-	"object_button": "res://assets/visual/isometric/placeholders/iso_object_button.svg",
-	"object_switch": "res://assets/visual/isometric/placeholders/iso_object_switch.svg"
-}
-
-const FLOOR_TEXTURE_ASSET_ALIASES: Dictionary = {
-	"default_floor": "floor_concrete",
-	"floor_default": "floor_concrete",
-	"concrete": "floor_concrete",
-	"concrete_floor": "floor_concrete",
-	"steel": "floor_steel",
-	"steel_floor": "floor_steel",
-	"titan": "floor_titan",
-	"titan_floor": "floor_titan",
-	"titanium": "floor_titan",
-	"titanium_floor": "floor_titan",
-	"clean_lab_floor": "floor_steel",
-	"dark_service_floor": "floor_concrete",
-	"hazard_floor": "floor_concrete",
-	"power_floor": "floor_steel",
-	"damaged_floor": "floor_concrete",
-	"reinforced_floor": "floor_steel",
-	"diagnostic_floor": "floor_steel"
-}
-
-const WALL_TEXTURE_ASSET_ALIASES: Dictionary = {
-	"default_wall": "wall_default",
-	"wall_default_metal": "wall_concrete",
-	"wall_clean_lab": "wall_concrete",
-	"wall_dark_service": "wall_grate",
-	"wall_orange_hazard": "wall_concrete_damaged",
-	"wall_damaged_red": "wall_brick_damaged",
-	"wall_reinforced": "wall_steel",
-	"wall_power_room": "wall_reinforced_steel",
-	"wall_diagnostic_blue": "wall_brick",
-	"wall_concrete": "wall_concrete",
-	"wall_concrete_default": "wall_concrete",
-	"wall_steel": "wall_steel",
-	"wall_brick": "wall_brick",
-	"wall_brick_damage": "wall_brick_damaged",
-	"wall_brick_damaged": "wall_brick_damaged",
-	"wall_concrete_damage": "wall_concrete_damaged",
-	"wall_concrete_damaged": "wall_concrete_damaged",
-	"wall_reinforced_steel": "wall_reinforced_steel",
-	"wall_titan": "wall_titan",
-	"wall_titanium": "wall_titan",
-	"wall_outer": "wall_outer",
-	"wall_outerwall": "wall_outer",
-	"wall_grate": "wall_grate",
-	"wall_boundary": "wall_outer",
-	"industrial_panel": "wall_brick",
-	"wall_industrial_panel": "wall_brick",
-	"wall_service_vent": "wall_grate",
-	"outer": "wall_outer",
-	"boundary": "wall_outer",
-	"concrete": "wall_concrete",
-	"brick": "wall_brick",
-	"grate": "wall_grate",
-	"vent": "wall_grate",
-	"service": "wall_grate",
-	"steel": "wall_steel",
-	"reinforced": "wall_reinforced_steel",
-	"titan": "wall_titan",
-	"titanium": "wall_titan",
-	"damaged": "wall_concrete_damaged",
-	"red": "wall_brick_damaged",
-	"broken": "wall_concrete_damaged",
-	"energy": "wall_reinforced_steel",
-	"powered": "wall_reinforced_steel"
-}
-
-const OBJECT_TEXTURE_ASSET_ALIASES: Dictionary = {
-	"door_state_generic": "object_door",
-	"terminal_state_generic": "object_terminal",
-	"item_generic_marker": "object_generic",
-	"cable_reel": "cable_reel_01",
-	"cable_reel_01": "cable_reel_01",
-	"power_cable_reel": "cable_reel_01",
-	"fuse_box": "fuse_box_out_01",
-	"Fuse_box": "fuse_box_out_01",
-	"fuse_box_empty": "fuse_box_out_01",
-	"fuse_box_installed": "fuse_box_in_01",
-	"Fuse_box_in_01": "fuse_box_in_01",
-	"Fuse_box_out_01": "fuse_box_out_01",
-	"Fuse_box_in_wall_01": "fuse_box_in_wall_01",
-	"Fuse_box_out_wall_01": "fuse_box_out_wall_01",
-	"wall_fuse_box": "fuse_box_out_wall_01",
-	"power_source": "power_source_01",
-	"power_source_class_1": "power_source_01",
-	"power_source_class_2": "power_source_01",
-	"power_source_class_3": "power_source_01",
-	"switcher": "power_switcher_off_01",
-	"power_switcher": "power_switcher_off_01",
-	"radiator": "radiator_floor_01",
-	"external_radiator": "radiator_floor_01",
-	"terminal": "terminal_01",
-	"normal_barrel": "normal_barrel_floor_01",
-	"barrel": "normal_barrel_floor_01",
-	"fire_barrel": "fire_barrel_floor_01",
-	"flammable_barrel": "fire_barrel_floor_01",
-	"normal_crate": "normal_crate_floor_01",
-	"crate": "normal_crate_floor_01",
-	"heavy_crate": "heavy_crate_floor_01",
-	"case": "case_01",
-	"steel_box": "steel_box_01",
-	"light": "light_off_wall_01"
-}
-
-const VISUAL_TEXTURE_ASSET_ALIASES: Dictionary = {
-	"default_floor": "floor_concrete",
-	"floor_default": "floor_concrete",
-	"concrete_floor": "floor_concrete",
-	"steel_floor": "floor_steel",
-	"titan_floor": "floor_titan",
-	"titanium_floor": "floor_titan",
-	"clean_lab_floor": "floor_steel",
-	"dark_service_floor": "floor_concrete",
-	"hazard_floor": "floor_concrete",
-	"power_floor": "floor_steel",
-	"damaged_floor": "floor_concrete",
-	"reinforced_floor": "floor_steel",
-	"diagnostic_floor": "floor_steel",
-	"default_wall": "wall_default",
-	"wall_default_metal": "wall_concrete",
-	"wall_clean_lab": "wall_concrete",
-	"wall_dark_service": "wall_grate",
-	"wall_orange_hazard": "wall_concrete_damaged",
-	"wall_damaged_red": "wall_brick_damaged",
-	"wall_reinforced": "wall_steel",
-	"wall_power_room": "wall_reinforced_steel",
-	"wall_diagnostic_blue": "wall_brick",
-	"wall_concrete_default": "wall_concrete",
-	"wall_industrial_panel": "wall_brick",
-	"wall_service_vent": "wall_grate",
-	"wall_boundary": "wall_outer",
-	"door_state_generic": "object_door",
-	"terminal_state_generic": "object_terminal",
-	"item_generic_marker": "object_generic",
-	"radiator": "radiator_floor_01",
-	"external_radiator": "radiator_floor_01",
-	"normal_barrel": "normal_barrel_floor_01",
-	"barrel": "normal_barrel_floor_01",
-	"fire_barrel": "fire_barrel_floor_01",
-	"flammable_barrel": "fire_barrel_floor_01",
-	"normal_crate": "normal_crate_floor_01",
-	"crate": "normal_crate_floor_01",
-	"heavy_crate": "heavy_crate_floor_01"
-}
 
 var world_state_store: WorldStateStore = WorldStateStoreRef.new()
 
@@ -1338,35 +1128,10 @@ func _is_task_test_constructor_context() -> bool:
 	return is_sandbox_mode_active()
 
 func normalize_map_constructor_wall_material_id(material_id: String) -> String:
-	var normalized_id: String = material_id.to_lower().strip_edges()
-	var legacy_aliases: Dictionary = {
-		"default_metal": "concrete",
-		"clean_lab": "concrete",
-		"dark_service": "grate",
-		"orange_hazard": "concrete_damage",
-		"damaged_red": "brick_damage",
-		"breachable_concrete": "breachable_concrete",
-		"breachable_brick": "breachable_brick",
-		"reinforced": "steel",
-		"power_room": "reinforced_steel",
-		"diagnostic_blue": "brick",
-		"outer_wall": "outerwall",
-		"wall_outer": "outerwall"
-	}
-	if legacy_aliases.has(normalized_id):
-		return str(legacy_aliases.get(normalized_id, normalized_id))
-	return normalized_id
+	return SurfaceMaterialCatalogRef.normalize_wall_material_id(material_id)
 
 func _is_known_map_constructor_wall_material_id(material_id: String) -> bool:
-	var normalized_id: String = normalize_map_constructor_wall_material_id(material_id)
-	if normalized_id.is_empty():
-		return false
-	var catalog: Dictionary = get_map_constructor_wall_material_catalog()
-	for row_variant in Array(catalog.get("materials", [])):
-		var row: Dictionary = Dictionary(row_variant)
-		if str(row.get("id", "")).to_lower().strip_edges() == normalized_id:
-			return true
-	return false
+	return SurfaceMaterialCatalogRef.is_known_wall_material_id(material_id)
 
 func _format_map_constructor_cell(cell: Vector2i) -> String:
 	return "(%d, %d)" % [cell.x, cell.y]
@@ -3445,36 +3210,10 @@ func _serialize_wall_material_override_key(cell: Vector2i, side: String) -> Stri
 	return "%s|%s" % [_serialize_cell_key(cell), normalized_side]
 
 func get_map_constructor_floor_material_catalog() -> Dictionary:
-	var materials: Array[Dictionary] = [
-		{"id":"concrete","display_name":"Concrete","description":"Concrete floor using the floor_concrete asset.","material":"concrete","coating":"default","tags":["concrete","floor"],"style":"concrete","texture_asset_id":"floor_concrete","fallback_color":Color(0.16, 0.16, 0.15, 0.97),"edge_color":Color(0.30, 0.30, 0.28, 0.95),"is_default":true},
-		{"id":"steel","display_name":"Steel","description":"Steel floor using the floor_steel asset.","material":"steel","coating":"default","tags":["steel","floor"],"style":"steel","texture_asset_id":"floor_steel","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"edge_color":Color(0.22, 0.28, 0.33, 0.95),"is_default":false},
-		{"id":"titan","display_name":"Titan","description":"Titanium floor using the floor_titan asset.","material":"titan","coating":"default","tags":["titan","titanium","floor"],"style":"titan","texture_asset_id":"floor_titan","fallback_color":Color(0.15, 0.18, 0.22, 0.97),"edge_color":Color(0.31, 0.36, 0.42, 0.95),"is_default":false}
-	]
-	# Legacy ids stay valid for older constructor patches and room visual preset code,
-	# but the editor presents only the canonical concrete/steel/titan material keys.
-	materials.append_array([
-		{"id":"steel_default","display_name":"Steel (legacy)","description":"Legacy steel/default floor id mapped to steel.","material":"steel","coating":"default","tags":["steel","floor","legacy"],"style":"steel","texture_asset_id":"floor_steel","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"edge_color":Color(0.22, 0.28, 0.33, 0.95),"is_legacy":true},
-		{"id":"concrete_default","display_name":"Concrete (legacy)","description":"Legacy concrete/default floor id mapped to concrete.","material":"concrete","coating":"default","tags":["concrete","floor","legacy"],"style":"concrete","texture_asset_id":"floor_concrete","fallback_color":Color(0.16, 0.16, 0.15, 0.97),"edge_color":Color(0.30, 0.30, 0.28, 0.95),"is_legacy":true},
-		{"id":"titanium_default","display_name":"Titanium (legacy)","description":"Legacy titanium/default floor id mapped to titan.","material":"titan","coating":"default","tags":["titan","titanium","floor","legacy"],"style":"titan","texture_asset_id":"floor_titan","fallback_color":Color(0.15, 0.18, 0.22, 0.97),"edge_color":Color(0.31, 0.36, 0.42, 0.95),"is_legacy":true},
-		{"id":"default_floor","display_name":"Default Floor (legacy)","description":"Legacy default floor id mapped to concrete.","material":"concrete","tags":["default","floor","legacy"],"style":"concrete","texture_asset_id":"floor_concrete","fallback_color":Color(0.16, 0.16, 0.15, 0.97),"edge_color":Color(0.30, 0.30, 0.28, 0.95),"is_legacy":true},
-		{"id":"clean_lab_floor","display_name":"Clean Lab Floor (legacy)","description":"Legacy clean-lab id mapped to steel.","material":"steel","tags":["clean","lab","legacy"],"style":"steel","texture_asset_id":"floor_steel","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"edge_color":Color(0.22, 0.28, 0.33, 0.95),"is_legacy":true},
-		{"id":"dark_service_floor","display_name":"Dark Service Floor (legacy)","description":"Legacy dark-service id mapped to concrete.","material":"concrete","tags":["dark","service","legacy"],"style":"concrete","texture_asset_id":"floor_concrete","fallback_color":Color(0.16, 0.16, 0.15, 0.97),"edge_color":Color(0.30, 0.30, 0.28, 0.95),"is_legacy":true},
-		{"id":"hazard_floor","display_name":"Hazard Floor (legacy)","description":"Legacy hazard id mapped to concrete.","material":"concrete","tags":["hazard","legacy"],"style":"concrete","texture_asset_id":"floor_concrete","fallback_color":Color(0.16, 0.16, 0.15, 0.97),"edge_color":Color(0.30, 0.30, 0.28, 0.95),"is_legacy":true},
-		{"id":"power_floor","display_name":"Power Floor (legacy)","description":"Legacy power id mapped to steel.","material":"steel","tags":["power","legacy"],"style":"steel","texture_asset_id":"floor_steel","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"edge_color":Color(0.22, 0.28, 0.33, 0.95),"is_legacy":true},
-		{"id":"damaged_floor","display_name":"Damaged Floor (legacy)","description":"Legacy damaged id mapped to concrete.","material":"concrete","tags":["damaged","legacy"],"style":"concrete","texture_asset_id":"floor_concrete","fallback_color":Color(0.16, 0.16, 0.15, 0.97),"edge_color":Color(0.30, 0.30, 0.28, 0.95),"is_legacy":true},
-		{"id":"reinforced_floor","display_name":"Reinforced Floor (legacy)","description":"Legacy reinforced id mapped to steel.","material":"steel","tags":["reinforced","legacy"],"style":"steel","texture_asset_id":"floor_steel","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"edge_color":Color(0.22, 0.28, 0.33, 0.95),"is_legacy":true},
-		{"id":"diagnostic_floor","display_name":"Diagnostic Floor (legacy)","description":"Legacy diagnostic id mapped to steel.","material":"steel","tags":["diagnostic","legacy"],"style":"steel","texture_asset_id":"floor_steel","fallback_color":Color(0.13, 0.17, 0.2, 0.97),"edge_color":Color(0.22, 0.28, 0.33, 0.95),"is_legacy":true}
-	])
-	return {"ok": true, "materials": materials, "message": "Floor material catalog ready."}
+	return VisualAssetCatalogRef.decorate_surface_material_catalog(SurfaceMaterialCatalogRef.get_floor_catalog(), "floor")
+
 func _is_known_map_constructor_floor_material_id(material_id: String) -> bool:
-	var normalized_id: String = material_id.to_lower().strip_edges()
-	if normalized_id.is_empty():
-		return false
-	for row_variant in Array(get_map_constructor_floor_material_catalog().get("materials", [])):
-		var row: Dictionary = Dictionary(row_variant)
-		if str(row.get("id", "")).to_lower().strip_edges() == normalized_id:
-			return true
-	return false
+	return SurfaceMaterialCatalogRef.is_known_floor_material_id(material_id)
 
 func _is_floor_like_constructor_tile(tile_type: int) -> bool:
 	return tile_type == GridManager.TILE_FLOOR or tile_type == GridManager.TILE_STEPPED_FLOOR
@@ -3489,34 +3228,10 @@ func _is_wall_mount_neighbor_tile_type(tile_type: int) -> bool:
 	)
 
 func get_map_constructor_wall_height_catalog() -> Dictionary:
-	return {"ok": true, "heights": [
-		{"id":"", "display_name":"Auto", "description":"Use production wall height defaults; outer walls keep the depth-based gradient."},
-		{"id":"tall", "display_name":"Tall", "description":"Use the tall production wall asset."},
-		{"id":"halfmid", "display_name":"Half Mid", "description":"Use the half-mid production wall asset."},
-		{"id":"mid", "display_name":"Mid", "description":"Use the mid production wall asset."},
-		{"id":"halflow", "display_name":"Half Low", "description":"Use the half-low production wall asset."},
-		{"id":"low", "display_name":"Low", "description":"Use the low production wall asset; grate normalizes low heights to mid."}
-	], "message": "Wall height catalog ready."}
+	return WallHeightCatalogRef.get_wall_catalog()
 
 func normalize_map_constructor_wall_height(value: String) -> String:
-	var normalized_value: String = value.strip_edges().to_lower()
-	normalized_value = normalized_value.replace(" ", "")
-	normalized_value = normalized_value.replace("-", "")
-	normalized_value = normalized_value.replace("_", "")
-	match normalized_value:
-		"", "auto", "default":
-			return ""
-		"highest", "tallest", "high", "tall":
-			return "tall"
-		"half", "halfmedium", "halfmid", "uppermid":
-			return "halfmid"
-		"medium", "middle", "mid":
-			return "mid"
-		"halflow", "halflowheight", "halfshort", "halflowest":
-			return "halflow"
-		"short", "lowest", "low":
-			return "low"
-	return ""
+	return WallHeightCatalogRef.normalize_wall_height(value, "")
 
 func normalize_breach_side(value: String) -> String:
 	return BreachableWallServiceRef.normalize_breach_side(value)
@@ -3532,81 +3247,19 @@ func is_bipob_on_breach_side(wall_cell: Vector2i, bipob_cell: Vector2i, breach_s
 
 
 func normalize_floor_height_level(value: String) -> String:
-	var normalized_value: String = value.strip_edges().to_lower()
-	normalized_value = normalized_value.replace(" ", "")
-	normalized_value = normalized_value.replace("-", "")
-	normalized_value = normalized_value.replace("_", "")
-	match normalized_value:
-		"", "empty", "default", "flat", "normal":
-			return "default"
-		"1", "step1", "low", "groundlow":
-			return "step_1"
-		"2", "step2", "halflow", "groundhalflow":
-			return "step_2"
-	return "default"
+	return WallHeightCatalogRef.normalize_floor_height(value, "default")
 
 func get_map_constructor_floor_height_catalog() -> Dictionary:
-	return {"ok": true, "heights": [
-		{"id":"default", "display_name":"Default", "description":"Normal flat floor with no raised ground base."},
-		{"id":"step_1", "display_name":"1 Step", "description":"Raised low ground visual base below the floor material."},
-		{"id":"step_2", "display_name":"2 Step", "description":"Raised half-low ground visual base below the floor material."}
-	], "message": "Floor height catalog ready."}
+	return WallHeightCatalogRef.get_floor_catalog()
 
 func get_map_constructor_wall_material_catalog() -> Dictionary:
-	var materials: Array[Dictionary] = [
-		{"id":"concrete","display_name":"Concrete","description":"Concrete wall using production concrete height assets.","tags":["concrete","default"],"style":"concrete","texture_asset_id":"wall_concrete","fallback_color":Color(0.66, 0.72, 0.76, 0.98),"edge_color":Color(0.86, 0.9, 0.94, 1.0),"damage_level":0,"is_default":true},
-		{"id":"concrete_damage","display_name":"Concrete damage","description":"Legacy damaged concrete id mapped to the production concrete wall assets.","tags":["concrete","damaged"],"style":"concrete_damage","texture_asset_id":"wall_concrete","fallback_color":Color(0.48, 0.31, 0.16, 0.98),"edge_color":Color(0.96, 0.57, 0.21, 1.0),"damage_level":2,"is_default":false,"is_legacy":true},
-		{"id":"brick","display_name":"Brick","description":"Brick wall using production brick height assets.","tags":["brick"],"style":"brick","texture_asset_id":"wall_brick","fallback_color":Color(0.37, 0.21, 0.16, 0.98),"edge_color":Color(0.82, 0.72, 0.58, 1.0),"damage_level":0,"is_default":false},
-		{"id":"breachable_concrete","display_name":"Breachable Concrete","description":"Breachable Wall / проламываемая стена using concrete wall visuals; Heavy Claw can remove it at mid, half-mid, or tall height.","tags":["concrete","breachable"],"style":"breachable_concrete","texture_asset_id":"wall_concrete","fallback_color":Color(0.62, 0.67, 0.7, 0.98),"edge_color":Color(1.0, 0.82, 0.32, 1.0),"damage_level":0,"is_default":false,"wall_archetype":"breachable","breach_tools":["heavy_claw"],"allowed_wall_heights":["mid","halfmid","tall"]},
-		{"id":"breachable_brick","display_name":"Breachable Brick","description":"Breachable Wall / проламываемая стена using brick wall visuals; Heavy Claw can remove it at mid, half-mid, or tall height.","tags":["brick","breachable"],"style":"breachable_brick","texture_asset_id":"wall_brick","fallback_color":Color(0.44, 0.23, 0.17, 0.98),"edge_color":Color(1.0, 0.76, 0.28, 1.0),"damage_level":0,"is_default":false,"wall_archetype":"breachable","breach_tools":["heavy_claw"],"allowed_wall_heights":["mid","halfmid","tall"]},
-		{"id":"brick_damage","display_name":"Brick damage","description":"Legacy damaged brick id mapped to the production brick wall assets.","tags":["brick","damaged"],"style":"brick_damage","texture_asset_id":"wall_brick","fallback_color":Color(0.42, 0.19, 0.2, 0.98),"edge_color":Color(0.84, 0.34, 0.37, 1.0),"damage_level":3,"is_default":false,"is_legacy":true},
-		{"id":"grate","display_name":"Grate","description":"Grate wall using production grate mid/halfmid/tall assets; lower heights normalize to mid.","tags":["grate","service"],"style":"grate","texture_asset_id":"wall_grate","fallback_color":Color(0.18, 0.2, 0.24, 0.98),"edge_color":Color(0.32, 0.36, 0.41, 1.0),"damage_level":1,"is_default":false},
-		{"id":"steel","display_name":"Steel","description":"Steel wall using production steel height assets.","tags":["steel"],"style":"steel","texture_asset_id":"wall_steel","fallback_color":Color(0.24, 0.27, 0.33, 0.98),"edge_color":Color(0.55, 0.61, 0.72, 1.0),"damage_level":0,"is_default":false},
-		{"id":"reinforced_steel","display_name":"Reinforced Steel","description":"Reinforced steel wall using production reinforced steel height assets.","tags":["reinforced","steel"],"style":"reinforced_steel","texture_asset_id":"wall_reinforced_steel","fallback_color":Color(0.28, 0.3, 0.21, 0.98),"edge_color":Color(0.71, 0.81, 0.34, 1.0),"damage_level":0,"is_default":false},
-		{"id":"titan","display_name":"Titan","description":"Titan wall using production titan height assets.","tags":["titan","titanium"],"style":"titan","texture_asset_id":"wall_titan","fallback_color":Color(0.22, 0.24, 0.31, 0.98),"edge_color":Color(0.58, 0.65, 0.78, 1.0),"damage_level":0,"is_default":false},
-		{"id":"outerwall","display_name":"Outerwall","description":"Outer boundary wall material using the production depth-based height gradient.","tags":["outer","boundary"],"style":"outerwall","texture_asset_id":"wall_outer","fallback_color":Color(0.19, 0.2, 0.22, 0.98),"edge_color":Color(0.62, 0.67, 0.75, 1.0),"damage_level":0,"is_default":false}
-	]
-	return {"ok": true, "materials": materials, "message": "Wall material catalog ready."}
+	return VisualAssetCatalogRef.decorate_surface_material_catalog(SurfaceMaterialCatalogRef.get_wall_catalog(), "wall")
 
 func normalize_visual_texture_asset_id(asset_id: String) -> String:
-	var normalized_asset_id: String = asset_id.strip_edges()
-	if normalized_asset_id.is_empty():
-		return ""
-	var lowercase_asset_id: String = normalized_asset_id.to_lower()
-	if VISUAL_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
-		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
-	if OBJECT_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
-		return str(OBJECT_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
-	if FLOOR_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
-		return str(FLOOR_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
-	if WALL_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
-		return str(WALL_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
-	if OBJECT_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
-		return str(OBJECT_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
-	if VISUAL_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
-		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
-	if VisualAssetCatalogRef.has_asset(lowercase_asset_id):
-		return lowercase_asset_id
-	return normalized_asset_id
+	return VisualAssetCatalogRef.resolve_legacy_mission_asset_id(asset_id)
 
 func normalize_visual_texture_asset_id_for_context(asset_id: String, asset_context: String) -> String:
-	var normalized_asset_id: String = asset_id.strip_edges()
-	if normalized_asset_id.is_empty():
-		return ""
-	var lowercase_asset_id: String = normalized_asset_id.to_lower()
-	var normalized_context: String = asset_context.strip_edges().to_lower()
-	match normalized_context:
-		"floor":
-			return VisualAssetCatalogRef.resolve_floor_asset_id(lowercase_asset_id)
-		"wall":
-			return VisualAssetCatalogRef.resolve_wall_asset_id(lowercase_asset_id)
-		"object", "door", "terminal", "item":
-			if OBJECT_TEXTURE_ASSET_ALIASES.has(normalized_asset_id):
-				return str(OBJECT_TEXTURE_ASSET_ALIASES.get(normalized_asset_id, normalized_asset_id))
-			return VisualAssetCatalogRef.resolve_object_asset_id(lowercase_asset_id)
-	if VISUAL_TEXTURE_ASSET_ALIASES.has(lowercase_asset_id):
-		return str(VISUAL_TEXTURE_ASSET_ALIASES.get(lowercase_asset_id, lowercase_asset_id))
-	return normalize_visual_texture_asset_id(normalized_asset_id)
+	return VisualAssetCatalogRef.resolve_legacy_mission_asset_id(asset_id, asset_context)
 
 func normalize_floor_texture_asset_id(asset_id: String) -> String:
 	return normalize_visual_texture_asset_id_for_context(asset_id, "floor")
@@ -3658,7 +3311,7 @@ func _append_visual_texture_asset_alias_rows(assets: Array[Dictionary]) -> void:
 	for row_variant in assets:
 		var row: Dictionary = Dictionary(row_variant)
 		existing_ids[str(row.get("id", ""))] = true
-	var alias_ids: Array = VISUAL_TEXTURE_ASSET_ALIASES.keys()
+	var alias_ids: Array = VisualAssetCatalogRef.get_legacy_mission_visual_texture_aliases().keys()
 	alias_ids.sort()
 	for alias_id_variant in alias_ids:
 		var alias_id: String = str(alias_id_variant)
@@ -4514,16 +4167,16 @@ func set_map_constructor_wall_material(cell: Vector2i, side: String, material_id
 	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
 	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
 	var existing_height: String = normalize_map_constructor_wall_height(str(entry.get("wall_height", entry.get("wall_visual_height", ""))))
-	if normalized_material_id in ["breachable_concrete", "breachable_brick"] and existing_height in ["low", "halflow"]:
+	if SurfaceMaterialCatalogRef.is_breachable_wall_material(normalized_material_id) and existing_height in ["low", "halflow"]:
 		existing_height = "mid"
 		entry["wall_height"] = existing_height
 		entry.erase("wall_visual_height")
-	if normalized_material_id in ["breachable_concrete", "breachable_brick"] and grid_manager != null and grid_manager.has_method("is_boundary_cell") and bool(grid_manager.call("is_boundary_cell", attached_wall_cell)):
+	if SurfaceMaterialCatalogRef.is_breachable_wall_material(normalized_material_id) and grid_manager != null and grid_manager.has_method("is_boundary_cell") and bool(grid_manager.call("is_boundary_cell", attached_wall_cell)):
 		return {"ok": false, "message": "Breachable Wall cannot be assigned to boundary walls."}
 	entry["cell"] = cell
 	entry["side"] = normalized_side
 	entry["material_id"] = normalized_material_id
-	if normalized_material_id in ["breachable_concrete", "breachable_brick"]:
+	if SurfaceMaterialCatalogRef.is_breachable_wall_material(normalized_material_id):
 		entry["breach_side"] = normalize_breach_side(str(entry.get("breach_side", "sw")))
 	else:
 		entry.erase("breach_side")
@@ -4569,7 +4222,7 @@ func set_map_constructor_wall_height(cell: Vector2i, side: String, wall_height: 
 	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
 	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
 	var existing_material_id: String = normalize_map_constructor_wall_material_id(str(entry.get("material_id", "")))
-	if existing_material_id in ["breachable_concrete", "breachable_brick"] and normalized_height in ["low", "halflow"]:
+	if SurfaceMaterialCatalogRef.is_breachable_wall_material(existing_material_id) and normalized_height in ["low", "halflow"]:
 		normalized_height = "mid"
 	entry["cell"] = cell
 	entry["side"] = normalized_side
@@ -4597,7 +4250,7 @@ func set_map_constructor_wall_breach_side(cell: Vector2i, side: String, breach_s
 	var key: String = _serialize_wall_material_override_key(cell, normalized_side)
 	var entry: Dictionary = Dictionary(_map_constructor_wall_material_overrides.get(key, {})).duplicate(true)
 	var material_id: String = normalize_map_constructor_wall_material_id(str(entry.get("material_id", "")))
-	if not (material_id in ["breachable_concrete", "breachable_brick"]):
+	if not SurfaceMaterialCatalogRef.is_breachable_wall_material(material_id):
 		return {"ok": false, "message": "Breach Side is available only for Breachable Wall materials."}
 	var normalized_breach_side: String = normalize_breach_side(breach_side)
 	entry["cell"] = cell
@@ -4643,7 +4296,7 @@ func get_map_constructor_wall_material_for_wall_cell(wall_cell: Vector2i) -> Dic
 				return {"ok": false, "message": "Unknown wall material id: %s" % material_id, "override": entry.duplicate(true), "material": {}}
 			var material: Dictionary = Dictionary(catalog_by_id.get(material_id, {})).duplicate(true)
 			material["wall_height"] = normalized_height
-			if material_id in ["breachable_concrete", "breachable_brick"]:
+			if SurfaceMaterialCatalogRef.is_breachable_wall_material(material_id):
 				material["breach_side"] = normalized_breach_side
 			return {"ok": true, "message": "OK", "override": entry.duplicate(true), "material": material}
 	return {"ok": false, "message": "No wall material override.", "override": {}, "material": {}}
@@ -4755,6 +4408,42 @@ func _build_breachable_wall_rules_data(wall_data: Dictionary) -> Dictionary:
 	rules_wall["crack_side"] = get_grid_side_for_breach_side(str(wall_data.get("breach_side", wall_data.get("crack_side", "sw"))))
 	return rules_wall
 
+func normalize_map_constructor_surface_override_snapshot(snapshot: Dictionary) -> Dictionary:
+	var result := snapshot.duplicate(true)
+	var wall_rows := Dictionary(result.get("wall_material_overrides", {})).duplicate(true)
+	for key_variant in wall_rows.keys():
+		var key := str(key_variant)
+		var row := Dictionary(wall_rows.get(key, {})).duplicate(true)
+		var raw_material := str(row.get("material_id", ""))
+		if not raw_material.is_empty():
+			var canonical_wall := SurfaceMaterialCatalogRef.normalize_wall_material_id(raw_material)
+			if SurfaceMaterialCatalogRef.is_known_wall_material_id(canonical_wall):
+				row["material_id"] = canonical_wall
+		var raw_height := str(row.get("wall_height", row.get("wall_visual_height", "")))
+		if WallHeightCatalogRef.is_known_wall_height(raw_height):
+			var canonical_height := WallHeightCatalogRef.normalize_wall_height(raw_height, "")
+			if canonical_height.is_empty():
+				row.erase("wall_height")
+				row.erase("wall_visual_height")
+			else:
+				row["wall_height"] = canonical_height
+				row.erase("wall_visual_height")
+		wall_rows[key] = row
+	result["wall_material_overrides"] = wall_rows
+	var floor_rows := Dictionary(result.get("floor_material_overrides", {})).duplicate(true)
+	for key_variant in floor_rows.keys():
+		var key := str(key_variant)
+		var row := Dictionary(floor_rows.get(key, {})).duplicate(true)
+		var canonical_floor := SurfaceMaterialCatalogRef.normalize_floor_material_id(str(row.get("material_id", "")), "")
+		if not canonical_floor.is_empty():
+			row["material_id"] = canonical_floor
+		row["floor_height"] = WallHeightCatalogRef.normalize_floor_height(str(row.get("floor_height", row.get("floor_visual_height", row.get("ground_height", "default")))), "default")
+		row.erase("floor_visual_height")
+		row.erase("ground_height")
+		floor_rows[key] = row
+	result["floor_material_overrides"] = floor_rows
+	return result
+
 func get_map_constructor_wall_material_overrides() -> Dictionary:
 	if not _is_task_test_constructor_context():
 		return {"ok": false, "message": "Wall material overrides are available only in TASK TEST constructor mode.", "overrides": []}
@@ -4764,60 +4453,9 @@ func get_map_constructor_wall_material_overrides() -> Dictionary:
 	return {"ok": true, "message": "OK", "overrides": rows}
 
 func _get_map_constructor_floor_visual_state_for_material_id(material_id: String) -> Dictionary:
-	var normalized_material_id: String = material_id.to_lower().strip_edges()
-	var parsed: PackedStringArray = normalized_material_id.split("_", false)
-	var material: String = parsed[0] if parsed.size() >= 1 else "steel"
-	var coating: String = parsed[1] if parsed.size() >= 2 else "default"
-	var legacy_map: Dictionary = {
-		"default_floor": "concrete",
-		"floor_default": "concrete",
-		"steel_default": "steel",
-		"concrete_default": "concrete",
-		"titanium_default": "titan",
-		"titan_default": "titan",
-		"clean_lab_floor": "steel",
-		"dark_service_floor": "concrete",
-		"hazard_floor": "concrete",
-		"power_floor": "steel",
-		"damaged_floor": "concrete",
-		"reinforced_floor": "steel",
-		"diagnostic_floor": "steel",
-		"grate_default": "steel",
-		"grate": "steel"
-	}
-	if legacy_map.has(normalized_material_id):
-		return _get_map_constructor_floor_visual_state_for_material_id(str(legacy_map[normalized_material_id]))
-	var family: String = GridManager.FLOOR_FAMILY_CONCRETE
-	match material:
-		"steel", "titan", "titanium":
-			family = GridManager.FLOOR_FAMILY_METAL
-		_:
-			family = GridManager.FLOOR_FAMILY_CONCRETE
-	var wear: String = GridManager.FLOOR_WEAR_NONE
-	var base_variant: int = -1
-	var overlay_variant: int = -1
-	var mirror_h: bool = false
-	var mirror_v: bool = false
-	match coating:
-		"destroyed":
-			wear = GridManager.FLOOR_WEAR_HEAVY
-			overlay_variant = 1
-		"dirty":
-			wear = GridManager.FLOOR_WEAR_LIGHT
-			overlay_variant = 1
-		"water":
-			wear = GridManager.FLOOR_WEAR_LIGHT
-			overlay_variant = 3
-			mirror_h = true
-		"oil":
-			wear = GridManager.FLOOR_WEAR_LIGHT
-			overlay_variant = 5
-			mirror_v = true
-		_:
-			wear = GridManager.FLOOR_WEAR_NONE
-	if family == GridManager.FLOOR_FAMILY_GRATE and coating != "default":
-		base_variant = maxi(1, overlay_variant)
-	return {"family": family, "wear": wear, "base_variant": base_variant, "overlay_variant": overlay_variant, "mirror_h": mirror_h, "mirror_v": mirror_v}
+	var material := SurfaceMaterialCatalogRef.normalize_floor_material_id(material_id, "concrete")
+	var family: String = GridManager.FLOOR_FAMILY_METAL if material in ["steel", "titan"] else GridManager.FLOOR_FAMILY_CONCRETE
+	return {"family": family, "wear": GridManager.FLOOR_WEAR_NONE, "base_variant": -1, "overlay_variant": -1, "mirror_h": false, "mirror_v": false}
 
 func _sync_map_constructor_floor_visual_state(cell: Vector2i, material_id: String, floor_height: String = "default") -> void:
 	if grid_manager == null or not grid_manager.has_method("set_floor_visual_state"):
@@ -4843,8 +4481,8 @@ func set_map_constructor_floor_material(cell: Vector2i, material_id: String, flo
 	var tile_type: int = int(grid_manager.call("get_tile", cell))
 	if not _is_floor_like_constructor_tile(tile_type):
 		return {"ok": false, "message": "Only floor cells can receive floor material overrides."}
-	var normalized_material_id: String = material_id.to_lower().strip_edges()
-	if not _is_known_map_constructor_floor_material_id(normalized_material_id):
+	var normalized_material_id: String = SurfaceMaterialCatalogRef.normalize_floor_material_id(material_id, "")
+	if normalized_material_id.is_empty() or not _is_known_map_constructor_floor_material_id(material_id):
 		return {"ok": false, "message": "Unknown floor material id: %s" % material_id}
 	var normalized_floor_height: String = normalize_floor_height_level(floor_height)
 	var key: String = _serialize_cell_key(cell)

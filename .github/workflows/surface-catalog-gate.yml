@@ -1,0 +1,35 @@
+name: Surface Catalog Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  surface-catalog-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+
+      - name: Static surface catalog boundary audit
+        run: python tools/check_surface_catalog_boundary.py
+
+      - name: Godot import smoke
+        run: godot --headless --path . --import
+
+      - name: Surface catalog behavior contract
+        run: godot --headless --path . --script res://tools/ci/check_surface_material_catalogs.gd
