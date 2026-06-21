@@ -1,0 +1,26 @@
+name: Surface Catalog Inventory
+
+on:
+  pull_request:
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build inventory
+        run: python tools/inventory_surface_catalogs.py
+      - name: Upload inventory and source files
+        uses: actions/upload-artifact@v4
+        with:
+          name: surface-catalog-inventory
+          path: |
+            docs/surface_catalog_inventory.tmp.md
+            scripts/game/mission_manager.gd
+            scripts/field/room_visual_renderer.gd
+            scripts/visual/visual_asset_catalog.gd
+            scripts/game/map_constructor_service.gd
+            scripts/game/map_constructor_preset_service.gd
