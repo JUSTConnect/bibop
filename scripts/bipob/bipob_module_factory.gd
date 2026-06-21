@@ -120,16 +120,18 @@ static func create_overlay_module(module_id: String) -> BipobModule:
 	return create_internal_module(module_id, str(definition.get("name", module_id)), Vector3i(1, 1, 1))
 
 static func create_debug_found_module() -> BipobModule:
-	var module: BipobModule = BipobModuleRef.new()
-	module.id = "battery_v1"
-	module.display_name = "Battery V1"
+	var module := create_internal_module("battery_v1")
+	if module == null:
+		return null
 	module.description = "Increases max energy by 10."
 	module.energy_bonus = 10
 	module.granted_commands = []
 	return module
 
 static func create_debug_field_component() -> BipobModule:
-	var module: BipobModule = BipobModuleRef.new()
+	var module := create_internal_module("cooler_v1")
+	if module == null:
+		return null
 	module.id = "cooling_v1"
 	module.module_id = "cooling_v1"
 	module.display_name = "Cooling V1"
@@ -141,25 +143,21 @@ static func create_debug_field_component() -> BipobModule:
 	return module
 
 static func create_legacy_gpu_v1_module() -> BipobModule:
-	var module: BipobModule = BipobModuleRef.new()
-	module.id = "gpu_v1"
-	module.display_name = "GPU V1"
+	var module := create_internal_module("gpu_v1")
+	if module == null:
+		return null
 	module.description = "Internal processing module. Increases vision range and supports hidden node detection."
 	module.granted_commands = ["hidden_detection_support"]
 	module.vision_bonus = 0
 	return module
 
 static func create_legacy_legs_v1_module() -> BipobModule:
-	var module: BipobModule = BipobModuleRef.new()
-	module.id = "legs_v1"
-	module.display_name = "Legs V1"
-	module.placement_type = "external"
+	var module := create_external_module("legs_v1")
+	if module == null:
+		return null
 	module.category = "locomotion"
-	module.internal_role = "none"
 	module.description = "Bottom locomotion module for stepped terrain."
 	module.granted_commands = ["move_forward", "move_backward", "turn_left", "turn_right", "cross_stepped_floor"]
-	apply_thermal_metadata(module)
-	apply_damage_metadata(module)
 	return module
 
 static func get_internal_characteristics_text(module: BipobModule) -> String:
