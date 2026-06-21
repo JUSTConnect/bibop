@@ -35,7 +35,7 @@ object_renderer = read(OBJECT)
 
 renderer_lines = len(renderer.splitlines())
 if renderer_lines > 6650:
-    errors.append(f"RoomVisualRenderer grew beyond wall-extraction cap: {renderer_lines} > 6650")
+    errors.append(f"RoomVisualRenderer grew beyond object-policy extraction cap: {renderer_lines} > 6650")
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
@@ -125,7 +125,6 @@ wall_delegates = {
 for name, delegate in wall_delegates.items():
     if delegate not in function_body(renderer, name):
         errors.append(f"RoomVisualRenderer {name} must delegate to WallRenderer")
-
 
 object_delegates = {
     "get_iso_object_asset_key_for_profile": "ObjectRendererRef.get_asset_key_for_profile",
