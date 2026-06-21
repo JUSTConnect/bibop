@@ -14,6 +14,7 @@ const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_cata
 const IsoProjectionServiceRef = preload("res://scripts/visual/renderer/iso_projection_service.gd")
 const IsoDrawEntryContractRef = preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")
 const FloorRendererRef = preload("res://scripts/visual/renderer/floor_renderer.gd")
+const WallRendererRef = preload("res://scripts/visual/renderer/wall_renderer.gd")
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
@@ -128,26 +129,17 @@ const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
 	"normal_crate_floor_01", "radiator_floor_01"
 ]
 
-const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
-const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String = "res://assets/visual/isometric/wall/overlay/"
+const ISO_WALL_ASSET_PACK_DIR: String  = WallRendererRef.ISO_WALL_ASSET_PACK_DIR
+const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String  = WallRendererRef.ISO_WALL_BREACH_OVERLAY_PACK_DIR
 const ISO_COOLING_SYSTEM_ASSET_PACK_DIR: String = "res://assets/visual/isometric/cooling system/"
-const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary = {
-	"breach_overlay_concrete_sw": "wall_breach_overlay_concrete_sw_01.png",
-	"breach_overlay_brick_sw": "wall_breach_overlay_brick_sw_01.png"
-}
+const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary  = WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG
 const ISO_TEST_ASSET_PACK_DIR: String = "res://assets/visual/isometric/test/"
-const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2 = Vector2(128.0, 120.0)
-const ISO_WALL_HEIGHT_LEVELS: Array[String] = WallHeightCatalogRef.WALL_HEIGHT_LEVELS
-const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String] = ["tall", "halfmid", "mid", "halflow", "low"]
-const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String] = ["mid", "halfmid", "tall"]
-const ISO_TEST_WALL_HEIGHT_ORDER: Array[String] = ["tallest", "tall", "mid", "halfmid", "low"]
-const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary = {
-	"tallest": "wall_gray_tallest",
-	"tall": "wall_gray_tall",
-	"mid": "wall_gray_mid",
-	"halfmid": "wall_gray_halfmid",
-	"low": "wall_gray_low"
-}
+const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2  = WallRendererRef.ISO_WALL_ASSET_EXPECTED_SIZE
+const ISO_WALL_HEIGHT_LEVELS: Array[String]  = WallRendererRef.ISO_WALL_HEIGHT_LEVELS
+const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String]  = WallRendererRef.ISO_OUTER_WALL_HEIGHT_ORDER
+const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String]  = WallRendererRef.ISO_GRATE_WALL_HEIGHT_LEVELS
+const ISO_TEST_WALL_HEIGHT_ORDER: Array[String]  = WallRendererRef.ISO_TEST_WALL_HEIGHT_ORDER
+const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary  = WallRendererRef.ISO_TEST_WALL_HEIGHT_ASSET_KEYS
 const ISO_GRAY_TEST_REQUIRED_ASSET_KEYS: Array[String] = [
 	"floor_gray_test",
 	"wall_gray_tallest",
@@ -156,47 +148,7 @@ const ISO_GRAY_TEST_REQUIRED_ASSET_KEYS: Array[String] = [
 	"wall_gray_halfmid",
 	"wall_gray_low"
 ]
-const ISO_WALL_ASSET_CATALOG: Dictionary = {
-	"wall_gray_tallest": "wall_gray_tallest_01.png",
-	"wall_gray_tall": "wall_gray_tall_01.png",
-	"wall_gray_mid": "wall_gray_mid_01.png",
-	"wall_gray_halfmid": "wall_gray_halfmid_01.png",
-	"wall_gray_low": "wall_gray_low_01.png",
-	"wall_default": "concrete/wall_concrete_mid_01.png",
-	"wall_concrete_low": "concrete/wall_concrete_low_01.png",
-	"wall_concrete_halflow": "concrete/wall_concrete_halflow_01.png",
-	"wall_concrete_mid": "concrete/wall_concrete_mid_01.png",
-	"wall_concrete_halfmid": "concrete/wall_concrete_halfmid_01.png",
-	"wall_concrete_tall": "concrete/wall_concrete_tall_01.png",
-	"wall_steel_low": "steel/wall_steel_low_01.png",
-	"wall_steel_halflow": "steel/wall_steel_halflow_01.png",
-	"wall_steel_mid": "steel/wall_steel_mid_01.png",
-	"wall_steel_halfmid": "steel/wall_steel_halfmid_01.png",
-	"wall_steel_tall": "steel/wall_steel_tall_01.png",
-	"wall_titan_low": "titan/wall_titan_low_01.png",
-	"wall_titan_halflow": "titan/wall_titan_halflow_01.png",
-	"wall_titan_mid": "titan/wall_titan_mid_01.png",
-	"wall_titan_halfmid": "titan/wall_titan_halfmid_01.png",
-	"wall_titan_tall": "titan/wall_titan_tall_01.png",
-	"wall_reinforced_steel_low": "reinforce_steel/wall_reinforcesteel_low_01.png",
-	"wall_reinforced_steel_halflow": "reinforce_steel/wall_reinforcesteel_halflow_01.png",
-	"wall_reinforced_steel_mid": "reinforce_steel/wall_reinforcesteel_mid_01.png",
-	"wall_reinforced_steel_halfmid": "reinforce_steel/wall_reinforcesteel_halfmid_01.png",
-	"wall_reinforced_steel_tall": "reinforce_steel/wall_reinforcesteel_tall_01.png",
-	"wall_brick_low": "brick/wall_brick_low_01.png",
-	"wall_brick_halflow": "brick/wall_brick_halflow_01.png",
-	"wall_brick_mid": "brick/wall_brick_mid_01.png",
-	"wall_brick_halfmid": "brick/wall_brick_halfmid_01.png",
-	"wall_brick_tall": "brick/wall_brick_tall_01.png",
-	"wall_outer_low": "outerwall/wall_outerwall_low_01.png",
-	"wall_outer_halflow": "outerwall/wall_outerwall_halflow_01.png",
-	"wall_outer_mid": "outerwall/wall_outerwall_mid_01.png",
-	"wall_outer_halfmid": "outerwall/wall_outerwall_halfmid_01.png",
-	"wall_outer_tall": "outerwall/wall_outerwall_tall_01.png",
-	"wall_grate_mid": "grate/wall_grate_mid_01.png",
-	"wall_grate_halfmid": "grate/wall_grate_halfmid_01.png",
-	"wall_grate_tall": "grate/wall_grate_tall_01.png"
-}
+const ISO_WALL_ASSET_CATALOG: Dictionary  = WallRendererRef.ISO_WALL_ASSET_CATALOG
 
 const ISO_FLOOR_ASSET_PACK_DIR: String = FloorRendererRef.FLOOR_ASSET_PACK_DIR
 const ISO_FLOOR_TEST_ASSET_KEY: String = FloorRendererRef.FLOOR_TEST_ASSET_KEY
@@ -212,62 +164,10 @@ const ISO_GROUND_ASSET_PLACEMENT: Dictionary = FloorRendererRef.GROUND_ASSET_PLA
 # measured from the checked-in wall atlas files and used only by the renderer so
 # the visible wall base, not the full transparent canvas, is anchored to the
 # active 128x71 isometric wall footprint.
-const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2 = Rect2(1, 148, 511, 619)
-const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary = {
-	"low": Rect2(0, 353, 512, 415),
-	"halflow": Rect2(0, 239, 511, 534),
-	"mid": Rect2(1, 148, 511, 619),
-	"halfmid": Rect2(1, 63, 511, 704),
-	"tall": Rect2(1, 0, 511, 767)
-}
-const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary = {
-	"wall_gray_tallest": Rect2(0, 0, 512, 768),
-	"wall_gray_tall": Rect2(0, 63, 512, 705),
-	"wall_gray_mid": Rect2(0, 150, 512, 618),
-	"wall_gray_halfmid": Rect2(0, 238, 512, 532),
-	"wall_gray_low": Rect2(0, 353, 512, 415)
-}
-const ISO_WALL_ASSET_PLACEMENT: Dictionary = {
-	"wall_gray_tallest": {"visible_bounds": Rect2(0, 0, 512, 768), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_gray_tall": {"visible_bounds": Rect2(0, 63, 512, 705), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_gray_mid": {"visible_bounds": Rect2(0, 150, 512, 618), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_gray_halfmid": {"visible_bounds": Rect2(0, 238, 512, 532), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_gray_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_default": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_concrete_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_steel_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_steel_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_steel_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_steel_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_steel_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_titan_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_titan_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_titan_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_titan_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_titan_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_reinforced_steel_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_reinforced_steel_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_reinforced_steel_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_reinforced_steel_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_reinforced_steel_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_brick_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_outer_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_outer_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_outer_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_outer_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_outer_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_grate_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_grate_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"wall_grate_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
-}
+const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2  = WallRendererRef.ISO_WALL_BASELINE_VISIBLE_BOUNDS
+const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary  = WallRendererRef.ISO_WALL_HEIGHT_VISIBLE_BOUNDS
+const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary  = WallRendererRef.ISO_TEST_WALL_VISIBLE_BOUNDS
+const ISO_WALL_ASSET_PLACEMENT: Dictionary  = WallRendererRef.ISO_WALL_ASSET_PLACEMENT
 
 const ISO_FLOOR_ATLAS_COLUMNS: int = FloorRendererRef.FLOOR_ATLAS_COLUMNS
 const ISO_FLOOR_ATLAS_ROWS: int = FloorRendererRef.FLOOR_ATLAS_ROWS
@@ -347,9 +247,9 @@ var selected_wall_mounted_attached_wall_cell: Vector2i = Vector2i(-1, -1)
 var selected_wall_mounted_object_id: String = ""
 var map_constructor_link_target_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_link_target_object_id: String = ""
-const WALL_SIDE_ORDER: Array[String] = ["north", "east", "south", "west"]
-const WALL_MASS_RATIO: float = 0.7
-const WALL_MOUNT_BAND_RATIO: float = 0.3
+const WALL_SIDE_ORDER: Array[String]  = WallRendererRef.WALL_SIDE_ORDER
+const WALL_MASS_RATIO: float  = WallRendererRef.WALL_MASS_RATIO
+const WALL_MOUNT_BAND_RATIO: float  = WallRendererRef.WALL_MOUNT_BAND_RATIO
 
 func _enter_tree() -> void:
 	if _grid_manager == null:
@@ -612,37 +512,10 @@ func get_iso_inset_diamond_points(cell: Vector2i, inset: float) -> PackedVector2
 	return IsoProjectionServiceRef.get_inset_diamond_points(cell, inset, iso_origin, get_iso_tile_half_size())
 
 func get_iso_wall_base_points(cell: Vector2i) -> PackedVector2Array:
-	var topology: Dictionary = get_wall_render_topology(cell)
-	return get_iso_wall_connected_base_points(cell, topology)
+	return WallRendererRef.get_base_points(_grid_manager, cell, iso_origin, get_iso_tile_half_size(), iso_wall_visual_inset)
 
 func get_iso_wall_connected_base_points(cell: Vector2i, topology: Dictionary) -> PackedVector2Array:
-	# Visual-only wall footprint. Isolated walls stay tightened inside their cell,
-	# while connected edges expand to the true cell edge so adjacent wall cells join
-	# into a run without changing passability or GridManager data.
-	var full_points: PackedVector2Array = get_iso_diamond_points(cell)
-	var safe_inset: float = maxf(iso_wall_visual_inset, 0.0)
-	var tight_points: PackedVector2Array = get_iso_inset_diamond_points(cell, safe_inset)
-	if full_points.size() < 4 or tight_points.size() < 4:
-		return full_points
-
-	var result_points: PackedVector2Array = PackedVector2Array()
-	for point in tight_points:
-		result_points.append(point)
-
-	var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
-	if bool(neighbors.get("north", false)):
-		result_points[3] = full_points[3]
-		result_points[0] = full_points[0]
-	if bool(neighbors.get("east", false)):
-		result_points[0] = full_points[0]
-		result_points[1] = full_points[1]
-	if bool(neighbors.get("south", false)):
-		result_points[1] = full_points[1]
-		result_points[2] = full_points[2]
-	if bool(neighbors.get("west", false)):
-		result_points[2] = full_points[2]
-		result_points[3] = full_points[3]
-	return result_points
+	return WallRendererRef.get_connected_base_points(cell, topology, iso_origin, get_iso_tile_half_size(), iso_wall_visual_inset)
 
 
 func is_point_inside_iso_diamond(point: Vector2, diamond_points: PackedVector2Array) -> bool:
@@ -1083,11 +956,7 @@ func get_iso_floor_depth_key(cell: Vector2i) -> float:
 	return IsoProjectionServiceRef.get_depth_key(cell, iso_origin, get_iso_tile_half_size())
 
 func get_iso_wall_depth_key_for_cell(cell: Vector2i) -> float:
-	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
-	var depth_y: float = grid_to_iso(cell).y + get_iso_tile_half_size().y
-	for point in base_points:
-		depth_y = maxf(depth_y, point.y)
-	return depth_y
+	return WallRendererRef.get_depth_key_for_cell(_grid_manager, cell, iso_origin, get_iso_tile_half_size(), iso_wall_visual_inset)
 
 func get_iso_object_depth_key_for_payload(payload: Dictionary) -> float:
 	var object_cell: Vector2i = Vector2i(payload.get("object_cell", Vector2i.ZERO))
@@ -1113,7 +982,7 @@ func is_floor_like_tile(tile_type: int) -> bool:
 	return FloorRendererRef.is_floor_like_tile(tile_type)
 
 func is_wall_tile(tile_type: int) -> bool:
-	return tile_type == GridManager.TILE_WALL
+	return WallRendererRef.is_wall_tile(tile_type)
 
 func is_door_like_tile(tile_type: int) -> bool:
 	if tile_type == GridManager.TILE_DOOR:
@@ -1683,10 +1552,10 @@ func _get_platform_occupants_for_cell(cell: Vector2i) -> Array[Dictionary]:
 	return occupants
 
 func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
-	return normalize_wall_asset_key(profile_key)
+	return WallRendererRef.normalize_asset_key(profile_key)
 
 func get_iso_wall_asset_catalog() -> Dictionary:
-	return ISO_WALL_ASSET_CATALOG.duplicate()
+	return WallRendererRef.get_asset_catalog()
 
 func get_iso_gray_test_asset_path(asset_key: String) -> String:
 	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
@@ -1725,28 +1594,10 @@ func get_gray_room_visual_test_asset_validation() -> Dictionary:
 
 
 func normalize_wall_material_asset_base_key(profile_key: String) -> String:
-	return VisualAssetCatalogScript.resolve_wall_material_base_asset_key(profile_key)
+	return WallRendererRef.normalize_material_asset_base_key(profile_key)
 
 func normalize_wall_asset_key(profile_key: String) -> String:
-	var normalized_key: String = profile_key.strip_edges().to_lower()
-	normalized_key = normalized_key.replace(" ", "_")
-	normalized_key = normalized_key.replace("-", "_")
-	normalized_key = normalized_key.replace("_01", "")
-	match normalized_key:
-		"gray_tallest", "wall_gray_tallest":
-			return "wall_gray_tallest"
-		"gray_tall", "wall_gray_tall":
-			return "wall_gray_tall"
-		"gray_mid", "wall_gray_mid":
-			return "wall_gray_mid"
-		"gray_halfmid", "wall_gray_halfmid":
-			return "wall_gray_halfmid"
-		"gray_low", "wall_gray_low":
-			return "wall_gray_low"
-	if ISO_WALL_ASSET_CATALOG.has(normalized_key):
-		return normalized_key
-	var base_key: String = normalize_wall_material_asset_base_key(normalized_key)
-	return get_wall_asset_key_for_material_and_height(base_key, "mid")
+	return WallRendererRef.normalize_asset_key(profile_key)
 
 func get_iso_wall_explicit_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var base_key: String = normalize_wall_material_asset_base_key(asset_key)
@@ -1804,146 +1655,46 @@ func get_iso_wall_texture_for_profile(profile_key: String) -> Texture2D:
 	return get_iso_wall_texture_for_asset_key(normalize_wall_asset_key(profile_key))
 
 func get_iso_wall_material_base_key_for_material_row(material_row: Dictionary, fallback_profile_key: String) -> String:
-	var texture_asset_id: String = str(material_row.get("texture_asset_id", "")).strip_edges()
-	if texture_asset_id.begins_with("wall_"):
-		return normalize_wall_material_asset_base_key(texture_asset_id)
-	var material_id: String = str(material_row.get("id", "")).strip_edges()
-	if not material_id.is_empty():
-		return normalize_wall_material_asset_base_key(material_id)
-	return normalize_wall_material_asset_base_key(fallback_profile_key)
+	return WallRendererRef.get_material_base_key_for_row(material_row, fallback_profile_key)
 
 func get_iso_wall_asset_key_for_material_row(material_row: Dictionary, fallback_profile_key: String) -> String:
-	var base_key: String = get_iso_wall_material_base_key_for_material_row(material_row, fallback_profile_key)
-	var height_level: String = normalize_wall_height_level(str(material_row.get("wall_height", material_row.get("wall_visual_height", ""))))
-	if height_level.is_empty():
-		height_level = "mid"
-	return get_wall_asset_key_for_material_and_height(base_key, height_level)
+	return WallRendererRef.get_asset_key_for_material_row(material_row, fallback_profile_key)
 
 func normalize_test_wall_height(value: String) -> String:
-	var normalized_value: String = value.strip_edges().to_lower()
-	normalized_value = normalized_value.replace(" ", "")
-	normalized_value = normalized_value.replace("-", "")
-	normalized_value = normalized_value.replace("_", "")
-	match normalized_value:
-		"auto", "", "default":
-			return ""
-		"highest", "tallest":
-			return "tallest"
-		"high", "tall":
-			return "tall"
-		"medium", "middle", "mid":
-			return "mid"
-		"halfmid", "halfmedium", "half":
-			return "halfmid"
-		"halflow", "halflowmedium", "halflowest", "halflowheight":
-			return "halfmid"
-		"short", "lowest", "low":
-			return "low"
-	return ""
+	return WallRendererRef.normalize_test_height(value)
 
 func normalize_wall_height_level(value: String) -> String:
-	return WallHeightCatalogRef.normalize_wall_height(value, "")
+	return WallRendererRef.normalize_height_level(value)
 
 func normalize_wall_height_level_for_material(base_key: String, height_level: String) -> String:
-	var normalized_height := WallHeightCatalogRef.normalize_wall_height(height_level, "")
-	return VisualAssetCatalogScript.normalize_wall_height_for_asset_base(base_key, normalized_height)
+	return WallRendererRef.normalize_height_for_material(base_key, height_level)
 
 func get_wall_asset_key_for_material_and_height(material_asset_key: String, height_level: String) -> String:
-	var normalized_height := WallHeightCatalogRef.normalize_wall_height(height_level, "")
-	return VisualAssetCatalogScript.resolve_wall_asset_key_for_material_and_height(material_asset_key, normalized_height)
+	return WallRendererRef.get_asset_key_for_material_and_height(material_asset_key, height_level)
 
 func get_raw_wall_height_value(wall_data: Dictionary) -> String:
-	var material_data: Dictionary = Dictionary(wall_data.get("material", {}))
-	var override_data: Dictionary = Dictionary(wall_data.get("override", {}))
-	var raw_height: String = str(material_data.get("wall_height", material_data.get("wall_visual_height", "")))
-	if raw_height.is_empty():
-		raw_height = str(override_data.get("wall_height", override_data.get("wall_visual_height", "")))
-	if raw_height.is_empty():
-		raw_height = str(wall_data.get("wall_height", wall_data.get("wall_visual_height", "")))
-	return raw_height
+	return WallRendererRef.get_raw_height_value(wall_data)
 
 func get_iso_wall_depth_bounds() -> Dictionary:
-	if _grid_manager == null:
-		return {"min_depth": 0, "max_depth": 0, "wall_count": 0}
-	var min_depth: int = 0
-	var max_depth: int = 0
-	var wall_count: int = 0
-	var map_width: int = _grid_manager.get_map_width()
-	var map_height: int = _grid_manager.get_map_height()
-	for y in range(map_height):
-		for x in range(map_width):
-			var cell: Vector2i = Vector2i(x, y)
-			if not is_wall_tile(_grid_manager.get_tile(cell)):
-				continue
-			var depth: int = cell.x + cell.y
-			if wall_count == 0:
-				min_depth = depth
-				max_depth = depth
-			else:
-				min_depth = mini(min_depth, depth)
-				max_depth = maxi(max_depth, depth)
-			wall_count += 1
-	return {"min_depth": min_depth, "max_depth": max_depth, "wall_count": wall_count}
+	return WallRendererRef.get_depth_bounds(_grid_manager)
 
 func resolve_auto_test_wall_height(cell: Vector2i, map_bounds: Dictionary = {}) -> String:
-	var bounds: Dictionary = map_bounds
-	if bounds.is_empty():
-		bounds = get_iso_wall_depth_bounds()
-	var min_depth: int = int(bounds.get("min_depth", cell.x + cell.y))
-	var max_depth: int = int(bounds.get("max_depth", cell.x + cell.y))
-	var depth_span: int = maxi(max_depth - min_depth, 0)
-	if depth_span <= 0:
-		return "mid"
-	var depth_index: int = clampi(cell.x + cell.y - min_depth, 0, depth_span)
-	var band_count: int = ISO_TEST_WALL_HEIGHT_ORDER.size()
-	var band: int = int(floor(float(depth_index) * float(band_count) / float(depth_span + 1)))
-	band = clampi(band, 0, band_count - 1)
-	return str(ISO_TEST_WALL_HEIGHT_ORDER[band])
+	return WallRendererRef.resolve_auto_test_height(cell, map_bounds if not map_bounds.is_empty() else get_iso_wall_depth_bounds())
 
 func resolve_outer_wall_height_level(cell: Vector2i, map_bounds: Dictionary = {}) -> String:
-	var bounds: Dictionary = map_bounds
-	if bounds.is_empty():
-		bounds = get_iso_wall_depth_bounds()
-	var min_depth: int = int(bounds.get("min_depth", cell.x + cell.y))
-	var max_depth: int = int(bounds.get("max_depth", cell.x + cell.y))
-	var depth_span: int = maxi(max_depth - min_depth, 0)
-	if depth_span <= 0:
-		return "mid"
-	var depth_index: int = clampi(cell.x + cell.y - min_depth, 0, depth_span)
-	var band_count: int = ISO_OUTER_WALL_HEIGHT_ORDER.size()
-	var band: int = int(floor(float(depth_index) * float(band_count) / float(depth_span + 1)))
-	band = clampi(band, 0, band_count - 1)
-	return str(ISO_OUTER_WALL_HEIGHT_ORDER[band])
+	return WallRendererRef.resolve_outer_height(cell, map_bounds if not map_bounds.is_empty() else get_iso_wall_depth_bounds())
 
 func get_production_wall_height_level(wall_data: Dictionary, cell: Vector2i, material_asset_key: String, map_bounds: Dictionary = {}) -> String:
-	var explicit_height: String = normalize_wall_height_level(get_raw_wall_height_value(wall_data))
-	var resolved_height: String = explicit_height
-	if resolved_height.is_empty():
-		if normalize_wall_material_asset_base_key(material_asset_key) == "wall_outer":
-			resolved_height = resolve_outer_wall_height_level(cell, map_bounds)
-		else:
-			resolved_height = "mid"
-	return normalize_wall_height_level_for_material(normalize_wall_material_asset_base_key(material_asset_key), resolved_height)
+	return WallRendererRef.get_production_height_level(wall_data, cell, material_asset_key, map_bounds if not map_bounds.is_empty() else get_iso_wall_depth_bounds())
 
 func get_production_wall_asset_key(wall_data: Dictionary, cell: Vector2i, fallback_profile_key: String, map_bounds: Dictionary = {}) -> String:
-	var material_data: Dictionary = Dictionary(wall_data.get("material", {}))
-	var base_key: String = get_iso_wall_material_base_key_for_material_row(material_data, fallback_profile_key)
-	var height_level: String = get_production_wall_height_level(wall_data, cell, base_key, map_bounds)
-	return get_wall_asset_key_for_material_and_height(base_key, height_level)
+	return WallRendererRef.get_production_asset_key(wall_data, cell, fallback_profile_key, map_bounds if not map_bounds.is_empty() else get_iso_wall_depth_bounds())
 
 func get_test_wall_height_asset_key(wall_data: Dictionary, cell: Vector2i, map_bounds: Dictionary = {}) -> String:
-	var explicit_height: String = normalize_test_wall_height(get_raw_wall_height_value(wall_data))
-	var resolved_height: String = explicit_height
-	if resolved_height.is_empty():
-		resolved_height = resolve_auto_test_wall_height(cell, map_bounds)
-	return str(ISO_TEST_WALL_HEIGHT_ASSET_KEYS.get(resolved_height, ISO_TEST_WALL_HEIGHT_ASSET_KEYS.get("mid", "wall_gray_mid")))
+	return WallRendererRef.get_test_height_asset_key(wall_data, cell, map_bounds if not map_bounds.is_empty() else get_iso_wall_depth_bounds())
 
 func get_iso_wall_asset_placement(asset_key: String, source_size: Vector2) -> Dictionary:
-	var normalized_key: String = normalize_wall_asset_key(asset_key)
-	var placement: Dictionary = Dictionary(ISO_WALL_ASSET_PLACEMENT.get(normalized_key, {}))
-	if placement.is_empty():
-		placement = {"visible_bounds": Rect2(Vector2.ZERO, source_size), "target_base_width": get_iso_tile_size().x, "target_height": ISO_WALL_ASSET_EXPECTED_SIZE.y, "scale": 1.0, "offset": Vector2.ZERO}
-	return placement
+	return WallRendererRef.get_asset_placement(asset_key, source_size, get_iso_tile_size())
 
 func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, profile_key: String, _topology: Dictionary) -> Rect2:
 	var source_size: Vector2 = texture.get_size()
@@ -1963,8 +1714,8 @@ func get_iso_wall_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D,
 	var base_anchor: Vector2 = (grid_to_iso(cell) + Vector2(0.0, get_iso_tile_half_size().y) + Vector2(placement.get("offset", Vector2.ZERO))).round()
 	return Rect2((base_anchor - visible_bottom_center_in_destination).round(), destination_size)
 
-func should_mirror_iso_wall_asset_for_topology(_topology: Dictionary) -> bool:
-	return false
+func should_mirror_iso_wall_asset_for_topology(topology: Dictionary) -> bool:
+	return WallRendererRef.should_mirror_asset_for_topology(topology)
 
 func get_iso_wall_visible_source_rect(asset_key: String, texture: Texture2D) -> Rect2:
 	var source_size: Vector2 = texture.get_size()
@@ -2029,8 +1780,7 @@ func get_breach_grid_side_for_visual_side(breach_side: String) -> String:
 	return "south"
 
 func is_breachable_wall_material_id(material_id: String) -> bool:
-	var normalized_material_id: String = material_id.strip_edges().to_lower()
-	return normalized_material_id == "breachable_concrete" or normalized_material_id == "breachable_brick"
+	return WallRendererRef.is_breachable_material_id(material_id)
 
 func get_breach_overlay_asset_key(base_material: String) -> String:
 	var base_key: String = normalize_wall_material_asset_base_key(base_material)
@@ -2091,12 +1841,7 @@ func is_breach_side_visible_for_wall(_cell: Vector2i, breach_side: String, _topo
 	return BreachableWallServiceRef.is_visible_breach_side(breach_side)
 
 func get_normalized_breachable_wall_height(wall_data: Dictionary) -> String:
-	var height: String = normalize_wall_height_level(get_raw_wall_height_value(wall_data))
-	if height.is_empty():
-		height = "mid"
-	if height == "low" or height == "halflow":
-		return "low"
-	return height
+	return WallRendererRef.get_normalized_breachable_height(wall_data)
 
 func get_breach_overlay_destination_rect(base_texture_rect: Rect2, base_source_rect: Rect2, base_texture: Texture2D, overlay_texture: Texture2D, height_level: String) -> Rect2:
 	if base_texture == null or overlay_texture == null:
@@ -4654,145 +4399,19 @@ func _get_wall_material_override_for_cell(cell: Vector2i) -> Dictionary:
 	return {"ok": false}
 
 func get_default_wall_visual_profile_key() -> String:
-	return "default_wall"
+	return WallRendererRef.get_default_visual_profile_key()
 
 func normalize_wall_visual_profile_key(profile_key: String) -> String:
-	var normalized_key: String = profile_key.strip_edges().to_lower()
-	normalized_key = normalized_key.replace(" ", "_")
-	normalized_key = normalized_key.replace("-", "_")
-	if normalized_key.is_empty():
-		return get_default_wall_visual_profile_key()
-
-	var profiles: Dictionary = get_wall_visual_profiles()
-	if not profiles.has(normalized_key):
-		return get_default_wall_visual_profile_key()
-	return normalized_key
+	return WallRendererRef.normalize_visual_profile_key(profile_key)
 
 func get_wall_visual_profiles() -> Dictionary:
-	# Visual-only mapping layer for procedural wall prototype colors.
-	# Keys intentionally mirror planned WorldObjectCatalog wall IDs for future metadata wiring.
-	return {
-		"default_wall": {
-			"label": "Default Wall",
-			"top": Color(0.205, 0.225, 0.255, 0.98),
-			"left": Color(0.125, 0.14, 0.165, 0.98),
-			"right": Color(0.1, 0.115, 0.14, 0.98),
-			"outline": Color(0.24, 0.31, 0.36, 0.9),
-			"accent": Color(0.29, 0.35, 0.4, 0.5)
-		},
-		"outer_wall": {
-			"label": "Outer Wall",
-			"top": Color(0.19, 0.2, 0.22, 0.98),
-			"left": Color(0.11, 0.12, 0.14, 0.98),
-			"right": Color(0.09, 0.1, 0.12, 0.98),
-			"outline": Color(0.24, 0.29, 0.34, 0.9),
-			"accent": Color(0.26, 0.31, 0.37, 0.45)
-		},
-		"grate_wall": {
-			"label": "Grate Wall",
-			"top": Color(0.15, 0.18, 0.2, 0.8),
-			"left": Color(0.07, 0.085, 0.1, 0.72),
-			"right": Color(0.06, 0.075, 0.09, 0.72),
-			"outline": Color(0.18, 0.24, 0.28, 0.88),
-			"accent": Color(0.78, 0.86, 0.92, 0.85)
-		},
-		"concrete_damaged_wall": {
-			"label": "Concrete Damaged Wall",
-			"top": Color(0.235, 0.205, 0.195, 0.98),
-			"left": Color(0.155, 0.125, 0.115, 0.98),
-			"right": Color(0.125, 0.1, 0.095, 0.98),
-			"outline": Color(0.36, 0.27, 0.24, 0.9),
-			"accent": Color(0.52, 0.28, 0.2, 0.55)
-		},
-		"brick_damaged_wall": {
-			"label": "Brick Damaged Wall",
-			"top": Color(0.315, 0.17, 0.135, 0.98),
-			"left": Color(0.22, 0.11, 0.09, 0.98),
-			"right": Color(0.18, 0.085, 0.075, 0.98),
-			"outline": Color(0.42, 0.2, 0.16, 0.92),
-			"accent": Color(0.76, 0.48, 0.34, 0.62)
-		},
-		"damaged_wall": {
-			"label": "Concrete Damaged Wall",
-			"top": Color(0.235, 0.205, 0.195, 0.98),
-			"left": Color(0.155, 0.125, 0.115, 0.98),
-			"right": Color(0.125, 0.1, 0.095, 0.98),
-			"outline": Color(0.36, 0.27, 0.24, 0.9),
-			"accent": Color(0.52, 0.28, 0.2, 0.55)
-		},
-		"brick_wall": {
-			"label": "Brick Wall",
-			"top": Color(0.37, 0.21, 0.16, 0.98),
-			"left": Color(0.28, 0.14, 0.11, 0.98),
-			"right": Color(0.24, 0.12, 0.1, 0.98),
-			"outline": Color(0.46, 0.24, 0.18, 0.92),
-			"accent": Color(0.82, 0.72, 0.58, 0.64)
-		},
-		"concrete_wall": {
-			"label": "Concrete Wall",
-			"top": Color(0.33, 0.34, 0.35, 0.98),
-			"left": Color(0.23, 0.24, 0.25, 0.98),
-			"right": Color(0.2, 0.21, 0.22, 0.98),
-			"outline": Color(0.42, 0.44, 0.45, 0.9),
-			"accent": Color(0.68, 0.71, 0.73, 0.52)
-		},
-		"steel_wall": {
-			"label": "Steel Wall",
-			"top": Color(0.26, 0.31, 0.36, 0.98),
-			"left": Color(0.16, 0.2, 0.25, 0.98),
-			"right": Color(0.135, 0.175, 0.22, 0.98),
-			"outline": Color(0.3, 0.39, 0.47, 0.92),
-			"accent": Color(0.66, 0.76, 0.86, 0.65)
-		},
-		"reinforced_steel_wall": {
-			"label": "Reinforced Steel Wall",
-			"top": Color(0.165, 0.195, 0.235, 0.98),
-			"left": Color(0.1, 0.125, 0.155, 0.98),
-			"right": Color(0.085, 0.11, 0.14, 0.98),
-			"outline": Color(0.22, 0.3, 0.36, 0.9),
-			"accent": Color(0.28, 0.39, 0.48, 0.5)
-		},
-		"titanium_wall": {
-			"label": "Titanium Wall",
-			"top": Color(0.245, 0.265, 0.3, 0.98),
-			"left": Color(0.17, 0.185, 0.215, 0.98),
-			"right": Color(0.14, 0.155, 0.185, 0.98),
-			"outline": Color(0.31, 0.38, 0.45, 0.9),
-			"accent": Color(0.45, 0.53, 0.62, 0.55)
-		},
-		"energy_wall": {
-			"label": "Energy Wall",
-			"top": Color(0.12, 0.165, 0.205, 0.98),
-			"left": Color(0.07, 0.11, 0.145, 0.98),
-			"right": Color(0.055, 0.09, 0.125, 0.98),
-			"outline": Color(0.2, 0.36, 0.47, 0.9),
-			"accent": Color(0.28, 0.83, 0.96, 0.72)
-		}
-	}
+	return WallRendererRef.get_visual_profiles()
 
 func get_wall_visual_profile(profile_key: String) -> Dictionary:
-	var profiles: Dictionary = get_wall_visual_profiles()
-	var default_key: String = get_default_wall_visual_profile_key()
-	var normalized_key: String = normalize_wall_visual_profile_key(profile_key)
-	if not profiles.has(normalized_key):
-		return Dictionary(profiles.get(default_key, {}))
-	return Dictionary(profiles.get(normalized_key, profiles.get(default_key, {})))
+	return WallRendererRef.get_visual_profile(profile_key)
 
 func get_wall_visual_profile_key_for_cell(cell: Vector2i) -> String:
-	if _grid_manager == null:
-		return ""
-	var tile_type: int = _grid_manager.get_tile(cell)
-	if tile_type != GridManager.TILE_WALL:
-		return ""
-
-	var wall_object_type: String = get_wall_object_type_for_cell(cell)
-	if not wall_object_type.is_empty():
-		return wall_object_type
-
-	if is_outer_border_cell(cell):
-		return "outer_wall"
-
-	return "concrete_wall"
+	return WallRendererRef.get_visual_profile_key_for_cell(_grid_manager, cell, get_wall_metadata_for_cell(cell))
 
 func get_wall_metadata_for_cell(cell: Vector2i) -> Dictionary:
 	var mission_manager: Node = get_mission_manager_ref()
@@ -4832,62 +4451,13 @@ func _get_iso_world_object_metadata_for_cell(cell: Vector2i) -> Dictionary:
 	return {"ok": true, "object_id": object_id, "object_type": object_type, "data": nested_data}
 
 func get_wall_object_type_for_cell(cell: Vector2i) -> String:
-	var metadata: Dictionary = get_wall_metadata_for_cell(cell)
-	if metadata.is_empty():
-		return ""
-	var candidates: Array[String] = [
-		str(metadata.get("visual_profile", "")),
-		str(metadata.get("wall_type", "")),
-		str(metadata.get("object_type", "")),
-		str(metadata.get("type", "")),
-		str(metadata.get("catalog_id", "")),
-		str(metadata.get("id", "")),
-		str(metadata.get("material", ""))
-	]
-	var tag_profile: String = get_wall_profile_from_tags(metadata.get("tags", []))
-	if not tag_profile.is_empty():
-		return tag_profile
-	for candidate in candidates:
-		var mapped: String = map_wall_metadata_value_to_profile(candidate)
-		if not mapped.is_empty():
-			return mapped
-	return ""
+	return WallRendererRef.get_object_type_for_metadata(get_wall_metadata_for_cell(cell))
 
 func get_wall_profile_from_tags(tags_variant: Variant) -> String:
-	if not (tags_variant is Array):
-		return ""
-	for tag_value in Array(tags_variant):
-		var mapped: String = map_wall_metadata_value_to_profile(str(tag_value))
-		if not mapped.is_empty():
-			return mapped
-	return ""
+	return WallRendererRef.get_profile_from_tags(tags_variant)
 
 func map_wall_metadata_value_to_profile(raw_value: String) -> String:
-	var value: String = raw_value.strip_edges().to_lower()
-	if value.is_empty():
-		return ""
-	var direct_map: Dictionary = {
-		"outer_wall": "outer_wall",
-		"grate_wall": "grate_wall",
-		"brick_wall": "brick_wall",
-		"concrete_wall": "concrete_wall",
-		"steel_wall": "steel_wall",
-		"reinforced_steel_wall": "reinforced_steel_wall",
-		"titanium_wall": "titanium_wall",
-		"energy_wall": "energy_wall",
-		"damaged_wall": "damaged_wall",
-		"brick": "brick_wall",
-		"breachable_brick": "brick_wall",
-		"concrete": "concrete_wall",
-		"breachable_concrete": "concrete_wall",
-		"steel": "steel_wall",
-		"reinforced_steel": "reinforced_steel_wall",
-		"titanium": "titanium_wall",
-		"energy_flow": "energy_wall"
-	}
-	if direct_map.has(value):
-		return str(direct_map.get(value, ""))
-	return ""
+	return WallRendererRef.map_metadata_value_to_profile(raw_value)
 
 func get_mission_manager_ref() -> Node:
 	var current: Node = self
@@ -4898,13 +4468,7 @@ func get_mission_manager_ref() -> Node:
 	return null
 
 func is_outer_border_cell(cell: Vector2i) -> bool:
-	if _grid_manager == null:
-		return false
-	var max_x: int = _grid_manager.get_map_width() - 1
-	var max_y: int = _grid_manager.get_map_height() - 1
-	if max_x < 0 or max_y < 0:
-		return false
-	return cell.x <= 0 or cell.y <= 0 or cell.x >= max_x or cell.y >= max_y
+	return WallRendererRef.is_outer_border_cell(_grid_manager, cell)
 
 func get_iso_wall_top_points(cell: Vector2i) -> PackedVector2Array:
 	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
@@ -4915,105 +4479,28 @@ func get_iso_wall_top_points(cell: Vector2i) -> PackedVector2Array:
 	return top_points
 
 func _is_wall_cell(cell: Vector2i) -> bool:
-	if _grid_manager == null:
-		return false
-	return _grid_manager.get_tile(cell) == GridManager.TILE_WALL
+	return WallRendererRef.is_wall_cell(_grid_manager, cell)
 
 func _is_wall_in_bounds(cell: Vector2i) -> bool:
-	if _grid_manager == null:
-		return false
-	return cell.x >= 0 and cell.y >= 0 and cell.x < _grid_manager.get_map_width() and cell.y < _grid_manager.get_map_height()
+	return WallRendererRef.is_in_bounds(_grid_manager, cell)
 
 func _get_wall_neighbor_mask(cell: Vector2i) -> Dictionary:
-	var mask: Dictionary = {"north": false, "east": false, "south": false, "west": false}
-	var deltas: Dictionary = {"north": Vector2i(0, -1), "east": Vector2i(1, 0), "south": Vector2i(0, 1), "west": Vector2i(-1, 0)}
-	for key_variant in deltas.keys():
-		var side: String = str(key_variant)
-		var neighbor: Vector2i = cell + Vector2i(deltas.get(key_variant, Vector2i.ZERO))
-		mask[side] = _is_wall_in_bounds(neighbor) and _is_wall_cell(neighbor)
-	return mask
+	return WallRendererRef.get_neighbor_mask(_grid_manager, cell)
 
 func _is_door_like_tile(tile_type: int) -> bool:
-	return tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE
+	return WallRendererRef.is_door_like_tile(tile_type)
 
 func _is_wall_mount_neighbor_visible(tile_type: int) -> bool:
-	return (
-		tile_type == GridManager.TILE_FLOOR
-		or tile_type == GridManager.TILE_STEPPED_FLOOR
-		or tile_type == GridManager.TILE_DOOR
-		or tile_type == GridManager.TILE_DIGITAL_DOOR
-		or tile_type == GridManager.TILE_POWERED_GATE
-	)
+	return WallRendererRef.is_mount_neighbor_visible(tile_type)
 
 func _get_wall_side_delta(side: String) -> Vector2i:
-	match side:
-		"north":
-			return Vector2i(0, -1)
-		"east":
-			return Vector2i(1, 0)
-		"south":
-			return Vector2i(0, 1)
-		"west":
-			return Vector2i(-1, 0)
-	return Vector2i.ZERO
+	return WallRendererRef.get_side_delta(side)
 
 func get_visible_wall_sides(cell: Vector2i) -> Array[String]:
-	var sides: Array[String] = []
-	if _grid_manager == null or not _is_wall_in_bounds(cell):
-		return sides
-	if _grid_manager.get_tile(cell) != GridManager.TILE_WALL:
-		return sides
-	for side in WALL_SIDE_ORDER:
-		var delta: Vector2i = _get_wall_side_delta(side)
-		var neighbor: Vector2i = cell + delta
-		if not _is_wall_in_bounds(neighbor):
-			sides.append(side)
-			continue
-		var tile_type: int = _grid_manager.get_tile(neighbor)
-		if tile_type == GridManager.TILE_WALL:
-			continue
-		if _is_wall_mount_neighbor_visible(tile_type):
-			sides.append(side)
-	return sides
+	return WallRendererRef.get_visible_sides(_grid_manager, cell)
 
 func get_wall_mounted_anchor_zones(cell: Vector2i) -> Array[Dictionary]:
-	var zones: Array[Dictionary] = []
-	if _grid_manager == null or not _is_wall_in_bounds(cell):
-		return zones
-	if _grid_manager.get_tile(cell) != GridManager.TILE_WALL:
-		return zones
-	for side in get_visible_wall_sides(cell):
-		var delta: Vector2i = _get_wall_side_delta(side)
-		var neighbor: Vector2i = cell + delta
-		var mountable: bool = false
-		if _is_wall_in_bounds(neighbor):
-			var neighbor_tile: int = _grid_manager.get_tile(neighbor)
-			mountable = _is_wall_mount_neighbor_visible(neighbor_tile) and not _is_door_like_tile(neighbor_tile)
-		var wall_center: Vector2 = grid_to_iso(cell)
-		var half_size: Vector2 = get_iso_tile_half_size()
-		var axis: Vector2 = Vector2(float(delta.x) * half_size.x * 0.65, float(delta.y) * half_size.y * 0.65)
-		var center: Vector2 = wall_center + axis
-		var tangent: Vector2 = Vector2(-axis.y, axis.x).normalized() * 7.0
-		var normal: Vector2 = axis.normalized() * 5.0
-		var polygon: PackedVector2Array = PackedVector2Array([
-			center - tangent - normal,
-			center + tangent - normal,
-			center + tangent + normal,
-			center - tangent + normal
-		])
-		zones.append({
-			"attached_wall_cell": cell,
-			"anchor_floor_cell": neighbor,
-			"wall_side": side,
-			"visible": true,
-			"mountable": mountable,
-			"wall_mass_ratio": WALL_MASS_RATIO,
-			"mount_band_ratio": WALL_MOUNT_BAND_RATIO,
-			"mount_zone_center": center,
-			"mount_zone_polygon": polygon,
-			"interaction_cell": neighbor
-		})
-	return zones
+	return WallRendererRef.get_mounted_anchor_zones(_grid_manager, cell, iso_origin, get_iso_tile_half_size())
 
 func is_wall_adjacent_to_door(cell: Vector2i) -> bool:
 	if _grid_manager == null:
@@ -5027,93 +4514,7 @@ func is_wall_adjacent_to_door(cell: Vector2i) -> bool:
 	return false
 
 func get_wall_render_topology(cell: Vector2i) -> Dictionary:
-	var neighbors: Dictionary = _get_wall_neighbor_mask(cell)
-	var visible_sides: Array[String] = get_visible_wall_sides(cell)
-	var cap_sides: Array[String] = []
-	var mountable_sides: Array[String] = []
-	if not _is_wall_in_bounds(cell) or not _is_wall_cell(cell):
-		return {
-			"cell": cell,
-			"neighbors": neighbors,
-			"run_x": false,
-			"run_y": false,
-			"shape": "unknown",
-			"visible_sides": visible_sides,
-			"cap_sides": cap_sides,
-			"mountable_sides": mountable_sides
-		}
-
-	var north: bool = bool(neighbors.get("north", false))
-	var east: bool = bool(neighbors.get("east", false))
-	var south: bool = bool(neighbors.get("south", false))
-	var west: bool = bool(neighbors.get("west", false))
-	var count: int = int(north) + int(east) + int(south) + int(west)
-	var run_x: bool = east and west
-	var run_y: bool = north and south
-	var shape: String = "isolated"
-
-	for side in WALL_SIDE_ORDER:
-		if not bool(neighbors.get(side, false)):
-			cap_sides.append(side)
-
-	for side in visible_sides:
-		var neighbor_cell: Vector2i = cell + _get_wall_side_delta(side)
-		if not _is_wall_in_bounds(neighbor_cell):
-			continue
-		var neighbor_tile: int = _grid_manager.get_tile(neighbor_cell)
-		if _is_wall_mount_neighbor_visible(neighbor_tile) and not _is_door_like_tile(neighbor_tile):
-			mountable_sides.append(side)
-
-	if count <= 0:
-		shape = "isolated"
-	elif count == 4:
-		shape = "cross"
-	elif count == 3:
-		shape = "t_junction"
-	elif count == 1:
-		if north:
-			shape = "end_cap_south"
-		elif east:
-			shape = "end_cap_west"
-		elif south:
-			shape = "end_cap_north"
-		else:
-			shape = "end_cap_east"
-	elif run_x:
-		shape = "straight_x"
-	elif run_y:
-		shape = "straight_y"
-	elif north and east:
-		if _is_wall_in_bounds(cell + Vector2i(1, -1)) and _is_wall_cell(cell + Vector2i(1, -1)):
-			shape = "inner_corner_ne"
-		else:
-			shape = "outer_corner_ne"
-	elif north and west:
-		if _is_wall_in_bounds(cell + Vector2i(-1, -1)) and _is_wall_cell(cell + Vector2i(-1, -1)):
-			shape = "inner_corner_nw"
-		else:
-			shape = "outer_corner_nw"
-	elif south and east:
-		if _is_wall_in_bounds(cell + Vector2i(1, 1)) and _is_wall_cell(cell + Vector2i(1, 1)):
-			shape = "inner_corner_se"
-		else:
-			shape = "outer_corner_se"
-	elif south and west:
-		if _is_wall_in_bounds(cell + Vector2i(-1, 1)) and _is_wall_cell(cell + Vector2i(-1, 1)):
-			shape = "inner_corner_sw"
-		else:
-			shape = "outer_corner_sw"
-
-	return {
-		"cell": cell,
-		"neighbors": neighbors,
-		"run_x": run_x,
-		"run_y": run_y,
-		"shape": shape,
-		"visible_sides": visible_sides,
-		"cap_sides": cap_sides,
-		"mountable_sides": mountable_sides
-	}
+	return WallRendererRef.get_render_topology(_grid_manager, cell)
 
 func classify_wall_topology(cell: Vector2i) -> String:
 	if not _is_wall_in_bounds(cell) or not _is_wall_cell(cell):
@@ -6858,30 +6259,7 @@ func build_iso_floor_draw_entries() -> Array[Dictionary]:
 	)
 
 func build_iso_wall_draw_entries() -> Array[Dictionary]:
-	if _grid_manager == null:
-		return []
-	var map_width: int = _grid_manager.get_map_width()
-	var map_height: int = _grid_manager.get_map_height()
-	if map_width <= 0 or map_height <= 0:
-		return []
-
-	var wall_entries: Array[Dictionary] = []
-	for y in range(map_height):
-		for x in range(map_width):
-			var cell: Vector2i = Vector2i(x, y)
-			var tile_type: int = _grid_manager.get_tile(cell)
-			if not is_wall_tile(tile_type):
-				continue
-			wall_entries.append(IsoDrawEntryContractRef.make_entry(
-				cell,
-				"wall",
-				"wall_body",
-				get_iso_wall_depth_key_for_cell(cell),
-				ISO_DRAW_SUB_ORDER_WALL_BODY,
-				{"tile_type": tile_type},
-				ISO_LAYER_BIAS_WALL
-			))
-	return wall_entries
+	return WallRendererRef.build_draw_entries(_grid_manager, iso_origin, get_iso_tile_half_size(), iso_wall_visual_inset)
 
 func build_iso_platform_surface_draw_entries() -> Array[Dictionary]:
 	if _grid_manager == null:
