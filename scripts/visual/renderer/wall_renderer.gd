@@ -8,39 +8,39 @@ const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 
-const ISO_WALL_ASSET_PACK_DIR: String  = WallRendererRef.ISO_WALL_ASSET_PACK_DIR
+const ISO_WALL_ASSET_PACK_DIR: String   = WallRendererRef.ISO_WALL_ASSET_PACK_DIR
 
-const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String  = WallRendererRef.ISO_WALL_BREACH_OVERLAY_PACK_DIR
+const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String   = WallRendererRef.ISO_WALL_BREACH_OVERLAY_PACK_DIR
 
-const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary  = WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG
+const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary   = WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG
 
-const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2  = WallRendererRef.ISO_WALL_ASSET_EXPECTED_SIZE
+const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2   = WallRendererRef.ISO_WALL_ASSET_EXPECTED_SIZE
 
-const ISO_WALL_HEIGHT_LEVELS: Array[String]  = WallRendererRef.ISO_WALL_HEIGHT_LEVELS
+const ISO_WALL_HEIGHT_LEVELS: Array[String]   = WallRendererRef.ISO_WALL_HEIGHT_LEVELS
 
-const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String]  = WallRendererRef.ISO_OUTER_WALL_HEIGHT_ORDER
+const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String]   = WallRendererRef.ISO_OUTER_WALL_HEIGHT_ORDER
 
-const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String]  = WallRendererRef.ISO_GRATE_WALL_HEIGHT_LEVELS
+const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String]   = WallRendererRef.ISO_GRATE_WALL_HEIGHT_LEVELS
 
-const ISO_TEST_WALL_HEIGHT_ORDER: Array[String]  = WallRendererRef.ISO_TEST_WALL_HEIGHT_ORDER
+const ISO_TEST_WALL_HEIGHT_ORDER: Array[String]   = WallRendererRef.ISO_TEST_WALL_HEIGHT_ORDER
 
-const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary  = WallRendererRef.ISO_TEST_WALL_HEIGHT_ASSET_KEYS
+const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary   = WallRendererRef.ISO_TEST_WALL_HEIGHT_ASSET_KEYS
 
-const ISO_WALL_ASSET_CATALOG: Dictionary  = WallRendererRef.ISO_WALL_ASSET_CATALOG
+const ISO_WALL_ASSET_CATALOG: Dictionary   = WallRendererRef.ISO_WALL_ASSET_CATALOG
 
-const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2  = WallRendererRef.ISO_WALL_BASELINE_VISIBLE_BOUNDS
+const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2   = WallRendererRef.ISO_WALL_BASELINE_VISIBLE_BOUNDS
 
-const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary  = WallRendererRef.ISO_WALL_HEIGHT_VISIBLE_BOUNDS
+const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary   = WallRendererRef.ISO_WALL_HEIGHT_VISIBLE_BOUNDS
 
-const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary  = WallRendererRef.ISO_TEST_WALL_VISIBLE_BOUNDS
+const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary   = WallRendererRef.ISO_TEST_WALL_VISIBLE_BOUNDS
 
-const ISO_WALL_ASSET_PLACEMENT: Dictionary  = WallRendererRef.ISO_WALL_ASSET_PLACEMENT
+const ISO_WALL_ASSET_PLACEMENT: Dictionary   = WallRendererRef.ISO_WALL_ASSET_PLACEMENT
 
-const WALL_SIDE_ORDER: Array[String]  = WallRendererRef.WALL_SIDE_ORDER
+const WALL_SIDE_ORDER: Array[String]   = WallRendererRef.WALL_SIDE_ORDER
 
-const WALL_MASS_RATIO: float  = WallRendererRef.WALL_MASS_RATIO
+const WALL_MASS_RATIO: float   = WallRendererRef.WALL_MASS_RATIO
 
-const WALL_MOUNT_BAND_RATIO: float  = WallRendererRef.WALL_MOUNT_BAND_RATIO
+const WALL_MOUNT_BAND_RATIO: float   = WallRendererRef.WALL_MOUNT_BAND_RATIO
 
 static func is_wall_tile(tile_type: int) -> bool:
 	return tile_type == GridManagerScript.TILE_WALL
