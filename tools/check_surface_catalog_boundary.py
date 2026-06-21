@@ -9,6 +9,7 @@ SURFACE = ROOT / "scripts/world/surface_material_catalog.gd"
 HEIGHT = ROOT / "scripts/world/wall_height_catalog.gd"
 VISUAL = ROOT / "scripts/visual/visual_asset_catalog.gd"
 RENDERER = ROOT / "scripts/field/room_visual_renderer.gd"
+FLOOR_RENDERER = ROOT / "scripts/visual/renderer/floor_renderer.gd"
 errors: list[str] = []
 
 def read(path: Path) -> str:
@@ -26,6 +27,7 @@ surface = read(SURFACE)
 height = read(HEIGHT)
 visual = read(VISUAL)
 renderer = read(RENDERER)
+floor_renderer = read(FLOOR_RENDERER)
 
 for token in (
     'preload("res://scripts/world/surface_material_catalog.gd")',
@@ -92,9 +94,24 @@ for token in (
     if token not in visual:
         errors.append(f"visual catalog missing renderer contract: {token}")
 
+# Floor normalization is now owned by FloorRenderer. The coordinator must point
+# to it, and FloorRenderer must preserve the original focused-catalog boundary.
 for name, delegate in {
-    "normalize_floor_material_key": "SurfaceMaterialCatalogRef.normalize_floor_material_id",
-    "normalize_floor_height_level": "WallHeightCatalogRef.normalize_floor_height",
+    "normalize_floor_material_key": "FloorRendererRef.normalize_material_key",
+    "normalize_floor_height_level": "FloorRendererRef.normalize_height_level",
+}.items():
+    if delegate not in function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer {name} must delegate to FloorRenderer")
+
+for name, delegate in {
+    "normalize_material_key": "SurfaceMaterialCatalogRef.normalize_floor_material_id",
+    "normalize_height_level": "WallHeightCatalogRef.normalize_floor_height",
+}.items():
+    if delegate not in function_body(floor_renderer, name):
+        errors.append(f"FloorRenderer {name} must delegate to focused owner")
+
+# Wall presentation remains in RoomVisualRenderer until the wall component stage.
+for name, delegate in {
     "normalize_wall_material_asset_base_key": "VisualAssetCatalogScript.resolve_wall_material_base_asset_key",
     "normalize_wall_height_level": "WallHeightCatalogRef.normalize_wall_height",
     "get_wall_asset_key_for_material_and_height": "VisualAssetCatalogScript.resolve_wall_asset_key_for_material_and_height",
