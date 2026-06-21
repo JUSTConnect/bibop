@@ -14,6 +14,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: ScreenRouter static gate
+        run: |
+          python3 tools/check_screen_router.py
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -49,6 +53,7 @@ jobs:
           godot --headless --path . --script res://tools/ci/check_map_constructor_session_state_contract.gd
           godot --headless --path . --script res://tools/ci/check_runtime_readiness_service.gd
           godot --headless --path . --script res://tools/ci/check_event_driven_runtime_hud.gd
+          godot --headless --path . --script res://tools/ci/check_screen_router.gd
 
       - name: World state store behavior gate
         run: |

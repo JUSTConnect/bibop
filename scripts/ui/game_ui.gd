@@ -20,6 +20,7 @@ const MapConstructorRefreshCoordinatorRef = preload("res://scripts/ui/map_constr
 const MapConstructorUIBridgeRef = preload("res://scripts/ui/map_constructor/map_constructor_ui_bridge.gd")
 const MissionContentCatalogRef = preload("res://scripts/game/mission_content_catalog.gd")
 const RuntimeReadinessServiceRef = preload("res://scripts/game/runtime_readiness_service.gd")
+const ScreenRouterRef = preload("res://scripts/ui/navigation/screen_router.gd")
 
 
 class InternalIsoPreviewControl:
@@ -321,6 +322,7 @@ enum AppScreenMode {
 }
 
 var app_screen_mode: AppScreenMode = AppScreenMode.MAIN_MENU
+var screen_router: ScreenRouter = null
 var previous_app_screen_mode: AppScreenMode = AppScreenMode.MAIN_MENU
 var last_mission_success: bool = true
 var box_opened_from_center: bool = false
@@ -5537,7 +5539,7 @@ func _ready() -> void:
 
 	box_return_button = null
 
-	_create_app_menu_roots()
+	_setup_screen_router()
 
 	_apply_constructor_visual_style()
 
@@ -5583,21 +5585,263 @@ func _apply_constructor_visual_style() -> void:
 		button.add_theme_color_override("font_color", Color("#d6f5ff"))
 
 
-func _create_app_menu_roots() -> void:
+func _setup_screen_router() -> void:
+	if screen_router != null:
+		return
+	screen_router = ScreenRouterRef.new(self)
+	screen_router.register_screen(ScreenRouterRef.SCREEN_MAIN_MENU, Callable(self, "_screen_factory_main_menu"), Callable(self, "_screen_enter_main_menu"))
+	screen_router.register_screen(ScreenRouterRef.SCREEN_CENTER, Callable(self, "_screen_factory_center"), Callable(self, "_screen_enter_center"))
+	screen_router.register_screen(ScreenRouterRef.SCREEN_TASKS, Callable(self, "_screen_factory_tasks"), Callable(self, "_screen_enter_tasks"))
+	screen_router.register_screen(ScreenRouterRef.SCREEN_GAMEPLAY, Callable(self, "_screen_factory_gameplay"), Callable(self, "_screen_enter_gameplay"), Callable(self, "_screen_exit_gameplay"))
+	screen_router.register_screen(ScreenRouterRef.SCREEN_BOX_CONSTRUCTOR, Callable(self, "_screen_factory_box"), Callable(self, "_screen_enter_box"), Callable(self, "_screen_exit_box"), Callable(self, "_screen_cleanup_box"), false)
+	screen_router.register_screen(ScreenRouterRef.SCREEN_MISSION_CONSTRUCTOR, Callable(self, "_screen_factory_mission_constructor"), Callable(self, "_screen_enter_mission_constructor"))
+	screen_router.register_screen(ScreenRouterRef.SCREEN_MISSION_RESULT, Callable(self, "_screen_factory_mission_result"), Callable(self, "_screen_enter_mission_result"))
+	screen_router.register_screen(ScreenRouterRef.SCREEN_PLACEHOLDER, Callable(self, "_screen_factory_placeholder"), Callable(self, "_screen_enter_placeholder"))
+	screen_router.register_screen(ScreenRouterRef.SCREEN_CHARGING, Callable(self, "_screen_factory_charging"), Callable(self, "_screen_enter_charging"), Callable(), Callable(self, "_screen_cleanup_charging"), false)
+	screen_router.register_screen(ScreenRouterRef.SCREEN_REPAIR, Callable(self, "_screen_factory_repair"), Callable(self, "_screen_enter_repair"), Callable(), Callable(self, "_screen_cleanup_repair"), false)
+	screen_router.register_screen(ScreenRouterRef.SCREEN_PROGRAMMER, Callable(self, "_screen_factory_programmer"), Callable(self, "_screen_enter_programmer"), Callable(), Callable(self, "_screen_cleanup_programmer"), false)
+
+
+func _screen_router_restore_focus(screen_id: StringName, screen: Control, preferred_focus: Variant = null) -> void:
+	if screen_router == null or screen_router.get_active_screen_id() != screen_id:
+		return
+	var target: Control = screen_router.resolve_focus_target(screen_id, screen, preferred_focus)
+	if target != null and is_instance_valid(target):
+		target.grab_focus()
+
+
+func _navigate_back_or_center() -> void:
+	if screen_router != null and screen_router.back():
+		return
+	show_center_screen()
+
+
+func _clear_screen_root(root: Control) -> void:
+	if root == null or not is_instance_valid(root):
+		return
+	for child in root.get_children():
+		root.remove_child(child)
+		child.queue_free()
+
+
+func _screen_factory_main_menu() -> Control:
 	main_menu_root = _build_fullscreen_root("MainMenuRoot")
-	center_menu_root = _build_fullscreen_root("CenterMenuRoot")
-	tasks_menu_root = _build_fullscreen_root("TasksMenuRoot")
-	mission_constructor_root = _build_fullscreen_root("MissionConstructorRoot")
-	placeholder_menu_root = _build_fullscreen_root("PlaceholderMenuRoot")
-	add_child(main_menu_root)
-	add_child(center_menu_root)
-	add_child(tasks_menu_root)
-	add_child(mission_constructor_root)
-	add_child(placeholder_menu_root)
 	_build_main_menu_layout()
+	return main_menu_root
+
+
+func _screen_factory_center() -> Control:
+	center_menu_root = _build_fullscreen_root("CenterMenuRoot")
 	_build_center_menu_layout()
+	return center_menu_root
+
+
+func _screen_factory_tasks() -> Control:
+	tasks_menu_root = _build_fullscreen_root("TasksMenuRoot")
 	_build_tasks_menu_layout()
+	return tasks_menu_root
+
+
+func _screen_factory_gameplay() -> Control:
+	_initialize_runtime_hud()
+	return runtime_hud_root
+
+
+func _screen_factory_box() -> Control:
+	box_menu_root = _build_fullscreen_root("BoxMenuRoot")
+	return box_menu_root
+
+
+func _screen_factory_mission_constructor() -> Control:
+	mission_constructor_root = _build_fullscreen_root("MissionConstructorRoot")
+	return mission_constructor_root
+
+
+func _screen_factory_mission_result() -> Control:
+	mission_result_root = _build_fullscreen_root("MissionResultRoot")
+	return mission_result_root
+
+
+func _screen_factory_placeholder() -> Control:
+	placeholder_menu_root = _build_fullscreen_root("PlaceholderMenuRoot")
 	_build_placeholder_layout()
+	return placeholder_menu_root
+
+
+func _screen_factory_charging() -> Control:
+	charging_menu_root = _build_fullscreen_root("ChargingMenuRoot")
+	return charging_menu_root
+
+
+func _screen_factory_repair() -> Control:
+	repair_menu_root = _build_fullscreen_root("RepairMenuRoot")
+	return repair_menu_root
+
+
+func _screen_factory_programmer() -> Control:
+	programmer_menu_root = _build_fullscreen_root("ProgrammerMenuRoot")
+	return programmer_menu_root
+
+
+func _screen_enter_main_menu(_screen: Control, _payload: Dictionary, _repeated: bool) -> void:
+	_deactivate_map_constructor_mode()
+	app_screen_mode = AppScreenMode.MAIN_MENU
+	box_opened_from_center = false
+	_hide_runtime_mission_ui()
+	_set_gameplay_visible(false)
+	_destroy_gameplay_runtime()
+	_assert_single_active_major_screen()
+
+
+func _screen_enter_center(_screen: Control, _payload: Dictionary, _repeated: bool) -> void:
+	_deactivate_map_constructor_mode()
+	app_screen_mode = AppScreenMode.CENTER
+	_hide_runtime_mission_ui()
+	_set_gameplay_visible(false)
+	CenterScreenRef.refresh(self)
+	_assert_single_active_major_screen()
+
+
+func _screen_enter_tasks(_screen: Control, _payload: Dictionary, _repeated: bool) -> void:
+	app_screen_mode = AppScreenMode.TASKS
+	_set_gameplay_visible(false)
+	_refresh_tasks_content()
+	_assert_single_active_major_screen()
+
+
+func _screen_enter_gameplay(_screen: Control, payload: Dictionary, repeated: bool) -> void:
+	app_screen_mode = AppScreenMode.GAMEPLAY
+	box_opened_from_center = false
+	if not repeated and not bool(payload.get("preserve_profile", false)):
+		_set_active_mission_bipob(0)
+	_initialize_runtime_hud()
+	_set_gameplay_visible(true)
+	if bool(payload.get("start_mission", false)):
+		_on_start_mission_button_pressed()
+	if screen_router != null:
+		screen_router.set_active_payload({"start_mission": false, "preserve_profile": true})
+	call_deferred("_attach_runtime_gameplay_view")
+	update_status()
+	update_diagnostic_status()
+	update_box_status()
+	_assert_single_active_major_screen()
+
+
+func _screen_exit_gameplay(_screen: Control, _payload: Dictionary) -> void:
+	_hide_runtime_mission_ui()
+	_set_gameplay_visible(false)
+
+
+func _screen_enter_box(screen: Control, payload: Dictionary, _repeated: bool) -> void:
+	app_screen_mode = AppScreenMode.BOX_CONSTRUCTOR
+	box_opened_from_center = bool(payload.get("opened_from_center", false))
+	_set_gameplay_visible(false)
+	_clear_screen_root(screen)
+	_build_box_menu_layout()
+	start_mission_warning_acknowledged = false
+	if bool(payload.get("force_external", false)):
+		box_menu_mode = BoxMenuMode.EXTERNAL
+	update_box_status()
+	_assert_single_active_major_screen()
+
+
+func _screen_exit_box(_screen: Control, _payload: Dictionary) -> void:
+	if bipob != null:
+		_save_active_bipob_profile()
+
+
+func _screen_enter_mission_constructor(screen: Control, _payload: Dictionary, _repeated: bool) -> void:
+	app_screen_mode = AppScreenMode.MISSION_CONSTRUCTOR
+	box_opened_from_center = false
+	_set_gameplay_visible(false)
+	_clear_screen_root(screen)
+	_build_mission_constructor_screen()
+	_assert_single_active_major_screen()
+
+
+func _screen_enter_mission_result(screen: Control, payload: Dictionary, _repeated: bool) -> void:
+	_deactivate_map_constructor_mode()
+	app_screen_mode = AppScreenMode.MISSION_RESULT
+	_hide_runtime_mission_ui()
+	_set_gameplay_visible(false)
+	_clear_screen_root(screen)
+	_present_mission_result(payload)
+	_assert_single_active_major_screen()
+
+
+func _screen_enter_placeholder(_screen: Control, payload: Dictionary, _repeated: bool) -> void:
+	var mode_value: int = int(payload.get("mode", AppScreenMode.SETTINGS_PLACEHOLDER))
+	app_screen_mode = mode_value
+	_set_gameplay_visible(false)
+	if placeholder_title_label != null:
+		placeholder_title_label.text = str(payload.get("title", "Settings"))
+	if placeholder_body_label != null:
+		placeholder_body_label.text = str(payload.get("body", "This section will be added later."))
+	_assert_single_active_major_screen()
+
+
+func _screen_enter_charging(screen: Control, _payload: Dictionary, _repeated: bool) -> void:
+	app_screen_mode = AppScreenMode.CHARGING_MENU
+	_set_gameplay_visible(false)
+	_clear_screen_root(screen)
+	_build_charging_menu_layout()
+	_assert_single_active_major_screen()
+
+
+func _screen_enter_repair(screen: Control, _payload: Dictionary, _repeated: bool) -> void:
+	app_screen_mode = AppScreenMode.REPAIR_PLACEHOLDER
+	_set_gameplay_visible(false)
+	_clear_screen_root(screen)
+	_build_repair_menu_layout()
+	_assert_single_active_major_screen()
+
+
+func _screen_enter_programmer(screen: Control, _payload: Dictionary, _repeated: bool) -> void:
+	app_screen_mode = AppScreenMode.PROGRAMMER_MENU
+	_set_gameplay_visible(false)
+	_clear_screen_root(screen)
+	_build_programmer_menu_layout()
+	_assert_single_active_major_screen()
+
+
+func _screen_cleanup_box(_screen: Control) -> void:
+	box_menu_root = null
+	box_top_bar_root = null
+	box_constructor_content_root = null
+	box_content_label = null
+	right_button_panel = null
+	main_box_row = null
+	left_panel = null
+	box_content_scroll = null
+	box_tab_row = null
+	mission_tab_button = null
+	modules_tab_button = null
+	external_tab_button = null
+	internal_tab_button = null
+	box_restart_button = null
+	box_return_button = null
+	bipob_alpha_button = null
+	bipob_beta_button = null
+	bipob_juggernaut_button = null
+	box_back_button = null
+	prev_installed_button = null
+	next_installed_button = null
+	prev_box_button = null
+	next_box_button = null
+
+
+func _screen_cleanup_charging(_screen: Control) -> void:
+	charging_menu_root = null
+
+
+func _screen_cleanup_repair(_screen: Control) -> void:
+	repair_menu_root = null
+
+
+func _screen_cleanup_programmer(_screen: Control) -> void:
+	programmer_menu_root = null
+	programmer_message_label = null
+
 
 func _build_fullscreen_root(node_name: String) -> Control:
 	var root := Control.new()
@@ -5609,29 +5853,6 @@ func _build_fullscreen_root(node_name: String) -> Control:
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	return root
 
-func _hide_all_app_screens() -> void:
-	if main_menu_root != null:
-		main_menu_root.visible = false
-	if center_menu_root != null:
-		center_menu_root.visible = false
-	if tasks_menu_root != null:
-		tasks_menu_root.visible = false
-	if placeholder_menu_root != null:
-		placeholder_menu_root.visible = false
-	if mission_constructor_root != null:
-		mission_constructor_root.visible = false
-	if mission_result_root != null:
-		mission_result_root.visible = false
-	if charging_menu_root != null:
-		charging_menu_root.visible = false
-	if programmer_menu_root != null:
-		programmer_menu_root.visible = false
-	if box_menu_root != null:
-		box_menu_root.visible = false
-	if box_screen != null:
-		box_screen.visible = false
-	if runtime_hud_root != null and is_instance_valid(runtime_hud_root):
-		runtime_hud_root.visible = false
 
 func _hide_runtime_mission_ui() -> void:
 	if mission_label != null:
@@ -5756,30 +5977,31 @@ func navigate_to_screen(target_screen: AppScreenMode, payload: Dictionary = {}) 
 			show_center_screen()
 		AppScreenMode.TASKS:
 			show_tasks_screen()
+		AppScreenMode.GAMEPLAY:
+			start_gameplay_from_center()
 		AppScreenMode.BOX_CONSTRUCTOR:
 			show_box_constructor_from_center()
 		AppScreenMode.MISSION_CONSTRUCTOR:
 			show_mission_constructor_screen()
+		AppScreenMode.MISSION_RESULT:
+			show_mission_result_screen(bool(payload.get("success", false)), int(payload.get("mission_index", -1)))
 		AppScreenMode.CHARGING_MENU:
 			show_charging_menu()
 		AppScreenMode.REPAIR_PLACEHOLDER:
 			show_repair_menu()
 		AppScreenMode.PROGRAMMER_MENU:
 			show_programmer_menu()
-		AppScreenMode.GAMEPLAY:
-			start_gameplay_from_center()
-		AppScreenMode.MISSION_RESULT:
-			show_mission_result_screen(bool(payload.get("success", false)), int(payload.get("mission_index", -1)))
 		AppScreenMode.RESEARCH_PLACEHOLDER:
-			show_placeholder_screen("Research")
+			show_placeholder_screen("Research", "This section will be added later.", AppScreenMode.RESEARCH_PLACEHOLDER)
 		AppScreenMode.SHOP_PLACEHOLDER:
-			show_placeholder_screen("Shop")
+			show_placeholder_screen("Shop", "This section will be added later.", AppScreenMode.SHOP_PLACEHOLDER)
 		AppScreenMode.SETTINGS_PLACEHOLDER:
-			show_placeholder_screen("Settings")
+			show_placeholder_screen("Settings", "This section will be added later.", AppScreenMode.SETTINGS_PLACEHOLDER)
 		AppScreenMode.ABOUT_PLACEHOLDER:
-			show_placeholder_screen("About")
+			show_placeholder_screen("About", "This section will be added later.", AppScreenMode.ABOUT_PLACEHOLDER)
 		_:
 			show_center_screen()
+
 
 func _assert_single_active_major_screen() -> void:
 	var root_map: Dictionary = {
@@ -5805,86 +6027,55 @@ func _assert_single_active_major_screen() -> void:
 		push_warning("More than one major screen visible: %s" % ", ".join(visible_roots))
 
 func show_main_menu_screen() -> void:
-	_deactivate_map_constructor_mode()
-	app_screen_mode = AppScreenMode.MAIN_MENU
-	box_opened_from_center = false
-	_hide_runtime_mission_ui()
-	_hide_all_app_screens()
-	_set_gameplay_visible(false)
-	_destroy_gameplay_runtime()
-	if main_menu_root != null:
-		main_menu_root.visible = true
-	_assert_single_active_major_screen()
+	_setup_screen_router()
+	screen_router.reset(ScreenRouterRef.SCREEN_MAIN_MENU)
+
 
 func show_center_screen() -> void:
-	_deactivate_map_constructor_mode()
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Gameplay runtime is unavailable.")
 		return
-	app_screen_mode = AppScreenMode.CENTER
-	_hide_runtime_mission_ui()
-	_hide_all_app_screens()
-	_set_gameplay_visible(false)
-	if center_menu_root != null:
-		center_menu_root.visible = true
-	_assert_single_active_major_screen()
+	_setup_screen_router()
+	screen_router.reset(ScreenRouterRef.SCREEN_CENTER)
+
 
 func show_tasks_screen() -> void:
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Gameplay runtime is unavailable.")
 		return
-	app_screen_mode = AppScreenMode.TASKS
-	_hide_all_app_screens()
-	_set_gameplay_visible(false)
-	_refresh_tasks_content()
-	if tasks_menu_root != null:
-		tasks_menu_root.visible = true
-	_assert_single_active_major_screen()
+	_setup_screen_router()
+	screen_router.push(ScreenRouterRef.SCREEN_TASKS)
 
-func show_placeholder_screen(title_text: String, body_text: String = "This section will be added later.") -> void:
+
+func show_placeholder_screen(
+	title_text: String,
+	body_text: String = "This section will be added later.",
+	placeholder_mode: AppScreenMode = AppScreenMode.SETTINGS_PLACEHOLDER
+) -> void:
 	previous_app_screen_mode = app_screen_mode
 	placeholder_return_screen_mode = previous_app_screen_mode
-	app_screen_mode = AppScreenMode.SETTINGS_PLACEHOLDER
-	_hide_all_app_screens()
-	_set_gameplay_visible(false)
-	if placeholder_title_label != null:
-		placeholder_title_label.text = title_text
-	if placeholder_body_label != null:
-		placeholder_body_label.text = body_text
-	if placeholder_menu_root != null:
-		placeholder_menu_root.visible = true
-	_assert_single_active_major_screen()
+	_setup_screen_router()
+	screen_router.push(ScreenRouterRef.SCREEN_PLACEHOLDER, {
+		"title": title_text,
+		"body": body_text,
+		"mode": int(placeholder_mode),
+	})
+
 
 func start_gameplay_from_center() -> void:
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Gameplay runtime is unavailable.")
 		return
-	app_screen_mode = AppScreenMode.GAMEPLAY
-	box_opened_from_center = false
-	_hide_all_app_screens()
-	_set_active_mission_bipob(0)
-	_initialize_runtime_hud()
-	_set_gameplay_visible(true)
-	_on_start_mission_button_pressed()
-	call_deferred("_attach_runtime_gameplay_view")
-	_assert_single_active_major_screen()
+	_setup_screen_router()
+	screen_router.reset(ScreenRouterRef.SCREEN_GAMEPLAY, {"start_mission": true})
+
 
 func _enter_gameplay_screen_without_starting_mission() -> void:
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Gameplay runtime is unavailable.")
 		return
-	app_screen_mode = AppScreenMode.GAMEPLAY
-	box_opened_from_center = false
-	_hide_all_app_screens()
-	_set_active_mission_bipob(0)
-	_initialize_runtime_hud()
-	_set_gameplay_visible(true)
-	call_deferred("_attach_runtime_gameplay_view")
-	_assert_single_active_major_screen()
-	update_status()
-	update_diagnostic_status()
-	update_box_status()
-
+	_setup_screen_router()
+	screen_router.reset(ScreenRouterRef.SCREEN_GAMEPLAY, {"start_mission": false})
 
 
 func _get_active_runtime_task_mission_ids() -> Array[int]:
@@ -5984,37 +6175,18 @@ func show_box_constructor_from_center() -> void:
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Gameplay runtime is unavailable.")
 		return
-	app_screen_mode = AppScreenMode.BOX_CONSTRUCTOR
-	box_opened_from_center = true
-	_hide_all_app_screens()
-	_set_gameplay_visible(false)
-	show_box_screen()
-	set_box_menu_mode_external()
-	_assert_single_active_major_screen()
+	_setup_screen_router()
+	screen_router.push(ScreenRouterRef.SCREEN_BOX_CONSTRUCTOR, {"opened_from_center": true, "force_external": true})
+
 
 func show_mission_constructor_screen() -> void:
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Mission constructor unavailable: gameplay runtime failed to load.")
 		show_main_menu_screen()
 		return
-	app_screen_mode = AppScreenMode.MISSION_CONSTRUCTOR
-	box_opened_from_center = false
-	_hide_all_app_screens()
-	_set_gameplay_visible(false)
-	if mission_constructor_root == null or not is_instance_valid(mission_constructor_root):
-		mission_constructor_root = _build_fullscreen_root("MissionConstructorRoot")
-		add_child(mission_constructor_root)
-	_build_mission_constructor_screen()
-	if mission_constructor_root != null:
-		mission_constructor_root.visible = true
-	_assert_single_active_major_screen()
+	_setup_screen_router()
+	screen_router.push(ScreenRouterRef.SCREEN_MISSION_CONSTRUCTOR)
 
-func _ensure_mission_result_root() -> Control:
-	if mission_result_root != null:
-		return mission_result_root
-	mission_result_root = _build_fullscreen_root("MissionResultRoot")
-	add_child(mission_result_root)
-	return mission_result_root
 
 func _clear_children(root: Node) -> void:
 	if root == null:
@@ -6022,16 +6194,16 @@ func _clear_children(root: Node) -> void:
 	for child in root.get_children():
 		child.queue_free()
 
+
 func show_mission_result_screen(success: bool, mission_index: int = -1) -> void:
-	_deactivate_map_constructor_mode()
-	app_screen_mode = AppScreenMode.MISSION_RESULT
-	_hide_runtime_mission_ui()
-	_hide_all_app_screens()
-	_set_gameplay_visible(false)
+	_setup_screen_router()
+	screen_router.reset(ScreenRouterRef.SCREEN_MISSION_RESULT, {"success": success, "mission_index": mission_index})
+
+
+func _present_mission_result(payload: Dictionary) -> void:
+	var success: bool = bool(payload.get("success", false))
+	var mission_index: int = int(payload.get("mission_index", -1))
 	last_mission_success = success
-	var root: Control = _ensure_mission_result_root()
-	root.visible = true
-	_clear_children(root)
 	var result_data: Dictionary = _build_mission_result_data(success, mission_index)
 	if success:
 		var result_mission_id: int = int(result_data.get("mission_id", mission_index if mission_index > 0 else 1))
@@ -6042,16 +6214,13 @@ func show_mission_result_screen(success: bool, mission_index: int = -1) -> void:
 		progress["turns_used"] = int(result_data.get("turns_used", 0))
 		progress["turn_limit"] = int(result_data.get("turn_limit", 0))
 		progress["main_goal_completed"] = true
-		progress["extra_goals"] = {
-			"find_key": "TBD",
-			"open_door": "TBD"
-		}
+		progress["extra_goals"] = {"find_key": "TBD", "open_door": "TBD"}
 		if str(progress.get("reward_claimed_text", "")).is_empty():
 			progress["reward_claimed_text"] = "TBD"
 		mission_progress[result_mission_id] = progress
 	var layout: Control = _create_mission_result_layout(result_data)
-	root.add_child(layout)
-	_assert_single_active_major_screen()
+	mission_result_root.add_child(layout)
+
 
 func _refresh_tasks_content() -> void:
 	if tasks_mission_data.is_empty():
@@ -6619,10 +6788,8 @@ func _set_external_selection_from_side_and_cell(side_id: String, cell: Vector2i)
 	bipob.selected_external_origin = cell
 
 func _build_box_menu_layout() -> void:
-	if box_menu_root != null and is_instance_valid(box_menu_root):
-		box_menu_root.queue_free()
-	box_menu_root = _build_fullscreen_root("BoxMenuRoot")
-	add_child(box_menu_root)
+	if box_menu_root == null or not is_instance_valid(box_menu_root):
+		return
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left", 30)
@@ -6841,28 +7008,20 @@ func _on_returned_to_box() -> void:
 	update_box_status()
 
 func show_box_screen() -> void:
-	if box_menu_root == null or not is_instance_valid(box_menu_root):
-		_build_box_menu_layout()
-	if box_menu_root != null:
-		box_menu_root.visible = true
-	if box_screen != null:
-		box_screen.visible = false
-	if command_panel != null:
-		command_panel.visible = false
-	start_mission_warning_acknowledged = false
-	update_box_status()
-	
+	if not _ensure_gameplay_runtime_created():
+		show_hint("Gameplay runtime is unavailable.")
+		return
+	_setup_screen_router()
+	screen_router.replace(ScreenRouterRef.SCREEN_BOX_CONSTRUCTOR, {"opened_from_center": false})
+
+
 func hide_box_screen() -> void:
-	if box_menu_root != null:
-		box_menu_root.visible = false
-	if box_screen != null:
-		box_screen.visible = false
-	if command_panel != null:
-		command_panel.visible = true
-	update_status()
-	update_box_status()
-	update_diagnostic_status()
-	
+	if not _ensure_gameplay_runtime_created():
+		return
+	_setup_screen_router()
+	screen_router.reset(ScreenRouterRef.SCREEN_GAMEPLAY, {"start_mission": false, "preserve_profile": true})
+
+
 func update_box_status() -> void:
 	request_constructor_previews_refresh("box_status_updated")
 	if bipob == null:
@@ -7580,11 +7739,10 @@ func _update_bipob_selector_visuals() -> void:
 	_setup_box_top_bar()
 
 func _on_box_back_pressed() -> void:
-	_save_active_bipob_profile()
-	if box_menu_root != null and is_instance_valid(box_menu_root):
-		box_menu_root.queue_free()
-	box_menu_root = null
-	show_center_screen()
+	if bipob != null:
+		_save_active_bipob_profile()
+	_navigate_back_or_center()
+
 
 func update_box_button_visibility() -> void:
 	_setup_box_top_bar()
@@ -8157,7 +8315,7 @@ func _build_tasks_menu_layout() -> void:
 	var top_gap := Control.new()
 	top_gap.custom_minimum_size = Vector2(8, 0)
 	top_row.add_child(top_gap)
-	top_row.add_child(_create_top_right_back_button(Callable(self, "show_center_screen")))
+	top_row.add_child(_create_top_right_back_button(Callable(self, "_navigate_back_or_center")))
 
 	var content_row := HBoxContainer.new()
 	content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -8407,7 +8565,7 @@ func _build_mission_constructor_screen() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	actions.add_child(spacer)
-	actions.add_child(_create_top_right_back_button(Callable(self, "show_center_screen")))
+	actions.add_child(_create_top_right_back_button(Callable(self, "_navigate_back_or_center")))
 
 func _build_placeholder_layout() -> void:
 	var margin := MarginContainer.new()
@@ -8564,9 +8722,9 @@ func _create_mission_result_rewards_panel(rewards: Array) -> Control:
 func _on_main_play_pressed() -> void:
 	navigate_to_screen(AppScreenMode.CENTER)
 func _on_main_settings_pressed() -> void:
-	show_placeholder_screen("Settings")
+	navigate_to_screen(AppScreenMode.SETTINGS_PLACEHOLDER)
 func _on_main_about_pressed() -> void:
-	show_placeholder_screen("About")
+	navigate_to_screen(AppScreenMode.ABOUT_PLACEHOLDER)
 func _on_main_exit_pressed() -> void:
 	_on_exit_game_pressed()
 
@@ -8599,16 +8757,9 @@ func show_charging_menu() -> void:
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Gameplay runtime is unavailable.")
 		return
-	app_screen_mode = AppScreenMode.CHARGING_MENU
-	_hide_all_app_screens()
-	_set_gameplay_visible(false)
-	if charging_menu_root != null and is_instance_valid(charging_menu_root):
-		charging_menu_root.queue_free()
-	charging_menu_root = _build_fullscreen_root("ChargingMenuRoot")
-	add_child(charging_menu_root)
-	_build_charging_menu_layout()
-	charging_menu_root.visible = true
-	_assert_single_active_major_screen()
+	_setup_screen_router()
+	screen_router.push(ScreenRouterRef.SCREEN_CHARGING)
+
 
 func _build_charging_menu_layout() -> void:
 	if charging_menu_root == null:
@@ -8640,7 +8791,7 @@ func _build_charging_menu_layout() -> void:
 	var tabs_spacer := Control.new()
 	tabs_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.add_child(tabs_spacer)
-	var back_button := _create_top_right_back_button(Callable(self, "show_center_screen"))
+	var back_button := _create_top_right_back_button(Callable(self, "_navigate_back_or_center"))
 	_set_menu_top_button_height(back_button)
 	tabs.add_child(back_button)
 	root.add_child(tabs)
@@ -8899,13 +9050,10 @@ func _refresh_all_energy_dependent_ui() -> void:
 	update_status()
 
 func _setup_mission_field_hud() -> void:
-	# Keep mission gameplay HUD in sync after screen hierarchy/runtime refreshes.
 	if app_screen_mode != AppScreenMode.GAMEPLAY:
 		return
-	_hide_all_app_screens()
-	_initialize_runtime_hud()
-	_set_gameplay_visible(true)
-	call_deferred("_attach_runtime_gameplay_view")
+	_setup_screen_router()
+	screen_router.refresh_active({"refresh_only": true, "preserve_profile": true})
 
 func _get_profile_battery_modules(profile_id: String) -> Array[BipobModule]:
 	var modules: Array[BipobModule] = []
@@ -8952,12 +9100,13 @@ func show_programmer_menu() -> void:
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Gameplay runtime is unavailable.")
 		return
-	app_screen_mode = AppScreenMode.PROGRAMMER_MENU
-	_hide_all_app_screens()
-	if programmer_menu_root != null and is_instance_valid(programmer_menu_root):
-		programmer_menu_root.queue_free()
-	programmer_menu_root = _build_fullscreen_root("ProgrammerMenuRoot")
-	add_child(programmer_menu_root)
+	_setup_screen_router()
+	screen_router.push(ScreenRouterRef.SCREEN_PROGRAMMER)
+
+
+func _build_programmer_menu_layout() -> void:
+	if programmer_menu_root == null or not is_instance_valid(programmer_menu_root):
+		return
 	var margin: MarginContainer = MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var safe_margin: int = int(_get_safe_margin())
@@ -9002,7 +9151,6 @@ func show_programmer_menu() -> void:
 	rows_vbox.add_theme_constant_override("separation", 10)
 	scroll.add_child(rows_vbox)
 	_refresh_programmer_menu()
-	_assert_single_active_major_screen()
 
 func _refresh_programmer_menu() -> void:
 	if programmer_menu_root == null or not is_instance_valid(programmer_menu_root):
@@ -9333,10 +9481,8 @@ func _programmer_add_bipob_to_box(record: Dictionary) -> void:
 	tasks_available_bipobs.append({"id": bipob_id, "name": _programmer_safe_string(record.get("type", record.get("name", "Bipob")))})
 
 func _on_programmer_back_pressed() -> void:
-	if programmer_menu_root != null and is_instance_valid(programmer_menu_root):
-		programmer_menu_root.queue_free()
-		programmer_menu_root = null
-	show_center_screen()
+	_navigate_back_or_center()
+
 
 func _has_programmer_module() -> bool:
 	if bipob == null:
@@ -9448,12 +9594,13 @@ func show_repair_menu() -> void:
 	if not _ensure_gameplay_runtime_created():
 		show_hint("Gameplay runtime is unavailable.")
 		return
-	app_screen_mode = AppScreenMode.REPAIR_PLACEHOLDER
-	_hide_all_app_screens()
-	if repair_menu_root != null and is_instance_valid(repair_menu_root):
-		repair_menu_root.queue_free()
-	repair_menu_root = _build_fullscreen_root("RepairMenuRoot")
-	add_child(repair_menu_root)
+	_setup_screen_router()
+	screen_router.push(ScreenRouterRef.SCREEN_REPAIR)
+
+
+func _build_repair_menu_layout() -> void:
+	if repair_menu_root == null or not is_instance_valid(repair_menu_root):
+		return
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var safe_margin: int = int(_get_safe_margin())
@@ -9493,7 +9640,6 @@ func show_repair_menu() -> void:
 	rows_vbox.add_theme_constant_override("separation", 8)
 	scroll.add_child(rows_vbox)
 	_refresh_repair_menu()
-	_assert_single_active_major_screen()
 
 func _refresh_repair_menu() -> void:
 	if repair_menu_root == null:
@@ -9628,23 +9774,18 @@ func _on_repair_bipob_row_pressed(bipob_data: Dictionary) -> void:
 	_refresh_repair_menu()
 
 func _on_repair_back_pressed() -> void:
-	if repair_menu_root != null and is_instance_valid(repair_menu_root):
-		repair_menu_root.queue_free()
-		repair_menu_root = null
-	show_center_screen()
+	_navigate_back_or_center()
+
 
 func _on_placeholder_back_pressed() -> void:
+	if screen_router != null and screen_router.back():
+		placeholder_return_screen_mode = AppScreenMode.CENTER
+		return
 	match placeholder_return_screen_mode:
 		AppScreenMode.GAMEPLAY:
-			app_screen_mode = AppScreenMode.GAMEPLAY
-			_hide_all_app_screens()
-			_initialize_runtime_hud()
-			_set_gameplay_visible(true)
-			call_deferred("_attach_runtime_gameplay_view")
+			_enter_gameplay_screen_without_starting_mission()
 		AppScreenMode.MAIN_MENU:
 			show_main_menu_screen()
-		AppScreenMode.CENTER:
-			show_center_screen()
 		_:
 			show_center_screen()
 	placeholder_return_screen_mode = AppScreenMode.CENTER
@@ -12780,7 +12921,7 @@ func _on_restart_mission_button_pressed() -> void:
 		bipob.reset_task_test_session()
 	else:
 		bipob.restart_current_mission()
-	if box_screen != null and box_screen.visible:
+	if app_screen_mode == AppScreenMode.BOX_CONSTRUCTOR:
 		hide_box_screen()
 	else:
 		if command_panel != null:
