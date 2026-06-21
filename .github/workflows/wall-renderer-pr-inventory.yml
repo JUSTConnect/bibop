@@ -21,7 +21,7 @@ jobs:
       - name: Restore canonical wall constants and profiles
         run: |
           git show origin/main:scripts/field/room_visual_renderer.gd > /tmp/main_room_visual_renderer.gd
-          python tools/repair_wall_renderer.py /tmp/main_room_visual_renderer.gd
+          python tools/inventory_wall_renderer.py /tmp/main_room_visual_renderer.gd --repair
       - name: Commit repaired WallRenderer
         run: |
           git config user.name github-actions[bot]
