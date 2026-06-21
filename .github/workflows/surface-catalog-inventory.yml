@@ -1,26 +1,34 @@
-name: Surface Catalog Inventory
+name: Apply Surface Catalog Migration
 
 on:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
-  inventory:
+  apply:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: codex/bip-architecture-coordinators-02b-surface-catalogs
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Build inventory
-        run: python tools/inventory_surface_catalogs.py
-      - name: Upload inventory and source files
-        uses: actions/upload-artifact@v4
-        with:
-          name: surface-catalog-inventory
-          path: |
-            docs/surface_catalog_inventory.tmp.md
-            scripts/game/mission_manager.gd
-            scripts/field/room_visual_renderer.gd
-            scripts/visual/visual_asset_catalog.gd
-            scripts/game/map_constructor_service.gd
-            scripts/game/map_constructor_preset_service.gd
+      - name: Migrate focused surface owners and consumers
+        run: |
+          python tools/_patch_visual_surface_catalog.py
+          python tools/_patch_mission_surface_catalog.py
+          python tools/inventory_surface_catalogs.py
+          python tools/check_surface_catalog_boundary.py
+      - name: Commit generated implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add scripts
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Extract surface material and wall-height catalogs [generated]'
+          git push origin HEAD:codex/bip-architecture-coordinators-02b-surface-catalogs
