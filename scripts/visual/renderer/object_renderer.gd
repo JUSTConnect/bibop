@@ -33,6 +33,36 @@ static func get_asset_key_for_profile(profile_key: String) -> String:
 		"case": return VisualAssetCatalogRef.resolve_object_asset_id("case")
 	return "object_generic"
 
+static func get_profile_key_for_object_data(object_data: Dictionary, fallback_profile_key: String = "generic_object") -> String:
+	var type_value: String = str(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).to_lower().strip_edges()
+	var prefab_value: String = str(object_data.get("map_constructor_prefab_id", "")).to_lower().strip_edges()
+	var key_kind: String = str(object_data.get("key_kind", object_data.get("key_type", ""))).to_lower().strip_edges()
+	var blob: String = "%s %s %s" % [type_value, prefab_value, key_kind]
+	if type_value == "enemy":
+		return "bug" if str(object_data.get("enemy_type", object_data.get("enemy_kind", "vagus"))).to_lower().strip_edges() == "bug" else "vagus"
+	if blob.contains("digital_key") or blob.contains("keycard"): return "keycard"
+	if blob.contains("key"): return "key"
+	if blob.contains("fuse"): return "fuse"
+	if blob.contains("repair_kit"): return "repair_kit"
+	if blob.contains("access_code") or blob.contains("code"): return "access_code"
+	if blob.contains("cable_reel") or blob.contains("cable reel"): return "cable_reel"
+	if blob.contains("power_cable") or blob.contains("cable") or blob.contains("wire"): return "cable"
+	if blob.contains("power_source"): return "power_source"
+	if blob.contains("radiator"): return "radiator"
+	if blob.contains("power_switcher"):
+		var switcher_type: String = str(object_data.get("switcher_type", "")).strip_edges().to_lower()
+		if switcher_type == "light_switcher": return "light_switcher"
+		if switcher_type == "power_breaker": return "power_breaker"
+		return "power_switcher"
+	if blob.contains("circuit_switch") or blob.contains("light_switch") or blob.contains("breaker") or blob.contains("switch"): return "switch"
+	if blob.contains("light"): return "light"
+	if blob.contains("door") or blob.contains("powered_gate"): return "door"
+	if blob.contains("terminal"): return "terminal"
+	if blob.contains("barrel"): return "barrel"
+	if VisualStateAssetServiceRef.is_loot_case_object(object_data): return "case"
+	if blob.contains("crate") or blob.contains("box"): return "crate"
+	return "generic_object" if fallback_profile_key.strip_edges().is_empty() else fallback_profile_key
+
 static func get_mount_mode(object_data: Dictionary) -> String:
 	var mount: String = str(object_data.get("mount", object_data.get("cable_install_mode", object_data.get("install_mode", object_data.get("placement_mode", object_data.get("placement", "floor")))))).to_lower().strip_edges()
 	return "wall" if mount in ["wall", "wall_mounted"] or bool(object_data.get("is_wall_mounted", false)) else "floor"
