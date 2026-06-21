@@ -8,39 +8,140 @@ const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 
-const ISO_WALL_ASSET_PACK_DIR: String      = WallRendererRef.ISO_WALL_ASSET_PACK_DIR
+const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
 
-const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String      = WallRendererRef.ISO_WALL_BREACH_OVERLAY_PACK_DIR
+const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String = "res://assets/visual/isometric/wall/overlay/"
 
-const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary      = WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG
+const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary = {
+	"breach_overlay_concrete_sw": "wall_breach_overlay_concrete_sw_01.png",
+	"breach_overlay_brick_sw": "wall_breach_overlay_brick_sw_01.png"
+}
 
-const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2      = WallRendererRef.ISO_WALL_ASSET_EXPECTED_SIZE
+const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2 = Vector2(128.0, 120.0)
 
-const ISO_WALL_HEIGHT_LEVELS: Array[String]      = WallRendererRef.ISO_WALL_HEIGHT_LEVELS
+const ISO_WALL_HEIGHT_LEVELS: Array[String] = WallHeightCatalogRef.WALL_HEIGHT_LEVELS
 
-const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String]      = WallRendererRef.ISO_OUTER_WALL_HEIGHT_ORDER
+const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String] = ["tall", "halfmid", "mid", "halflow", "low"]
 
-const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String]      = WallRendererRef.ISO_GRATE_WALL_HEIGHT_LEVELS
+const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String] = ["mid", "halfmid", "tall"]
 
-const ISO_TEST_WALL_HEIGHT_ORDER: Array[String]      = WallRendererRef.ISO_TEST_WALL_HEIGHT_ORDER
+const ISO_TEST_WALL_HEIGHT_ORDER: Array[String] = ["tallest", "tall", "mid", "halfmid", "low"]
 
-const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary      = WallRendererRef.ISO_TEST_WALL_HEIGHT_ASSET_KEYS
+const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary = {
+	"tallest": "wall_gray_tallest",
+	"tall": "wall_gray_tall",
+	"mid": "wall_gray_mid",
+	"halfmid": "wall_gray_halfmid",
+	"low": "wall_gray_low"
+}
 
-const ISO_WALL_ASSET_CATALOG: Dictionary      = WallRendererRef.ISO_WALL_ASSET_CATALOG
+const ISO_WALL_ASSET_CATALOG: Dictionary = {
+	"wall_gray_tallest": "wall_gray_tallest_01.png",
+	"wall_gray_tall": "wall_gray_tall_01.png",
+	"wall_gray_mid": "wall_gray_mid_01.png",
+	"wall_gray_halfmid": "wall_gray_halfmid_01.png",
+	"wall_gray_low": "wall_gray_low_01.png",
+	"wall_default": "concrete/wall_concrete_mid_01.png",
+	"wall_concrete_low": "concrete/wall_concrete_low_01.png",
+	"wall_concrete_halflow": "concrete/wall_concrete_halflow_01.png",
+	"wall_concrete_mid": "concrete/wall_concrete_mid_01.png",
+	"wall_concrete_halfmid": "concrete/wall_concrete_halfmid_01.png",
+	"wall_concrete_tall": "concrete/wall_concrete_tall_01.png",
+	"wall_steel_low": "steel/wall_steel_low_01.png",
+	"wall_steel_halflow": "steel/wall_steel_halflow_01.png",
+	"wall_steel_mid": "steel/wall_steel_mid_01.png",
+	"wall_steel_halfmid": "steel/wall_steel_halfmid_01.png",
+	"wall_steel_tall": "steel/wall_steel_tall_01.png",
+	"wall_titan_low": "titan/wall_titan_low_01.png",
+	"wall_titan_halflow": "titan/wall_titan_halflow_01.png",
+	"wall_titan_mid": "titan/wall_titan_mid_01.png",
+	"wall_titan_halfmid": "titan/wall_titan_halfmid_01.png",
+	"wall_titan_tall": "titan/wall_titan_tall_01.png",
+	"wall_reinforced_steel_low": "reinforce_steel/wall_reinforcesteel_low_01.png",
+	"wall_reinforced_steel_halflow": "reinforce_steel/wall_reinforcesteel_halflow_01.png",
+	"wall_reinforced_steel_mid": "reinforce_steel/wall_reinforcesteel_mid_01.png",
+	"wall_reinforced_steel_halfmid": "reinforce_steel/wall_reinforcesteel_halfmid_01.png",
+	"wall_reinforced_steel_tall": "reinforce_steel/wall_reinforcesteel_tall_01.png",
+	"wall_brick_low": "brick/wall_brick_low_01.png",
+	"wall_brick_halflow": "brick/wall_brick_halflow_01.png",
+	"wall_brick_mid": "brick/wall_brick_mid_01.png",
+	"wall_brick_halfmid": "brick/wall_brick_halfmid_01.png",
+	"wall_brick_tall": "brick/wall_brick_tall_01.png",
+	"wall_outer_low": "outerwall/wall_outerwall_low_01.png",
+	"wall_outer_halflow": "outerwall/wall_outerwall_halflow_01.png",
+	"wall_outer_mid": "outerwall/wall_outerwall_mid_01.png",
+	"wall_outer_halfmid": "outerwall/wall_outerwall_halfmid_01.png",
+	"wall_outer_tall": "outerwall/wall_outerwall_tall_01.png",
+	"wall_grate_mid": "grate/wall_grate_mid_01.png",
+	"wall_grate_halfmid": "grate/wall_grate_halfmid_01.png",
+	"wall_grate_tall": "grate/wall_grate_tall_01.png"
+}
 
-const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2      = WallRendererRef.ISO_WALL_BASELINE_VISIBLE_BOUNDS
+const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2 = Rect2(1, 148, 511, 619)
 
-const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary      = WallRendererRef.ISO_WALL_HEIGHT_VISIBLE_BOUNDS
+const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary = {
+	"low": Rect2(0, 353, 512, 415),
+	"halflow": Rect2(0, 239, 511, 534),
+	"mid": Rect2(1, 148, 511, 619),
+	"halfmid": Rect2(1, 63, 511, 704),
+	"tall": Rect2(1, 0, 511, 767)
+}
 
-const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary      = WallRendererRef.ISO_TEST_WALL_VISIBLE_BOUNDS
+const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary = {
+	"wall_gray_tallest": Rect2(0, 0, 512, 768),
+	"wall_gray_tall": Rect2(0, 63, 512, 705),
+	"wall_gray_mid": Rect2(0, 150, 512, 618),
+	"wall_gray_halfmid": Rect2(0, 238, 512, 532),
+	"wall_gray_low": Rect2(0, 353, 512, 415)
+}
 
-const ISO_WALL_ASSET_PLACEMENT: Dictionary      = WallRendererRef.ISO_WALL_ASSET_PLACEMENT
+const ISO_WALL_ASSET_PLACEMENT: Dictionary = {
+	"wall_gray_tallest": {"visible_bounds": Rect2(0, 0, 512, 768), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_gray_tall": {"visible_bounds": Rect2(0, 63, 512, 705), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_gray_mid": {"visible_bounds": Rect2(0, 150, 512, 618), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_gray_halfmid": {"visible_bounds": Rect2(0, 238, 512, 532), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_gray_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_default": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_concrete_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_steel_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_titan_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_reinforced_steel_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_brick_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_halflow": {"visible_bounds": Rect2(0, 239, 511, 534), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_outer_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_grate_mid": {"visible_bounds": Rect2(1, 148, 511, 619), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_grate_halfmid": {"visible_bounds": Rect2(1, 63, 511, 704), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
+	"wall_grate_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
+}
 
-const WALL_SIDE_ORDER: Array[String]      = WallRendererRef.WALL_SIDE_ORDER
+const WALL_SIDE_ORDER: Array[String] = ["north", "east", "south", "west"]
 
-const WALL_MASS_RATIO: float      = WallRendererRef.WALL_MASS_RATIO
+const WALL_MASS_RATIO: float = 0.7
 
-const WALL_MOUNT_BAND_RATIO: float      = WallRendererRef.WALL_MOUNT_BAND_RATIO
+const WALL_MOUNT_BAND_RATIO: float = 0.3
 
 static func is_wall_tile(tile_type: int) -> bool:
 	return tile_type == GridManagerScript.TILE_WALL
@@ -239,7 +340,106 @@ static func get_default_visual_profile_key() -> String:
 	return "default_wall"
 
 static func get_visual_profiles() -> Dictionary:
-	return WallRendererRef.get_visual_profiles()
+	# Visual-only mapping layer for procedural wall prototype colors.
+	# Keys intentionally mirror planned WorldObjectCatalog wall IDs for future metadata wiring.
+	return {
+		"default_wall": {
+			"label": "Default Wall",
+			"top": Color(0.205, 0.225, 0.255, 0.98),
+			"left": Color(0.125, 0.14, 0.165, 0.98),
+			"right": Color(0.1, 0.115, 0.14, 0.98),
+			"outline": Color(0.24, 0.31, 0.36, 0.9),
+			"accent": Color(0.29, 0.35, 0.4, 0.5)
+		},
+		"outer_wall": {
+			"label": "Outer Wall",
+			"top": Color(0.19, 0.2, 0.22, 0.98),
+			"left": Color(0.11, 0.12, 0.14, 0.98),
+			"right": Color(0.09, 0.1, 0.12, 0.98),
+			"outline": Color(0.24, 0.29, 0.34, 0.9),
+			"accent": Color(0.26, 0.31, 0.37, 0.45)
+		},
+		"grate_wall": {
+			"label": "Grate Wall",
+			"top": Color(0.15, 0.18, 0.2, 0.8),
+			"left": Color(0.07, 0.085, 0.1, 0.72),
+			"right": Color(0.06, 0.075, 0.09, 0.72),
+			"outline": Color(0.18, 0.24, 0.28, 0.88),
+			"accent": Color(0.78, 0.86, 0.92, 0.85)
+		},
+		"concrete_damaged_wall": {
+			"label": "Concrete Damaged Wall",
+			"top": Color(0.235, 0.205, 0.195, 0.98),
+			"left": Color(0.155, 0.125, 0.115, 0.98),
+			"right": Color(0.125, 0.1, 0.095, 0.98),
+			"outline": Color(0.36, 0.27, 0.24, 0.9),
+			"accent": Color(0.52, 0.28, 0.2, 0.55)
+		},
+		"brick_damaged_wall": {
+			"label": "Brick Damaged Wall",
+			"top": Color(0.315, 0.17, 0.135, 0.98),
+			"left": Color(0.22, 0.11, 0.09, 0.98),
+			"right": Color(0.18, 0.085, 0.075, 0.98),
+			"outline": Color(0.42, 0.2, 0.16, 0.92),
+			"accent": Color(0.76, 0.48, 0.34, 0.62)
+		},
+		"damaged_wall": {
+			"label": "Concrete Damaged Wall",
+			"top": Color(0.235, 0.205, 0.195, 0.98),
+			"left": Color(0.155, 0.125, 0.115, 0.98),
+			"right": Color(0.125, 0.1, 0.095, 0.98),
+			"outline": Color(0.36, 0.27, 0.24, 0.9),
+			"accent": Color(0.52, 0.28, 0.2, 0.55)
+		},
+		"brick_wall": {
+			"label": "Brick Wall",
+			"top": Color(0.37, 0.21, 0.16, 0.98),
+			"left": Color(0.28, 0.14, 0.11, 0.98),
+			"right": Color(0.24, 0.12, 0.1, 0.98),
+			"outline": Color(0.46, 0.24, 0.18, 0.92),
+			"accent": Color(0.82, 0.72, 0.58, 0.64)
+		},
+		"concrete_wall": {
+			"label": "Concrete Wall",
+			"top": Color(0.33, 0.34, 0.35, 0.98),
+			"left": Color(0.23, 0.24, 0.25, 0.98),
+			"right": Color(0.2, 0.21, 0.22, 0.98),
+			"outline": Color(0.42, 0.44, 0.45, 0.9),
+			"accent": Color(0.68, 0.71, 0.73, 0.52)
+		},
+		"steel_wall": {
+			"label": "Steel Wall",
+			"top": Color(0.26, 0.31, 0.36, 0.98),
+			"left": Color(0.16, 0.2, 0.25, 0.98),
+			"right": Color(0.135, 0.175, 0.22, 0.98),
+			"outline": Color(0.3, 0.39, 0.47, 0.92),
+			"accent": Color(0.66, 0.76, 0.86, 0.65)
+		},
+		"reinforced_steel_wall": {
+			"label": "Reinforced Steel Wall",
+			"top": Color(0.165, 0.195, 0.235, 0.98),
+			"left": Color(0.1, 0.125, 0.155, 0.98),
+			"right": Color(0.085, 0.11, 0.14, 0.98),
+			"outline": Color(0.22, 0.3, 0.36, 0.9),
+			"accent": Color(0.28, 0.39, 0.48, 0.5)
+		},
+		"titanium_wall": {
+			"label": "Titanium Wall",
+			"top": Color(0.245, 0.265, 0.3, 0.98),
+			"left": Color(0.17, 0.185, 0.215, 0.98),
+			"right": Color(0.14, 0.155, 0.185, 0.98),
+			"outline": Color(0.31, 0.38, 0.45, 0.9),
+			"accent": Color(0.45, 0.53, 0.62, 0.55)
+		},
+		"energy_wall": {
+			"label": "Energy Wall",
+			"top": Color(0.12, 0.165, 0.205, 0.98),
+			"left": Color(0.07, 0.11, 0.145, 0.98),
+			"right": Color(0.055, 0.09, 0.125, 0.98),
+			"outline": Color(0.2, 0.36, 0.47, 0.9),
+			"accent": Color(0.28, 0.83, 0.96, 0.72)
+		}
+	}
 
 static func normalize_visual_profile_key(profile_key: String) -> String:
 	var key: String = profile_key.strip_edges().to_lower().replace(" ", "_").replace("-", "_")
