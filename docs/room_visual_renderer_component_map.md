@@ -9,7 +9,7 @@ Before the first extraction stage, `scripts/field/room_visual_renderer.gd` conta
 - 106 constants;
 - 82 exported properties.
 
-The renderer currently combines scene coordination with floor, wall, object, route, overlay, fog, asset-resolution, projection, depth sorting and debug responsibilities.
+The renderer combines scene coordination with floor, wall, object, route, overlay, fog, asset-resolution, projection, depth sorting and debug responsibilities.
 
 ## Dependency direction
 
