@@ -34,9 +34,6 @@ func _check_mount_and_state_policy() -> void:
 	_expect(ObjectRendererRef.get_wall_mounted_cardinal_side({"wall_side": "east"}) == "east", "wall-mounted cardinal fallback changed")
 
 func _check_asset_policy() -> void:
-	_expect(ObjectRendererRef.has_method("get_asset_key_for_object_data"), "ObjectRenderer asset resolver missing")
-	if not ObjectRendererRef.has_method("get_asset_key_for_object_data"):
-		return
 	_expect(ObjectRendererRef.get_asset_key_for_object_data({"object_type": "platform"}, "generic_object") == "", "platform must not resolve as a loose object asset")
 	_expect(ObjectRendererRef.get_asset_key_for_object_data({"object_type": "fire_barrel"}, "barrel") == "fire_barrel_floor_01", "fire barrel asset mapping changed")
 	_expect(ObjectRendererRef.get_asset_key_for_object_data({"object_type": "cable_reel", "placement_mode": "wall_mounted"}, "cable_reel") == "cable_reel_02", "wall cable reel asset mapping changed")
