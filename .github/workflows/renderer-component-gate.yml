@@ -24,3 +24,5 @@ jobs:
         run: godot --headless --path . --import
       - name: Check projection contract
         run: godot --headless --path . --script res://tools/ci/check_renderer_projection_contract.gd
+      - name: Check FloorRenderer contract
+        run: godot --headless --path . --script res://tools/ci/check_floor_renderer_contract.gd
