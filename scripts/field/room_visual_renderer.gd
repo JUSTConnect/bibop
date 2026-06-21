@@ -129,17 +129,17 @@ const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
 	"normal_crate_floor_01", "radiator_floor_01"
 ]
 
-const ISO_WALL_ASSET_PACK_DIR: String      = WallRendererRef.ISO_WALL_ASSET_PACK_DIR
-const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String      = WallRendererRef.ISO_WALL_BREACH_OVERLAY_PACK_DIR
+const ISO_WALL_ASSET_PACK_DIR: String       = WallRendererRef.ISO_WALL_ASSET_PACK_DIR
+const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String       = WallRendererRef.ISO_WALL_BREACH_OVERLAY_PACK_DIR
 const ISO_COOLING_SYSTEM_ASSET_PACK_DIR: String = "res://assets/visual/isometric/cooling system/"
-const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary      = WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG
+const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary       = WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG
 const ISO_TEST_ASSET_PACK_DIR: String = "res://assets/visual/isometric/test/"
-const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2      = WallRendererRef.ISO_WALL_ASSET_EXPECTED_SIZE
-const ISO_WALL_HEIGHT_LEVELS: Array[String]      = WallRendererRef.ISO_WALL_HEIGHT_LEVELS
-const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String]      = WallRendererRef.ISO_OUTER_WALL_HEIGHT_ORDER
-const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String]      = WallRendererRef.ISO_GRATE_WALL_HEIGHT_LEVELS
-const ISO_TEST_WALL_HEIGHT_ORDER: Array[String]      = WallRendererRef.ISO_TEST_WALL_HEIGHT_ORDER
-const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary      = WallRendererRef.ISO_TEST_WALL_HEIGHT_ASSET_KEYS
+const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2       = WallRendererRef.ISO_WALL_ASSET_EXPECTED_SIZE
+const ISO_WALL_HEIGHT_LEVELS: Array[String]       = WallRendererRef.ISO_WALL_HEIGHT_LEVELS
+const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String]       = WallRendererRef.ISO_OUTER_WALL_HEIGHT_ORDER
+const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String]       = WallRendererRef.ISO_GRATE_WALL_HEIGHT_LEVELS
+const ISO_TEST_WALL_HEIGHT_ORDER: Array[String]       = WallRendererRef.ISO_TEST_WALL_HEIGHT_ORDER
+const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary       = WallRendererRef.ISO_TEST_WALL_HEIGHT_ASSET_KEYS
 const ISO_GRAY_TEST_REQUIRED_ASSET_KEYS: Array[String] = [
 	"floor_gray_test",
 	"wall_gray_tallest",
@@ -148,7 +148,7 @@ const ISO_GRAY_TEST_REQUIRED_ASSET_KEYS: Array[String] = [
 	"wall_gray_halfmid",
 	"wall_gray_low"
 ]
-const ISO_WALL_ASSET_CATALOG: Dictionary      = WallRendererRef.ISO_WALL_ASSET_CATALOG
+const ISO_WALL_ASSET_CATALOG: Dictionary       = WallRendererRef.ISO_WALL_ASSET_CATALOG
 
 const ISO_FLOOR_ASSET_PACK_DIR: String = FloorRendererRef.FLOOR_ASSET_PACK_DIR
 const ISO_FLOOR_TEST_ASSET_KEY: String = FloorRendererRef.FLOOR_TEST_ASSET_KEY
@@ -164,10 +164,10 @@ const ISO_GROUND_ASSET_PLACEMENT: Dictionary = FloorRendererRef.GROUND_ASSET_PLA
 # measured from the checked-in wall atlas files and used only by the renderer so
 # the visible wall base, not the full transparent canvas, is anchored to the
 # active 128x71 isometric wall footprint.
-const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2      = WallRendererRef.ISO_WALL_BASELINE_VISIBLE_BOUNDS
-const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary      = WallRendererRef.ISO_WALL_HEIGHT_VISIBLE_BOUNDS
-const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary      = WallRendererRef.ISO_TEST_WALL_VISIBLE_BOUNDS
-const ISO_WALL_ASSET_PLACEMENT: Dictionary      = WallRendererRef.ISO_WALL_ASSET_PLACEMENT
+const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2       = WallRendererRef.ISO_WALL_BASELINE_VISIBLE_BOUNDS
+const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary       = WallRendererRef.ISO_WALL_HEIGHT_VISIBLE_BOUNDS
+const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary       = WallRendererRef.ISO_TEST_WALL_VISIBLE_BOUNDS
+const ISO_WALL_ASSET_PLACEMENT: Dictionary       = WallRendererRef.ISO_WALL_ASSET_PLACEMENT
 
 const ISO_FLOOR_ATLAS_COLUMNS: int = FloorRendererRef.FLOOR_ATLAS_COLUMNS
 const ISO_FLOOR_ATLAS_ROWS: int = FloorRendererRef.FLOOR_ATLAS_ROWS
@@ -247,9 +247,9 @@ var selected_wall_mounted_attached_wall_cell: Vector2i = Vector2i(-1, -1)
 var selected_wall_mounted_object_id: String = ""
 var map_constructor_link_target_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_link_target_object_id: String = ""
-const WALL_SIDE_ORDER: Array[String]      = WallRendererRef.WALL_SIDE_ORDER
-const WALL_MASS_RATIO: float      = WallRendererRef.WALL_MASS_RATIO
-const WALL_MOUNT_BAND_RATIO: float      = WallRendererRef.WALL_MOUNT_BAND_RATIO
+const WALL_SIDE_ORDER: Array[String]       = WallRendererRef.WALL_SIDE_ORDER
+const WALL_MASS_RATIO: float       = WallRendererRef.WALL_MASS_RATIO
+const WALL_MOUNT_BAND_RATIO: float       = WallRendererRef.WALL_MOUNT_BAND_RATIO
 
 func _enter_tree() -> void:
 	if _grid_manager == null:
