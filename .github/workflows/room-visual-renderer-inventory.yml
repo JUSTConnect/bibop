@@ -23,4 +23,15 @@ jobs:
       - name: Import project
         run: godot --headless --path . --import
       - name: Check projection contract
-        run: godot --headless --path . --script res://tools/ci/check_renderer_projection_contract.gd
+        run: |
+          set +e
+          godot --headless --path . --script res://tools/ci/check_renderer_projection_contract.gd > renderer-projection-contract.log 2>&1
+          status=$?
+          cat renderer-projection-contract.log
+          exit $status
+      - name: Upload projection contract log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: renderer-projection-contract-log
+          path: renderer-projection-contract.log
