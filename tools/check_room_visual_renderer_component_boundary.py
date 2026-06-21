@@ -10,6 +10,7 @@ PROJECTION = ROOT / "scripts/visual/renderer/iso_projection_service.gd"
 DRAW_ENTRY = ROOT / "scripts/visual/renderer/iso_draw_entry_contract.gd"
 FLOOR = ROOT / "scripts/visual/renderer/floor_renderer.gd"
 WALL = ROOT / "scripts/visual/renderer/wall_renderer.gd"
+OBJECT = ROOT / "scripts/visual/renderer/object_renderer.gd"
 errors: list[str] = []
 
 
@@ -30,16 +31,18 @@ projection = read(PROJECTION)
 draw_entry = read(DRAW_ENTRY)
 floor = read(FLOOR)
 wall = read(WALL)
+object_renderer = read(OBJECT)
 
 renderer_lines = len(renderer.splitlines())
-if renderer_lines > 6850:
-    errors.append(f"RoomVisualRenderer grew beyond wall-extraction cap: {renderer_lines} > 6850")
+if renderer_lines > 6650:
+    errors.append(f"RoomVisualRenderer grew beyond wall-extraction cap: {renderer_lines} > 6650")
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
     'preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")',
     'preload("res://scripts/visual/renderer/floor_renderer.gd")',
     'preload("res://scripts/visual/renderer/wall_renderer.gd")',
+    'preload("res://scripts/visual/renderer/object_renderer.gd")',
 ):
     if token not in renderer:
         errors.append(f"RoomVisualRenderer missing component preload: {token}")
@@ -123,6 +126,21 @@ for name, delegate in wall_delegates.items():
     if delegate not in function_body(renderer, name):
         errors.append(f"RoomVisualRenderer {name} must delegate to WallRenderer")
 
+
+object_delegates = {
+    "get_iso_object_asset_key_for_profile": "ObjectRendererRef.get_asset_key_for_profile",
+    "get_iso_object_profile_key_for_object_data": "ObjectRendererRef.get_profile_key_for_object_data",
+    "is_wall_mounted_runtime_object": "ObjectRendererRef.is_wall_mounted_runtime_object",
+    "get_wall_mounted_cardinal_side": "ObjectRendererRef.get_wall_mounted_cardinal_side",
+    "_get_object_mount_mode": "ObjectRendererRef.get_mount_mode",
+    "_is_object_state_on": "ObjectRendererRef.is_state_on",
+    "_is_fuse_present": "ObjectRendererRef.is_fuse_present",
+    "get_iso_object_asset_key_for_object_data": "ObjectRendererRef.get_asset_key_for_object_data",
+}
+for name, delegate in object_delegates.items():
+    if delegate not in function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer {name} must delegate to ObjectRenderer")
+
 if "IsoDrawEntryContractRef.less" not in function_body(renderer, "sort_iso_draw_entries"):
     errors.append("RoomVisualRenderer draw-entry sorting must delegate to contract")
 
@@ -151,7 +169,7 @@ for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon("
     if forbidden in projection:
         errors.append(f"projection component contains forbidden runtime dependency: {forbidden}")
 
-for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall)):
+for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer)):
     for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "queue_redraw(", "get_node("):
         if forbidden in component_source:
             errors.append(f"{component_name} contains forbidden CanvasItem/runtime dependency: {forbidden}")
@@ -197,6 +215,15 @@ for token in (
 ):
     if token not in wall:
         errors.append(f"WallRenderer missing contract: {token}")
+
+for token in (
+    "class_name ObjectRenderer",
+    "static func get_asset_key_for_profile",
+    "static func get_profile_key_for_object_data",
+    "static func get_asset_key_for_object_data",
+):
+    if token not in object_renderer:
+        errors.append(f"ObjectRenderer missing contract: {token}")
 
 if "func draw_iso_floor_cell" not in renderer or "func draw_iso_wall_block" not in renderer:
     errors.append("stage boundary changed: Canvas floor/wall drawing must remain in RoomVisualRenderer")

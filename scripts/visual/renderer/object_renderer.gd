@@ -93,3 +93,93 @@ static func get_wall_mounted_cardinal_side(object_data: Dictionary) -> String:
 	if direction == Vector2i(0, 1): return "south"
 	if direction == Vector2i(-1, 0): return "west"
 	return wall_side if wall_side in WALL_SIDE_ORDER else "west"
+
+static func get_asset_key_for_object_data(object_data: Dictionary, fallback_profile_key: String) -> String:
+	var fallback_asset_key: String = get_asset_key_for_profile(fallback_profile_key)
+	var type_value: String = str(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).to_lower().strip_edges()
+	var prefab_value: String = str(object_data.get("map_constructor_prefab_id", object_data.get("catalog_id", ""))).to_lower().strip_edges()
+	var group_value: String = str(object_data.get("group", "")).to_lower().strip_edges()
+	var name_value: String = str(object_data.get("name", "")).to_lower().strip_edges()
+	var id_value: String = str(object_data.get("id", object_data.get("object_id", ""))).to_lower().strip_edges()
+	var blob: String = "%s %s %s %s %s %s" % [fallback_profile_key.to_lower(), type_value, prefab_value, group_value, name_value, id_value]
+	var explicit_visual_asset_id: String = str(object_data.get("visual_asset_id", object_data.get("visual_texture_asset_id", object_data.get("texture_asset_id", object_data.get("asset_id", ""))))).strip_edges()
+	if not explicit_visual_asset_id.is_empty():
+		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
+	if VisualStateAssetServiceRef.object_uses_visual_states(object_data):
+		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
+	if type_value == "platform" or blob.contains(" platform"):
+		return ""
+	if type_value == "power_switcher" or blob.contains("power_switcher"):
+		var mount: String = get_mount_mode(object_data)
+		var on_suffix: String = "on" if is_state_on(object_data) else "off"
+		if mount == "wall":
+			return VisualAssetCatalogRef.resolve_object_asset_id("power_switcher_%s_wall" % on_suffix)
+		return VisualAssetCatalogRef.resolve_object_asset_id("power_switcher_%s_floor" % on_suffix)
+	if type_value == "fuse_box" or blob.contains("fuse_box"):
+		var fuse_suffix: String = "in" if is_fuse_present(object_data) else "out"
+		if get_mount_mode(object_data) == "wall":
+			return "fuse_box_%s_wall_01" % fuse_suffix
+		return "fuse_box_%s_01" % fuse_suffix
+	if blob.contains("circuit_switch") or blob.contains("light_switch") or blob.contains("breaker") or blob.contains("switch"):
+		var switch_mount: String = get_mount_mode(object_data)
+		var switch_suffix: String = "on" if is_state_on(object_data) else "off"
+		if switch_mount == "wall":
+			return VisualAssetCatalogRef.resolve_object_asset_id("power_switcher_%s_wall" % switch_suffix)
+		return VisualAssetCatalogRef.resolve_object_asset_id("power_switcher_%s_floor" % switch_suffix)
+	if type_value == "barrel" or type_value == "fire_barrel" or type_value == "normal_barrel" or blob.contains("barrel"):
+		var barrel_variant: String = str(object_data.get("variant", "normal")).to_lower().strip_edges()
+		if barrel_variant == "fire" or type_value == "fire_barrel" or blob.contains("fire_barrel") or blob.contains("fire barrel") or blob.contains("flammable"):
+			return "fire_barrel_floor_01"
+		return "normal_barrel_floor_01"
+	if VisualStateAssetServiceRef.is_loot_case_object(object_data):
+		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
+	if type_value == "crate":
+		var crate_type: String = str(object_data.get("crate_type", object_data.get("variant", "normal"))).to_lower().strip_edges()
+		if crate_type in ["heavy", "steel", "steel_box", "heavy_crate"]:
+			return VisualAssetCatalogRef.resolve_object_asset_id("steel_box")
+		return "normal_crate_floor_01"
+	if type_value == "heavy_crate" or blob.contains("heavy_crate") or blob.contains("heavy crate") or type_value == "steel_box" or blob.contains("steel_box") or blob.contains("steel box"):
+		return VisualAssetCatalogRef.resolve_object_asset_id("steel_box")
+	if type_value == "normal_crate" or blob.contains("normal_crate") or blob.contains("normal crate"):
+		return "normal_crate_floor_01"
+	if type_value == "cable_reel" or type_value == "power_cable_reel" or blob.contains("cable_reel") or blob.contains("cable reel"):
+		return "cable_reel_02" if get_mount_mode(object_data) == "wall" else "cable_reel_01"
+	if type_value == "power_source" or blob.contains("power_source"):
+		return "power_source_01"
+	if type_value == "radiator" or type_value == "external_radiator" or blob.contains("radiator"):
+		return "radiator_floor_01"
+	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
+		return "terminal_01"
+	if blob.contains("door") or blob.contains("powered_gate"):
+		return VisualAssetCatalogRef.resolve_object_asset_id("door")
+	if blob.contains("terminal") or blob.contains("console") or blob.contains("control_panel"):
+		return "object_terminal"
+	if blob.contains("keycard") or blob.contains("digital_key"):
+		return "object_keycard"
+	if blob.contains("key"):
+		return "object_key"
+	if blob.contains("fuse"):
+		return VisualAssetCatalogRef.resolve_object_asset_id("fuse")
+	if blob.contains("repair_kit") or blob.contains("repair kit"):
+		return VisualAssetCatalogRef.resolve_object_asset_id("repair_kit")
+	if blob.contains("access_code") or blob.contains("access code"):
+		return "object_access_code"
+	if blob.contains("component"):
+		return "object_component"
+	if blob.contains("socket"):
+		return "object_socket"
+	if blob.contains("cable_reel") or blob.contains("cable reel"):
+		return "object_cable_reel"
+	if blob.contains("cable"):
+		return "object_cable"
+	if blob.contains("button"):
+		return "object_button"
+	if blob.contains("switch") or blob.contains("breaker"):
+		var fallback_mount: String = get_mount_mode(object_data)
+		var fallback_switch_suffix: String = "on" if is_state_on(object_data) else "off"
+		if fallback_mount == "wall":
+			return "power_switcher_%s_wall_01" % fallback_switch_suffix
+		return "power_switcher_%s_01" % fallback_switch_suffix
+	if fallback_asset_key.is_empty():
+		return "object_generic"
+	return fallback_asset_key

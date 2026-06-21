@@ -80,13 +80,25 @@ Owns wall data and pure rendering decisions:
 
 `WallRenderer` has no CanvasItem drawing dependency. `RoomVisualRenderer` temporarily retains wall texture/procedural drawing, breach overlays and draw-entry dispatch until a later Canvas wall-rendering stage.
 
+### `ObjectRenderer`
+
+Owns pure object classification and asset-selection policy:
+
+- metadata-to-profile classification;
+- profile-to-asset resolution;
+- wall/floor mount classification;
+- switch state and fuse presence normalization;
+- object-data-to-asset selection, including visual-state assets.
+
+`ObjectRenderer` has no CanvasItem, ResourceLoader, scene-tree or runtime lookup dependency. Texture loading, descriptors, grounding, draw entries and Canvas drawing remain in `RoomVisualRenderer` for later controlled slices.
+
 ## Remaining extraction clusters
 
 | Component | Main current responsibilities | Representative current functions |
 |---|---|---|
 | Floor Canvas renderer | texture/atlas drawing and procedural floor geometry | `draw_iso_floor_cell`, `draw_floor_atlas_layer`, `draw_iso_floor_texture_asset` |
 | Wall Canvas renderer | wall texture/procedural drawing and breach overlays | `draw_iso_wall_block`, `draw_iso_wall_asset`, `draw_iso_breachable_wall_overlay` |
-| Object renderer | object descriptors, asset resolution, grounding, object markers and entries | `build_iso_object_visual_descriptor`, `draw_iso_object_marker`, `build_iso_object_draw_entries` |
+| Object descriptor/entry renderer | texture resolution, descriptors, grounding, object markers and entries | `build_iso_object_visual_descriptor`, `draw_iso_object_marker`, `build_iso_object_draw_entries` |
 | Route renderer | cable/pipe/airflow paths, wall routes, cable bridges | `draw_iso_cable_segment_shape`, `draw_inner_wall_route_asset`, `build_iso_cable_object_bridge_draw_entries` |
 | Overlay renderer | selection, constructor preview, debug overlays and reports | `draw_map_constructor_visual_overlay_passes`, `draw_iso_mouse_selection_overlay` |
 | Fog renderer | visibility colors, floor/wall fog passes | `draw_iso_fog_overlay`, `draw_iso_fog_wall_overlay` |
