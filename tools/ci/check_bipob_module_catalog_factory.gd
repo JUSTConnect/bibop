@@ -5,7 +5,7 @@ const Factory = preload("res://scripts/bipob/bipob_module_factory.gd")
 
 var failures: Array[String] = []
 
-func _init() -> void:
+func _initialize() -> void:
 	var validation: Dictionary = Catalog.validate_catalog()
 	_expect(bool(validation.get("valid", false)), "catalog validation must succeed: %s" % str(validation.get("errors", [])))
 	_expect(int(validation.get("external_count", 0)) > 0, "external catalog must not be empty")
@@ -20,9 +20,11 @@ func _init() -> void:
 	if failures.is_empty():
 		print("Bipob module catalog and factory contract OK")
 		quit(0)
+		return
 	for failure in failures:
 		push_error(failure)
 	quit(1)
+	return
 
 func _check_external_alias_compatibility() -> void:
 	var canonical: BipobModule = Factory.create_external_module("manipulator_arm_v1")
