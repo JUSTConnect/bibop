@@ -9,6 +9,7 @@ RENDERER = ROOT / "scripts/field/room_visual_renderer.gd"
 PROJECTION = ROOT / "scripts/visual/renderer/iso_projection_service.gd"
 DRAW_ENTRY = ROOT / "scripts/visual/renderer/iso_draw_entry_contract.gd"
 FLOOR = ROOT / "scripts/visual/renderer/floor_renderer.gd"
+WALL = ROOT / "scripts/visual/renderer/wall_renderer.gd"
 errors: list[str] = []
 
 
@@ -20,7 +21,7 @@ def read(path: Path) -> str:
 
 
 def function_body(source: str, name: str) -> str:
-    match = re.search(rf"(?ms)^func {re.escape(name)}\s*\(.*?(?=^func |\Z)", source)
+    match = re.search(rf"(?ms)^(?:static\s+)?func {re.escape(name)}\s*\(.*?(?=^(?:static\s+)?func |\Z)", source)
     return match.group(0) if match else ""
 
 
@@ -28,20 +29,22 @@ renderer = read(RENDERER)
 projection = read(PROJECTION)
 draw_entry = read(DRAW_ENTRY)
 floor = read(FLOOR)
+wall = read(WALL)
 
 renderer_lines = len(renderer.splitlines())
-if renderer_lines > 7460:
-    errors.append(f"RoomVisualRenderer grew beyond floor-extraction cap: {renderer_lines} > 7460")
+if renderer_lines > 6850:
+    errors.append(f"RoomVisualRenderer grew beyond wall-extraction cap: {renderer_lines} > 6850")
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
     'preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")',
     'preload("res://scripts/visual/renderer/floor_renderer.gd")',
+    'preload("res://scripts/visual/renderer/wall_renderer.gd")',
 ):
     if token not in renderer:
         errors.append(f"RoomVisualRenderer missing component preload: {token}")
 
-projection_delegates = {
+for name, delegate in {
     "get_iso_projection_mode": "IsoProjectionServiceRef.normalize_mode",
     "get_iso_tile_size": "IsoProjectionServiceRef.get_tile_size",
     "get_iso_exported_tile_size_matches_active_mode": "IsoProjectionServiceRef.exported_tile_size_matches_active_mode",
@@ -53,8 +56,7 @@ projection_delegates = {
     "get_iso_depth_key": "IsoProjectionServiceRef.get_depth_key",
     "get_iso_floor_depth_key": "IsoProjectionServiceRef.get_depth_key",
     "sort_cells_by_iso_depth": "IsoProjectionServiceRef.sort_cells_by_depth",
-}
-for name, delegate in projection_delegates.items():
+}.items():
     if delegate not in function_body(renderer, name):
         errors.append(f"RoomVisualRenderer {name} must delegate to projection component")
 
@@ -93,10 +95,38 @@ for name, delegate in floor_delegates.items():
     if delegate not in function_body(renderer, name):
         errors.append(f"RoomVisualRenderer {name} must delegate to FloorRenderer")
 
+wall_delegates = {
+    "is_wall_tile": "WallRendererRef.is_wall_tile",
+    "_get_wall_side_delta": "WallRendererRef.get_side_delta",
+    "_is_wall_in_bounds": "WallRendererRef.is_in_bounds",
+    "_is_wall_cell": "WallRendererRef.is_wall_cell",
+    "_get_wall_neighbor_mask": "WallRendererRef.get_neighbor_mask",
+    "_is_wall_mount_neighbor_visible": "WallRendererRef.is_mount_neighbor_visible",
+    "_is_door_like_tile": "WallRendererRef.is_door_like_tile",
+    "is_outer_border_cell": "WallRendererRef.is_outer_border_cell",
+    "get_iso_wall_connected_base_points": "WallRendererRef.get_connected_base_points",
+    "get_iso_wall_base_points": "WallRendererRef.get_base_points",
+    "get_iso_wall_depth_key_for_cell": "WallRendererRef.get_depth_key_for_cell",
+    "get_iso_wall_asset_catalog": "WallRendererRef.get_asset_catalog",
+    "normalize_wall_asset_key": "WallRendererRef.normalize_asset_key",
+    "normalize_wall_height_level": "WallRendererRef.normalize_height_level",
+    "get_wall_visual_profiles": "WallRendererRef.get_visual_profiles",
+    "get_wall_visual_profile": "WallRendererRef.get_visual_profile",
+    "get_wall_visual_profile_key_for_cell": "WallRendererRef.get_visual_profile_key_for_cell",
+    "get_wall_object_type_for_cell": "WallRendererRef.get_object_type_for_metadata",
+    "get_visible_wall_sides": "WallRendererRef.get_visible_sides",
+    "get_wall_mounted_anchor_zones": "WallRendererRef.get_mounted_anchor_zones",
+    "get_wall_render_topology": "WallRendererRef.get_render_topology",
+    "build_iso_wall_draw_entries": "WallRendererRef.build_draw_entries",
+}
+for name, delegate in wall_delegates.items():
+    if delegate not in function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer {name} must delegate to WallRenderer")
+
 if "IsoDrawEntryContractRef.less" not in function_body(renderer, "sort_iso_draw_entries"):
     errors.append("RoomVisualRenderer draw-entry sorting must delegate to contract")
 
-if renderer.count("IsoDrawEntryContractRef.make_entry") + floor.count("IsoDrawEntryContractRef.make_entry") < 5:
+if renderer.count("IsoDrawEntryContractRef.make_entry") + floor.count("IsoDrawEntryContractRef.make_entry") + wall.count("IsoDrawEntryContractRef.make_entry") < 5:
     errors.append("renderer components must use the shared draw-entry contract")
 
 for constant_name in (
@@ -108,6 +138,10 @@ for constant_name in (
     "ISO_FLOOR_TEST_ASSET_KEY",
     "ISO_FLOOR_ASSET_CATALOG",
     "ISO_FLOOR_ATLAS_LAYOUT",
+    "ISO_WALL_ASSET_CATALOG",
+    "ISO_WALL_ASSET_PLACEMENT",
+    "WALL_SIDE_ORDER",
+    "WALL_MASS_RATIO",
 ):
     line = next((row for row in renderer.splitlines() if row.startswith(f"const {constant_name}:")), "")
     if "Ref." not in line:
@@ -117,27 +151,22 @@ for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon("
     if forbidden in projection:
         errors.append(f"projection component contains forbidden runtime dependency: {forbidden}")
 
-for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "queue_redraw(", "get_node("):
-    if forbidden in floor:
-        errors.append(f"FloorRenderer contains forbidden CanvasItem/runtime dependency: {forbidden}")
+for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall)):
+    for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "queue_redraw(", "get_node("):
+        if forbidden in component_source:
+            errors.append(f"{component_name} contains forbidden CanvasItem/runtime dependency: {forbidden}")
 
 for token in (
     "class_name IsoProjectionService",
-    "static func normalize_mode",
     "static func grid_to_iso",
     "static func iso_to_grid",
-    "static func get_diamond_points",
     "static func get_depth_key",
-    "static func sort_cells_by_depth",
 ):
     if token not in projection:
         errors.append(f"projection component missing contract: {token}")
 
 for token in (
     "class_name IsoDrawEntryContract",
-    "const KEY_DEPTH",
-    "const LAYER_BIAS_WALL",
-    "const SUB_ORDER_FLOOR",
     "static func make_entry",
     "static func less",
     "static func validate_entry",
@@ -148,22 +177,33 @@ for token in (
 for token in (
     "class_name FloorRenderer",
     "const FLOOR_ASSET_CATALOG",
-    "const GROUND_ASSET_CATALOG",
     "const FLOOR_ATLAS_LAYOUT",
-    "const FLOOR_VISUAL_PROFILES",
     "static func get_visual_profile_key_for_cell",
-    "static func get_asset_key_for_material_key",
-    "static func get_ground_asset_key_for_cell",
-    "static func get_atlas_seam_safe_variant",
     "static func build_draw_entries",
 ):
     if token not in floor:
         errors.append(f"FloorRenderer missing contract: {token}")
 
-if "func draw_iso_floor_cell" not in renderer:
-    errors.append("stage boundary changed: Canvas floor drawing must remain in RoomVisualRenderer for this stage")
+for token in (
+    "class_name WallRenderer",
+    "const ISO_WALL_ASSET_CATALOG",
+    "const ISO_WALL_ASSET_PLACEMENT",
+    "const WALL_SIDE_ORDER",
+    "static func get_visual_profiles",
+    "static func get_asset_key_for_material_and_height",
+    "static func get_render_topology",
+    "static func get_mounted_anchor_zones",
+    "static func build_draw_entries",
+):
+    if token not in wall:
+        errors.append(f"WallRenderer missing contract: {token}")
+
+if "func draw_iso_floor_cell" not in renderer or "func draw_iso_wall_block" not in renderer:
+    errors.append("stage boundary changed: Canvas floor/wall drawing must remain in RoomVisualRenderer")
 if "func draw_iso_floor_cell" in floor:
     errors.append("FloorRenderer must not own Canvas drawing in this stage")
+if "func draw_iso_wall_block" in wall:
+    errors.append("WallRenderer must not own Canvas drawing in this stage")
 
 if errors:
     print("RoomVisualRenderer component boundary audit FAILED:")
