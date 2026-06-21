@@ -22,7 +22,7 @@ RoomVisualRenderer
 
 Focused renderer components must not call each other. Shared geometry and draw-entry data flow through explicit arguments and dictionaries.
 
-## Stage 1 owners
+## Extracted owners
 
 ### `IsoProjectionService`
 
@@ -54,11 +54,23 @@ payload
 
 It also owns layer biases, sub-order constants, validation and deterministic entry comparison.
 
+### `FloorRenderer`
+
+Owns floor data and pure rendering decisions:
+
+- floor and raised-ground asset catalogs and placement metadata;
+- floor visual profiles and passage/interactive classification;
+- material and height normalization through the focused domain catalogs;
+- atlas layout, variants, seam-safe policy and UV geometry;
+- floor draw-entry generation through `IsoDrawEntryContract`.
+
+`FloorRenderer` does not call CanvasItem drawing APIs. `RoomVisualRenderer` temporarily retains `draw_iso_floor_cell`, texture drawing and atlas draw dispatch until the dedicated Canvas floor-rendering stage.
+
 ## Remaining extraction clusters
 
 | Component | Main current responsibilities | Representative current functions |
 |---|---|---|
-| Floor renderer | floor profiles, material/height asset lookup, atlas layers, floor entry generation | `draw_iso_floor_cell`, `draw_floor_atlas_layer`, `build_iso_floor_draw_entries` |
+| Floor Canvas renderer | texture/atlas drawing and procedural floor geometry | `draw_iso_floor_cell`, `draw_floor_atlas_layer`, `draw_iso_floor_texture_asset` |
 | Wall renderer | topology, height/material profiles, wall geometry, breach overlays, wall entry generation | `get_wall_render_topology`, `draw_iso_wall_block`, `build_iso_wall_draw_entries` |
 | Object renderer | object descriptors, asset resolution, grounding, object markers and entries | `build_iso_object_visual_descriptor`, `draw_iso_object_marker`, `build_iso_object_draw_entries` |
 | Route renderer | cable/pipe/airflow paths, wall routes, cable bridges | `draw_iso_cable_segment_shape`, `draw_inner_wall_route_asset`, `build_iso_cable_object_bridge_draw_entries` |
