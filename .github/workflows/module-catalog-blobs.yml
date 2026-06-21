@@ -17,13 +17,25 @@ jobs:
         with:
           python-version: '3.x'
       - name: Generate implementation
+        id: generate
+        continue-on-error: true
         run: |
           cat tools/module_catalog_migration_part_00.pyfrag \
               tools/module_catalog_migration_part_01.pyfrag \
               tools/module_catalog_migration_part_02.txt \
               tools/module_catalog_migration_part_03.pyfrag > tools/migrate_bipob_module_catalogs.py
-          python tools/migrate_bipob_module_catalogs.py
+          python tools/migrate_bipob_module_catalogs.py > module-catalog-generation.log 2>&1
+      - name: Show generation log
+        if: always()
+        run: cat module-catalog-generation.log || true
+      - name: Upload generation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: module-catalog-generation-log
+          path: module-catalog-generation.log
       - name: Export blobs
+        if: steps.generate.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -56,7 +68,9 @@ jobs:
           open('module-catalog-blob-shas.json', 'w').write(json.dumps(result, indent=2))
           print(json.dumps(result, indent=2))
           PY
-      - uses: actions/upload-artifact@v4
+      - name: Upload blob SHAs
+        if: steps.generate.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: module-catalog-blob-shas
           path: module-catalog-blob-shas.json
