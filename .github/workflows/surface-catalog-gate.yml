@@ -32,4 +32,16 @@ jobs:
         run: godot --headless --path . --import
 
       - name: Surface catalog behavior contract
-        run: godot --headless --path . --script res://tools/ci/check_surface_material_catalogs.gd
+        run: |
+          set +e
+          godot --headless --path . --script res://tools/ci/check_surface_material_catalogs.gd > surface-catalog-contract.log 2>&1
+          status=$?
+          cat surface-catalog-contract.log
+          exit $status
+
+      - name: Upload surface catalog contract log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surface-catalog-contract-log
+          path: surface-catalog-contract.log
