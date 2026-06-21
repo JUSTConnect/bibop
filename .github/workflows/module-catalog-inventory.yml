@@ -26,8 +26,8 @@ jobs:
           cat tools/module_catalog_migration_part_00.pyfrag \
               tools/module_catalog_migration_part_01.pyfrag \
               tools/module_catalog_migration_part_02.txt \
-              tools/module_catalog_migration_part_03.pyfrag > /tmp/migrate_bipob_module_catalogs.py
-          python /tmp/migrate_bipob_module_catalogs.py
+              tools/module_catalog_migration_part_03.pyfrag > tools/migrate_bipob_module_catalogs.py
+          python tools/migrate_bipob_module_catalogs.py
       - name: Commit generated implementation
         run: |
           git config user.name github-actions[bot]
