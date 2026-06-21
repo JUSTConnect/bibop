@@ -1,97 +1,68 @@
-#!/usr/bin/env python3
-from __future__ import annotations
-
-import re
 from pathlib import Path
+import re
+root=Path(__file__).resolve().parents[1]
 
-ROOT = Path(__file__).resolve().parents[1]
-FILES = [
-    ROOT / "scripts/game/mission_manager.gd",
-    ROOT / "scripts/field/room_visual_renderer.gd",
-    ROOT / "scripts/visual/visual_asset_catalog.gd",
-    ROOT / "scripts/game/map_constructor_service.gd",
-    ROOT / "scripts/game/map_constructor_preset_service.gd",
-]
-OUTPUT = ROOT / "docs/surface_catalog_inventory.tmp.md"
-MARKERS = (
-    "wall_material", "floor_material", "wall_height", "height_level",
-    "ISO_PLACEHOLDER_ASSET_PATHS", "FLOOR_TEXTURE_ASSET_ALIASES",
-    "WALL_TEXTURE_ASSET_ALIASES", "VISUAL_TEXTURE_ASSET_ALIASES",
-    "breachable", "breach_side", "surface_material",
-)
-NAME_MARKERS = ("material", "height", "texture", "asset", "breach")
+# Renderer delegates canonical domain normalization and renderer-only asset mapping.
+p=root/'scripts/field/room_visual_renderer.gd'; s=p.read_text()
+needle='const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_catalog.gd")\n'
+add='''const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
+const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
+'''
+assert needle in s; s=s.replace(needle,needle+add,1)
+s=s.replace('const ISO_WALL_HEIGHT_LEVELS: Array[String] = ["low", "halflow", "mid", "halfmid", "tall"]','const ISO_WALL_HEIGHT_LEVELS: Array[String] = WallHeightCatalogRef.WALL_HEIGHT_LEVELS')
 
+def repl(src,name,new):
+ m=re.search(rf'(?m)^func {re.escape(name)}\s*\(',src); assert m,name
+ n=re.search(r'(?m)^func [A-Za-z0-9_]+\s*\(',src[m.end():]); end=m.end()+n.start() if n else len(src)
+ return src[:m.start()]+new.rstrip()+"\n\n"+src[end:]
 
-def function_ranges(lines: list[str]) -> list[tuple[int, int, str]]:
-    starts: list[tuple[int, str]] = []
-    for index, line in enumerate(lines):
-        match = re.match(r"^func\s+([A-Za-z0-9_]+)\s*\(", line)
-        if match:
-            starts.append((index, match.group(1)))
-    result: list[tuple[int, int, str]] = []
-    for position, (start, name) in enumerate(starts):
-        end = starts[position + 1][0] if position + 1 < len(starts) else len(lines)
-        result.append((start, end, name))
-    return result
+for name,new in {
+'normalize_floor_material_key':'''func normalize_floor_material_key(material_key: String) -> String:
+\treturn SurfaceMaterialCatalogRef.normalize_floor_material_id(material_key, "concrete")''',
+'normalize_floor_height_level':'''func normalize_floor_height_level(value: String) -> String:
+\treturn WallHeightCatalogRef.normalize_floor_height(value, "")''',
+'normalize_wall_material_asset_base_key':'''func normalize_wall_material_asset_base_key(profile_key: String) -> String:
+\treturn VisualAssetCatalogScript.resolve_wall_material_base_asset_key(profile_key)''',
+'normalize_wall_height_level':'''func normalize_wall_height_level(value: String) -> String:
+\treturn WallHeightCatalogRef.normalize_wall_height(value, "")''',
+'normalize_wall_height_level_for_material':'''func normalize_wall_height_level_for_material(base_key: String, height_level: String) -> String:
+\tvar normalized_height := WallHeightCatalogRef.normalize_wall_height(height_level, "")
+\treturn VisualAssetCatalogScript.normalize_wall_height_for_asset_base(base_key, normalized_height)''',
+'get_wall_asset_key_for_material_and_height':'''func get_wall_asset_key_for_material_and_height(material_asset_key: String, height_level: String) -> String:
+\tvar normalized_height := WallHeightCatalogRef.normalize_wall_height(height_level, "")
+\treturn VisualAssetCatalogScript.resolve_wall_asset_key_for_material_and_height(material_asset_key, normalized_height)''',
+}.items(): s=repl(s,name,new)
+p.write_text(s)
+print('renderer',len(s.splitlines()))
 
+# MapConstructorService restores normalized authoring state.
+p=root/'scripts/game/map_constructor_service.gd'; s=p.read_text()
+old='manager._map_constructor_wall_material_overrides = Dictionary(snapshot.get("wall_material_overrides", {})).duplicate(true)'
+new='''var normalized_surface_snapshot: Dictionary = manager.normalize_map_constructor_surface_override_snapshot({"wall_material_overrides": snapshot.get("wall_material_overrides", {})})
+\tmanager._map_constructor_wall_material_overrides = Dictionary(normalized_surface_snapshot.get("wall_material_overrides", {})).duplicate(true)'''
+assert old in s;s=s.replace(old,new,1);p.write_text(s)
 
-def constant_ranges(lines: list[str]) -> list[tuple[int, int, str]]:
-    result: list[tuple[int, int, str]] = []
-    index = 0
-    while index < len(lines):
-        match = re.match(r"^const\s+([A-Za-z0-9_]+)\s*", lines[index])
-        if not match:
-            index += 1
-            continue
-        start = index
-        name = match.group(1)
-        braces = lines[index].count("{") - lines[index].count("}")
-        brackets = lines[index].count("[") - lines[index].count("]")
-        index += 1
-        while index < len(lines) and (braces > 0 or brackets > 0):
-            braces += lines[index].count("{") - lines[index].count("}")
-            brackets += lines[index].count("[") - lines[index].count("]")
-            index += 1
-        result.append((start, index, name))
-    return result
-
-
-report: list[str] = ["# Temporary surface catalog inventory", ""]
-for path in FILES:
-    if not path.exists():
-        continue
-    lines = path.read_text(encoding="utf-8").splitlines()
-    relative = path.relative_to(ROOT)
-    report.extend([f"## `{relative}`", "", f"Lines: {len(lines)}", ""])
-
-    report.extend(["### Relevant constants", ""])
-    selected_constants = 0
-    for start, end, name in constant_ranges(lines):
-        block = "\n".join(lines[start:end])
-        if not any(marker.lower() in name.lower() for marker in NAME_MARKERS) and not any(marker in block for marker in MARKERS):
-            continue
-        selected_constants += 1
-        report.extend([f"#### `{name}` ({start + 1}-{end})", "", "```gdscript", block, "```", ""])
-    if selected_constants == 0:
-        report.append("None.\n")
-
-    report.extend(["### Relevant functions", ""])
-    selected_functions = 0
-    for start, end, name in function_ranges(lines):
-        block = "\n".join(lines[start:end]).rstrip()
-        lower_name = name.lower()
-        if not any(marker in lower_name for marker in NAME_MARKERS) and not any(marker in block for marker in MARKERS):
-            continue
-        selected_functions += 1
-        report.extend([f"#### `{name}` ({start + 1}-{end})", "", "```gdscript", block, "```", ""])
-    if selected_functions == 0:
-        report.append("None.\n")
-
-    report.extend(["### Direct marker occurrences", "", "```text"])
-    for number, line in enumerate(lines, start=1):
-        if any(marker in line for marker in MARKERS):
-            report.append(f"{number}: {line}")
-    report.extend(["```", ""])
-
-OUTPUT.write_text("\n".join(report), encoding="utf-8")
-print(f"Wrote {OUTPUT.relative_to(ROOT)}")
+# Preset application normalizes legacy surface ids at load boundary.
+p=root/'scripts/game/map_constructor_preset_service.gd'; s=p.read_text()
+old='''\tvar applied_fields: Array[String] = []
+\tfor field_name in SNAPSHOT_FIELDS:
+\t\tif not snapshot.has(field_name):
+\t\t\tcontinue
+\t\towner.set(field_name, _duplicate_if_possible(snapshot.get(field_name)))
+\t\tapplied_fields.append(field_name)'''
+new='''\tvar effective_snapshot: Dictionary = snapshot.duplicate(true)
+\tif owner.has_method("normalize_map_constructor_surface_override_snapshot"):
+\t\tvar normalized_surface: Dictionary = owner.call("normalize_map_constructor_surface_override_snapshot", {
+\t\t\t"wall_material_overrides": effective_snapshot.get("_map_constructor_wall_material_overrides", {}),
+\t\t\t"floor_material_overrides": effective_snapshot.get("_map_constructor_floor_material_overrides", {})
+\t\t})
+\t\teffective_snapshot["_map_constructor_wall_material_overrides"] = Dictionary(normalized_surface.get("wall_material_overrides", {})).duplicate(true)
+\t\teffective_snapshot["_map_constructor_floor_material_overrides"] = Dictionary(normalized_surface.get("floor_material_overrides", {})).duplicate(true)
+\tvar applied_fields: Array[String] = []
+\tfor field_name in SNAPSHOT_FIELDS:
+\t\tif not effective_snapshot.has(field_name):
+\t\t\tcontinue
+\t\towner.set(field_name, _duplicate_if_possible(effective_snapshot.get(field_name)))
+\t\tapplied_fields.append(field_name)'''
+assert old in s;s=s.replace(old,new,1);p.write_text(s)
+print('services patched')
