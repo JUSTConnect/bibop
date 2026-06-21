@@ -31,23 +31,5 @@ jobs:
       - name: Godot import smoke
         run: godot --headless --path . --import
 
-      - name: Visual catalog direct parse diagnostic
-        continue-on-error: true
-        run: godot --headless --path . --script res://scripts/visual/visual_asset_catalog.gd > visual-catalog-parse.log 2>&1
-
       - name: Surface catalog behavior contract
-        run: |
-          set +e
-          godot --headless --path . --script res://tools/ci/check_surface_material_catalogs.gd > surface-catalog-contract.log 2>&1
-          status=$?
-          cat surface-catalog-contract.log
-          exit $status
-
-      - name: Upload surface catalog diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: surface-catalog-diagnostics
-          path: |
-            visual-catalog-parse.log
-            surface-catalog-contract.log
+        run: godot --headless --path . --script res://tools/ci/check_surface_material_catalogs.gd
