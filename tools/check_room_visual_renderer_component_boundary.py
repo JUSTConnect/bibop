@@ -122,6 +122,18 @@ wall_delegates = {
     "get_wall_render_topology": "WallRendererRef.get_render_topology",
     "build_iso_wall_draw_entries": "WallRendererRef.build_draw_entries",
 }
+
+if "ObjectRendererRef.get_sub_order" not in function_body(renderer, "get_iso_object_sub_order"):
+    errors.append("RoomVisualRenderer get_iso_object_sub_order must delegate to ObjectRenderer")
+
+
+if "ObjectRendererRef.get_wall_mounted_render_layer" not in function_body(renderer, "get_wall_mounted_render_layer"):
+    errors.append("RoomVisualRenderer get_wall_mounted_render_layer must delegate to ObjectRenderer")
+
+
+if "ObjectRendererRef.make_draw_entry" not in function_body(renderer, "make_iso_object_draw_entry"):
+    errors.append("RoomVisualRenderer make_iso_object_draw_entry must delegate to ObjectRenderer")
+
 for name, delegate in wall_delegates.items():
     if delegate not in function_body(renderer, name):
         errors.append(f"RoomVisualRenderer {name} must delegate to WallRenderer")
@@ -220,6 +232,7 @@ for token in (
     "static func get_asset_key_for_profile",
     "static func get_profile_key_for_object_data",
     "static func get_asset_key_for_object_data",
+    "static func make_draw_entry",
 ):
     if token not in object_renderer:
         errors.append(f"ObjectRenderer missing contract: {token}")

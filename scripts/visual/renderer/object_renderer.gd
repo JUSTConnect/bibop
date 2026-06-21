@@ -3,6 +3,7 @@ class_name ObjectRenderer
 
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const VisualStateAssetServiceRef = preload("res://scripts/visual/visual_state_asset_service.gd")
+const IsoDrawEntryContractRef = preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 
 const WALL_SIDE_ORDER: Array[String] = ["north", "east", "south", "west"]
@@ -183,3 +184,64 @@ static func get_asset_key_for_object_data(object_data: Dictionary, fallback_prof
 	if fallback_asset_key.is_empty():
 		return "object_generic"
 	return fallback_asset_key
+
+static func get_sub_order(layer_name: String, profile_key: String) -> float:
+	if layer_name == "wall_mounted":
+		return IsoDrawEntryContractRef.SUB_ORDER_WALL_MOUNTED
+	if layer_name == "cable":
+		return IsoDrawEntryContractRef.SUB_ORDER_CABLE
+	if layer_name == "terminal":
+		return IsoDrawEntryContractRef.SUB_ORDER_TERMINAL
+	if profile_key.contains("door") or profile_key.contains("gate"):
+		return IsoDrawEntryContractRef.SUB_ORDER_DOOR
+	return IsoDrawEntryContractRef.SUB_ORDER_ITEM
+
+static func get_wall_mounted_render_layer(object_data: Dictionary, is_routing_utility: bool = false) -> int:
+	if object_data.has("wall_render_layer"):
+		return int(object_data.get("wall_render_layer", 20))
+	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
+	var prefab_id: String = str(object_data.get("map_constructor_prefab_id", object_data.get("prefab_id", ""))).strip_edges().to_lower()
+	var visual_family: String = str(object_data.get("visual_family", object_data.get("visual_asset_family", ""))).strip_edges().to_lower()
+	var routing_kind: String = str(object_data.get("routing_kind", "")).strip_edges().to_lower()
+	if object_type.contains("cable") or prefab_id.contains("cable") or visual_family.contains("cable") or routing_kind.contains("cable"):
+		return 10
+	if prefab_id in ["external_air_duct", "external_water_pipe"] or object_type in ["external_air_duct", "external_water_pipe"]:
+		return 10
+	if is_routing_utility:
+		return 10
+	return 20
+
+static func get_entry_kind(layer_name: String, profile_key: String) -> String:
+	if layer_name == "wall_mounted":
+		return "wall_mounted"
+	if layer_name == "cable":
+		return "cable"
+	if profile_key.contains("door") or profile_key.contains("gate"):
+		return "door"
+	return "object"
+
+static func get_layer_bias(layer_name: String) -> float:
+	if layer_name == "wall_mounted":
+		return IsoDrawEntryContractRef.LAYER_BIAS_WALL_MOUNTED
+	if layer_name == "cable":
+		return IsoDrawEntryContractRef.LAYER_BIAS_CABLE
+	if layer_name == "terminal":
+		return IsoDrawEntryContractRef.LAYER_BIAS_TERMINAL
+	return IsoDrawEntryContractRef.LAYER_BIAS_ITEM
+
+static func make_draw_entry(cell: Vector2i, layer_name: String, object_index: float, payload: Dictionary, depth_key: float, is_routing_utility: bool = false) -> Dictionary:
+	var profile_key: String = str(payload.get("profile_key", ""))
+	var stable_order_step: float = 0.00001 if layer_name == "wall_mounted" else 0.01
+	var sub_order: float = get_sub_order(layer_name, profile_key) + object_index * stable_order_step
+	if layer_name == "wall_mounted":
+		sub_order += float(get_wall_mounted_render_layer(Dictionary(payload.get("object_data", {})), is_routing_utility)) * 0.001
+	return IsoDrawEntryContractRef.make_entry(
+		cell,
+		layer_name,
+		get_entry_kind(layer_name, profile_key),
+		depth_key,
+		sub_order,
+		payload,
+		get_layer_bias(layer_name) + object_index * 0.01
+	)
+
