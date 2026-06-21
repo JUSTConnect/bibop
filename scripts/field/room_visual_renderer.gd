@@ -11,6 +11,8 @@ const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd"
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_catalog.gd")
+const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
+const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
 const VisualStateAssetServiceRef = preload("res://scripts/visual/visual_state_asset_service.gd")
 const VisualAssetRenderContractServiceRef = preload("res://scripts/visual/visual_asset_render_contract_service.gd")
@@ -132,7 +134,7 @@ const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary = {
 }
 const ISO_TEST_ASSET_PACK_DIR: String = "res://assets/visual/isometric/test/"
 const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2 = Vector2(128.0, 120.0)
-const ISO_WALL_HEIGHT_LEVELS: Array[String] = ["low", "halflow", "mid", "halfmid", "tall"]
+const ISO_WALL_HEIGHT_LEVELS: Array[String] = WallHeightCatalogRef.WALL_HEIGHT_LEVELS
 const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String] = ["tall", "halfmid", "mid", "halflow", "low"]
 const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String] = ["mid", "halfmid", "tall"]
 const ISO_TEST_WALL_HEIGHT_ORDER: Array[String] = ["tallest", "tall", "mid", "halfmid", "low"]
@@ -1626,21 +1628,7 @@ func get_iso_door_visual_profile_key_for_tile(tile_type: int) -> String:
 	return ""
 
 func normalize_floor_material_key(material_key: String) -> String:
-	var normalized_key: String = material_key.strip_edges().to_lower()
-	normalized_key = normalized_key.replace(" ", "_")
-	normalized_key = normalized_key.replace("-", "_")
-	match normalized_key:
-		"", "default", "default_floor", "floor", "floor_default", "concrete", "concrete_default", "concrete_floor", "floor_concrete":
-			return "concrete"
-		"steel", "steel_default", "steel_floor", "floor_steel":
-			return "steel"
-		"titan", "titan_default", "titan_floor", "titanium", "titanium_default", "titanium_floor", "floor_titan", "floor_titanium":
-			return "titan"
-		"clean_lab_floor", "reinforced_floor":
-			return "steel"
-		"dark_service_floor", "damaged_floor", "hazard_floor", "power_floor", "diagnostic_floor":
-			return "concrete"
-	return "concrete"
+	return SurfaceMaterialCatalogRef.normalize_floor_material_id(material_key, "concrete")
 
 func get_iso_floor_asset_key_for_material_key(material_key: String) -> String:
 	if use_gray_room_visual_test_assets:
@@ -1726,18 +1714,7 @@ func get_iso_floor_asset_placement(asset_key: String) -> Dictionary:
 	return {"visible_bounds": Rect2i(0, 0, int(get_iso_tile_size().x), int(get_iso_tile_size().y)), "target_footprint": get_iso_tile_size(), "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)}
 
 func normalize_floor_height_level(value: String) -> String:
-	var normalized_value: String = value.strip_edges().to_lower()
-	normalized_value = normalized_value.replace(" ", "")
-	normalized_value = normalized_value.replace("-", "")
-	normalized_value = normalized_value.replace("_", "")
-	match normalized_value:
-		"", "empty", "default", "flat", "normal":
-			return ""
-		"1", "step1", "low", "groundlow":
-			return "step_1"
-		"2", "step2", "halflow", "groundhalflow":
-			return "step_2"
-	return ""
+	return WallHeightCatalogRef.normalize_floor_height(value, "")
 
 func get_iso_ground_asset_key_for_floor_height(floor_height: String) -> String:
 	match normalize_floor_height_level(floor_height):
@@ -2022,30 +1999,7 @@ func get_gray_room_visual_test_asset_validation() -> Dictionary:
 
 
 func normalize_wall_material_asset_base_key(profile_key: String) -> String:
-	var normalized_key: String = profile_key.strip_edges().to_lower()
-	normalized_key = normalized_key.replace(" ", "_")
-	normalized_key = normalized_key.replace("-", "_")
-	normalized_key = normalized_key.replace("default_wall", "wall_default")
-	match normalized_key:
-		"", "wall", "default", "wall_default":
-			return "wall_concrete"
-		"outer", "outerwall", "outer_wall", "wall_outer", "wall_outerwall":
-			return "wall_outer"
-		"brick", "brick_wall", "wall_brick", "breachable_brick", "wall_breachable_brick", "brick_damaged", "damaged_brick", "brick_damage", "brick_damaged_wall", "wall_brick_damaged":
-			return "wall_brick"
-		"concrete", "concrete_wall", "wall_concrete", "breachable_concrete", "wall_breachable_concrete", "damaged", "damaged_wall", "wall_damaged", "concrete_damaged", "concrete_damage", "damaged_concrete", "concrete_damaged_wall", "wall_concrete_damaged":
-			return "wall_concrete"
-		"grate", "grate_wall", "wall_grate":
-			return "wall_grate"
-		"steel", "steel_wall", "wall_steel":
-			return "wall_steel"
-		"reinforced", "reinforced_steel", "reinforce_steel", "reinforcesteel", "reinforced_steel_wall", "wall_reinforced", "wall_reinforced_steel", "wall_reinforce_steel", "wall_reinforcesteel":
-			return "wall_reinforced_steel"
-		"titan", "titanium", "titan_wall", "titanium_wall", "wall_titan", "wall_titanium":
-			return "wall_titan"
-		"energy", "energy_flow", "energy_wall", "wall_energy":
-			return "wall_steel"
-	return "wall_concrete"
+	return VisualAssetCatalogScript.resolve_wall_material_base_asset_key(profile_key)
 
 func normalize_wall_asset_key(profile_key: String) -> String:
 	var normalized_key: String = profile_key.strip_edges().to_lower()
@@ -2162,42 +2116,15 @@ func normalize_test_wall_height(value: String) -> String:
 	return ""
 
 func normalize_wall_height_level(value: String) -> String:
-	var normalized_value: String = value.strip_edges().to_lower()
-	normalized_value = normalized_value.replace(" ", "")
-	normalized_value = normalized_value.replace("-", "")
-	normalized_value = normalized_value.replace("_", "")
-	match normalized_value:
-		"", "auto", "default":
-			return ""
-		"short", "lowest", "low":
-			return "low"
-		"halflow", "halflowheight", "halfshort", "half_low":
-			return "halflow"
-		"medium", "middle", "mid":
-			return "mid"
-		"halfmid", "halfmedium", "uppermid", "half":
-			return "halfmid"
-		"high", "tall", "highest", "tallest":
-			return "tall"
-	return ""
+	return WallHeightCatalogRef.normalize_wall_height(value, "")
 
 func normalize_wall_height_level_for_material(base_key: String, height_level: String) -> String:
-	var normalized_height: String = normalize_wall_height_level(height_level)
-	if normalized_height.is_empty():
-		normalized_height = "mid"
-	if base_key == "wall_grate" and not ISO_GRATE_WALL_HEIGHT_LEVELS.has(normalized_height):
-		return "mid"
-	return normalized_height
+	var normalized_height := WallHeightCatalogRef.normalize_wall_height(height_level, "")
+	return VisualAssetCatalogScript.normalize_wall_height_for_asset_base(base_key, normalized_height)
 
 func get_wall_asset_key_for_material_and_height(material_asset_key: String, height_level: String) -> String:
-	var base_key: String = normalize_wall_material_asset_base_key(material_asset_key)
-	var normalized_height: String = normalize_wall_height_level_for_material(base_key, height_level)
-	var candidate_key: String = "%s_%s" % [base_key, normalized_height]
-	if ISO_WALL_ASSET_CATALOG.has(candidate_key):
-		return candidate_key
-	if base_key == "wall_grate":
-		return "wall_grate_mid"
-	return "wall_concrete_mid"
+	var normalized_height := WallHeightCatalogRef.normalize_wall_height(height_level, "")
+	return VisualAssetCatalogScript.resolve_wall_asset_key_for_material_and_height(material_asset_key, normalized_height)
 
 func get_raw_wall_height_value(wall_data: Dictionary) -> String:
 	var material_data: Dictionary = Dictionary(wall_data.get("material", {}))

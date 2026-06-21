@@ -77,11 +77,19 @@ static func snapshot_from_owner(owner: Object) -> Dictionary:
 static func apply_snapshot_to_owner(owner: Object, snapshot: Dictionary) -> Dictionary:
 	if owner == null:
 		return {"ok": false, "message": "Owner is null.", "applied_fields": []}
+	var effective_snapshot: Dictionary = snapshot.duplicate(true)
+	if owner.has_method("normalize_map_constructor_surface_override_snapshot"):
+		var normalized_surface: Dictionary = owner.call("normalize_map_constructor_surface_override_snapshot", {
+			"wall_material_overrides": effective_snapshot.get("_map_constructor_wall_material_overrides", {}),
+			"floor_material_overrides": effective_snapshot.get("_map_constructor_floor_material_overrides", {})
+		})
+		effective_snapshot["_map_constructor_wall_material_overrides"] = Dictionary(normalized_surface.get("wall_material_overrides", {})).duplicate(true)
+		effective_snapshot["_map_constructor_floor_material_overrides"] = Dictionary(normalized_surface.get("floor_material_overrides", {})).duplicate(true)
 	var applied_fields: Array[String] = []
 	for field_name in SNAPSHOT_FIELDS:
-		if not snapshot.has(field_name):
+		if not effective_snapshot.has(field_name):
 			continue
-		owner.set(field_name, _duplicate_if_possible(snapshot.get(field_name)))
+		owner.set(field_name, _duplicate_if_possible(effective_snapshot.get(field_name)))
 		applied_fields.append(field_name)
 	return {"ok": true, "message": "Snapshot applied.", "applied_fields": applied_fields}
 

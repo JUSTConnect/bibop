@@ -60,7 +60,8 @@ func restore_wall_cell_authoring_state(cell: Vector2i, snapshot: Dictionary) -> 
 		return
 	if bool(snapshot.get("has_grid_tile", false)) and manager.grid_manager != null and manager.grid_manager.has_method("set_tile"):
 		manager.grid_manager.call("set_tile", cell, int(snapshot.get("grid_tile", GridManager.TILE_FLOOR)))
-	manager._map_constructor_wall_material_overrides = Dictionary(snapshot.get("wall_material_overrides", {})).duplicate(true)
+	var normalized_surface_snapshot: Dictionary = manager.normalize_map_constructor_surface_override_snapshot({"wall_material_overrides": snapshot.get("wall_material_overrides", {})})
+	manager._map_constructor_wall_material_overrides = Dictionary(normalized_surface_snapshot.get("wall_material_overrides", {})).duplicate(true)
 	if bool(snapshot.get("has_world_object_lookup", false)):
 		manager.world_state_store.upsert_object(Dictionary(snapshot.get("world_object_lookup", {})).duplicate(true))
 	else:
