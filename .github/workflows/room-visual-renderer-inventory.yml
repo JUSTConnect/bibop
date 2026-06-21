@@ -1,0 +1,23 @@
+name: RoomVisualRenderer Inventory
+
+on:
+  pull_request:
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Build dependency map
+        run: python tools/inventory_room_visual_renderer.py
+      - name: Upload dependency map
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-visual-renderer-dependency-map
+          path: |
+            docs/room_visual_renderer_dependency_map.tmp.md
+            docs/room_visual_renderer_dependency_map.tmp.json
+            scripts/field/room_visual_renderer.gd
