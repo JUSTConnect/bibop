@@ -13,6 +13,7 @@ const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_
 const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_catalog.gd")
 const IsoProjectionServiceRef = preload("res://scripts/visual/renderer/iso_projection_service.gd")
 const IsoDrawEntryContractRef = preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")
+const FloorRendererRef = preload("res://scripts/visual/renderer/floor_renderer.gd")
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
@@ -197,37 +198,15 @@ const ISO_WALL_ASSET_CATALOG: Dictionary = {
 	"wall_grate_tall": "grate/wall_grate_tall_01.png"
 }
 
-const ISO_FLOOR_ASSET_PACK_DIR: String = "res://assets/visual/isometric/floor/"
-const ISO_FLOOR_TEST_ASSET_KEY: String = "floor_gray_test"
-const ISO_FLOOR_ASSET_CATALOG: Dictionary = {
-	"floor_concrete": "floor_concrete_01.png",
-	"floor_steel": "floor_steel_01.png",
-	"floor_titan": "floor_titan_01.png",
-	"platform_floor": "floor_platform_01.png"
-}
-
-const ISO_GROUND_ASSET_PACK_DIR: String = "res://assets/visual/isometric/ground/"
-const ISO_GROUND_ASSET_CATALOG: Dictionary = {
-	"ground_low": "ground_low_01.png",
-	"ground_halflow": "ground_halflow_01.png"
-}
-
-# Floor PNGs are authored on a larger transparent canvas. The renderer crops to
-# the measured visible alpha bounds and maps every material to the same active
-# 128x71 iso diamond footprint so neighboring cells share one anchor contract.
-const ISO_FLOOR_ASSET_TARGET_FOOTPRINT: Vector2 = ISO_STANDARD_TILE_SIZE
-const ISO_FLOOR_ASSET_NORMALIZED_OVERLAP: Vector2 = Vector2(1.5, 1.5)
-const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = {
-	"floor_gray_test": {"visible_bounds": Rect2i(0, 162, 512, 286), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.11, 0.12, 0.13, 0.98), "draw_safe_base": false},
-	"floor_concrete": {"visible_bounds": Rect2i(0, 162, 512, 287), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)},
-	"floor_steel": {"visible_bounds": Rect2i(0, 161, 512, 288), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.07, 0.085, 0.1, 0.96)},
-	"floor_titan": {"visible_bounds": Rect2i(0, 162, 512, 287), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.075, 0.085, 0.11, 0.96)},
-	"platform_floor": {"visible_bounds": Rect2i(0, 163, 512, 349), "target_footprint": ISO_FLOOR_ASSET_TARGET_FOOTPRINT, "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.09, 0.105, 0.12, 0.96)}
-}
-const ISO_GROUND_ASSET_PLACEMENT: Dictionary = {
-	"ground_low": {"visible_bounds": Rect2(0, 353, 512, 415), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO},
-	"ground_halflow": {"visible_bounds": Rect2(0, 238, 512, 532), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
-}
+const ISO_FLOOR_ASSET_PACK_DIR: String = FloorRendererRef.FLOOR_ASSET_PACK_DIR
+const ISO_FLOOR_TEST_ASSET_KEY: String = FloorRendererRef.FLOOR_TEST_ASSET_KEY
+const ISO_FLOOR_ASSET_CATALOG: Dictionary = FloorRendererRef.FLOOR_ASSET_CATALOG
+const ISO_GROUND_ASSET_PACK_DIR: String = FloorRendererRef.GROUND_ASSET_PACK_DIR
+const ISO_GROUND_ASSET_CATALOG: Dictionary = FloorRendererRef.GROUND_ASSET_CATALOG
+const ISO_FLOOR_ASSET_TARGET_FOOTPRINT: Vector2 = FloorRendererRef.FLOOR_ASSET_TARGET_FOOTPRINT
+const ISO_FLOOR_ASSET_NORMALIZED_OVERLAP: Vector2 = FloorRendererRef.FLOOR_ASSET_NORMALIZED_OVERLAP
+const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = FloorRendererRef.FLOOR_ASSET_PLACEMENT
+const ISO_GROUND_ASSET_PLACEMENT: Dictionary = FloorRendererRef.GROUND_ASSET_PLACEMENT
 
 # Wall PNGs contain intentionally large transparent margins.  These bounds are
 # measured from the checked-in wall atlas files and used only by the renderer so
@@ -290,32 +269,17 @@ const ISO_WALL_ASSET_PLACEMENT: Dictionary = {
 	"wall_grate_tall": {"visible_bounds": Rect2(1, 0, 511, 767), "target_base_width": 128.0, "scale": 1.0, "offset": Vector2.ZERO}
 }
 
-const ISO_FLOOR_ATLAS_COLUMNS: int = 6
-const ISO_FLOOR_ATLAS_ROWS: int = 7
-const ISO_FLOOR_ATLAS_BASE_VARIANTS: int = 6
-const ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS: int = 4
-const ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING: float = 3.0
-const ISO_FLOOR_ATLAS_SCREEN_OVERLAP: float = 1.5
-const ISO_FLOOR_UNDERLAY_OVERLAP: float = 1.25
-const ISO_FLOOR_ASSET_SCREEN_OVERLAP: float = 2.0
-const ISO_FLOOR_OVERLAY_INNER_INSET: float = 12.0
-const ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS: Dictionary = {
-	"grate_base": [1],
-	"metal_base": [1],
-	"concrete_base": [1],
-}
-# The source atlas is 7524x8778, giving 1254x1254 frames in a 6x7 grid.
-# Each frame is a high-resolution render of one isometric floor cell and is
-# intentionally downsampled into the active runtime isometric footprint.
-const ISO_FLOOR_ATLAS_LAYOUT: Dictionary = {
-	"grate_base": {"row": 1, "variants": 6, "overlay": false},
-	"metal_base": {"row": 2, "variants": 6, "overlay": false},
-	"metal_light_wear": {"row": 3, "variants": 6, "overlay": true},
-	"metal_heavy_damage": {"row": 4, "variants": ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS, "overlay": true},
-	"concrete_base": {"row": 5, "variants": 6, "overlay": false},
-	"concrete_light_wear": {"row": 6, "variants": 6, "overlay": true},
-	"concrete_heavy_damage": {"row": 7, "variants": 6, "overlay": true},
-}
+const ISO_FLOOR_ATLAS_COLUMNS: int = FloorRendererRef.FLOOR_ATLAS_COLUMNS
+const ISO_FLOOR_ATLAS_ROWS: int = FloorRendererRef.FLOOR_ATLAS_ROWS
+const ISO_FLOOR_ATLAS_BASE_VARIANTS: int = FloorRendererRef.FLOOR_ATLAS_BASE_VARIANTS
+const ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS: int = FloorRendererRef.FLOOR_ATLAS_HEAVY_METAL_VARIANTS
+const ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING: float = FloorRendererRef.FLOOR_ATLAS_SOURCE_EDGE_PADDING
+const ISO_FLOOR_ATLAS_SCREEN_OVERLAP: float = FloorRendererRef.FLOOR_ATLAS_SCREEN_OVERLAP
+const ISO_FLOOR_UNDERLAY_OVERLAP: float = FloorRendererRef.FLOOR_UNDERLAY_OVERLAP
+const ISO_FLOOR_ASSET_SCREEN_OVERLAP: float = FloorRendererRef.FLOOR_ASSET_SCREEN_OVERLAP
+const ISO_FLOOR_OVERLAY_INNER_INSET: float = FloorRendererRef.FLOOR_OVERLAY_INNER_INSET
+const ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS: Dictionary = FloorRendererRef.FLOOR_SEAM_SAFE_BASE_VARIANTS
+const ISO_FLOOR_ATLAS_LAYOUT: Dictionary = FloorRendererRef.FLOOR_ATLAS_LAYOUT
 
 const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
 	"floor_default": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Default 128x71 floor diamond centered in the grid cell."},
@@ -1146,7 +1110,7 @@ func sort_cells_by_iso_depth(a: Vector2i, b: Vector2i) -> bool:
 	return IsoProjectionServiceRef.sort_cells_by_depth(a, b, iso_origin, get_iso_tile_half_size())
 
 func is_floor_like_tile(tile_type: int) -> bool:
-	return tile_type != GridManager.TILE_WALL
+	return FloorRendererRef.is_floor_like_tile(tile_type)
 
 func is_wall_tile(tile_type: int) -> bool:
 	return tile_type == GridManager.TILE_WALL
@@ -1348,32 +1312,10 @@ func get_iso_door_opening_visual_profile(cell: Vector2i, object_data: Dictionary
 	}
 
 func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
-	# Procedural prototype floor colors for dark industrial sci-fi paneling.
-	# Final assets / TileSet-driven rendering will replace this in future PRs.
-	var base_color: Color = Color(0.115, 0.125, 0.145, 0.96)
-	var parity: int = (cell.x + cell.y) % 2
-	if parity != 0:
-		base_color = Color(0.135, 0.145, 0.165, 0.96)
-
-	if tile_type == GridManager.TILE_TERMINAL or tile_type == GridManager.TILE_AIRFLOW_TERMINAL:
-		base_color = base_color.lerp(Color(0.16, 0.23, 0.29, 0.98), 0.35)
-	elif tile_type == GridManager.TILE_EXIT:
-		base_color = base_color.lerp(Color(0.14, 0.24, 0.2, 0.98), 0.4)
-	elif tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE:
-		base_color = base_color.lerp(Color(0.14, 0.2, 0.27, 0.98), 0.3)
-	elif tile_type == GridManager.TILE_DOOR:
-		base_color = base_color.lerp(Color(0.2, 0.17, 0.13, 0.98), 0.22)
-	elif tile_type == GridManager.TILE_HOT_NODE:
-		base_color = base_color.lerp(Color(0.23, 0.16, 0.15, 0.98), 0.25)
-
-	return base_color
-
-
+	return FloorRendererRef.get_prototype_color(tile_type, cell)
 
 func is_walkable_floor_like_for_iso_passage(tile_type: int) -> bool:
-	if tile_type == GridManager.TILE_FLOOR or tile_type == GridManager.TILE_STEPPED_FLOOR:
-		return true
-	return false
+	return FloorRendererRef.is_walkable_floor_like_for_passage(tile_type)
 
 func is_cell_in_bounds(cell: Vector2i) -> bool:
 	if _grid_manager == null:
@@ -1381,89 +1323,16 @@ func is_cell_in_bounds(cell: Vector2i) -> bool:
 	return _grid_manager.is_in_bounds(cell)
 
 func is_iso_interactive_floor_tile(tile_type: int) -> bool:
-	if tile_type == GridManager.TILE_TERMINAL:
-		return true
-	if tile_type == GridManager.TILE_AIRFLOW_TERMINAL:
-		return true
-	if tile_type == GridManager.TILE_PLATFORM_CONTROL:
-		return true
-	if tile_type == GridManager.TILE_PLATFORM_CONTROL_LEFT:
-		return true
-	if tile_type == GridManager.TILE_PLATFORM_CONTROL_RIGHT:
-		return true
-	if tile_type == GridManager.TILE_FAN_CONTROL:
-		return true
-	if tile_type == GridManager.TILE_FAN_SPEED_UP_CONTROL:
-		return true
-	if tile_type == GridManager.TILE_FAN_SPEED_DOWN_CONTROL:
-		return true
-	if tile_type == GridManager.TILE_SOCKET:
-		return true
-	if tile_type == GridManager.TILE_CABLE_REEL:
-		return true
-	if tile_type == GridManager.TILE_CABLE:
-		return true
-	return false
+	return FloorRendererRef.is_interactive_floor_tile(tile_type)
 
 func is_iso_passage_floor_cell(cell: Vector2i) -> bool:
-	if _grid_manager == null:
-		return false
-	if not is_cell_in_bounds(cell):
-		return false
-	var tile_type: int = _grid_manager.get_tile(cell)
-	if not is_walkable_floor_like_for_iso_passage(tile_type):
-		return false
-
-	var north: Vector2i = cell + Vector2i(0, -1)
-	var south: Vector2i = cell + Vector2i(0, 1)
-	var west: Vector2i = cell + Vector2i(-1, 0)
-	var east: Vector2i = cell + Vector2i(1, 0)
-	var neighbor_cells: Array[Vector2i] = [north, south, west, east]
-	var wall_neighbor_count: int = 0
-	for neighbor_cell in neighbor_cells:
-		if not is_cell_in_bounds(neighbor_cell):
-			wall_neighbor_count += 1
-		elif _grid_manager.get_tile(neighbor_cell) == GridManager.TILE_WALL:
-			wall_neighbor_count += 1
-
-	var opposite_walls: bool = false
-	if (not is_cell_in_bounds(north) or _grid_manager.get_tile(north) == GridManager.TILE_WALL) and (not is_cell_in_bounds(south) or _grid_manager.get_tile(south) == GridManager.TILE_WALL):
-		opposite_walls = true
-	if (not is_cell_in_bounds(west) or _grid_manager.get_tile(west) == GridManager.TILE_WALL) and (not is_cell_in_bounds(east) or _grid_manager.get_tile(east) == GridManager.TILE_WALL):
-		opposite_walls = true
-
-	return opposite_walls or wall_neighbor_count >= 2
+	return FloorRendererRef.is_passage_floor_cell(_grid_manager, cell)
 
 func get_iso_floor_visual_profile_key_for_cell(cell: Vector2i) -> String:
-	if _grid_manager == null:
-		return "floor_default"
-	if not is_cell_in_bounds(cell):
-		return "floor_default"
-	var tile_type: int = _grid_manager.get_tile(cell)
-	if tile_type == GridManager.TILE_WALL:
-		return "floor_wall_base"
-	if tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE:
-		return "floor_doorway"
-	if is_iso_interactive_floor_tile(tile_type):
-		return "floor_interactive"
-	if tile_type == GridManager.TILE_EXIT:
-		return "floor_exit"
-	if is_iso_passage_floor_cell(cell):
-		return "floor_passage"
-	return "floor_default"
+	return FloorRendererRef.get_visual_profile_key_for_cell(_grid_manager, cell)
 
 func get_iso_floor_material_family_for_cell(cell: Vector2i) -> String:
-	if _grid_manager == null or not is_cell_in_bounds(cell):
-		return "none"
-	var tile_type: int = _grid_manager.get_tile(cell)
-	if not is_floor_like_tile(tile_type):
-		return "none"
-	var profile_key: String = get_iso_floor_visual_profile_key_for_cell(cell)
-	if profile_key == "floor_doorway":
-		return "doorway"
-	if profile_key == "floor_wall_base":
-		return "wall_base"
-	return "connected_floor"
+	return FloorRendererRef.get_material_family_for_cell(_grid_manager, cell)
 
 func should_draw_floor_cell_border(cell: Vector2i) -> bool:
 	# Visual-only seam policy. Interior same-family floor cells suppress their
@@ -1523,17 +1392,7 @@ func get_iso_diamond_edge_points(points: PackedVector2Array, side: String) -> Ar
 	return edge_points
 
 func get_iso_floor_visual_profile(profile_key: String) -> Dictionary:
-	var profiles: Dictionary = {
-		"floor_default": {"fill": Color(0.115, 0.125, 0.145, 0.96), "outline": Color(0.2, 0.28, 0.34, 0.78), "panel": Color(0.16, 0.19, 0.22, 0.4), "seam": Color(0.34, 0.39, 0.44, 0.28)},
-		"floor_passage": {"fill": Color(0.125, 0.14, 0.162, 0.97), "outline": Color(0.28, 0.4, 0.47, 0.9), "panel": Color(0.19, 0.24, 0.29, 0.48), "seam": Color(0.58, 0.72, 0.8, 0.45)},
-		"floor_doorway": {"fill": Color(0.14, 0.15, 0.165, 0.97), "outline": Color(0.34, 0.35, 0.4, 0.88), "panel": Color(0.22, 0.24, 0.28, 0.52), "seam": Color(0.84, 0.7, 0.42, 0.5)},
-		"floor_interactive": {"fill": Color(0.12, 0.145, 0.165, 0.97), "outline": Color(0.26, 0.41, 0.47, 0.88), "panel": Color(0.19, 0.26, 0.3, 0.48), "seam": Color(0.46, 0.82, 0.9, 0.42)},
-		"floor_exit": {"fill": Color(0.12, 0.15, 0.14, 0.97), "outline": Color(0.24, 0.44, 0.32, 0.88), "panel": Color(0.17, 0.24, 0.2, 0.5), "seam": Color(0.54, 0.86, 0.62, 0.45)},
-		"floor_wall_base": {"fill": Color(0.08, 0.09, 0.11, 0.98), "outline": Color(0.14, 0.17, 0.2, 0.72), "panel": Color(0.1, 0.12, 0.14, 0.35), "seam": Color(0.2, 0.23, 0.27, 0.2)}
-	}
-	if profiles.has(profile_key):
-		return Dictionary(profiles.get(profile_key, {}))
-	return Dictionary(profiles.get("floor_default", {}))
+	return FloorRendererRef.get_visual_profile(profile_key)
 
 func get_iso_door_visual_profile_key_for_tile(tile_type: int) -> String:
 	if tile_type == GridManager.TILE_DOOR:
@@ -1545,53 +1404,19 @@ func get_iso_door_visual_profile_key_for_tile(tile_type: int) -> String:
 	return ""
 
 func normalize_floor_material_key(material_key: String) -> String:
-	return SurfaceMaterialCatalogRef.normalize_floor_material_id(material_key, "concrete")
+	return FloorRendererRef.normalize_material_key(material_key)
 
 func get_iso_floor_asset_key_for_material_key(material_key: String) -> String:
-	if use_gray_room_visual_test_assets:
-		return ISO_FLOOR_TEST_ASSET_KEY
-	var normalized_key: String = material_key.strip_edges().to_lower()
-	if normalized_key in ["step_1", "ground_low", "ground_low_01", "ground_low_01.png"]:
-		return "ground_low"
-	if normalized_key in ["step_2", "ground_halflow", "ground_halflow_01", "ground_halflow_01.png"]:
-		return "ground_halflow"
-	match normalize_floor_material_key(material_key):
-		"steel":
-			return "floor_steel"
-		"titan":
-			return "floor_titan"
-		_:
-			return "floor_concrete"
+	return FloorRendererRef.get_asset_key_for_material_key(material_key, use_gray_room_visual_test_assets)
 
 func get_iso_floor_asset_key_for_tile(tile_type: int) -> String:
-	if tile_type == GridManager.TILE_WALL:
-		return ""
-	if use_gray_room_visual_test_assets and is_floor_like_tile(tile_type):
-		return ISO_FLOOR_TEST_ASSET_KEY
-	if tile_type == GridManager.TILE_DOOR or tile_type == GridManager.TILE_DIGITAL_DOOR or tile_type == GridManager.TILE_POWERED_GATE:
-		return "floor_door_underlay"
-	if tile_type == GridManager.TILE_FLOOR or is_floor_like_tile(tile_type):
-		return "floor_concrete"
-	return ""
+	return FloorRendererRef.get_asset_key_for_tile(tile_type, use_gray_room_visual_test_assets)
 
 func get_iso_floor_asset_key_for_visual_height(value: String) -> String:
-	var normalized_height: String = value.strip_edges().to_lower()
-	match normalized_height:
-		"step_1", "ground_low", "ground_low_01", "ground_low_01.png", "low":
-			return "ground_low"
-		"step_2", "ground_halflow", "ground_halflow_01", "ground_halflow_01.png", "halflow", "half_low":
-			return "ground_halflow"
-	return ""
+	return FloorRendererRef.get_asset_key_for_visual_height(value)
 
 func get_iso_floor_asset_key_for_visual_state(cell: Vector2i) -> String:
-	if _grid_manager == null or not _grid_manager.has_method("get_floor_visual_state"):
-		return ""
-	var state: Dictionary = _safe_variant_dictionary(_grid_manager.call("get_floor_visual_state", cell), true)
-	for field_name in ["floor_height_level", "floor_visual_height", "ground_height", "height_level"]:
-		var asset_key: String = get_iso_floor_asset_key_for_visual_height(str(state.get(field_name, "")))
-		if not asset_key.is_empty():
-			return asset_key
-	return ""
+	return FloorRendererRef.get_asset_key_for_visual_state(_grid_manager, cell)
 
 func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
@@ -1626,20 +1451,13 @@ func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 	return null
 
 func get_iso_floor_asset_placement(asset_key: String) -> Dictionary:
-	if ISO_FLOOR_ASSET_PLACEMENT.has(asset_key):
-		return Dictionary(ISO_FLOOR_ASSET_PLACEMENT.get(asset_key, {}))
-	return {"visible_bounds": Rect2i(0, 0, int(get_iso_tile_size().x), int(get_iso_tile_size().y)), "target_footprint": get_iso_tile_size(), "overlap": ISO_FLOOR_ASSET_NORMALIZED_OVERLAP, "offset": Vector2.ZERO, "fallback_color": Color(0.08, 0.085, 0.09, 0.96)}
+	return FloorRendererRef.get_asset_placement(asset_key, get_iso_tile_size())
 
 func normalize_floor_height_level(value: String) -> String:
-	return WallHeightCatalogRef.normalize_floor_height(value, "")
+	return FloorRendererRef.normalize_height_level(value)
 
 func get_iso_ground_asset_key_for_floor_height(floor_height: String) -> String:
-	match normalize_floor_height_level(floor_height):
-		"step_1":
-			return "ground_low"
-		"step_2":
-			return "ground_halflow"
-	return ""
+	return FloorRendererRef.get_ground_asset_key_for_floor_height(floor_height)
 
 func get_iso_ground_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
@@ -1750,16 +1568,7 @@ func get_cell_surface_y_offset_for_floor_height(floor_height_level: String) -> f
 	return get_ground_surface_y_offset_for_asset_key(ground_asset_key)
 
 func get_ground_asset_key_for_cell(cell: Vector2i) -> String:
-	var floor_height_level: String = ""
-	var mission_manager: Node = get_mission_manager_ref()
-	if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
-		var floor_material_result: Dictionary = _safe_variant_dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
-		if bool(floor_material_result.get("ok", false)):
-			var floor_override: Dictionary = _safe_variant_dictionary(floor_material_result.get("override", {}))
-			floor_height_level = normalize_floor_height_level(str(floor_override.get("floor_height", floor_override.get("floor_visual_height", floor_override.get("ground_height", "")))))
-	if floor_height_level.is_empty() and _grid_manager != null and _grid_manager.has_method("get_floor_height_for_cell"):
-		floor_height_level = normalize_floor_height_level(str(_grid_manager.call("get_floor_height_for_cell", cell)))
-	return get_iso_ground_asset_key_for_floor_height(floor_height_level)
+	return FloorRendererRef.get_ground_asset_key_for_cell(_grid_manager, get_mission_manager_ref(), cell)
 
 func enrich_iso_object_surface_context_for_cell(object_data: Dictionary, cell: Vector2i) -> Dictionary:
 	var enriched: Dictionary = object_data.duplicate(true)
@@ -5557,84 +5366,31 @@ func _safe_variant_dictionary(value: Variant, should_duplicate: bool = false) ->
 	return {}
 
 func get_floor_atlas_cell_size() -> Vector2:
-	if iso_floor_atlas_texture == null:
-		return Vector2.ZERO
-	return Vector2(
-		float(iso_floor_atlas_texture.get_width()) / float(ISO_FLOOR_ATLAS_COLUMNS),
-		float(iso_floor_atlas_texture.get_height()) / float(ISO_FLOOR_ATLAS_ROWS)
-	)
+	return FloorRendererRef.get_atlas_cell_size(iso_floor_atlas_texture)
 
 func get_floor_atlas_region(row: int, atlas_position: int) -> Rect2:
-	var cell_size: Vector2 = get_floor_atlas_cell_size()
-	if cell_size.x <= 0.0 or cell_size.y <= 0.0:
-		return Rect2()
-	var safe_row: int = clampi(row, 1, ISO_FLOOR_ATLAS_ROWS)
-	var safe_position: int = clampi(atlas_position, 1, ISO_FLOOR_ATLAS_COLUMNS)
-	return Rect2(Vector2(float(safe_position - 1) * cell_size.x, float(safe_row - 1) * cell_size.y), cell_size)
+	return FloorRendererRef.get_atlas_region(iso_floor_atlas_texture, row, atlas_position)
 
 func get_floor_state_for_cell(cell: Vector2i) -> Dictionary:
-	var fallback: Dictionary = {"family": "metal", "wear": "none", "base_variant": -1, "overlay_variant": -1, "mirror_h": false, "mirror_v": false}
-	if _grid_manager == null or not _grid_manager.has_method("get_floor_visual_state"):
-		return fallback
-	var state: Dictionary = _safe_variant_dictionary(_grid_manager.call("get_floor_visual_state", cell), true)
-	return state if not state.is_empty() else fallback
+	return FloorRendererRef.get_floor_state_for_cell(_grid_manager, cell)
 
 func get_floor_base_atlas_key(family: String) -> String:
-	match family:
-		"grate":
-			return "grate_base"
-		"concrete":
-			return "concrete_base"
-		_:
-			return "metal_base"
+	return FloorRendererRef.get_base_atlas_key(family)
 
 func get_floor_overlay_atlas_key(family: String, wear: String) -> String:
-	if wear == "light_wear":
-		if family == "concrete":
-			return "concrete_light_wear"
-		if family == "metal":
-			return "metal_light_wear"
-	elif wear == "heavy_damage":
-		if family == "concrete":
-			return "concrete_heavy_damage"
-		if family == "metal":
-			return "metal_heavy_damage"
-	return ""
+	return FloorRendererRef.get_overlay_atlas_key(family, wear)
 
 func get_floor_atlas_variant_for_cell(cell: Vector2i, requested_variant: int, max_variants: int, salt: int = 0) -> int:
-	if max_variants <= 0:
-		return 1
-	if requested_variant >= 1:
-		return clampi(requested_variant, 1, max_variants)
-	return ((cell.x * 17 + cell.y * 31 + salt) % max_variants) + 1
+	return FloorRendererRef.get_atlas_variant_for_cell(cell, requested_variant, max_variants, salt)
 
 func get_floor_atlas_seam_safe_variant(cell: Vector2i, atlas_key: String, requested_variant: int, max_variants: int, salt: int = 0) -> int:
-	# Base rows in the current atlas contain visible perimeter differences between
-	# variants.  Keep each floor family on a fixed seam-safe subset so every tile
-	# in the family shares the same silhouette, frame thickness, and edge lighting.
-	if ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key):
-		var safe_variants: Array = Array(ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.get(atlas_key, []))
-		if safe_variants.is_empty():
-			return 1
-		var safe_index: int = 0
-		if requested_variant < 1 and safe_variants.size() > 1:
-			safe_index = (cell.x * 17 + cell.y * 31 + salt) % safe_variants.size()
-		return clampi(int(safe_variants[safe_index]), 1, max_variants)
-	return get_floor_atlas_variant_for_cell(cell, requested_variant, max_variants, salt)
+	return FloorRendererRef.get_atlas_seam_safe_variant(cell, atlas_key, requested_variant, max_variants, salt)
 
 func get_floor_atlas_safe_source_rect(source_rect: Rect2) -> Rect2:
-	var padding: float = minf(
-		ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING,
-		minf(source_rect.size.x, source_rect.size.y) * 0.25
-	)
-	if padding <= 0.0:
-		return source_rect
-	return Rect2(source_rect.position + Vector2(padding, padding), source_rect.size - Vector2(padding * 2.0, padding * 2.0))
+	return FloorRendererRef.get_atlas_safe_source_rect(source_rect)
 
 func get_floor_atlas_destination_rect() -> Rect2:
-	var half_size: Vector2 = get_iso_tile_half_size()
-	var destination_size: Vector2 = half_size * 2.0 + Vector2(ISO_FLOOR_ATLAS_SCREEN_OVERLAP * 2.0, ISO_FLOOR_ATLAS_SCREEN_OVERLAP * 2.0)
-	return Rect2(destination_size * -0.5, destination_size)
+	return FloorRendererRef.get_atlas_destination_rect(get_iso_tile_half_size())
 
 func get_iso_diamond_points_with_overlap(cell: Vector2i, overlap: float) -> PackedVector2Array:
 	if overlap <= 0.0:
@@ -5719,26 +5475,10 @@ func draw_floor_tile_bounds_debug(cell: Vector2i) -> void:
 	draw_string(ThemeDB.fallback_font, center_point + Vector2(4.0, -4.0), "%d,%d" % [cell.x, cell.y], HORIZONTAL_ALIGNMENT_LEFT, -1.0, 10, Color(1.0, 1.0, 1.0, 0.9))
 
 func get_floor_atlas_inner_overlay_points() -> PackedVector2Array:
-	var destination_rect: Rect2 = get_floor_atlas_destination_rect()
-	var inset: float = minf(ISO_FLOOR_OVERLAY_INNER_INSET, minf(destination_rect.size.x, destination_rect.size.y) * 0.35)
-	return PackedVector2Array([
-		Vector2(destination_rect.position.x + destination_rect.size.x * 0.5, destination_rect.position.y + inset),
-		Vector2(destination_rect.end.x - inset, destination_rect.position.y + destination_rect.size.y * 0.5),
-		Vector2(destination_rect.position.x + destination_rect.size.x * 0.5, destination_rect.end.y - inset),
-		Vector2(destination_rect.position.x + inset, destination_rect.position.y + destination_rect.size.y * 0.5),
-	])
+	return FloorRendererRef.get_atlas_inner_overlay_points(get_iso_tile_half_size())
 
 func get_floor_atlas_uvs_for_destination_points(points: PackedVector2Array, destination_rect: Rect2, source_rect: Rect2) -> PackedVector2Array:
-	var uvs: PackedVector2Array = PackedVector2Array()
-	if destination_rect.size.x <= 0.0 or destination_rect.size.y <= 0.0:
-		return uvs
-	for point in points:
-		var normalized_point: Vector2 = Vector2(
-			(point.x - destination_rect.position.x) / destination_rect.size.x,
-			(point.y - destination_rect.position.y) / destination_rect.size.y
-		)
-		uvs.append(source_rect.position + Vector2(normalized_point.x * source_rect.size.x, normalized_point.y * source_rect.size.y))
-	return uvs
+	return FloorRendererRef.get_atlas_uvs_for_destination_points(points, destination_rect, source_rect)
 
 func draw_floor_atlas_overlay_layer(cell: Vector2i, source_rect: Rect2) -> void:
 	# Wear/damage rows are detail overlays only.  Clip them to an inset diamond so
@@ -7110,30 +6850,12 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		_draw_grounding_overlay(profile_data)
 
 func build_iso_floor_draw_entries() -> Array[Dictionary]:
-	if _grid_manager == null:
-		return []
-	var map_width: int = _grid_manager.get_map_width()
-	var map_height: int = _grid_manager.get_map_height()
-	if map_width <= 0 or map_height <= 0:
-		return []
-
-	var floor_entries: Array[Dictionary] = []
-	for y in range(map_height):
-		for x in range(map_width):
-			var cell: Vector2i = Vector2i(x, y)
-			var tile_type: int = _grid_manager.get_tile(cell)
-			if not is_floor_like_tile(tile_type):
-				continue
-			var ground_asset_key: String = get_ground_asset_key_for_cell(cell)
-			floor_entries.append(IsoDrawEntryContractRef.make_entry(
-				cell,
-				"floor",
-				"ground" if not ground_asset_key.is_empty() else "floor",
-				get_iso_floor_depth_key(cell),
-				ISO_DRAW_SUB_ORDER_GROUND if not ground_asset_key.is_empty() else ISO_DRAW_SUB_ORDER_FLOOR,
-				{"tile_type": tile_type}
-			))
-	return floor_entries
+	return FloorRendererRef.build_draw_entries(
+		_grid_manager,
+		Callable(self, "get_ground_asset_key_for_cell"),
+		iso_origin,
+		get_iso_tile_half_size()
+	)
 
 func build_iso_wall_draw_entries() -> Array[Dictionary]:
 	if _grid_manager == null:
