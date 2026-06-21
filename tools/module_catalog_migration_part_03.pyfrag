@@ -1,0 +1,52 @@
+'get_module_version_for_module_id': '''func get_module_version_for_module_id(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_module_version_for_module_id(module_id)\n''',
+'get_internal_category_for_module_id': '''func get_internal_category_for_module_id(module_id: String) -> String:\n\treturn BipobModuleCatalogRef.get_internal_category_for_module_id(module_id)\n''',
+'get_internal_family_for_module_id': '''func get_internal_family_for_module_id(module_id: String) -> String:\n\treturn BipobModuleCatalogRef.get_internal_family_for_module_id(module_id)\n''',
+'get_internal_battery_capacity': '''func get_internal_battery_capacity(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_battery_capacity(module_id)\n''',
+'get_internal_storage_capacity': '''func get_internal_storage_capacity(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_storage_capacity(module_id)\n''',
+'get_internal_actions_capacity': '''func get_internal_actions_capacity(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_actions_capacity(module_id)\n''',
+'get_internal_hack_level': '''func get_internal_hack_level(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_hack_level(module_id)\n''',
+'get_internal_gpu_value': '''func get_internal_gpu_value(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_gpu_value(module_id)\n''',
+'get_internal_sensor_range_bonus': '''func get_internal_sensor_range_bonus(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_sensor_range_bonus(module_id)\n''',
+'get_internal_sensor_visibility_bonus': '''func get_internal_sensor_visibility_bonus(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_sensor_visibility_bonus(module_id)\n''',
+'get_internal_cooling_value': '''func get_internal_cooling_value(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_cooling_value(module_id)\n''',
+'get_internal_power_distribution': '''func get_internal_power_distribution(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_power_distribution(module_id)\n''',
+'get_internal_power_ports': '''func get_internal_power_ports(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_power_ports(module_id)\n''',
+'get_internal_interface_role': '''func get_internal_interface_role(module_id: String) -> String:\n\treturn BipobModuleCatalogRef.get_internal_interface_role(module_id)\n''',
+'get_internal_interface_ports': '''func get_internal_interface_ports(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_interface_ports(module_id)\n''',
+'get_internal_description_for_module_id': '''func get_internal_description_for_module_id(module_id: String) -> String:\n\treturn BipobModuleCatalogRef.get_internal_description_for_module_id(module_id)\n''',
+'get_internal_overheat_for_module_id': '''func get_internal_overheat_for_module_id(module_id: String) -> int:\n\treturn BipobModuleCatalogRef.get_internal_overheat_for_module_id(module_id)\n''',
+'get_internal_energy_effect_text': '''func get_internal_energy_effect_text(module_id: String) -> String:\n\treturn BipobModuleCatalogRef.get_internal_energy_effect_text(module_id)\n''',
+'get_internal_special_effect_text': '''func get_internal_special_effect_text(module_id: String) -> String:\n\treturn BipobModuleCatalogRef.get_internal_special_effect_text(module_id)\n''',
+'get_internal_role_for_module_id': '''func get_internal_role_for_module_id(module_id: String) -> String:\n\treturn BipobModuleCatalogRef.get_internal_role_for_module_id(module_id)\n''',
+'get_module_description_for_id': '''func get_module_description_for_id(module_id: String) -> String:\n\treturn BipobModuleCatalogRef.get_module_description_for_id(module_id)\n''',
+'create_visor_v2_module': '''func create_visor_v2_module() -> BipobModule:\n\treturn BipobModuleFactoryRef.create_external_module("visor_v2")\n''',
+'create_gpu_v1_module': '''func create_gpu_v1_module() -> BipobModule:\n\treturn BipobModuleFactoryRef.create_legacy_gpu_v1_module()\n''',
+'create_legs_v1_module': '''func create_legs_v1_module() -> BipobModule:\n\treturn BipobModuleFactoryRef.create_legacy_legs_v1_module()\n''',
+'create_debug_field_component': '''func create_debug_field_component() -> BipobModule:\n\treturn BipobModuleFactoryRef.create_debug_field_component()\n''',
+}
+# replace functions robustly based current controller each iteration
+for name, replacement in repls.items():
+    m = re.search(rf'(?m)^func {re.escape(name)}\s*\(', controller)
+    if not m: raise ValueError('missing '+name)
+    n = re.search(r'(?m)^func [A-Za-z0-9_]+\s*\(', controller[m.end():])
+    end = m.end()+n.start() if n else len(controller)
+    controller = controller[:m.start()] + replacement.rstrip()+"\n\n" + controller[end:]
+
+# ensure external storage IDs via catalog
+controller = controller.replace('var required_ids: Array = EXTERNAL_MODULE_CATALOG.keys()', 'var required_ids: Array[String] = BipobModuleCatalogRef.get_external_module_ids()')
+# internal list via catalog
+func_old = extract_func('add_internal_mvp_modules_to_box')
+func_new = '''func add_internal_mvp_modules_to_box() -> void:\n\tfor spec in BipobModuleCatalogRef.get_internal_module_specs():\n\t\tvar module_id := str(spec.get("id", ""))\n\t\tif has_module_id_anywhere(module_id):\n\t\t\tcontinue\n\t\tvar module_name := str(spec.get("name", module_id))\n\t\tvar module_size: Vector3i = spec.get("size", Vector3i.ONE)\n\t\tvar module: BipobModule = create_internal_module(module_id, module_name, module_size)\n\t\tif module != null:\n\t\t\tbox_storage.append(module)\n'''
+# current controller func replacement (not old text due prior transforms but this func untouched)
+m = re.search(r'(?m)^func add_internal_mvp_modules_to_box\s*\(', controller); n=re.search(r'(?m)^func [A-Za-z0-9_]+\s*\(', controller[m.end():]); end=m.end()+n.start(); controller=controller[:m.start()]+func_new+"\n"+controller[end:]
+# debug found body
+m = re.search(r'(?m)^func create_debug_found_module\s*\(', controller); n=re.search(r'(?m)^func [A-Za-z0-9_]+\s*\(', controller[m.end():]); end=m.end()+n.start()
+controller=controller[:m.start()]+'''func create_debug_found_module() -> void:\n\tvar module := BipobModuleFactoryRef.create_debug_found_module()\n\tif module == null:\n\t\treturn\n\tfound_module = module\n\thint_requested.emit("Found module: " + module.display_name)\n\tstatus_changed.emit()\n\n'''+controller[end:]
+
+# sanity
+assert 'const EXTERNAL_MODULE_CATALOG' not in controller
+assert 'var internal_specs: Array[Dictionary]' not in controller
+assert 'BipobModule.new()' not in controller
+assert controller.count('BipobModuleCatalogRef') > 20
+(OUT/'bipob_controller.gd').write_text(controller)
+print('generated', len(controller.splitlines()), len(catalog.splitlines()), len(factory.splitlines()))
