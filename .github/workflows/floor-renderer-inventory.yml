@@ -1,0 +1,22 @@
+name: FloorRenderer Inventory
+
+on:
+  pull_request:
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Build FloorRenderer inventory
+        run: python tools/inventory_floor_renderer.py
+      - name: Upload inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: floor-renderer-inventory
+          path: |
+            docs/floor_renderer_inventory.tmp.md
+            docs/floor_renderer_inventory.tmp.json
