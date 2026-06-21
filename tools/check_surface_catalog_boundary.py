@@ -10,7 +10,9 @@ HEIGHT = ROOT / "scripts/world/wall_height_catalog.gd"
 VISUAL = ROOT / "scripts/visual/visual_asset_catalog.gd"
 RENDERER = ROOT / "scripts/field/room_visual_renderer.gd"
 FLOOR_RENDERER = ROOT / "scripts/visual/renderer/floor_renderer.gd"
+WALL_RENDERER = ROOT / "scripts/visual/renderer/wall_renderer.gd"
 errors: list[str] = []
+
 
 def read(path: Path) -> str:
     if not path.exists():
@@ -18,9 +20,11 @@ def read(path: Path) -> str:
         return ""
     return path.read_text(encoding="utf-8")
 
+
 def function_body(source: str, name: str) -> str:
     match = re.search(rf"(?ms)^(?:static\s+)?func {re.escape(name)}\s*\(.*?(?=^(?:static\s+)?func |\Z)", source)
     return match.group(0) if match else ""
+
 
 mission = read(MISSION)
 surface = read(SURFACE)
@@ -28,6 +32,7 @@ height = read(HEIGHT)
 visual = read(VISUAL)
 renderer = read(RENDERER)
 floor_renderer = read(FLOOR_RENDERER)
+wall_renderer = read(WALL_RENDERER)
 
 for token in (
     'preload("res://scripts/world/surface_material_catalog.gd")',
@@ -94,8 +99,6 @@ for token in (
     if token not in visual:
         errors.append(f"visual catalog missing renderer contract: {token}")
 
-# Floor normalization is now owned by FloorRenderer. The coordinator must point
-# to it, and FloorRenderer must preserve the original focused-catalog boundary.
 for name, delegate in {
     "normalize_floor_material_key": "FloorRendererRef.normalize_material_key",
     "normalize_floor_height_level": "FloorRendererRef.normalize_height_level",
@@ -110,14 +113,22 @@ for name, delegate in {
     if delegate not in function_body(floor_renderer, name):
         errors.append(f"FloorRenderer {name} must delegate to focused owner")
 
-# Wall presentation remains in RoomVisualRenderer until the wall component stage.
 for name, delegate in {
-    "normalize_wall_material_asset_base_key": "VisualAssetCatalogScript.resolve_wall_material_base_asset_key",
-    "normalize_wall_height_level": "WallHeightCatalogRef.normalize_wall_height",
-    "get_wall_asset_key_for_material_and_height": "VisualAssetCatalogScript.resolve_wall_asset_key_for_material_and_height",
+    "normalize_wall_material_asset_base_key": "WallRendererRef.normalize_material_asset_base_key",
+    "normalize_wall_height_level": "WallRendererRef.normalize_height_level",
+    "get_wall_asset_key_for_material_and_height": "WallRendererRef.get_asset_key_for_material_and_height",
 }.items():
     if delegate not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} must delegate to focused owner")
+        errors.append(f"RoomVisualRenderer {name} must delegate to WallRenderer")
+
+for name, delegate in {
+    "normalize_material_asset_base_key": "VisualAssetCatalogRef.resolve_wall_material_base_asset_key",
+    "normalize_height_level": "WallHeightCatalogRef.normalize_wall_height",
+    "get_asset_key_for_material_and_height": "VisualAssetCatalogRef.resolve_wall_asset_key_for_material_and_height",
+    "is_breachable_material_id": "SurfaceMaterialCatalogRef.is_breachable_wall_material",
+}.items():
+    if delegate not in function_body(wall_renderer, name):
+        errors.append(f"WallRenderer {name} must delegate to focused owner")
 
 if "_map_constructor_wall_material_overrides: Dictionary" not in mission or "_map_constructor_floor_material_overrides: Dictionary" not in mission:
     errors.append("runtime surface overrides must remain in MissionManager")

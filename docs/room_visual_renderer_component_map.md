@@ -66,12 +66,26 @@ Owns floor data and pure rendering decisions:
 
 `FloorRenderer` does not call CanvasItem drawing APIs. `RoomVisualRenderer` temporarily retains `draw_iso_floor_cell`, texture drawing and atlas draw dispatch until the dedicated Canvas floor-rendering stage.
 
+### `WallRenderer`
+
+Owns wall data and pure rendering decisions:
+
+- production/test wall asset catalogs and placement metadata;
+- material and wall-height normalization through focused catalogs;
+- procedural wall visual profiles and metadata-to-profile resolution;
+- connected-wall topology, end caps, corners, T-junctions and crosses;
+- visible wall sides and wall-mounted anchor zones;
+- connected base geometry and depth keys;
+- wall draw-entry generation through `IsoDrawEntryContract`.
+
+`WallRenderer` has no CanvasItem drawing dependency. `RoomVisualRenderer` temporarily retains wall texture/procedural drawing, breach overlays and draw-entry dispatch until a later Canvas wall-rendering stage.
+
 ## Remaining extraction clusters
 
 | Component | Main current responsibilities | Representative current functions |
 |---|---|---|
 | Floor Canvas renderer | texture/atlas drawing and procedural floor geometry | `draw_iso_floor_cell`, `draw_floor_atlas_layer`, `draw_iso_floor_texture_asset` |
-| Wall renderer | topology, height/material profiles, wall geometry, breach overlays, wall entry generation | `get_wall_render_topology`, `draw_iso_wall_block`, `build_iso_wall_draw_entries` |
+| Wall Canvas renderer | wall texture/procedural drawing and breach overlays | `draw_iso_wall_block`, `draw_iso_wall_asset`, `draw_iso_breachable_wall_overlay` |
 | Object renderer | object descriptors, asset resolution, grounding, object markers and entries | `build_iso_object_visual_descriptor`, `draw_iso_object_marker`, `build_iso_object_draw_entries` |
 | Route renderer | cable/pipe/airflow paths, wall routes, cable bridges | `draw_iso_cable_segment_shape`, `draw_inner_wall_route_asset`, `build_iso_cable_object_bridge_draw_entries` |
 | Overlay renderer | selection, constructor preview, debug overlays and reports | `draw_map_constructor_visual_overlay_passes`, `draw_iso_mouse_selection_overlay` |
