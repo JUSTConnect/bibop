@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +19,16 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def function_body(source: str, name: str) -> str:
+    match = re.search(rf"(?m)^static func {re.escape(name)}\s*\(", source)
+    if match is None:
+        errors.append(f"factory missing function: {name}")
+        return ""
+    following = re.search(r"(?m)^static func [A-Za-z0-9_]+\s*\(", source[match.end():])
+    end = match.end() + following.start() if following is not None else len(source)
+    return source[match.start():end]
+
+
 controller = read(CONTROLLER)
 catalog = read(CATALOG)
 factory = read(FACTORY)
@@ -35,6 +44,7 @@ for forbidden, message in (
     ("const EXTERNAL_MODULE_CATALOG", "external catalog returned to BipobController"),
     ("var internal_specs: Array[Dictionary]", "internal module specs returned to BipobController"),
     ("BipobModule.new()", "BipobController constructs BipobModule directly"),
+    ("BipobModuleRef.new()", "BipobController constructs BipobModule directly"),
 ):
     if forbidden in controller:
         errors.append(message)
@@ -56,7 +66,10 @@ required_factory_tokens = (
     "static func create_external_module",
     "static func create_internal_module",
     "static func create_overlay_module",
-    "BipobModuleRef.new()",
+    "static func create_debug_found_module",
+    "static func create_debug_field_component",
+    "static func create_legacy_gpu_v1_module",
+    "static func create_legacy_legs_v1_module",
 )
 for token in required_factory_tokens:
     if token not in factory:
@@ -64,6 +77,26 @@ for token in required_factory_tokens:
 
 if re.search(r"\bBipobModule(?:Ref)?\.new\s*\(", catalog):
     errors.append("catalog must not construct runtime module instances")
+
+constructor_count = len(re.findall(r"\bBipobModuleRef\.new\s*\(", factory))
+if constructor_count != 2:
+    errors.append(
+        "factory must construct BipobModule only in canonical external/internal hydration paths; "
+        f"found {constructor_count} direct constructors"
+    )
+
+compatibility_paths = {
+    "create_debug_found_module": 'create_internal_module("battery_v1")',
+    "create_debug_field_component": 'create_internal_module("cooler_v1")',
+    "create_legacy_gpu_v1_module": 'create_internal_module("gpu_v1")',
+    "create_legacy_legs_v1_module": 'create_external_module("legs_v1")',
+}
+for function_name, required_call in compatibility_paths.items():
+    body = function_body(factory, function_name)
+    if required_call not in body:
+        errors.append(f"{function_name} must delegate through {required_call}")
+    if re.search(r"\bBipobModuleRef\.new\s*\(", body):
+        errors.append(f"{function_name} bypasses canonical module hydration")
 
 for path in sorted((ROOT / "scripts/bipob").glob("*.gd")):
     if path == FACTORY:
