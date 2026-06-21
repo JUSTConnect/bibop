@@ -11,6 +11,8 @@ const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd"
 const PlatformVisualServiceRef = preload("res://scripts/game/platform/platform_visual_service.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_catalog.gd")
+const IsoProjectionServiceRef = preload("res://scripts/visual/renderer/iso_projection_service.gd")
+const IsoDrawEntryContractRef = preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
@@ -107,12 +109,12 @@ const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.
 @export var iso_object_marker_height: float = 18.0
 @export var iso_origin: Vector2 = Vector2.ZERO
 
-const ISO_PROJECTION_STANDARD: String = "standard_128x71"
-const ISO_PROJECTION_CLASSIC: String = "classic_128x64" # Legacy visual option only.
-const ISO_PROJECTION_PREVIEW_181: String = "preview_128x71" # Legacy serialized alias for standard_128x71.
-const ISO_PROJECTION_CUSTOM: String = "custom_export_values"
-const ISO_STANDARD_TILE_SIZE: Vector2 = Vector2(128.0, 71.0)
-const ISO_CLASSIC_TILE_SIZE: Vector2 = Vector2(128.0, 64.0)
+const ISO_PROJECTION_STANDARD: String = IsoProjectionServiceRef.PROJECTION_STANDARD
+const ISO_PROJECTION_CLASSIC: String = IsoProjectionServiceRef.PROJECTION_CLASSIC # Legacy visual option only.
+const ISO_PROJECTION_PREVIEW_181: String = IsoProjectionServiceRef.PROJECTION_PREVIEW_181 # Legacy serialized alias for standard_128x71.
+const ISO_PROJECTION_CUSTOM: String = IsoProjectionServiceRef.PROJECTION_CUSTOM
+const ISO_STANDARD_TILE_SIZE: Vector2 = IsoProjectionServiceRef.STANDARD_TILE_SIZE
+const ISO_CLASSIC_TILE_SIZE: Vector2 = IsoProjectionServiceRef.CLASSIC_TILE_SIZE
 const WALL_CABLE_RAIL_Y_RATIO: float = 0.44
 const WALL_CABLE_RAIL_HALF_WIDTH_RATIO: float = 0.30
 
@@ -544,27 +546,13 @@ func get_iso_visual_preview_state_text() -> String:
 	]
 
 func get_iso_projection_mode() -> String:
-	if iso_projection_mode == ISO_PROJECTION_STANDARD or iso_projection_mode == ISO_PROJECTION_PREVIEW_181:
-		return ISO_PROJECTION_STANDARD
-	if iso_projection_mode == ISO_PROJECTION_CLASSIC:
-		return ISO_PROJECTION_CLASSIC
-	if iso_projection_mode == ISO_PROJECTION_CUSTOM:
-		return ISO_PROJECTION_CUSTOM
-	return ISO_PROJECTION_STANDARD
+	return IsoProjectionServiceRef.normalize_mode(iso_projection_mode)
 
 func get_iso_tile_size() -> Vector2:
-	var mode: String = get_iso_projection_mode()
-	if mode == ISO_PROJECTION_STANDARD:
-		return ISO_STANDARD_TILE_SIZE
-	if mode == ISO_PROJECTION_CLASSIC:
-		return ISO_CLASSIC_TILE_SIZE
-	# Custom mode intentionally keeps the exported fields available for
-	# quick visual-only smoke tests without editing gameplay data.
-	return Vector2(maxf(iso_tile_width, 1.0), maxf(iso_tile_height, 1.0))
+	return IsoProjectionServiceRef.get_tile_size(iso_projection_mode, iso_tile_width, iso_tile_height)
 
 func get_iso_exported_tile_size_matches_active_mode() -> bool:
-	var active_size: Vector2 = get_iso_tile_size()
-	return is_equal_approx(iso_tile_width, active_size.x) and is_equal_approx(iso_tile_height, active_size.y)
+	return IsoProjectionServiceRef.exported_tile_size_matches_active_mode(iso_projection_mode, iso_tile_width, iso_tile_height)
 
 func get_iso_projection_diagnostic_text() -> String:
 	var active_size: Vector2 = get_iso_tile_size()
@@ -577,31 +565,10 @@ func get_iso_projection_diagnostic_text() -> String:
 	]
 
 func get_iso_tile_half_size() -> Vector2:
-	# Visual safety clamp to avoid invalid projection values.
-	var tile_size: Vector2 = get_iso_tile_size()
-	var safe_width: float = maxf(tile_size.x, 1.0)
-	var safe_height: float = maxf(tile_size.y, 1.0)
-	var half_width: float = safe_width * 0.5
-	var half_height: float = safe_height * 0.5
-	if absf(iso_floor_projection_pitch_correction_degrees) <= 0.001:
-		return Vector2(half_width, half_height)
-	# Correct the projection in angle space instead of applying a fixed pixel
-	# offset.  This raises the top point and lowers the bottom point by roughly
-	# the requested pitch while keeping the horizontal tile width unchanged.
-	var base_angle: float = atan2(half_height, half_width)
-	var corrected_angle: float = clampf(
-		base_angle + deg_to_rad(iso_floor_projection_pitch_correction_degrees),
-		deg_to_rad(8.0),
-		deg_to_rad(60.0)
-	)
-	return Vector2(half_width, tan(corrected_angle) * half_width)
+	return IsoProjectionServiceRef.get_tile_half_size(get_iso_tile_size(), iso_floor_projection_pitch_correction_degrees)
 
 func grid_to_iso(cell: Vector2i) -> Vector2:
-	# Converts gameplay grid coordinates (Vector2i) into visual isometric space.
-	var half_size: Vector2 = get_iso_tile_half_size()
-	var iso_x: float = float(cell.x - cell.y) * half_size.x
-	var iso_y: float = float(cell.x + cell.y) * half_size.y
-	return iso_origin + Vector2(iso_x, iso_y)
+	return IsoProjectionServiceRef.grid_to_iso(cell, iso_origin, get_iso_tile_half_size())
 
 func get_object_visual_center(cell: Vector2i, object_data: Dictionary = {}) -> Vector2:
 	# Visual-only helper for object overlay markers.
@@ -672,42 +639,13 @@ func draw_selected_interaction_target_overlay() -> void:
 		draw_line(point, point + Vector2(0.0, corner * sy), color, width, true)
 
 func iso_to_grid(iso_position: Vector2) -> Vector2i:
-	# Converts visual isometric position back to an approximate gameplay cell.
-	# This is intended for future selection/click helpers, not movement logic.
-	var half_size: Vector2 = get_iso_tile_half_size()
-	var local_iso: Vector2 = iso_position - iso_origin
-	var grid_x: float = (local_iso.x / half_size.x + local_iso.y / half_size.y) * 0.5
-	var grid_y: float = (local_iso.y / half_size.y - local_iso.x / half_size.x) * 0.5
-	return Vector2i(int(round(grid_x)), int(round(grid_y)))
+	return IsoProjectionServiceRef.iso_to_grid(iso_position, iso_origin, get_iso_tile_half_size())
 
 func get_iso_diamond_points(cell: Vector2i) -> PackedVector2Array:
-	var center_point: Vector2 = grid_to_iso(cell)
-	var half_size: Vector2 = get_iso_tile_half_size()
-	var points: PackedVector2Array = PackedVector2Array()
-	points.append(center_point + Vector2(0.0, -half_size.y))
-	points.append(center_point + Vector2(half_size.x, 0.0))
-	points.append(center_point + Vector2(0.0, half_size.y))
-	points.append(center_point + Vector2(-half_size.x, 0.0))
-	return points
+	return IsoProjectionServiceRef.get_diamond_points(cell, iso_origin, get_iso_tile_half_size())
 
 func get_iso_inset_diamond_points(cell: Vector2i, inset: float) -> PackedVector2Array:
-	var base_points: PackedVector2Array = get_iso_diamond_points(cell)
-	if inset <= 0.0:
-		return base_points
-	var center_point: Vector2 = grid_to_iso(cell)
-	var inset_points: PackedVector2Array = PackedVector2Array()
-	for point in base_points:
-		var toward_center: Vector2 = center_point - point
-		var distance_to_center: float = toward_center.length()
-		if distance_to_center <= 0.0001:
-			inset_points.append(point)
-			continue
-		var safe_inset: float = minf(inset, distance_to_center - 0.01)
-		if safe_inset <= 0.0:
-			inset_points.append(point)
-			continue
-		inset_points.append(point + toward_center.normalized() * safe_inset)
-	return inset_points
+	return IsoProjectionServiceRef.get_inset_diamond_points(cell, inset, iso_origin, get_iso_tile_half_size())
 
 func get_iso_wall_base_points(cell: Vector2i) -> PackedVector2Array:
 	var topology: Dictionary = get_wall_render_topology(cell)
@@ -1152,36 +1090,33 @@ func draw_map_constructor_visual_overlay_passes() -> void:
 			_draw_wall_side_arrow(map_constructor_preview_cell, str(preview.get("wall_side", "")), Color(0.82, 0.95, 1.0, 1.0))
 		if str(selected.get("wall_side", "")) != "":
 			_draw_wall_side_arrow(Vector2i(selected.get("cell", Vector2i(-1, -1))), str(selected.get("wall_side", "")), Color(1.0, 0.88, 0.35, 1.0))
-const ISO_LAYER_BIAS_FLOOR: float = 0.0
-const ISO_LAYER_BIAS_CABLE: float = 0.05
-const ISO_LAYER_BIAS_ITEM: float = 0.1
-const ISO_LAYER_BIAS_DOOR: float = 0.2
-const ISO_LAYER_BIAS_WALL: float = 0.4
-const ISO_LAYER_BIAS_WALL_MOUNTED: float = 0.55
-const ISO_LAYER_BIAS_TERMINAL: float = 0.6
-const ISO_LAYER_BIAS_ACTOR: float = 0.8
-const ISO_LAYER_BIAS_OVERLAY: float = 1.0
+const ISO_LAYER_BIAS_FLOOR: float = IsoDrawEntryContractRef.LAYER_BIAS_FLOOR
+const ISO_LAYER_BIAS_CABLE: float = IsoDrawEntryContractRef.LAYER_BIAS_CABLE
+const ISO_LAYER_BIAS_ITEM: float = IsoDrawEntryContractRef.LAYER_BIAS_ITEM
+const ISO_LAYER_BIAS_DOOR: float = IsoDrawEntryContractRef.LAYER_BIAS_DOOR
+const ISO_LAYER_BIAS_WALL: float = IsoDrawEntryContractRef.LAYER_BIAS_WALL
+const ISO_LAYER_BIAS_WALL_MOUNTED: float = IsoDrawEntryContractRef.LAYER_BIAS_WALL_MOUNTED
+const ISO_LAYER_BIAS_TERMINAL: float = IsoDrawEntryContractRef.LAYER_BIAS_TERMINAL
+const ISO_LAYER_BIAS_ACTOR: float = IsoDrawEntryContractRef.LAYER_BIAS_ACTOR
+const ISO_LAYER_BIAS_OVERLAY: float = IsoDrawEntryContractRef.LAYER_BIAS_OVERLAY
 
-const ISO_DRAW_SUB_ORDER_FLOOR: float = 0.0
-const ISO_DRAW_SUB_ORDER_GROUND: float = 0.02
-const ISO_DRAW_SUB_ORDER_PLATFORM_SURFACE: float = 0.05
-const ISO_DRAW_SUB_ORDER_CABLE: float = 0.08
-const ISO_DRAW_SUB_ORDER_ITEM: float = 0.14
-const ISO_DRAW_SUB_ORDER_DOOR: float = 0.22
-const ISO_DRAW_SUB_ORDER_WALL_BODY: float = 0.40
-const ISO_DRAW_SUB_ORDER_WALL_TOP: float = 0.46
-const ISO_DRAW_SUB_ORDER_WALL_MOUNTED: float = 0.56
-const ISO_DRAW_SUB_ORDER_TERMINAL: float = 0.62
-const ISO_DRAW_SUB_ORDER_OVERLAY: float = 1.0
+const ISO_DRAW_SUB_ORDER_FLOOR: float = IsoDrawEntryContractRef.SUB_ORDER_FLOOR
+const ISO_DRAW_SUB_ORDER_GROUND: float = IsoDrawEntryContractRef.SUB_ORDER_GROUND
+const ISO_DRAW_SUB_ORDER_PLATFORM_SURFACE: float = IsoDrawEntryContractRef.SUB_ORDER_PLATFORM_SURFACE
+const ISO_DRAW_SUB_ORDER_CABLE: float = IsoDrawEntryContractRef.SUB_ORDER_CABLE
+const ISO_DRAW_SUB_ORDER_ITEM: float = IsoDrawEntryContractRef.SUB_ORDER_ITEM
+const ISO_DRAW_SUB_ORDER_DOOR: float = IsoDrawEntryContractRef.SUB_ORDER_DOOR
+const ISO_DRAW_SUB_ORDER_WALL_BODY: float = IsoDrawEntryContractRef.SUB_ORDER_WALL_BODY
+const ISO_DRAW_SUB_ORDER_WALL_TOP: float = IsoDrawEntryContractRef.SUB_ORDER_WALL_TOP
+const ISO_DRAW_SUB_ORDER_WALL_MOUNTED: float = IsoDrawEntryContractRef.SUB_ORDER_WALL_MOUNTED
+const ISO_DRAW_SUB_ORDER_TERMINAL: float = IsoDrawEntryContractRef.SUB_ORDER_TERMINAL
+const ISO_DRAW_SUB_ORDER_OVERLAY: float = IsoDrawEntryContractRef.SUB_ORDER_OVERLAY
 
 func get_iso_depth_key(cell: Vector2i, local_bias: float = 0.0) -> float:
-	# Depth is screen-space Y based, not gameplay-cell based. For the active
-	# standard_128x71 projection this keeps any surface that is lower on screen
-	# after unrelated upper walls while preserving deterministic cell tie-breaks.
-	return grid_to_iso(cell).y + get_iso_tile_half_size().y + local_bias
+	return IsoProjectionServiceRef.get_depth_key(cell, iso_origin, get_iso_tile_half_size(), local_bias)
 
 func get_iso_floor_depth_key(cell: Vector2i) -> float:
-	return grid_to_iso(cell).y + get_iso_tile_half_size().y
+	return IsoProjectionServiceRef.get_depth_key(cell, iso_origin, get_iso_tile_half_size())
 
 func get_iso_wall_depth_key_for_cell(cell: Vector2i) -> float:
 	var base_points: PackedVector2Array = get_iso_wall_base_points(cell)
@@ -1203,30 +1138,12 @@ func get_iso_object_depth_key_for_payload(payload: Dictionary) -> float:
 	return get_iso_floor_depth_key(anchor_cell)
 
 func sort_iso_draw_entries(a: Dictionary, b: Dictionary) -> bool:
-	var depth_a: float = float(a.get("depth_key", get_iso_depth_key(Vector2i(a.get("cell", Vector2i.ZERO)))))
-	var depth_b: float = float(b.get("depth_key", get_iso_depth_key(Vector2i(b.get("cell", Vector2i.ZERO)))))
-	if is_equal_approx(depth_a, depth_b):
-		var sub_a: float = float(a.get("sub_order", a.get("layer_bias", 0.0)))
-		var sub_b: float = float(b.get("sub_order", b.get("layer_bias", 0.0)))
-		if is_equal_approx(sub_a, sub_b):
-			var cell_a: Vector2i = Vector2i(a.get("cell", Vector2i.ZERO))
-			var cell_b: Vector2i = Vector2i(b.get("cell", Vector2i.ZERO))
-			if cell_a.y == cell_b.y:
-				if cell_a.x == cell_b.x:
-					return false
-				return cell_a.x < cell_b.x
-			return cell_a.y < cell_b.y
-		return sub_a < sub_b
-	return depth_a < depth_b
+	var fallback_a: float = get_iso_depth_key(Vector2i(a.get("cell", Vector2i.ZERO)))
+	var fallback_b: float = get_iso_depth_key(Vector2i(b.get("cell", Vector2i.ZERO)))
+	return IsoDrawEntryContractRef.less(a, b, fallback_a, fallback_b)
 
 func sort_cells_by_iso_depth(a: Vector2i, b: Vector2i) -> bool:
-	var depth_a: float = get_iso_depth_key(a)
-	var depth_b: float = get_iso_depth_key(b)
-	if is_equal_approx(depth_a, depth_b):
-		if a.y == b.y:
-			return a.x < b.x
-		return a.y < b.y
-	return depth_a < depth_b
+	return IsoProjectionServiceRef.sort_cells_by_depth(a, b, iso_origin, get_iso_tile_half_size())
 
 func is_floor_like_tile(tile_type: int) -> bool:
 	return tile_type != GridManager.TILE_WALL
@@ -7208,14 +7125,14 @@ func build_iso_floor_draw_entries() -> Array[Dictionary]:
 			if not is_floor_like_tile(tile_type):
 				continue
 			var ground_asset_key: String = get_ground_asset_key_for_cell(cell)
-			floor_entries.append({
-				"cell": cell,
-				"kind": "ground" if not ground_asset_key.is_empty() else "floor",
-				"layer": "floor",
-				"depth_key": get_iso_floor_depth_key(cell),
-				"sub_order": ISO_DRAW_SUB_ORDER_GROUND if not ground_asset_key.is_empty() else ISO_DRAW_SUB_ORDER_FLOOR,
-				"payload": {"tile_type": tile_type}
-			})
+			floor_entries.append(IsoDrawEntryContractRef.make_entry(
+				cell,
+				"floor",
+				"ground" if not ground_asset_key.is_empty() else "floor",
+				get_iso_floor_depth_key(cell),
+				ISO_DRAW_SUB_ORDER_GROUND if not ground_asset_key.is_empty() else ISO_DRAW_SUB_ORDER_FLOOR,
+				{"tile_type": tile_type}
+			))
 	return floor_entries
 
 func build_iso_wall_draw_entries() -> Array[Dictionary]:
@@ -7233,15 +7150,15 @@ func build_iso_wall_draw_entries() -> Array[Dictionary]:
 			var tile_type: int = _grid_manager.get_tile(cell)
 			if not is_wall_tile(tile_type):
 				continue
-			wall_entries.append({
-				"cell": cell,
-				"layer": "wall",
-				"layer_bias": ISO_LAYER_BIAS_WALL,
-				"kind": "wall_body",
-				"depth_key": get_iso_wall_depth_key_for_cell(cell),
-				"sub_order": ISO_DRAW_SUB_ORDER_WALL_BODY,
-				"payload": {"tile_type": tile_type}
-			})
+			wall_entries.append(IsoDrawEntryContractRef.make_entry(
+				cell,
+				"wall",
+				"wall_body",
+				get_iso_wall_depth_key_for_cell(cell),
+				ISO_DRAW_SUB_ORDER_WALL_BODY,
+				{"tile_type": tile_type},
+				ISO_LAYER_BIAS_WALL
+			))
 	return wall_entries
 
 func build_iso_platform_surface_draw_entries() -> Array[Dictionary]:
@@ -7259,14 +7176,14 @@ func build_iso_platform_surface_draw_entries() -> Array[Dictionary]:
 			var platform_data: Dictionary = _get_platform_data_for_cell(cell)
 			if platform_data.is_empty():
 				continue
-			platform_entries.append({
-				"cell": cell,
-				"layer": "platform_surface",
-				"kind": "platform_surface",
-				"depth_key": get_iso_floor_depth_key(cell),
-				"sub_order": ISO_DRAW_SUB_ORDER_PLATFORM_SURFACE,
-				"payload": {"platform_data": platform_data}
-			})
+			platform_entries.append(IsoDrawEntryContractRef.make_entry(
+				cell,
+				"platform_surface",
+				"platform_surface",
+				get_iso_floor_depth_key(cell),
+				ISO_DRAW_SUB_ORDER_PLATFORM_SURFACE,
+				{"platform_data": platform_data}
+			))
 	return platform_entries
 
 func _get_runtime_items_for_cell(cell: Vector2i) -> Array[Dictionary]:
@@ -7342,16 +7259,16 @@ func make_iso_object_draw_entry(cell: Vector2i, layer_name: String, layer_bias: 
 	var sub_order: float = get_iso_object_sub_order(layer_name, profile_key) + object_index * stable_order_step
 	if layer_name == "wall_mounted":
 		sub_order += float(get_wall_mounted_render_layer(Dictionary(payload.get("object_data", {})))) * 0.001
-	var entry: Dictionary = {
-		"cell": cell,
-		"layer": layer_name,
-		"layer_bias": layer_bias + object_index * 0.01,
-		"kind": "wall_mounted" if layer_name == "wall_mounted" else ("cable" if layer_name == "cable" else ("door" if profile_key.contains("door") or profile_key.contains("gate") else "object")),
-		"depth_key": get_iso_object_depth_key_for_payload(payload),
-		"sub_order": sub_order,
-		"payload": payload
-	}
-	return entry
+	var kind: String = "wall_mounted" if layer_name == "wall_mounted" else ("cable" if layer_name == "cable" else ("door" if profile_key.contains("door") or profile_key.contains("gate") else "object"))
+	return IsoDrawEntryContractRef.make_entry(
+		cell,
+		layer_name,
+		kind,
+		get_iso_object_depth_key_for_payload(payload),
+		sub_order,
+		payload,
+		layer_bias + object_index * 0.01
+	)
 
 func build_iso_object_draw_entries() -> Array[Dictionary]:
 	# Runtime objects are rendered from their real dictionaries so visuals and
@@ -7437,15 +7354,15 @@ func build_iso_cable_object_bridge_draw_entries() -> Array[Dictionary]:
 				continue
 			emitted_pairs[pair_key] = true
 			var payload: Dictionary = {"object_data": object_data, "object_cell": object_cell, "cable_data": cable_data, "cable_cell": cable_cell}
-			draw_entries.append({
-				"cell": cable_cell,
-				"layer": "cable",
-				"layer_bias": ISO_LAYER_BIAS_CABLE - 0.02,
-				"kind": "cable_bridge",
-				"depth_key": minf(get_iso_floor_depth_key(object_cell), get_iso_floor_depth_key(cable_cell)),
-				"sub_order": -0.5,
-				"payload": payload
-			})
+			draw_entries.append(IsoDrawEntryContractRef.make_entry(
+				cable_cell,
+				"cable",
+				"cable_bridge",
+				minf(get_iso_floor_depth_key(object_cell), get_iso_floor_depth_key(cable_cell)),
+				-0.5,
+				payload,
+				ISO_LAYER_BIAS_CABLE - 0.02
+			))
 	return draw_entries
 
 func build_iso_geometry_draw_entries(include_walls: bool, include_objects: bool, include_floors: bool = false) -> Array[Dictionary]:
