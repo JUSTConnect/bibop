@@ -19,7 +19,7 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 def function_body(source: str, name: str) -> str:
-    match = re.search(rf"(?ms)^func {re.escape(name)}\s*\(.*?(?=^func |\Z)", source)
+    match = re.search(rf"(?ms)^(?:static\s+)?func {re.escape(name)}\s*\(.*?(?=^(?:static\s+)?func |\Z)", source)
     return match.group(0) if match else ""
 
 mission = read(MISSION)
