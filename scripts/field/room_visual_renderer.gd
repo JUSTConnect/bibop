@@ -6113,46 +6113,19 @@ func _get_runtime_world_objects_for_iso_render(include_hidden_cables: bool = tru
 	return result
 
 func get_iso_object_sub_order(layer_name: String, profile_key: String) -> float:
-	if layer_name == "wall_mounted":
-		return ISO_DRAW_SUB_ORDER_WALL_MOUNTED
-	if layer_name == "cable":
-		return ISO_DRAW_SUB_ORDER_CABLE
-	if layer_name == "terminal":
-		return ISO_DRAW_SUB_ORDER_TERMINAL
-	if profile_key.contains("door") or profile_key.contains("gate"):
-		return ISO_DRAW_SUB_ORDER_DOOR
-	return ISO_DRAW_SUB_ORDER_ITEM
+	return ObjectRendererRef.get_sub_order(layer_name, profile_key)
 
 func get_wall_mounted_render_layer(object_data: Dictionary) -> int:
-	if object_data.has("wall_render_layer"):
-		return int(object_data.get("wall_render_layer", 20))
-	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
-	var prefab_id: String = str(object_data.get("map_constructor_prefab_id", object_data.get("prefab_id", ""))).strip_edges().to_lower()
-	var visual_family: String = str(object_data.get("visual_family", object_data.get("visual_asset_family", ""))).strip_edges().to_lower()
-	var routing_kind: String = str(object_data.get("routing_kind", "")).strip_edges().to_lower()
-	if object_type.contains("cable") or prefab_id.contains("cable") or visual_family.contains("cable") or routing_kind.contains("cable"):
-		return 10
-	if prefab_id in ["external_air_duct", "external_water_pipe"] or object_type in ["external_air_duct", "external_water_pipe"]:
-		return 10
-	if is_wall_routing_utility_object(object_data):
-		return 10
-	return 20
+	return ObjectRendererRef.get_wall_mounted_render_layer(object_data, is_wall_routing_utility_object(object_data))
 
-func make_iso_object_draw_entry(cell: Vector2i, layer_name: String, layer_bias: float, object_index: float, payload: Dictionary) -> Dictionary:
-	var profile_key: String = str(payload.get("profile_key", ""))
-	var stable_order_step: float = 0.00001 if layer_name == "wall_mounted" else 0.01
-	var sub_order: float = get_iso_object_sub_order(layer_name, profile_key) + object_index * stable_order_step
-	if layer_name == "wall_mounted":
-		sub_order += float(get_wall_mounted_render_layer(Dictionary(payload.get("object_data", {})))) * 0.001
-	var kind: String = "wall_mounted" if layer_name == "wall_mounted" else ("cable" if layer_name == "cable" else ("door" if profile_key.contains("door") or profile_key.contains("gate") else "object"))
-	return IsoDrawEntryContractRef.make_entry(
+func make_iso_object_draw_entry(cell: Vector2i, layer_name: String, _layer_bias: float, object_index: float, payload: Dictionary) -> Dictionary:
+	return ObjectRendererRef.make_draw_entry(
 		cell,
 		layer_name,
-		kind,
-		get_iso_object_depth_key_for_payload(payload),
-		sub_order,
+		object_index,
 		payload,
-		layer_bias + object_index * 0.01
+		get_iso_object_depth_key_for_payload(payload),
+		is_wall_routing_utility_object(Dictionary(payload.get("object_data", {})))
 	)
 
 func build_iso_object_draw_entries() -> Array[Dictionary]:
