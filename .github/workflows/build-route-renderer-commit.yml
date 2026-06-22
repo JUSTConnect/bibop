@@ -33,29 +33,18 @@ jobs:
             const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
             const parentSha = ref.data.object.sha;
             const parentCommit = await github.rest.git.getCommit({ owner, repo, commit_sha: parentSha });
-            const tree = [];
-            for (const path of [
+            const files = [
               'scripts/field/room_visual_renderer.gd',
-              'tools/check_room_visual_renderer_component_boundary.py',
-              '.github/workflows/renderer-component-gate.yml'
-            ]) {
+              'tools/check_room_visual_renderer_component_boundary.py'
+            ];
+            const tree = [];
+            for (const path of files) {
               const content = fs.readFileSync(path).toString('base64');
               const blob = await github.rest.git.createBlob({ owner, repo, content, encoding: 'base64' });
               tree.push({ path, mode: '100644', type: 'blob', sha: blob.data.sha });
             }
-            const newTree = await github.rest.git.createTree({
-              owner,
-              repo,
-              base_tree: parentCommit.data.tree.sha,
-              tree
-            });
-            const commit = await github.rest.git.createCommit({
-              owner,
-              repo,
-              message: 'Extract RouteRenderer policy',
-              tree: newTree.data.sha,
-              parents: [parentSha]
-            });
+            const newTree = await github.rest.git.createTree({ owner, repo, base_tree: parentCommit.data.tree.sha, tree });
+            const commit = await github.rest.git.createCommit({ owner, repo, message: 'Extract RouteRenderer policy', tree: newTree.data.sha, parents: [parentSha] });
             fs.writeFileSync('route-renderer-commit-sha.txt', commit.data.sha + '\n');
       - uses: actions/upload-artifact@v4
         with:
