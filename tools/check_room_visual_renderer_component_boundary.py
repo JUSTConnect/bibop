@@ -126,10 +126,8 @@ wall_delegates = {
 if "ObjectRendererRef.get_sub_order" not in function_body(renderer, "get_iso_object_sub_order"):
     errors.append("RoomVisualRenderer get_iso_object_sub_order must delegate to ObjectRenderer")
 
-
 if "ObjectRendererRef.get_wall_mounted_render_layer" not in function_body(renderer, "get_wall_mounted_render_layer"):
     errors.append("RoomVisualRenderer get_wall_mounted_render_layer must delegate to ObjectRenderer")
-
 
 if "ObjectRendererRef.make_draw_entry" not in function_body(renderer, "make_iso_object_draw_entry"):
     errors.append("RoomVisualRenderer make_iso_object_draw_entry must delegate to ObjectRenderer")
@@ -155,7 +153,13 @@ for name, delegate in object_delegates.items():
 if "IsoDrawEntryContractRef.less" not in function_body(renderer, "sort_iso_draw_entries"):
     errors.append("RoomVisualRenderer draw-entry sorting must delegate to contract")
 
-if renderer.count("IsoDrawEntryContractRef.make_entry") + floor.count("IsoDrawEntryContractRef.make_entry") + wall.count("IsoDrawEntryContractRef.make_entry") < 5:
+draw_entry_calls = (
+    renderer.count("IsoDrawEntryContractRef.make_entry")
+    + floor.count("IsoDrawEntryContractRef.make_entry")
+    + wall.count("IsoDrawEntryContractRef.make_entry")
+    + object_renderer.count("IsoDrawEntryContractRef.make_entry")
+)
+if draw_entry_calls < 5:
     errors.append("renderer components must use the shared draw-entry contract")
 
 for constant_name in (
@@ -232,10 +236,17 @@ for token in (
     "static func get_asset_key_for_profile",
     "static func get_profile_key_for_object_data",
     "static func get_asset_key_for_object_data",
+    "static func get_sub_order",
+    "static func get_wall_mounted_render_layer",
+    "static func get_entry_kind",
+    "static func get_layer_bias",
     "static func make_draw_entry",
 ):
     if token not in object_renderer:
         errors.append(f"ObjectRenderer missing contract: {token}")
+
+if "IsoDrawEntryContractRef.make_entry" not in function_body(object_renderer, "make_draw_entry"):
+    errors.append("ObjectRenderer draw-entry policy must use the shared draw-entry contract")
 
 if "func draw_iso_floor_cell" not in renderer or "func draw_iso_wall_block" not in renderer:
     errors.append("stage boundary changed: Canvas floor/wall drawing must remain in RoomVisualRenderer")
