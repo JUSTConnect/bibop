@@ -3630,30 +3630,16 @@ func get_safe_iso_object_png_visual_scale(object_data: Dictionary, asset_key: St
 	var active_rule: Dictionary = rule
 	if active_rule.is_empty():
 		active_rule = get_iso_asset_alignment_rule(asset_key)
-
-	var rule_scale: float = clampf(
-		float(active_rule.get("scale", 1.0)),
+	return ObjectRendererRef.get_safe_visual_scale(
+		object_data,
+		active_rule,
 		ISO_OBJECT_PNG_MIN_VISUAL_SCALE,
-		ISO_OBJECT_PNG_MAX_VISUAL_SCALE
+		ISO_OBJECT_PNG_MAX_VISUAL_SCALE,
+		is_iso_object_png_asset_key(asset_key)
 	)
 
-	if not is_iso_object_png_asset_key(asset_key):
-		return rule_scale
-
-	if not bool(object_data.get("allow_custom_visual_scale", false)):
-		return rule_scale
-
-	var custom_scale: float = float(object_data.get("visual_scale", rule_scale))
-	return clampf(
-		custom_scale,
-		ISO_OBJECT_PNG_MIN_VISUAL_SCALE,
-		ISO_OBJECT_PNG_MAX_VISUAL_SCALE
-	)
-	
 func build_iso_object_surface_context(object_data: Dictionary, _cell_visual_center: Vector2 = Vector2.INF) -> Dictionary:
 	var surface_level: int = get_iso_object_surface_level(object_data)
-	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("install_mode", object_data.get("mount", "")))).to_lower().strip_edges()
-	var anchor_value: String = str(object_data.get("anchor", object_data.get("visual_anchor", object_data.get("alignment_anchor", "")))).to_lower().strip_edges()
 	var rule: Dictionary = {}
 	if object_data.get("rule", {}) is Dictionary:
 		rule = Dictionary(object_data.get("rule", {}))
@@ -3661,122 +3647,88 @@ func build_iso_object_surface_context(object_data: Dictionary, _cell_visual_cent
 		rule = Dictionary(object_data.get("alignment_rule", {}))
 	elif object_data.get("visual_rule", {}) is Dictionary:
 		rule = Dictionary(object_data.get("visual_rule", {}))
-	var rule_anchor: String = str(rule.get("anchor", "")).to_lower().strip_edges()
-	var rule_mount: String = str(rule.get("mount", rule.get("placement_mode", ""))).to_lower().strip_edges()
-	var wall_mounted: bool = placement_mode == "wall_mounted" or _get_object_mount_mode(object_data) == "wall" or anchor_value.contains("wall_mount") or rule_anchor.contains("wall_mount") or rule_mount in ["wall", "wall_mounted"]
-	if wall_mounted:
+	var policy: Dictionary = ObjectRendererRef.get_surface_context_policy(object_data, rule)
+	if bool(policy.get("wall_mounted", false)):
 		return IsoVisualAlignmentServiceRef.build_surface_context(surface_level, 0.0, 0.0, true)
-
-	if object_data.has("explicit_surface_y_offset"):
-		return {"explicit_surface_y_offset": float(object_data.get("explicit_surface_y_offset", 0.0)), "surface_level": surface_level, "wall_mounted": false}
-
+	if bool(policy.get("has_explicit_surface_y_offset", false)):
+		return {"explicit_surface_y_offset": float(policy.get("explicit_surface_y_offset", 0.0)), "surface_level": surface_level, "wall_mounted": false}
 	var platform_offset: float = 0.0
-	if object_data.has("platform_level") or object_data.has("current_level") or object_data.has("visual_level") or object_data.has("platform_height_level"):
+	if bool(policy.get("uses_platform_offset", false)):
 		platform_offset = IsoVisualAlignmentServiceRef.get_platform_surface_y_offset(object_data)
+	return IsoVisualAlignmentServiceRef.build_surface_context(surface_level, float(policy.get("ground_surface_y_offset", 0.0)), platform_offset, false)
 
-	var ground_offset: float = 0.0
-	if object_data.has("ground_surface_y_offset"):
-		ground_offset = float(object_data.get("ground_surface_y_offset", 0.0))
-
-	return IsoVisualAlignmentServiceRef.build_surface_context(surface_level, ground_offset, platform_offset, false)
-	
 func build_iso_object_visual_descriptor(object_data: Dictionary, asset_key: String, visual_center: Vector2, texture: Texture2D = null) -> Dictionary:
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
 	var expected_size: Vector2 = get_iso_asset_alignment_expected_size(asset_key)
 	var visual_scale: float = get_safe_iso_object_png_visual_scale(object_data, asset_key, rule)
 	var destination_size: Vector2 = expected_size * visual_scale
-	var visual_pivot: Vector2 = _parse_visual_pivot(object_data.get("visual_pivot", get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size)), get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size))
+	var default_pivot: Vector2 = get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "bottom_center")), destination_size)
+	var visual_pivot: Vector2 = _parse_visual_pivot(object_data.get("visual_pivot", default_pivot), default_pivot)
 	var surface_level: int = get_iso_object_surface_level(object_data)
 	var surface_context: Dictionary = build_iso_object_surface_context(object_data, visual_center)
-	var surface_offset: Vector2 = Vector2(0.0, IsoVisualAlignmentServiceRef.get_object_surface_y_offset(surface_context))
+	var surface_y_offset: float = IsoVisualAlignmentServiceRef.get_object_surface_y_offset(surface_context)
 	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
-	var configured_offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO)) + explicit_visual_offset
-	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("placement", ""))).strip_edges().to_lower()
-	var install_mode: String = str(object_data.get("install_mode", object_data.get("mount", ""))).strip_edges().to_lower()
-	var wall_mounted: bool = (
-		bool(object_data.get("is_wall_mounted", false))
-		or placement_mode == "wall_mounted"
-		or placement_mode == "wall"
-		or install_mode == "wall"
-		or _get_object_mount_mode(object_data) == "wall"
-	)
-	if wall_mounted:
-		configured_offset = explicit_visual_offset
-	var final_draw_position: Vector2 = visual_center + surface_offset - visual_pivot + configured_offset
-	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
+	var wall_mounted: bool = bool(ObjectRendererRef.get_surface_context_policy(object_data, rule).get("wall_mounted", false))
 	var wall_visual_side: String = normalize_wall_visual_side(object_data) if wall_mounted else ""
-	if wall_mounted:
-		var raw_wall_side: String = str(object_data.get("wall_side", object_data.get("interaction_side", ""))).strip_edges().to_lower()
-		log_wall_mounted_positioning(object_data, "iso_object_png_descriptor", raw_wall_side, wall_visual_side, visual_center, destination_rect, true)
-	return {
+	var mirror_h: bool = (wall_visual_side == "se" and bool(object_data.get("mirror_visual_for_facing_side", true))) if wall_mounted else (ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true)))
+	var descriptor: Dictionary = ObjectRendererRef.build_descriptor_for_contract({
+		"descriptor_mode": "object",
 		"visual_asset_key": asset_key,
 		"texture": texture,
 		"render_contract": VisualAssetRenderContractServiceRef.CONTRACT_OBJECT_SPRITE,
+		"expected_size": expected_size,
+		"source_size": texture.get_size() if texture != null else expected_size,
 		"visual_scale": visual_scale,
 		"visual_pivot": visual_pivot,
 		"surface_level": surface_level,
 		"surface_context": surface_context,
-		"surface_y_offset": float(surface_offset.y),
-		"final_draw_position": final_draw_position,
-		"destination_rect": destination_rect,
-		"source_rect": Rect2(Vector2.ZERO, texture.get_size() if texture != null else expected_size),
-		"mirror_h": (wall_visual_side == "se" and bool(object_data.get("mirror_visual_for_facing_side", true))) if wall_mounted else (ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true)))
-	}
+		"surface_y_offset": surface_y_offset,
+		"visual_center": visual_center,
+		"rule_offset": Vector2(rule.get("offset", Vector2.ZERO)),
+		"explicit_visual_offset": explicit_visual_offset,
+		"wall_mounted": wall_mounted,
+		"mirror_h": mirror_h
+	})
+	if wall_mounted:
+		var raw_wall_side: String = str(object_data.get("wall_side", object_data.get("interaction_side", ""))).strip_edges().to_lower()
+		log_wall_mounted_positioning(object_data, "iso_object_png_descriptor", raw_wall_side, wall_visual_side, visual_center, Rect2(descriptor.get("destination_rect", Rect2())), true)
+	return descriptor
 
 func build_authored_wall_canvas_descriptor(object_data: Dictionary, asset_key: String, texture_path: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
-	print("[AUTHORED WALL TEST] asset=", asset_key, " path=", texture_path)
-	var texture_size: Vector2 = texture.get_size()
-	var safe_source_width: float = maxf(1.0, authored_wall_canvas_source_width)
-	var visual_scale: float = get_iso_tile_size().x / safe_source_width
-	var destination_size: Vector2 = texture_size * visual_scale
-	var visual_pivot: Vector2 = destination_size * authored_wall_canvas_anchor_ratio
-	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
-	var final_draw_position: Vector2 = visual_center - visual_pivot + explicit_visual_offset
-	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
-	var mirror_h: bool = ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true))
-	var descriptor: Dictionary = {
+	var descriptor: Dictionary = ObjectRendererRef.build_descriptor_for_contract({
+		"descriptor_mode": "authored_canvas",
 		"visual_asset_key": asset_key,
 		"texture": texture,
 		"texture_path": texture_path,
 		"render_contract": VisualAssetRenderContractServiceRef.CONTRACT_WALL_AUTHORED_CANVAS,
-		"visual_scale": visual_scale,
-		"visual_pivot": visual_pivot,
+		"texture_size": texture.get_size(),
+		"tile_size": get_iso_tile_size(),
+		"source_width": authored_wall_canvas_source_width,
+		"anchor_ratio": authored_wall_canvas_anchor_ratio,
+		"visual_center": visual_center,
+		"explicit_visual_offset": _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO),
 		"surface_level": get_iso_object_surface_level(object_data),
-		"surface_context": {},
-		"surface_y_offset": 0.0,
-		"final_draw_position": final_draw_position,
-		"destination_rect": destination_rect,
-		"source_rect": Rect2(Vector2.ZERO, texture_size),
-		"mirror_h": mirror_h
-	}
+		"mirror_h": ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true))
+	})
 	log_authored_canvas_descriptor(object_data, asset_key, texture_path, descriptor)
 	return descriptor
 
 func build_authored_floor_canvas_descriptor(object_data: Dictionary, asset_key: String, texture_path: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
-	var texture_size: Vector2 = texture.get_size()
-	var safe_source_width: float = maxf(1.0, authored_floor_canvas_source_width)
-	var visual_scale: float = get_iso_tile_size().x / safe_source_width
-	var destination_size: Vector2 = texture_size * visual_scale
-	var visual_pivot: Vector2 = destination_size * authored_floor_canvas_anchor_ratio
-	var explicit_visual_offset: Vector2 = _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO)
-	var final_draw_position: Vector2 = visual_center - visual_pivot + explicit_visual_offset
-	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
-	var mirror_h: bool = ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true))
-	var descriptor: Dictionary = {
+	var descriptor: Dictionary = ObjectRendererRef.build_descriptor_for_contract({
+		"descriptor_mode": "authored_canvas",
 		"visual_asset_key": asset_key,
 		"texture": texture,
 		"texture_path": texture_path,
 		"render_contract": VisualAssetRenderContractServiceRef.CONTRACT_FLOOR_AUTHORED_CANVAS,
-		"visual_scale": visual_scale,
-		"visual_pivot": visual_pivot,
+		"texture_size": texture.get_size(),
+		"tile_size": get_iso_tile_size(),
+		"source_width": authored_floor_canvas_source_width,
+		"anchor_ratio": authored_floor_canvas_anchor_ratio,
+		"visual_center": visual_center,
+		"explicit_visual_offset": _parse_visual_pivot(object_data.get("visual_offset", Vector2.ZERO), Vector2.ZERO),
 		"surface_level": get_iso_object_surface_level(object_data),
-		"surface_context": {},
-		"surface_y_offset": 0.0,
-		"final_draw_position": final_draw_position,
-		"destination_rect": destination_rect,
-		"source_rect": Rect2(Vector2.ZERO, texture_size),
-		"mirror_h": mirror_h
-	}
+		"mirror_h": ObjectFacingServiceRef.get_facing_side(object_data) == ObjectFacingServiceRef.FACING_SIDE_SE and bool(object_data.get("mirror_visual_for_facing_side", true))
+	})
 	log_authored_canvas_descriptor(object_data, asset_key, texture_path, descriptor)
 	return descriptor
 
@@ -3797,10 +3749,11 @@ func log_authored_canvas_descriptor(object_data: Dictionary, asset_key: String, 
 	])
 
 func build_iso_object_visual_descriptor_for_contract(object_data: Dictionary, asset_key: String, texture_path: String, render_contract: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
-	if render_contract == VisualAssetRenderContractServiceRef.CONTRACT_WALL_AUTHORED_CANVAS:
-		return build_authored_wall_canvas_descriptor(object_data, asset_key, texture_path, visual_center, texture)
-	if render_contract == VisualAssetRenderContractServiceRef.CONTRACT_FLOOR_AUTHORED_CANVAS:
-		return build_authored_floor_canvas_descriptor(object_data, asset_key, texture_path, visual_center, texture)
+	match ObjectRendererRef.get_descriptor_mode(render_contract, VisualAssetRenderContractServiceRef.CONTRACT_WALL_AUTHORED_CANVAS, VisualAssetRenderContractServiceRef.CONTRACT_FLOOR_AUTHORED_CANVAS):
+		"wall_authored":
+			return build_authored_wall_canvas_descriptor(object_data, asset_key, texture_path, visual_center, texture)
+		"floor_authored":
+			return build_authored_floor_canvas_descriptor(object_data, asset_key, texture_path, visual_center, texture)
 	return build_iso_object_visual_descriptor(object_data, asset_key, visual_center, texture)
 
 func draw_iso_object_png_texture_with_descriptor_modulated(texture: Texture2D, descriptor: Dictionary, modulate_color: Color, destination_rect_override: Rect2 = Rect2()) -> void:

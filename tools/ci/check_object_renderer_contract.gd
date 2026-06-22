@@ -10,6 +10,7 @@ func _initialize() -> void:
 	_check_mount_and_state_policy()
 	_check_asset_policy()
 	_check_entry_policy()
+	_check_descriptor_policy()
 	if failures.is_empty():
 		print("ObjectRenderer policy contract OK")
 		quit(0)
@@ -102,6 +103,80 @@ func _check_draw_entry_case(
 	_expect(is_equal_approx(float(entry.get("sub_order", 0.0)), expected_sub_order), "%s entry sub-order changed" % layer_name)
 	_expect(is_equal_approx(float(entry.get("layer_bias", 0.0)), expected_layer_bias), "%s entry layer bias changed" % layer_name)
 	_expect(Dictionary(entry.get("payload", {})) == payload, "%s entry payload changed" % layer_name)
+
+
+func _check_descriptor_policy() -> void:
+	_expect(is_equal_approx(ObjectRendererRef.get_safe_visual_scale({}, {"scale": 0.75}, 0.25, 2.0, true), 0.75), "default visual scale changed")
+	_expect(is_equal_approx(ObjectRendererRef.get_safe_visual_scale({"visual_scale": 1.7}, {"scale": 0.75}, 0.25, 2.0, true), 0.75), "custom scale must remain opt-in")
+	_expect(is_equal_approx(ObjectRendererRef.get_safe_visual_scale({"allow_custom_visual_scale": true, "visual_scale": 5.0}, {"scale": 0.75}, 0.25, 2.0, true), 2.0), "custom scale clamp changed")
+	var wall_policy: Dictionary = ObjectRendererRef.get_surface_context_policy({"placement_mode": "wall_mounted"}, {"anchor": "bottom_center"})
+	_expect(bool(wall_policy.get("wall_mounted", false)), "wall-mounted surface policy changed")
+	var explicit_policy: Dictionary = ObjectRendererRef.get_surface_context_policy({"explicit_surface_y_offset": -14.0})
+	_expect(bool(explicit_policy.get("has_explicit_surface_y_offset", false)) and is_equal_approx(float(explicit_policy.get("explicit_surface_y_offset", 0.0)), -14.0), "explicit surface offset policy changed")
+	var platform_policy: Dictionary = ObjectRendererRef.get_surface_context_policy({"platform_level": 2})
+	_expect(bool(platform_policy.get("uses_platform_offset", false)), "platform surface policy changed")
+
+	var object_descriptor: Dictionary = ObjectRendererRef.build_descriptor_for_contract({
+		"descriptor_mode": "object",
+		"visual_asset_key": "object_generic",
+		"render_contract": "object_sprite",
+		"expected_size": Vector2(96, 96),
+		"source_size": Vector2(128, 96),
+		"visual_scale": 0.75,
+		"visual_pivot": Vector2(36, 72),
+		"surface_level": 2,
+		"surface_context": {"surface_level": 2},
+		"surface_y_offset": -12.0,
+		"visual_center": Vector2(200, 100),
+		"rule_offset": Vector2(0, -8),
+		"explicit_visual_offset": Vector2(3, 4),
+		"wall_mounted": false,
+		"mirror_h": true
+	})
+	_expect(Vector2(object_descriptor.get("final_draw_position", Vector2.ZERO)) == Vector2(167, 12), "object descriptor position changed")
+	_expect(Rect2(object_descriptor.get("destination_rect", Rect2())) == Rect2(Vector2(167, 12), Vector2(72, 72)), "object descriptor rect changed")
+	_expect(Rect2(object_descriptor.get("source_rect", Rect2())) == Rect2(Vector2.ZERO, Vector2(128, 96)), "object descriptor source changed")
+	_expect(bool(object_descriptor.get("mirror_h", false)), "object descriptor mirror changed")
+
+	var wall_descriptor: Dictionary = ObjectRendererRef.build_descriptor_for_contract({
+		"descriptor_mode": "object",
+		"visual_asset_key": "terminal_01",
+		"render_contract": "object_sprite",
+		"expected_size": Vector2(96, 96),
+		"source_size": Vector2(96, 96),
+		"visual_scale": 1.0,
+		"visual_pivot": Vector2(48, 96),
+		"surface_level": 0,
+		"surface_context": {"wall_mounted": true},
+		"surface_y_offset": 0.0,
+		"visual_center": Vector2(100, 80),
+		"rule_offset": Vector2(20, 20),
+		"explicit_visual_offset": Vector2(2, -3),
+		"wall_mounted": true,
+		"mirror_h": false
+	})
+	_expect(Vector2(wall_descriptor.get("final_draw_position", Vector2.ZERO)) == Vector2(54, -19), "wall descriptor must ignore alignment-rule offset")
+
+	var authored_descriptor: Dictionary = ObjectRendererRef.build_descriptor_for_contract({
+		"descriptor_mode": "authored_canvas",
+		"visual_asset_key": "terminal_01",
+		"texture_path": "res://test.png",
+		"render_contract": "wall_authored_canvas",
+		"texture_size": Vector2(512, 400),
+		"tile_size": Vector2(128, 71),
+		"source_width": 512.0,
+		"anchor_ratio": Vector2(0.5, 0.70),
+		"visual_center": Vector2(300, 200),
+		"explicit_visual_offset": Vector2(4, -2),
+		"surface_level": 1,
+		"mirror_h": true
+	})
+	_expect(is_equal_approx(float(authored_descriptor.get("visual_scale", 0.0)), 0.25), "authored canvas scale changed")
+	_expect(Rect2(authored_descriptor.get("destination_rect", Rect2())) == Rect2(Vector2(240, 128), Vector2(128, 100)), "authored canvas rect changed")
+	_expect(str(authored_descriptor.get("texture_path", "")) == "res://test.png", "authored canvas path changed")
+	_expect(ObjectRendererRef.get_descriptor_mode("wall", "wall", "floor") == "wall_authored", "wall contract dispatch changed")
+	_expect(ObjectRendererRef.get_descriptor_mode("floor", "wall", "floor") == "floor_authored", "floor contract dispatch changed")
+	_expect(ObjectRendererRef.get_descriptor_mode("object", "wall", "floor") == "object", "object contract dispatch changed")
 
 func _expect(condition: bool, message: String) -> void:
 	if not condition:
