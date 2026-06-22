@@ -1,9 +1,11 @@
 name: Object Descriptor Extraction
+
 on:
-  push:
-    branches: [codex/bip-architecture-coordinators-02d-object-descriptor-policy]
+  pull_request:
+
 permissions:
   contents: write
+
 jobs:
   apply:
     if: github.actor != 'github-actions[bot]'
