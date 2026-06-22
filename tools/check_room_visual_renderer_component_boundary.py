@@ -11,6 +11,7 @@ DRAW_ENTRY = ROOT / "scripts/visual/renderer/iso_draw_entry_contract.gd"
 FLOOR = ROOT / "scripts/visual/renderer/floor_renderer.gd"
 WALL = ROOT / "scripts/visual/renderer/wall_renderer.gd"
 OBJECT = ROOT / "scripts/visual/renderer/object_renderer.gd"
+ROUTE = ROOT / "scripts/visual/renderer/route_renderer.gd"
 errors: list[str] = []
 
 
@@ -32,10 +33,11 @@ draw_entry = read(DRAW_ENTRY)
 floor = read(FLOOR)
 wall = read(WALL)
 object_renderer = read(OBJECT)
+route_renderer = read(ROUTE)
 
 renderer_lines = len(renderer.splitlines())
-if renderer_lines > 6620:
-    errors.append(f"RoomVisualRenderer grew beyond object-policy extraction cap: {renderer_lines} > 6620")
+if renderer_lines > 6450:
+    errors.append(f"RoomVisualRenderer grew beyond object-policy extraction cap: {renderer_lines} > 6450")
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
@@ -43,6 +45,7 @@ for token in (
     'preload("res://scripts/visual/renderer/floor_renderer.gd")',
     'preload("res://scripts/visual/renderer/wall_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_renderer.gd")',
+    'preload("res://scripts/visual/renderer/route_renderer.gd")',
 ):
     if token not in renderer:
         errors.append(f"RoomVisualRenderer missing component preload: {token}")
@@ -162,6 +165,32 @@ for name, delegate in object_delegates.items():
     if delegate not in function_body(renderer, name):
         errors.append(f"RoomVisualRenderer {name} must delegate to ObjectRenderer")
 
+
+route_delegates = {
+    "get_wall_routing_mode": "RouteRendererRef.normalize_wall_routing_mode",
+    "_get_wall_cable_visual_axis_for_side": "RouteRendererRef.get_wall_visual_axis_for_side",
+    "_get_wall_cable_face_occluder_delta": "RouteRendererRef.get_wall_face_occluder_delta",
+    "_is_wall_cable_broken": "RouteRendererRef.is_broken_route",
+    "_get_wall_cable_face_line_segment": "RouteRendererRef.build_wall_face_segment",
+    "_draw_wall_cable_broken_overlay_segment": "RouteRendererRef.build_wall_cable_commands",
+    "_draw_wall_cable_break_overlay": "RouteRendererRef.build_wall_break_overlay_commands",
+    "_draw_wall_cable_broken_end": "RouteRendererRef.build_wall_broken_end_commands",
+    "_get_wall_routed_object_family": "RouteRendererRef.get_route_family",
+    "is_wall_procedural_routed_object": "RouteRendererRef.is_wall_procedural_routed_object",
+    "get_wall_routed_height_source_px": "RouteRendererRef.get_wall_routed_height_source_px",
+    "get_wall_route_segment_points": "RouteRendererRef.build_wall_route_segment",
+    "draw_wall_procedural_cable": "RouteRendererRef.build_procedural_route_commands",
+    "draw_wall_procedural_air_duct": "RouteRendererRef.build_procedural_route_commands",
+    "draw_wall_procedural_water_pipe": "RouteRendererRef.build_procedural_route_commands",
+    "get_cable_install_mode": "RouteRendererRef.normalize_install_mode",
+    "get_cable_health_state": "RouteRendererRef.get_health_state",
+    "draw_iso_cable_mode_segment": "RouteRendererRef.build_floor_mode_segment_commands",
+    "draw_iso_cable_segment_shape": "RouteRendererRef.build_floor_topology_plan",
+}
+for name, delegate in route_delegates.items():
+    if delegate not in function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer {name} must delegate route policy to RouteRenderer")
+
 if "IsoDrawEntryContractRef.less" not in function_body(renderer, "sort_iso_draw_entries"):
     errors.append("RoomVisualRenderer draw-entry sorting must delegate to contract")
 
@@ -196,7 +225,7 @@ for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon("
     if forbidden in projection:
         errors.append(f"projection component contains forbidden runtime dependency: {forbidden}")
 
-for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer)):
+for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer)):
     for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "queue_redraw(", "get_node("):
         if forbidden in component_source:
             errors.append(f"{component_name} contains forbidden CanvasItem/runtime dependency: {forbidden}")
@@ -262,6 +291,21 @@ for token in (
 ):
     if token not in object_renderer:
         errors.append(f"ObjectRenderer missing contract: {token}")
+
+
+for token in (
+    "class_name RouteRenderer",
+    "static func normalize_install_mode",
+    "static func normalize_wall_routing_mode",
+    "static func get_route_family",
+    "static func build_wall_face_segment",
+    "static func build_wall_cable_commands",
+    "static func build_floor_mode_segment_commands",
+    "static func build_floor_topology_plan",
+    "static func build_procedural_route_commands",
+):
+    if token not in route_renderer:
+        errors.append(f"RouteRenderer missing contract: {token}")
 
 if "[AUTHORED WALL TEST]" in renderer:
     errors.append("RoomVisualRenderer must not contain unconditional authored-wall descriptor logging")
