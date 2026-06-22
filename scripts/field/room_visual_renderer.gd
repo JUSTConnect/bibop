@@ -16,6 +16,7 @@ const IsoDrawEntryContractRef = preload("res://scripts/visual/renderer/iso_draw_
 const FloorRendererRef = preload("res://scripts/visual/renderer/floor_renderer.gd")
 const WallRendererRef = preload("res://scripts/visual/renderer/wall_renderer.gd")
 const ObjectRendererRef = preload("res://scripts/visual/renderer/object_renderer.gd")
+const RouteRendererRef = preload("res://scripts/visual/renderer/route_renderer.gd")
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
@@ -2858,23 +2859,36 @@ func get_wall_mount_side_visual_offset(object_data: Dictionary) -> Vector2:
 
 	return Vector2(-half_size.x * 0.36, -half_size.y * 0.18)
 
+func _draw_route_commands(commands: Array[Dictionary], fallback_profile: Dictionary = {}) -> bool:
+	for command in commands:
+		match str(command.get("kind", "")):
+			"line":
+				draw_line(
+					Vector2(command.get("start", Vector2.ZERO)),
+					Vector2(command.get("end", Vector2.ZERO)),
+					Color(command.get("color", Color.WHITE)),
+					float(command.get("width", 1.0)),
+					bool(command.get("antialiased", true))
+				)
+			"circle":
+				draw_circle(
+					Vector2(command.get("center", Vector2.ZERO)),
+					float(command.get("radius", 1.0)),
+					Color(command.get("color", Color.WHITE))
+				)
+			"wall_cable_segment":
+				var profile: Dictionary = fallback_profile
+				if command.get("profile", {}) is Dictionary:
+					profile = Dictionary(command.get("profile", {}))
+				draw_iso_cable_wall_segment(
+					Vector2(command.get("start", Vector2.ZERO)),
+					Vector2(command.get("end", Vector2.ZERO)),
+					profile
+				)
+	return not commands.is_empty()
+
 func get_wall_routing_mode(object_data: Dictionary) -> String:
-	var candidates: Array[String] = [
-		str(object_data.get("route_mode", "")),
-		str(object_data.get("wall_routing_mode", "")),
-		str(object_data.get("routing_mode", "")),
-		str(object_data.get("routing_style", ""))
-	]
-	for raw_candidate in candidates:
-		var mode: String = raw_candidate.strip_edges().to_lower()
-		mode = mode.replace("-", "_")
-		mode = mode.replace(" ", "_")
-		match mode:
-			"inner", "inside", "internal", "in_wall", "embedded":
-				return "inner"
-			"outer", "outside", "external", "surface", "":
-				return "outer"
-	return "outer"
+	return RouteRendererRef.normalize_wall_routing_mode(object_data)
 
 func is_floor_cable_object(object_data: Dictionary) -> bool:
 	return _get_wall_routed_object_family(object_data) == "cable" and get_cable_install_mode(object_data) == "floor"
@@ -2918,36 +2932,14 @@ func _get_wall_cable_rail_height_px() -> float:
 	return maxf(iso_wall_height * WALL_CABLE_RAIL_Y_RATIO, 1.0)
 
 func _get_wall_cable_visual_axis_for_side(wall_side: String) -> Vector2:
-	var side: String = wall_side.strip_edges().to_lower()
+	return RouteRendererRef.get_wall_visual_axis_for_side(wall_side)
 
-	# В screen-space SW-линия идет примерно вверх-вправо.
-	if side == "sw":
-		return Vector2(1.0, -0.5).normalized()
-
-	# В screen-space SE-линия идет примерно вниз-вправо.
-	if side == "se":
-		return Vector2(1.0, 0.5).normalized()
-
-	return Vector2.RIGHT
 func _get_wall_cable_rail_anchor(cell: Vector2i, side: String) -> Vector2:
 	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, side)
 	return Vector2(segment.get("mid", grid_to_iso(cell)))
 		
 func _get_wall_cable_face_occluder_delta(face: String) -> Vector2i:
-	var normalized_face: String = face.strip_edges().to_lower()
-
-	# SW face is the left/south-west visual face.
-	# If another wall cell exists outside this face, this face is hidden.
-	if normalized_face == "sw":
-		return Vector2i(0,1)
-
-	# SE face is the right/south-east visual face.
-	# If another wall cell exists outside this face, this face is hidden.
-	if normalized_face == "se":
-		return Vector2i(1, 0)
-
-	return Vector2i.ZERO
-
+	return RouteRendererRef.get_wall_face_occluder_delta(face)
 
 func _is_wall_cable_face_visible(cell: Vector2i, face: String) -> bool:
 	if cell.x < 0 or cell.y < 0:
@@ -2967,228 +2959,42 @@ func _is_wall_cable_face_visible(cell: Vector2i, face: String) -> bool:
 	return not _cell_has_wall_for_iso_cable(occluder_cell)
 	
 func _is_wall_cable_broken(object_data: Dictionary) -> bool:
-	var state_value: String = str(object_data.get("state", "")).strip_edges().to_lower()
-	var cable_state_value: String = str(object_data.get("cable_state", "")).strip_edges().to_lower()
-	var cable_health_state: String = str(object_data.get("cable_health_state", "")).strip_edges().to_lower()
-	var health_state: String = str(object_data.get("health_state", "")).strip_edges().to_lower()
+	return RouteRendererRef.is_broken_route(object_data)
 
-	if bool(object_data.get("is_broken", false)):
-		return true
-
-	if bool(object_data.get("broken", false)):
-		return true
-
-	return (
-		state_value == "broken"
-		or cable_state_value == "broken"
-		or cable_health_state == "broken"
-		or health_state == "broken"
-	)
 func _draw_wall_cable_broken_overlay_segment(start_edge: Vector2, end_edge: Vector2, normal: Vector2, profile: Dictionary) -> void:
-	var axis: Vector2 = end_edge - start_edge
-	if axis.length() <= 0.001:
-		return
+	_draw_route_commands(RouteRendererRef.build_wall_cable_commands(start_edge, end_edge, normal, profile, true), profile)
 
-	axis = axis.normalized()
-
-	var mid_point: Vector2 = start_edge.lerp(end_edge, 0.5)
-
-	# Размер центрального разрыва.
-	var gap_half: float = 9.0
-	var left_gap: Vector2 = mid_point - axis * gap_half
-	var right_gap: Vector2 = mid_point + axis * gap_half
-
-	# Рисуем тот же кабель, но уже с пропуском в центре.
-	draw_iso_cable_wall_segment(start_edge, left_gap, profile)
-	draw_iso_cable_wall_segment(right_gap, end_edge, profile)
-
-	# Короткие оборванные концы около разрыва.
-	var left_stub_start: Vector2 = left_gap - axis * 5.0
-	var right_stub_end: Vector2 = right_gap + axis * 5.0
-
-	draw_iso_cable_wall_segment(left_stub_start, left_gap, profile)
-	draw_iso_cable_wall_segment(right_gap, right_stub_end, profile)
-
-	# Небольшие свисающие жилы.
-	var safe_normal: Vector2 = normal
-	if safe_normal.length() <= 0.001:
-		safe_normal = Vector2.UP
-	else:
-		safe_normal = safe_normal.normalized()
-
-	var hang_dir: Vector2 = (Vector2.DOWN * 0.86 + safe_normal * 0.14).normalized()
-	var hang_len: float = 7.0
-
-	var left_tip: Vector2 = left_gap + hang_dir * hang_len
-	var right_tip: Vector2 = right_gap + hang_dir * hang_len
-
-	draw_line(left_gap, left_tip, Color(0.025, 0.025, 0.03, 0.96), 2.6, true)
-	draw_line(right_gap, right_tip, Color(0.025, 0.025, 0.03, 0.96), 2.6, true)
-
-	var perp: Vector2 = Vector2(-hang_dir.y, hang_dir.x).normalized()
-
-	draw_line(left_gap + perp * 0.5, left_tip + perp * 0.8, Color(0.95, 0.22, 0.16, 0.95), 1.0, true)
-	draw_line(left_gap - perp * 0.5, left_tip - perp * 0.6, Color(0.95, 0.78, 0.22, 0.95), 1.0, true)
-
-	draw_line(right_gap + perp * 0.5, right_tip + perp * 0.8, Color(0.95, 0.22, 0.16, 0.95), 1.0, true)
-	draw_line(right_gap - perp * 0.5, right_tip - perp * 0.6, Color(0.95, 0.78, 0.22, 0.95), 1.0, true)
-		
 func _draw_wall_cable_break_overlay(cell: Vector2i, face: String, profile: Dictionary) -> bool:
 	if not _is_wall_cable_face_visible(cell, face):
 		return false
-
 	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
+	return _draw_route_commands(RouteRendererRef.build_wall_break_overlay_commands(segment, profile), profile)
 
-	var start_edge: Vector2 = Vector2(segment.get("start_edge", Vector2.ZERO))
-	var mid_point: Vector2 = Vector2(segment.get("mid", Vector2.ZERO))
-	var end_edge: Vector2 = Vector2(segment.get("end_edge", Vector2.ZERO))
-	var normal: Vector2 = Vector2(segment.get("normal", Vector2.UP)).normalized()
-
-	var axis: Vector2 = end_edge - start_edge
-	if axis.length() <= 0.001:
-		return false
-	axis = axis.normalized()
-
-	# Размер визуального разрыва в центре.
-	var gap_half: float = 7.0
-	var left_gap: Vector2 = mid_point - axis * gap_half
-	var right_gap: Vector2 = mid_point + axis * gap_half
-
-	# Маска разрыва поверх уже нарисованного кабеля.
-	# Пока используем тёмный stroke, без попытки идеально повторить текстуру стены.
-	var mask_color: Color = Color(0.14, 0.14, 0.14, 1.0)
-	draw_line(left_gap, right_gap, mask_color, 8.0, true)
-
-	# Два коротких оборванных конца по краям разрыва.
-	var stub_len: float = 7.0
-	var left_stub_start: Vector2 = left_gap - axis * stub_len
-	var right_stub_end: Vector2 = right_gap + axis * stub_len
-
-	draw_iso_cable_wall_segment(left_stub_start, left_gap, profile)
-	draw_iso_cable_wall_segment(right_gap, right_stub_end, profile)
-
-	# Две короткие свисающие жилы
-	var hang_dir: Vector2 = (Vector2.DOWN * 0.88 + normal * 0.12).normalized()
-	var hang_len: float = 7.0
-	var left_hang_tip: Vector2 = left_gap + hang_dir * hang_len
-	var right_hang_tip: Vector2 = right_gap + hang_dir * hang_len
-
-	draw_line(left_gap, left_hang_tip, Color(0.03, 0.03, 0.04, 0.96), 3.0, true)
-	draw_line(right_gap, right_hang_tip, Color(0.03, 0.03, 0.04, 0.96), 3.0, true)
-
-	var left_perp: Vector2 = Vector2(-hang_dir.y, hang_dir.x).normalized()
-	var right_perp: Vector2 = left_perp
-
-	draw_line(left_gap + left_perp * 0.5, left_hang_tip + left_perp * 0.8, Color(0.95, 0.25, 0.18, 0.95), 1.0, true)
-	draw_line(left_gap - left_perp * 0.4, left_hang_tip - left_perp * 0.6, Color(0.92, 0.78, 0.22, 0.95), 1.0, true)
-
-	draw_line(right_gap + right_perp * 0.5, right_hang_tip + right_perp * 0.8, Color(0.95, 0.25, 0.18, 0.95), 1.0, true)
-	draw_line(right_gap - right_perp * 0.4, right_hang_tip - right_perp * 0.6, Color(0.92, 0.78, 0.22, 0.95), 1.0, true)
-
-	return true
-		
 func _draw_wall_cable_broken_end(anchor: Vector2, away_from_gap: Vector2, normal: Vector2, profile: Dictionary) -> void:
-	var tangent: Vector2 = away_from_gap - anchor
-	if tangent.length() <= 0.001:
-		return
-
-	tangent = tangent.normalized()
-
-	var stub_length: float = 10.0
-	var stub_end: Vector2 = anchor + tangent * stub_length
-
-	draw_iso_cable_wall_segment(anchor, stub_end, profile)
-
-	var hang_dir: Vector2 = (Vector2.DOWN * 0.85 + normal * 0.15).normalized()
-	var hang_tip: Vector2 = anchor + hang_dir * 7.0
-
-	draw_line(anchor, hang_tip, Color(0.03, 0.03, 0.04, 0.96), 3.0, true)
-
-	var fray_perp: Vector2 = Vector2(-hang_dir.y, hang_dir.x).normalized()
-	draw_line(anchor + fray_perp * 0.8, hang_tip + fray_perp * 1.0, Color(0.95, 0.25, 0.18, 0.95), 1.0, true)
-	draw_line(anchor - fray_perp * 0.6, hang_tip - fray_perp * 0.4, Color(0.92, 0.78, 0.22, 0.95), 1.0, true)
-	draw_line(anchor + fray_perp * 0.2, hang_tip - fray_perp * 0.8, Color(0.86, 0.86, 0.90, 0.95), 1.0, true)
-	
+	_draw_route_commands(RouteRendererRef.build_wall_broken_end_commands(anchor, away_from_gap, normal, profile), profile)
 
 func _get_wall_cable_face_line_segment(cell: Vector2i, face: String) -> Dictionary:
-	var normalized_face: String = face.strip_edges().to_lower()
-	var center: Vector2 = grid_to_iso(cell)
-	var half: Vector2 = get_iso_tile_half_size()
+	return RouteRendererRef.build_wall_face_segment(grid_to_iso(cell), get_iso_tile_half_size(), face, 50.0)
 
-	# Высота кабеля на стене.
-	# Сейчас фиксируем рабочую высоту, не трогаем broken/overlay.
-	var cable_height_px: float = 50.0
-	var y_offset: Vector2 = Vector2(0.0, -cable_height_px)
-
-	var bottom_a: Vector2
-	var bottom_b: Vector2
-
-	match normalized_face:
-		"sw":
-			# Полная ширина SW-грани: левое ребро -> внутреннее/центральное ребро.
-			bottom_a = center + Vector2(-half.x, 0.0)
-			bottom_b = center + Vector2(0.0, half.y)
-		"se":
-			# Полная ширина SE-грани: внутреннее/центральное ребро -> правое ребро.
-			bottom_a = center + Vector2(0.0, half.y)
-			bottom_b = center + Vector2(half.x, 0.0)
-		_:
-			bottom_a = center + Vector2(-half.x, 0.0)
-			bottom_b = center + Vector2(0.0, half.y)
-
-	var start_edge: Vector2 = bottom_a + y_offset
-	var end_edge: Vector2 = bottom_b + y_offset
-	var mid_point: Vector2 = start_edge.lerp(end_edge, 0.5)
-
-	var axis: Vector2 = end_edge - start_edge
-	var normal: Vector2 = Vector2.UP
-	if axis.length() > 0.001:
-		normal = Vector2(-axis.y, axis.x).normalized()
-
-	return {
-		"face": normalized_face,
-		"start_edge": start_edge,
-		"mid": mid_point,
-		"end_edge": end_edge,
-		"normal": normal
-	}
-
-
-func _draw_wall_cable_face_half_segment(start: Vector2, end: Vector2, _normal: Vector2, routing_mode: String, profile: Dictionary) -> void:
-	if start.distance_squared_to(end) <= 0.25:
+func _draw_wall_cable_face_half_segment(start: Vector2, end: Vector2, normal: Vector2, routing_mode: String, profile: Dictionary) -> void:
+	if routing_mode.strip_edges().to_lower() == "inner":
 		return
-
-	var normalized_routing_mode: String = routing_mode.strip_edges().to_lower()
-
-	if normalized_routing_mode == "inner":
-		return
-
-	draw_iso_cable_wall_segment(start, end, profile)
+	_draw_route_commands(RouteRendererRef.build_wall_cable_commands(start, end, normal, profile, false), profile)
 
 func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: String, profile: Dictionary, object_data: Dictionary = {}) -> bool:
 	if not _is_wall_cable_face_visible(cell, face):
 		return false
-
-	var normalized_routing_mode: String = routing_mode.strip_edges().to_lower()
-
-	# Inner/hidden кабель обработан, но внешний красный кабель не рисуем.
-	if normalized_routing_mode == "inner":
+	if routing_mode.strip_edges().to_lower() == "inner":
 		return true
-
 	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
-
-	var start_edge: Vector2 = Vector2(segment.get("start_edge", Vector2.ZERO))
-	var end_edge: Vector2 = Vector2(segment.get("end_edge", Vector2.ZERO))
-	var normal: Vector2 = Vector2(segment.get("normal", Vector2.UP)).normalized()
-
-	# Normal: старая рабочая логика — один цельный отрезок от ребра до ребра.
-	if not _is_wall_cable_broken(object_data):
-		draw_iso_cable_wall_segment(start_edge, end_edge, profile)
-		return true
-
-	# Broken/cut: та же геометрия, но вместо цельного кабеля рисуем разорванный overlay.
-	_draw_wall_cable_broken_overlay_segment(start_edge, end_edge, normal, profile)
-
+	var commands: Array[Dictionary] = RouteRendererRef.build_wall_cable_commands(
+		Vector2(segment.get("start_edge", Vector2.ZERO)),
+		Vector2(segment.get("end_edge", Vector2.ZERO)),
+		Vector2(segment.get("normal", Vector2.UP)),
+		profile,
+		RouteRendererRef.is_broken_route(object_data)
+	)
+	_draw_route_commands(commands, profile)
 	return true
 
 func _draw_wall_cable_faces_for_cell(cell: Vector2i, object_data: Dictionary, profile: Dictionary) -> bool:
@@ -3238,68 +3044,16 @@ func _get_cable_object_cell(object_data: Dictionary) -> Vector2i:
 
 
 func _get_wall_routed_object_family(object_data: Dictionary) -> String:
-	var tokens: Array[String] = [
-		str(object_data.get("object_type", object_data.get("type", ""))),
-		str(object_data.get("object_group", object_data.get("group", ""))),
-		str(object_data.get("map_constructor_prefab_id", "")),
-		str(object_data.get("prefab_id", "")),
-		str(object_data.get("id", ""))
-	]
-	for raw_token in tokens:
-		var token: String = raw_token.strip_edges().to_lower()
-		if token.is_empty():
-			continue
-		if token.contains("external_air_duct") or token.contains("air_duct"):
-			return "air_duct"
-		if token.contains("external_water_pipe") or token.contains("water_pipe"):
-			return "water_pipe"
-		if token == "cable" or token.contains("power_cable") or token.contains("cable_reel") or token.contains("cable"):
-			return "cable"
-	return ""
+	return RouteRendererRef.get_route_family(object_data)
 
 func is_wall_procedural_routed_object(object_data: Dictionary) -> bool:
-	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("placement", ""))).strip_edges().to_lower()
-	var mount_mode: String = str(object_data.get("mount", "")).strip_edges().to_lower()
-	var install_mode: String = str(object_data.get("install_mode", "")).strip_edges().to_lower()
-	var cable_install_mode: String = str(object_data.get("cable_install_mode", "")).strip_edges().to_lower()
-	var wall_mounted: bool = (
-		bool(object_data.get("is_wall_mounted", false))
-		or placement_mode == "wall_mounted"
-		or placement_mode == "wall"
-		or mount_mode == "wall"
-		or install_mode == "wall"
-		or cable_install_mode == "wall"
-		or _get_object_mount_mode(object_data) == "wall"
-	)
-	if not wall_mounted:
-		return false
-	return not _get_wall_routed_object_family(object_data).is_empty()
+	return RouteRendererRef.is_wall_procedural_routed_object(object_data, _get_object_mount_mode(object_data))
 
 func get_wall_routed_height_source_px(object_data: Dictionary) -> float:
-	match _get_wall_routed_object_family(object_data):
-		"cable":
-			return 50.0
-		"air_duct", "water_pipe":
-			return 400.0
-	return 50.0
+	return RouteRendererRef.get_wall_routed_height_source_px(object_data)
 
 func get_wall_route_segment_points(visual_center: Vector2, object_data: Dictionary, _source_height_px: float) -> Dictionary:
-	var side: String = normalize_wall_visual_side(object_data)
-	var half: Vector2 = get_iso_tile_half_size()
-	var y: float = 0.0
-	var start: Vector2
-	var end: Vector2
-	if side == "se":
-		start = visual_center + Vector2(0.0, y - half.y * 0.10)
-		end = visual_center + Vector2(half.x * 0.55, y + half.y * 0.15)
-	else:
-		start = visual_center + Vector2(-half.x * 0.55, y + half.y * 0.15)
-		end = visual_center + Vector2(0.0, y - half.y * 0.10)
-	var direction: Vector2 = end - start
-	var normal: Vector2 = Vector2.ZERO
-	if direction.length() > 0.001:
-		normal = Vector2(-direction.y, direction.x).normalized()
-	return {"start": start, "end": end, "side": side, "normal": normal}
+	return RouteRendererRef.build_wall_route_segment(visual_center, get_iso_tile_half_size(), normalize_wall_visual_side(object_data))
 
 func _draw_wall_routed_dashed_line(start: Vector2, end: Vector2, dash_length: float, gap_length: float, color: Color, width: float) -> void:
 	var delta: Vector2 = end - start
@@ -3326,65 +3080,13 @@ func draw_wall_topology_cable(cell: Vector2i, object_data: Dictionary, visual_ce
 	return draw_wall_cable_visual_path(cell, object_data, visual_center, profile, {})
 	
 func draw_wall_procedural_cable(segment: Dictionary, routing_mode: String) -> bool:
-	var start: Vector2 = Vector2(segment.get("start", Vector2.ZERO))
-	var end: Vector2 = Vector2(segment.get("end", Vector2.ZERO))
-	var normal: Vector2 = Vector2(segment.get("normal", Vector2.ZERO))
-	if routing_mode == "inner":
-		draw_line(start + normal * 1.5, end + normal * 1.5, Color(0.01, 0.012, 0.016, 0.46), 6.0, true)
-		_draw_wall_routed_dashed_line(start, end, 7.0, 4.0, Color(0.05, 0.055, 0.065, 0.72), 3.5)
-		_draw_wall_routed_dashed_line(start, end, 5.0, 6.0, Color(0.70, 0.74, 0.78, 0.36), 1.3)
-		return true
-	draw_line(start + normal * 1.5, end + normal * 1.5, Color(0.01, 0.012, 0.016, 0.36), 7.0, true)
-	draw_line(start, end, Color(0.06, 0.065, 0.075, 0.98), 5.0, true)
-	draw_line(start - normal * 0.8, end - normal * 0.8, Color(0.87, 0.73, 0.30, 0.95), 1.6, true)
-	for point in [start.lerp(end, 0.18), start.lerp(end, 0.82)]:
-		draw_circle(point, 3.0, Color(0.015, 0.017, 0.02, 0.94))
-		draw_circle(point, 1.8, Color(0.48, 0.50, 0.52, 0.96))
-	return true
+	return _draw_route_commands(RouteRendererRef.build_procedural_route_commands("cable", segment, routing_mode))
 
 func draw_wall_procedural_air_duct(segment: Dictionary, routing_mode: String) -> bool:
-	var start: Vector2 = Vector2(segment.get("start", Vector2.ZERO))
-	var end: Vector2 = Vector2(segment.get("end", Vector2.ZERO))
-	var normal: Vector2 = Vector2(segment.get("normal", Vector2.ZERO))
-	if routing_mode == "inner":
-		draw_line(start, end, Color(0.01, 0.012, 0.016, 0.84), 13.0, true)
-		draw_line(start + normal * 1.6, end + normal * 1.6, Color(0.21, 0.25, 0.29, 0.38), 7.0, true)
-		draw_circle(start, 5.0, Color(0.01, 0.012, 0.016, 0.82))
-		draw_circle(end, 5.0, Color(0.01, 0.012, 0.016, 0.82))
-		return true
-	draw_line(start + normal * 2.0, end + normal * 2.0, Color(0.04, 0.045, 0.05, 0.46), 16.0, true)
-	draw_line(start, end, Color(0.13, 0.15, 0.17, 0.98), 15.0, true)
-	draw_line(start, end, Color(0.45, 0.51, 0.57, 0.98), 12.0, true)
-	draw_line(start - normal * 2.3, end - normal * 2.3, Color(0.77, 0.84, 0.90, 0.82), 2.0, true)
-	for point in [start.lerp(end, 0.30), start.lerp(end, 0.55), start.lerp(end, 0.80)]:
-		draw_line(point - normal * 4.0, point + normal * 4.0, Color(0.22, 0.25, 0.28, 0.72), 1.1, true)
-	return true
+	return _draw_route_commands(RouteRendererRef.build_procedural_route_commands("air_duct", segment, routing_mode))
 
 func draw_wall_procedural_water_pipe(segment: Dictionary, routing_mode: String) -> bool:
-	var start: Vector2 = Vector2(segment.get("start", Vector2.ZERO))
-	var end: Vector2 = Vector2(segment.get("end", Vector2.ZERO))
-	var normal: Vector2 = Vector2(segment.get("normal", Vector2.ZERO))
-	if routing_mode == "inner":
-		draw_line(start + normal, end + normal, Color(0.01, 0.012, 0.016, 0.58), 8.0, true)
-		draw_line(start, end, Color(0.14, 0.36, 0.43, 0.48), 4.0, true)
-		draw_line(start - normal * 0.7, end - normal * 0.7, Color(0.68, 0.88, 0.95, 0.24), 1.2, true)
-		return true
-	draw_line(start + normal * 1.5, end + normal * 1.5, Color(0.02, 0.025, 0.03, 0.38), 12.0, true)
-	draw_line(start, end, Color(0.10, 0.12, 0.14, 0.98), 10.0, true)
-	draw_line(start, end, Color(0.37, 0.69, 0.78, 0.98), 7.0, true)
-	draw_line(start - normal * 1.3, end - normal * 1.3, Color(0.88, 0.97, 1.0, 0.78), 1.5, true)
-	for point in [start.lerp(end, 0.12), start.lerp(end, 0.88)]:
-		draw_circle(point, 5.0, Color(0.10, 0.12, 0.14, 0.98))
-		draw_circle(point, 3.3, Color(0.50, 0.76, 0.83, 0.98))
-	return true
-
-const OUTER_UTILITY_WIDTH_SCALE := 5.0
-const OUTER_UTILITY_HEIGHT_SCALE := 2.0
-const OUTER_UTILITY_VERTICAL_OFFSET_SCALE := 2.0
-const ISO_COOLING_WALL_CANVAS_FACE_REGIONS: Dictionary = {
-	"sw": Rect2(0.0, 0.0, 0.5, 1.0),
-	"se": Rect2(0.5, 0.0, 0.5, 1.0)
-}
+	return _draw_route_commands(RouteRendererRef.build_procedural_route_commands("water_pipe", segment, routing_mode))
 
 func is_wall_routing_utility_object(object_data: Dictionary) -> bool:
 	return WallRoutingValidationServiceRef.is_wall_routing_utility_object(object_data)
@@ -5119,15 +4821,14 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 			if health_state in ["damaged", "broken", "cut"]:
 				draw_iso_cable_damage_marker(_get_wall_cable_rail_anchor(cell, get_cable_wall_side(object_data)), health_state, profile)
 			return
-	var shape: String = str(topology.get("shape", "isolated"))
-	var connected_dirs: Dictionary = Dictionary(topology.get("connected_dirs", topology.get("neighbors", {})))
+	var route_plan: Dictionary = RouteRendererRef.build_floor_topology_plan(topology)
+	var shape: String = str(route_plan.get("shape", "isolated"))
 	var object_links: Dictionary = Dictionary(topology.get("object_links", {}))
-	var has_switch: bool = bool(topology.get("has_circuit_switch", false))
-	var valid: bool = bool(topology.get("valid", true))
+	var has_switch: bool = bool(route_plan.get("has_switch", false))
+	var valid: bool = bool(route_plan.get("valid", true))
 	var active_dirs: Array[String] = []
-	for direction in ["north", "south", "west", "east"]:
-		if bool(connected_dirs.get(direction, false)):
-			active_dirs.append(direction)
+	for direction_variant in Array(route_plan.get("active_dirs", [])):
+		active_dirs.append(str(direction_variant))
 
 	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
 	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
@@ -5186,44 +4887,10 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 			draw_line(cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center), outline_color, 1.0, true)
 
 func get_cable_install_mode(object_data: Dictionary) -> String:
-	if bool(object_data.get("hidden_installation", object_data.get("is_hidden", false))):
-		return "hidden"
-
-	var candidates: Array[String] = [
-		str(object_data.get("cable_install_mode", "")),
-		str(object_data.get("install_mode", "")),
-		str(object_data.get("mount", "")),
-		str(object_data.get("route_surface", "")),
-		str(object_data.get("placement_mode", "")),
-		str(object_data.get("placement", ""))
-	]
-
-	for raw_candidate in candidates:
-		var mode: String = raw_candidate.strip_edges().to_lower()
-		mode = mode.replace("-", "_")
-		mode = mode.replace(" ", "_")
-
-		match mode:
-			"wall", "wall_mounted", "on_wall":
-				return "wall"
-			"hidden", "floor_hidden", "under_floor", "embedded_floor":
-				return "hidden"
-			"floor", "ground", "open_floor":
-				return "floor"
-
-	return "floor"
+	return RouteRendererRef.normalize_install_mode(object_data)
 
 func get_cable_health_state(object_data: Dictionary) -> String:
-	var state: String = str(object_data.get("cable_health_state", object_data.get("health_state", object_data.get("state", "normal")))).strip_edges().to_lower()
-
-	if bool(object_data.get("cut", false)) or state == "cut":
-		return "cut"
-	if bool(object_data.get("broken", false)) or state == "broken":
-		return "broken"
-	if bool(object_data.get("damaged", false)) or state == "damaged":
-		return "damaged"
-
-	return "normal"
+	return RouteRendererRef.get_health_state(object_data)
 
 func is_map_constructor_editor_render() -> bool:
 	return map_constructor_editor_render_active
@@ -5245,16 +4912,7 @@ func draw_iso_cable_mode_polyline(points: Array[Vector2], profile: Dictionary) -
 		draw_iso_cable_mode_segment(points[index], points[index + 1], profile)
 
 func draw_iso_cable_mode_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
-	var install_mode: String = str(profile.get("install_mode", "floor")).strip_edges().to_lower()
-
-	if install_mode == "hidden":
-		_draw_wall_routed_dashed_line(start, end, 7.0, 4.0, Color(0.05, 0.055, 0.065, 0.55), 3.0)
-		_draw_wall_routed_dashed_line(start, end, 5.0, 6.0, Color(0.70, 0.74, 0.78, 0.28), 1.1)
-		return
-
-	draw_line(start + Vector2(0.0, 1.5), end + Vector2(0.0, 1.5), Color(0.01, 0.012, 0.016, 0.34), 7.0, true)
-	draw_line(start, end, Color(0.06, 0.065, 0.075, 0.98), 5.0, true)
-	draw_line(start + Vector2(0.0, -0.8), end + Vector2(0.0, -0.8), Color(0.87, 0.73, 0.30, 0.95), 1.5, true)
+	_draw_route_commands(RouteRendererRef.build_floor_mode_segment_commands(start, end, str(profile.get("install_mode", "floor"))))
 
 func draw_iso_cable_hidden_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
 	var delta: Vector2 = end - start
