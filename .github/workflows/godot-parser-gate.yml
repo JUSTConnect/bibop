@@ -57,8 +57,11 @@ jobs:
 
       - name: World state store behavior gate
         run: |
-          godot --headless --path . --script res://tools/ci/check_world_state_store.gd
-          godot --headless --path . --script res://tools/ci/check_grid_manager_renderer_contract.gd
+          timeout 120s godot --headless --path . --script res://tools/ci/check_world_state_store.gd
+
+      - name: Grid manager renderer behavior gate
+        run: |
+          timeout 120s godot --headless --path . --script res://tools/ci/check_grid_manager_renderer_contract.gd
 
       - name: Constructor placement behavior gate
         run: |
