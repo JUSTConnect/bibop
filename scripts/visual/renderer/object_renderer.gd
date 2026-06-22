@@ -245,3 +245,95 @@ static func make_draw_entry(cell: Vector2i, layer_name: String, object_index: fl
 		get_layer_bias(layer_name) + object_index * 0.01
 	)
 
+static func get_safe_visual_scale(object_data: Dictionary, rule: Dictionary, min_scale: float, max_scale: float, is_png_asset: bool) -> float:
+	var rule_scale: float = clampf(float(rule.get("scale", 1.0)), min_scale, max_scale)
+	if not is_png_asset:
+		return rule_scale
+	if not bool(object_data.get("allow_custom_visual_scale", false)):
+		return rule_scale
+	return clampf(float(object_data.get("visual_scale", rule_scale)), min_scale, max_scale)
+
+static func get_surface_context_policy(object_data: Dictionary, rule: Dictionary = {}) -> Dictionary:
+	var placement_mode: String = str(object_data.get("placement_mode", object_data.get("install_mode", object_data.get("mount", "")))).to_lower().strip_edges()
+	var anchor_value: String = str(object_data.get("anchor", object_data.get("visual_anchor", object_data.get("alignment_anchor", "")))).to_lower().strip_edges()
+	var rule_anchor: String = str(rule.get("anchor", "")).to_lower().strip_edges()
+	var rule_mount: String = str(rule.get("mount", rule.get("placement_mode", ""))).to_lower().strip_edges()
+	var wall_mounted: bool = placement_mode == "wall_mounted" or get_mount_mode(object_data) == "wall" or anchor_value.contains("wall_mount") or rule_anchor.contains("wall_mount") or rule_mount in ["wall", "wall_mounted"]
+	return {
+		"wall_mounted": wall_mounted,
+		"has_explicit_surface_y_offset": object_data.has("explicit_surface_y_offset"),
+		"explicit_surface_y_offset": float(object_data.get("explicit_surface_y_offset", 0.0)),
+		"uses_platform_offset": object_data.has("platform_level") or object_data.has("current_level") or object_data.has("visual_level") or object_data.has("platform_height_level"),
+		"ground_surface_y_offset": float(object_data.get("ground_surface_y_offset", 0.0))
+	}
+
+static func build_object_descriptor(context: Dictionary) -> Dictionary:
+	var expected_size: Vector2 = Vector2(context.get("expected_size", Vector2.ZERO))
+	var visual_scale: float = float(context.get("visual_scale", 1.0))
+	var destination_size: Vector2 = expected_size * visual_scale
+	var visual_pivot: Vector2 = Vector2(context.get("visual_pivot", Vector2.ZERO))
+	var surface_level: int = int(context.get("surface_level", 0))
+	var surface_context: Dictionary = Dictionary(context.get("surface_context", {}))
+	var surface_y_offset: float = float(context.get("surface_y_offset", 0.0))
+	var explicit_visual_offset: Vector2 = Vector2(context.get("explicit_visual_offset", Vector2.ZERO))
+	var configured_offset: Vector2 = Vector2(context.get("rule_offset", Vector2.ZERO)) + explicit_visual_offset
+	var wall_mounted: bool = bool(context.get("wall_mounted", false))
+	if wall_mounted:
+		configured_offset = explicit_visual_offset
+	var visual_center: Vector2 = Vector2(context.get("visual_center", Vector2.ZERO))
+	var final_draw_position: Vector2 = visual_center + Vector2(0.0, surface_y_offset) - visual_pivot + configured_offset
+	var destination_rect: Rect2 = Rect2(final_draw_position, destination_size)
+	var source_size: Vector2 = Vector2(context.get("source_size", expected_size))
+	return {
+		"visual_asset_key": str(context.get("visual_asset_key", "")),
+		"texture": context.get("texture", null),
+		"render_contract": str(context.get("render_contract", "")),
+		"visual_scale": visual_scale,
+		"visual_pivot": visual_pivot,
+		"surface_level": surface_level,
+		"surface_context": surface_context,
+		"surface_y_offset": surface_y_offset,
+		"final_draw_position": final_draw_position,
+		"destination_rect": destination_rect,
+		"source_rect": Rect2(Vector2.ZERO, source_size),
+		"mirror_h": bool(context.get("mirror_h", false))
+	}
+
+static func build_authored_canvas_descriptor(context: Dictionary) -> Dictionary:
+	var texture_size: Vector2 = Vector2(context.get("texture_size", Vector2.ZERO))
+	var tile_size: Vector2 = Vector2(context.get("tile_size", Vector2.ZERO))
+	var safe_source_width: float = maxf(1.0, float(context.get("source_width", 1.0)))
+	var visual_scale: float = tile_size.x / safe_source_width
+	var destination_size: Vector2 = texture_size * visual_scale
+	var visual_pivot: Vector2 = destination_size * Vector2(context.get("anchor_ratio", Vector2(0.5, 1.0)))
+	var visual_center: Vector2 = Vector2(context.get("visual_center", Vector2.ZERO))
+	var explicit_visual_offset: Vector2 = Vector2(context.get("explicit_visual_offset", Vector2.ZERO))
+	var final_draw_position: Vector2 = visual_center - visual_pivot + explicit_visual_offset
+	return {
+		"visual_asset_key": str(context.get("visual_asset_key", "")),
+		"texture": context.get("texture", null),
+		"texture_path": str(context.get("texture_path", "")),
+		"render_contract": str(context.get("render_contract", "")),
+		"visual_scale": visual_scale,
+		"visual_pivot": visual_pivot,
+		"surface_level": int(context.get("surface_level", 0)),
+		"surface_context": {},
+		"surface_y_offset": 0.0,
+		"final_draw_position": final_draw_position,
+		"destination_rect": Rect2(final_draw_position, destination_size),
+		"source_rect": Rect2(Vector2.ZERO, texture_size),
+		"mirror_h": bool(context.get("mirror_h", false))
+	}
+
+static func build_descriptor_for_contract(context: Dictionary) -> Dictionary:
+	if str(context.get("descriptor_mode", "object")) == "authored_canvas":
+		return build_authored_canvas_descriptor(context)
+	return build_object_descriptor(context)
+
+static func get_descriptor_mode(render_contract: String, wall_contract: String, floor_contract: String) -> String:
+	if render_contract == wall_contract:
+		return "wall_authored"
+	if render_contract == floor_contract:
+		return "floor_authored"
+	return "object"
+

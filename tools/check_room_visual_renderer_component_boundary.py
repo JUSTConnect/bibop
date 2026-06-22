@@ -34,8 +34,8 @@ wall = read(WALL)
 object_renderer = read(OBJECT)
 
 renderer_lines = len(renderer.splitlines())
-if renderer_lines > 6650:
-    errors.append(f"RoomVisualRenderer grew beyond object-policy extraction cap: {renderer_lines} > 6650")
+if renderer_lines > 6620:
+    errors.append(f"RoomVisualRenderer grew beyond object-policy extraction cap: {renderer_lines} > 6620")
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
@@ -135,6 +135,18 @@ if "ObjectRendererRef.make_draw_entry" not in function_body(renderer, "make_iso_
 for name, delegate in wall_delegates.items():
     if delegate not in function_body(renderer, name):
         errors.append(f"RoomVisualRenderer {name} must delegate to WallRenderer")
+
+object_descriptor_delegates = {
+    "get_safe_iso_object_png_visual_scale": "ObjectRendererRef.get_safe_visual_scale",
+    "build_iso_object_surface_context": "ObjectRendererRef.get_surface_context_policy",
+    "build_iso_object_visual_descriptor": "ObjectRendererRef.build_descriptor_for_contract",
+    "build_authored_wall_canvas_descriptor": "ObjectRendererRef.build_descriptor_for_contract",
+    "build_authored_floor_canvas_descriptor": "ObjectRendererRef.build_descriptor_for_contract",
+    "build_iso_object_visual_descriptor_for_contract": "ObjectRendererRef.get_descriptor_mode",
+}
+for name, delegate in object_descriptor_delegates.items():
+    if delegate not in function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer {name} must delegate object descriptor policy to ObjectRenderer")
 
 object_delegates = {
     "get_iso_object_asset_key_for_profile": "ObjectRendererRef.get_asset_key_for_profile",
@@ -241,9 +253,18 @@ for token in (
     "static func get_entry_kind",
     "static func get_layer_bias",
     "static func make_draw_entry",
+    "static func get_descriptor_mode",
+    "static func build_descriptor_for_contract",
+    "static func build_authored_canvas_descriptor",
+    "static func build_object_descriptor",
+    "static func get_surface_context_policy",
+    "static func get_safe_visual_scale",
 ):
     if token not in object_renderer:
         errors.append(f"ObjectRenderer missing contract: {token}")
+
+if "[AUTHORED WALL TEST]" in renderer:
+    errors.append("RoomVisualRenderer must not contain unconditional authored-wall descriptor logging")
 
 if "IsoDrawEntryContractRef.make_entry" not in function_body(object_renderer, "make_draw_entry"):
     errors.append("ObjectRenderer draw-entry policy must use the shared draw-entry contract")
