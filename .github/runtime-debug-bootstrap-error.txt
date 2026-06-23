@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "<stdin>", line 36, in <module>
+RuntimeError: installer block 1 failed with 1
+STDOUT:
+
+STDERR:
++ python -
+Traceback (most recent call last):
+  File "<stdin>", line 8, in <module>
+  File "/opt/hostedtoolcache/Python/3.14.6/x64/lib/python3.14/pathlib/__init__.py", line 1011, in mkdir
+    os.mkdir(self, mode)
+    ~~~~~~~~^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/data'
+
