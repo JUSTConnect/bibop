@@ -13,6 +13,7 @@ WALL = ROOT / "scripts/visual/renderer/wall_renderer.gd"
 OBJECT = ROOT / "scripts/visual/renderer/object_renderer.gd"
 ROUTE = ROOT / "scripts/visual/renderer/route_renderer.gd"
 OVERLAY = ROOT / "scripts/visual/renderer/overlay_renderer.gd"
+MAP_CONSTRUCTOR_OVERLAY = ROOT / "scripts/visual/renderer/map_constructor_overlay_renderer.gd"
 errors: list[str] = []
 
 
@@ -36,9 +37,10 @@ wall = read(WALL)
 object_renderer = read(OBJECT)
 route_renderer = read(ROUTE)
 overlay_renderer = read(OVERLAY)
+map_constructor_overlay_renderer = read(MAP_CONSTRUCTOR_OVERLAY)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP = 6205
+ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP = 6162
 if renderer_lines > ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP:
     errors.append(
         "RoomVisualRenderer grew beyond selection/interaction overlay extraction cap: "
@@ -53,6 +55,7 @@ for token in (
     'preload("res://scripts/visual/renderer/object_renderer.gd")',
     'preload("res://scripts/visual/renderer/route_renderer.gd")',
     'preload("res://scripts/visual/renderer/overlay_renderer.gd")',
+    'preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")',
 ):
     if token not in renderer:
         errors.append(f"RoomVisualRenderer missing component preload: {token}")
@@ -232,8 +235,8 @@ for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon("
     if forbidden in projection:
         errors.append(f"projection component contains forbidden runtime dependency: {forbidden}")
 
-for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer), ("OverlayRenderer", overlay_renderer)):
-    for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "queue_redraw(", "get_node("):
+for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer), ("OverlayRenderer", overlay_renderer), ("MapConstructorOverlayRenderer", map_constructor_overlay_renderer)):
+    for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "draw_circle(", "queue_redraw(", "get_node("):
         if forbidden in component_source:
             errors.append(f"{component_name} contains forbidden CanvasItem/runtime dependency: {forbidden}")
 
@@ -252,11 +255,14 @@ for forbidden in (
     "draw_line(",
     "draw_polyline(",
     "draw_colored_polygon(",
+    "draw_circle(",
     "draw_rect(",
     "draw_arc(",
 ):
     if forbidden in overlay_renderer:
         errors.append(f"OverlayRenderer contains forbidden runtime/projection/resource/Canvas dependency: {forbidden}")
+    if forbidden in map_constructor_overlay_renderer:
+        errors.append(f"MapConstructorOverlayRenderer contains forbidden runtime/projection/resource/Canvas dependency: {forbidden}")
 
 for token in (
     "class_name IsoProjectionService",
@@ -345,12 +351,24 @@ for token in (
     if token not in overlay_renderer:
         errors.append(f"OverlayRenderer missing contract: {token}")
 
+for token in (
+    "class_name MapConstructorOverlayRenderer",
+    "static func normalize_preview_mode",
+    "static func build_commands",
+):
+    if token not in map_constructor_overlay_renderer:
+        errors.append(f"MapConstructorOverlayRenderer missing contract: {token}")
+
 if "OverlayRendererRef.build_mouse_selection_commands" not in function_body(renderer, "draw_iso_mouse_selection_overlay"):
     errors.append("RoomVisualRenderer draw_iso_mouse_selection_overlay must delegate overlay policy to OverlayRenderer")
 if "OverlayRendererRef.build_interaction_target_commands" not in function_body(renderer, "draw_selected_interaction_target_overlay"):
     errors.append("RoomVisualRenderer draw_selected_interaction_target_overlay must delegate interaction overlay policy to OverlayRenderer")
 if "OverlayRendererRef.build_interaction_target_rect" not in function_body(renderer, "_get_selected_interaction_overlay_rect"):
     errors.append("RoomVisualRenderer _get_selected_interaction_overlay_rect must delegate interaction rect policy to OverlayRenderer")
+if "MapConstructorOverlayRendererRef.build_commands" not in function_body(renderer, "draw_map_constructor_visual_overlay_passes"):
+    errors.append("RoomVisualRenderer draw_map_constructor_visual_overlay_passes must delegate Map Constructor overlay policy")
+if "MapConstructorOverlayRendererRef.normalize_preview_mode" not in function_body(renderer, "_build_map_constructor_overlay_context"):
+    errors.append("RoomVisualRenderer must normalize Map Constructor preview mode through MapConstructorOverlayRenderer")
 
 selection_body = function_body(renderer, "draw_iso_mouse_selection_overlay")
 interaction_body = function_body(renderer, "draw_selected_interaction_target_overlay")
@@ -383,6 +401,14 @@ for token in (
     if token in interaction_body or token in rect_body:
         errors.append(f"RoomVisualRenderer contains migrated interaction overlay policy token: {token}")
 
+map_constructor_body = function_body(renderer, "draw_map_constructor_visual_overlay_passes")
+map_constructor_context_body = function_body(renderer, "_build_map_constructor_overlay_context")
+for token in ("Color(", "draw_line(", "draw_circle(", "draw_colored_polygon(", "draw_polyline(", "16.0", "2.0", "3.0"):
+    if token in map_constructor_body:
+        errors.append(f"RoomVisualRenderer draw_map_constructor_visual_overlay_passes contains migrated Map Constructor overlay policy token: {token}")
+for token in ("Color(", "draw_line(", "draw_circle(", "draw_colored_polygon(", "draw_polyline("):
+    if token in map_constructor_context_body:
+        errors.append(f"RoomVisualRenderer _build_map_constructor_overlay_context contains direct Canvas/style policy token: {token}")
 for name in ("draw_map_constructor_visual_overlay_passes", "draw_iso_fog_overlay", "should_render_iso_fog_visuals"):
     if not function_body(renderer, name):
         errors.append(f"RoomVisualRenderer must retain {name} ownership in this stage")
