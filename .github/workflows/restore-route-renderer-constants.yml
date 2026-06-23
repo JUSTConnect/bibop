@@ -1,0 +1,49 @@
+name: Restore RouteRenderer Constants
+
+on:
+  push:
+    branches:
+      - codex/route-renderer-1140-clean
+
+permissions:
+  contents: write
+
+jobs:
+  restore-constants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/route-renderer-1140-clean
+      - name: Restore authored utility constants
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/field/room_visual_renderer.gd")
+          text = path.read_text(encoding="utf-8")
+          anchor = "const WALL_CABLE_RAIL_HALF_WIDTH_RATIO: float = 0.30\n"
+          constants = """
+
+          # Authored cooling-canvas and outer utility layout policy stays in the
+          # coordinator. RouteRenderer owns route geometry, not asset canvas regions.
+          const OUTER_UTILITY_WIDTH_SCALE := 5.0
+          const OUTER_UTILITY_HEIGHT_SCALE := 2.0
+          const OUTER_UTILITY_VERTICAL_OFFSET_SCALE := 2.0
+          const ISO_COOLING_WALL_CANVAS_FACE_REGIONS: Dictionary = {
+          \t"sw": Rect2(0.0, 0.0, 0.5, 1.0),
+          \t"se": Rect2(0.5, 0.0, 0.5, 1.0)
+          }
+          """
+          if "const ISO_COOLING_WALL_CANVAS_FACE_REGIONS" not in text:
+              if anchor not in text:
+                  raise SystemExit("anchor not found")
+              text = text.replace(anchor, anchor + constants, 1)
+              path.write_text(text, encoding="utf-8")
+          PY
+          rm .github/workflows/restore-route-renderer-constants.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/field/room_visual_renderer.gd .github/workflows/restore-route-renderer-constants.yml
+          git commit -m "Restore authored utility layout constants"
+          git push origin HEAD:codex/route-renderer-1140-clean
