@@ -18,20 +18,40 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Execute prepared installer with diagnostics
+      - name: Apply direct runtime debug extraction
         run: |
-          git show origin/main:.github/workflows/godot-parser-gate.yml > .github/workflows/godot-parser-gate.yml
           python - <<'PY'
           from pathlib import Path
           import subprocess
           import traceback
 
-          Path('.github/runtime-debug-bootstrap-error.txt').unlink(missing_ok=True)
-          workflow = Path('.github/workflows/renderer-component-gate.yml').read_text().splitlines()
+          branch = 'codex/bip-architecture-coordinators-02f3-runtime-debug-overlays'
+          error_path = Path('.github/runtime-debug-bootstrap-error.txt')
+          error_path.unlink(missing_ok=True)
+          subprocess.run(
+              ['git', 'show', 'origin/main:.github/workflows/godot-parser-gate.yml'],
+              check=True,
+              stdout=Path('.github/workflows/godot-parser-gate.yml').open('w'),
+              text=True,
+          )
+
+          payload = Path('.github/runtime-debug-payload')
+          patch_source = ''.join(
+              (payload / name).read_text(encoding='utf-8')
+              for name in (
+                  'component.00.hexpart',
+                  'component.01.hexpart',
+                  'component.02.00.hexpart',
+              )
+          )
+          patch_path = Path('/tmp/direct_runtime_debug_patch.py')
+          patch_path.write_text(patch_source, encoding='utf-8')
+
+          workflow_lines = Path('.github/workflows/renderer-component-gate.yml').read_text().splitlines()
           blocks = []
           index = 0
-          while index < len(workflow):
-              line = workflow[index]
+          while index < len(workflow_lines):
+              line = workflow_lines[index]
               if line.strip() != 'run: |':
                   index += 1
                   continue
@@ -39,41 +59,37 @@ jobs:
               content_indent = indent + 2
               index += 1
               block = []
-              while index < len(workflow):
-                  current = workflow[index]
+              while index < len(workflow_lines):
+                  current = workflow_lines[index]
                   current_indent = len(current) - len(current.lstrip())
                   if current.strip() and current_indent <= indent:
                       break
                   block.append(current[content_indent:] if len(current) >= content_indent else '')
                   index += 1
-              blocks.append('\n'.join(block).replace('/mnt/data', '/tmp/runtime-debug-work'))
+              blocks.append('\n'.join(block))
 
-          if blocks:
-              blocks[0] = blocks[0].replace(
-                  "Path('/tmp/transform_runtime_debug.py').write_bytes(transform)",
-                  "transform = transform.replace(b'/mnt/data', b'/tmp/runtime-debug-work')\nPath('/tmp/transform_runtime_debug.py').write_bytes(transform)",
-              )
+          def run(command, label: str) -> None:
+              result = subprocess.run(command, text=True, capture_output=True)
+              if result.returncode != 0:
+                  raise RuntimeError(
+                      f'{label} failed with {result.returncode}\n'
+                      f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}'
+                  )
 
           try:
               if len(blocks) != 3:
                   raise RuntimeError(f'expected 3 installer blocks, got {len(blocks)}')
-              for number, block in enumerate(blocks, start=1):
-                  result = subprocess.run(
-                      ['bash', '-euxo', 'pipefail', '-c', block],
-                      text=True,
-                      capture_output=True,
-                  )
-                  if result.returncode != 0:
-                      raise RuntimeError(
-                          f'installer block {number} failed with {result.returncode}\n'
-                          f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}'
-                      )
+              run(['python', str(patch_path)], 'direct renderer patch')
+              run(['cp', str(payload / 'component.00.srcpart'), 'scripts/visual/renderer/runtime_debug_overlay_renderer.gd'], 'component install')
+              run(['cp', str(payload / 'component.00.part'), 'tools/ci/check_runtime_debug_overlay_renderer_contract.gd'], 'contract install')
+              run(['bash', '-euxo', 'pipefail', '-c', blocks[1]], 'boundary installer block')
+              run(['bash', '-euxo', 'pipefail', '-c', blocks[2]], 'finalize installer block')
           except Exception:
-              Path('.github/runtime-debug-bootstrap-error.txt').write_text(traceback.format_exc())
+              error_path.write_text(traceback.format_exc(), encoding='utf-8')
               subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
               subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
-              subprocess.run(['git', 'add', '.github/runtime-debug-bootstrap-error.txt'], check=True)
+              subprocess.run(['git', 'add', str(error_path)], check=True)
               subprocess.run(['git', 'commit', '-m', 'Record runtime debug bootstrap failure'], check=True)
-              subprocess.run(['git', 'push', 'origin', 'HEAD:codex/bip-architecture-coordinators-02f3-runtime-debug-overlays'], check=True)
+              subprocess.run(['git', 'push', 'origin', f'HEAD:{branch}'], check=True)
               raise
           PY
