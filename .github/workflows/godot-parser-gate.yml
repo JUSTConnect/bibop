@@ -22,6 +22,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import os
           import subprocess
           import traceback
 
@@ -85,11 +86,12 @@ jobs:
               run(['bash', '-euxo', 'pipefail', '-c', blocks[1]], 'boundary installer block')
               run(['bash', '-euxo', 'pipefail', '-c', blocks[2]], 'finalize installer block')
           except Exception:
-              error_path.write_text(traceback.format_exc(), encoding='utf-8')
+              run_id = os.environ.get('GITHUB_RUN_ID', 'unknown')
+              error_path.write_text(f'run_id={run_id}\n' + traceback.format_exc(), encoding='utf-8')
               subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
               subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
               subprocess.run(['git', 'add', str(error_path)], check=True)
-              subprocess.run(['git', 'commit', '-m', 'Record runtime debug bootstrap failure'], check=True)
+              subprocess.run(['git', 'commit', '--allow-empty', '-m', 'Record runtime debug bootstrap failure'], check=True)
               subprocess.run(['git', 'push', 'origin', f'HEAD:{branch}'], check=True)
               raise
           PY
