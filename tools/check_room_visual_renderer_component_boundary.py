@@ -44,11 +44,11 @@ runtime_debug_overlay_renderer = read(RUNTIME_DEBUG_OVERLAY)
 fog_renderer = read(FOG_RENDERER)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP = 6158
-if renderer_lines > ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP:
+ROOM_VISUAL_RENDERER_FOG_EXTRACTION_CAP = 6153
+if renderer_lines > ROOM_VISUAL_RENDERER_FOG_EXTRACTION_CAP:
     errors.append(
-        "RoomVisualRenderer grew beyond runtime/debug overlay extraction cap: "
-        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP}"
+        "RoomVisualRenderer grew beyond fog extraction cap: "
+        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_FOG_EXTRACTION_CAP}"
     )
 
 for token in (
@@ -508,9 +508,38 @@ for name, delegate in fog_delegates.items():
         errors.append(f"RoomVisualRenderer {name} must delegate fog policy")
 for name in ("draw_iso_fog_cell_overlay", "draw_iso_fog_wall_overlay"):
     body = function_body(renderer, name)
-    for forbidden in ("draw_line(", "draw_polyline(", "draw_colored_polygon(", "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(", "Color(0.5, 0.6, 0.75"):
+    for forbidden in ("draw_line(", "draw_polyline(", "draw_colored_polygon(", "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(", "Color(0.5, 0.6, 0.75", "FOG_OUTLINE_COLOR"):
         if forbidden in body:
-            errors.append(f"RoomVisualRenderer {name} contains migrated fog policy: {forbidden}")
+            errors.append(f"RoomVisualRenderer {name} contains migrated fog policy or fallback implementation: {forbidden}")
+
+
+
+fog_color_body = function_body(renderer, "get_iso_fog_color_for_cell")
+for token in (
+    "_grid_manager.is_cell_visible(cell)",
+    "_grid_manager.is_explored(cell)",
+    "FogRendererRef.get_fog_color",
+):
+    if token not in fog_color_body:
+        errors.append(f"RoomVisualRenderer get_iso_fog_color_for_cell must retain coordinator fog state lookup: {token}")
+
+fog_overlay_body = function_body(renderer, "draw_iso_fog_overlay")
+for token in (
+    "_grid_manager.get_map_width()",
+    "_grid_manager.get_map_height()",
+    "_grid_manager.get_tile(cell)",
+    "fog_cells.sort_custom(sort_cells_by_iso_depth)",
+    "draw_iso_fog_cell_overlay(cell)",
+    "draw_iso_fog_wall_overlay(cell)",
+    "tile_type == GridManager.TILE_WALL",
+    "should_render_iso_wall_visuals()",
+):
+    if token not in fog_overlay_body:
+        errors.append(f"RoomVisualRenderer draw_iso_fog_overlay must retain coordinator fog traversal/depth/tile guard: {token}")
+
+for forbidden in ("sort_custom", "sort_cells_by_iso_depth", "get_map_width", "get_map_height", "for x in range", "for y in range", "GridManager", "grid_to_iso("):
+    if forbidden in fog_renderer:
+        errors.append(f"FogRenderer contains forbidden traversal/projection dependency: {forbidden}")
 
 dispatcher = function_body(renderer, "_draw_overlay_commands")
 if '"rect":' not in dispatcher or '"text":' not in dispatcher:

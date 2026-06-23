@@ -36,3 +36,5 @@ jobs:
         run: godot --headless --path . --script res://tools/ci/check_overlay_renderer_contract.gd
       - name: Check MapConstructorOverlayRenderer contract
         run: godot --headless --path . --script res://tools/ci/check_map_constructor_overlay_renderer_contract.gd
+      - name: Check FogRenderer contract
+        run: godot --headless --path . --script res://tools/ci/check_fog_renderer_contract.gd
