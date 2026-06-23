@@ -20,6 +20,7 @@ const RouteRendererRef = preload("res://scripts/visual/renderer/route_renderer.g
 const OverlayRendererRef = preload("res://scripts/visual/renderer/overlay_renderer.gd")
 const MapConstructorOverlayRendererRef = preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")
 const RuntimeDebugOverlayRendererRef = preload("res://scripts/visual/renderer/runtime_debug_overlay_renderer.gd")
+const FogRendererRef = preload("res://scripts/visual/renderer/fog_renderer.gd")
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
@@ -5876,16 +5877,13 @@ func get_iso_fog_color_for_cell(cell: Vector2i) -> Color:
 	if _grid_manager == null:
 		return Color.TRANSPARENT
 
-	var visible_alpha: float = clampf(iso_fog_visible_alpha, 0.0, 1.0)
-	if _grid_manager.is_cell_visible(cell):
-		return Color(0.0, 0.0, 0.0, visible_alpha)
-
-	var explored_alpha: float = clampf(iso_fog_explored_alpha, 0.0, 1.0)
-	if _grid_manager.is_explored(cell):
-		return Color(0.03, 0.05, 0.08, explored_alpha)
-
-	var unexplored_alpha: float = clampf(iso_fog_unexplored_alpha, 0.0, 1.0)
-	return Color(0.01, 0.01, 0.02, unexplored_alpha)
+	return FogRendererRef.get_fog_color({
+		"visible": _grid_manager.is_cell_visible(cell),
+		"explored": _grid_manager.is_explored(cell),
+		"visible_alpha": iso_fog_visible_alpha,
+		"explored_alpha": iso_fog_explored_alpha,
+		"unexplored_alpha": iso_fog_unexplored_alpha,
+	})
 
 func should_draw_iso_fog_for_cell(cell: Vector2i) -> bool:
 	if _grid_manager == null:
@@ -5901,12 +5899,11 @@ func draw_iso_fog_cell_overlay(cell: Vector2i) -> void:
 	var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset)
 	if diamond_points.size() < 4:
 		return
-	draw_colored_polygon(diamond_points, fog_color)
-
-	if debug_draw_iso_fog_outlines:
-		for edge_index in range(diamond_points.size()):
-			var next_index: int = (edge_index + 1) % diamond_points.size()
-			draw_line(diamond_points[edge_index], diamond_points[next_index], Color(0.5, 0.6, 0.75, 0.75), 1.0)
+	_draw_overlay_commands(FogRendererRef.build_cell_overlay_commands({
+		"diamond_points": diamond_points,
+		"fog_color": fog_color,
+		"draw_outlines": debug_draw_iso_fog_outlines,
+	}))
 
 func draw_iso_fog_wall_overlay(cell: Vector2i) -> void:
 	var fog_color: Color = get_iso_fog_color_for_cell(cell)
@@ -5924,14 +5921,13 @@ func draw_iso_fog_wall_overlay(cell: Vector2i) -> void:
 	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], base_points[2], base_points[3]])
 	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], base_points[1], base_points[2]])
 
-	draw_colored_polygon(left_face, fog_color)
-	draw_colored_polygon(right_face, fog_color)
-	draw_colored_polygon(top_face, fog_color)
-
-	if debug_draw_iso_fog_outlines:
-		for edge_index in range(top_face.size()):
-			var next_top_index: int = (edge_index + 1) % top_face.size()
-			draw_line(top_face[edge_index], top_face[next_top_index], Color(0.5, 0.6, 0.75, 0.75), 1.0)
+	_draw_overlay_commands(FogRendererRef.build_wall_overlay_commands({
+		"left_face": left_face,
+		"right_face": right_face,
+		"top_face": top_face,
+		"fog_color": fog_color,
+		"draw_outlines": debug_draw_iso_fog_outlines,
+	}))
 
 
 func draw_world_overlay_markers() -> void:
