@@ -1,5 +1,5 @@
 Traceback (most recent call last):
-  File "<stdin>", line 37, in <module>
+  File "<stdin>", line 43, in <module>
 RuntimeError: installer block 3 failed with 1
 STDOUT:
 RoomVisualRenderer component boundary audit FAILED:
