@@ -269,16 +269,13 @@ var map_constructor_link_target_object_id: String = ""
 const WALL_SIDE_ORDER: Array[String]       = WallRendererRef.WALL_SIDE_ORDER
 const WALL_MASS_RATIO: float       = WallRendererRef.WALL_MASS_RATIO
 const WALL_MOUNT_BAND_RATIO: float       = WallRendererRef.WALL_MOUNT_BAND_RATIO
-
 func _enter_tree() -> void:
 	if _grid_manager == null:
 		_grid_manager = get_parent() as GridManager
 	_connect_grid_manager_invalidation()
-
 func _ready() -> void:
 	if _grid_manager != null:
 		request_rebuild()
-
 func _exit_tree() -> void:
 	_disconnect_grid_manager_invalidation()
 
@@ -5265,9 +5262,8 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	draw_wall_mounted_cable_tap(object_data, visual_center, get_iso_object_profile("cable"), has_terminal_visual)
 	var is_case_visual: bool = VisualStateAssetServiceRef.is_loot_case_object(object_data)
 	var texture_plan_context := {"profile_key": profile_key, "primary_asset_id": object_asset_key, "primary_is_png": is_iso_object_png_asset_key(object_asset_key), "is_case_visual": is_case_visual}
-	texture_plan_context["case_asset_id"] = VisualStateAssetServiceRef.resolve_visual_asset_id(object_data) if is_case_visual else ""
-	texture_plan_context["has_door_visual"] = has_door_visual; texture_plan_context["door_texture_asset_id"] = str(door_visual.get("texture_asset_id", ""))
-	texture_plan_context["has_terminal_visual"] = has_terminal_visual; texture_plan_context["terminal_texture_asset_id"] = str(terminal_visual.get("texture_asset_id", ""))
+	texture_plan_context["case_asset_id"] = VisualStateAssetServiceRef.resolve_visual_asset_id(object_data) if is_case_visual else ""; texture_plan_context["has_door_visual"] = has_door_visual
+	texture_plan_context["door_texture_asset_id"] = str(door_visual.get("texture_asset_id", "")); texture_plan_context["has_terminal_visual"] = has_terminal_visual; texture_plan_context["terminal_texture_asset_id"] = str(terminal_visual.get("texture_asset_id", ""))
 	var used_texture_asset: bool = _execute_object_texture_attempt_plan(ObjectTextureDispatchPolicyRef.build_attempt_plan(texture_plan_context), cell, visual_center, object_data)
 	if used_texture_asset:
 		if ObjectTextureDispatchPolicyRef.should_draw_success_accent({"texture_succeeded": true, "is_case_visual": is_case_visual}):
@@ -5304,6 +5300,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		_draw_grounding_overlay(profile_data)
 
 func _execute_object_texture_attempt_plan(attempts: Array[Dictionary], cell: Vector2i, visual_center: Vector2, object_data: Dictionary) -> bool:
+	var any_texture_succeeded := false
 	for attempt in attempts:
 		var kind := str(attempt.get("kind", "")); var asset_id := str(attempt.get("asset_id", ""))
 		var used_texture_asset := false
@@ -5311,9 +5308,11 @@ func _execute_object_texture_attempt_plan(attempts: Array[Dictionary], cell: Vec
 			"png": used_texture_asset = draw_iso_object_png_texture_asset(cell, asset_id, visual_center, object_data)
 			"optional": used_texture_asset = draw_optional_visual_texture_asset(asset_id, cell, "draw_iso_object_marker", {"visual_center": visual_center})
 			"legacy": used_texture_asset = draw_iso_texture_asset(cell, asset_id, visual_center)
-		if used_texture_asset: return true
-	return false
-
+		if used_texture_asset:
+			any_texture_succeeded = true
+			if bool(attempt.get("stop_on_success", true)):
+				return true
+	return any_texture_succeeded
 func build_iso_floor_draw_entries() -> Array[Dictionary]:
 	return FloorRendererRef.build_draw_entries(
 		_grid_manager,

@@ -48,10 +48,10 @@ object_primitive_renderer = read(OBJECT_PRIMITIVE)
 object_texture_policy = read(OBJECT_TEXTURE_POLICY)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP = 5853
+ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP = 5852
 if renderer_lines > ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP:
     errors.append(
-        "RoomVisualRenderer grew beyond object primitive extraction cap: "
+        "RoomVisualRenderer grew beyond object texture dispatch cap: "
         f"{renderer_lines} > {ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP}"
     )
 
@@ -144,7 +144,7 @@ for name in ("build_attempt_plan", "get_descriptor_route", "should_draw_success_
         errors.append(f"ObjectTextureDispatchPolicy missing focused API: {name}")
 for forbidden in (
     "extends Node", "GridManager", "MissionManager", "grid_to_iso", "queue_redraw",
-    "ResourceLoader", "load(", "Time", "ThemeDB", "fallback_font", "Canvas", "VisualAsset", "ObjectRendererRef",
+    "ResourceLoader", "Resource", "Texture2D", "load(", "Time", "ThemeDB", "fallback_font", "Canvas", "VisualAsset", "ObjectRendererRef",
 ):
     if forbidden in object_texture_policy:
         errors.append(f"ObjectTextureDispatchPolicy contains forbidden coordinator/runtime dependency: {forbidden}")
@@ -161,9 +161,10 @@ for token in ("draw_iso_object_png_texture_asset", "draw_optional_visual_texture
         errors.append(f"ObjectTextureDispatchPolicy must not call coordinator draw method: {token}")
 
 marker_order = (
-    "get_iso_object_grounding_profile", "ObjectPrimitiveRendererRef.build_floor_base_commands",
+    "is_door_floor_object_visual", "draw_wall_routed_procedural_visual",
     "_execute_object_texture_attempt_plan", "ObjectTextureDispatchPolicyRef.build_attempt_plan",
-    "ObjectPrimitiveRendererRef.build_texture_accent_commands",
+    "ObjectPrimitiveRendererRef.build_texture_accent_commands", "draw_wall_mounted_object_shape",
+    "ObjectPrimitiveRendererRef.build_shape_commands", "_draw_grounding_overlay",
 )
 marker_positions = []
 search_from = 0
@@ -172,9 +173,8 @@ for token in marker_order:
     marker_positions.append(position)
     if position >= 0:
         search_from = position + len(token)
-grounding_overlay_position = marker_body.rfind("_draw_grounding_overlay")
-if any(value < 0 for value in marker_positions) or grounding_overlay_position < 0 or grounding_overlay_position < marker_positions[-1]:
-    errors.append("RoomVisualRenderer draw_iso_object_marker object primitive flow ordering changed")
+if any(value < 0 for value in marker_positions):
+    errors.append("RoomVisualRenderer draw_iso_object_marker door/route/plan/accent/fallback/grounding order changed")
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
@@ -437,6 +437,8 @@ for token in (
 ):
     if token not in wall:
         errors.append(f"WallRenderer missing contract: {token}")
+if "static func get_descriptor_mode" in object_renderer:
+    errors.append("ObjectRenderer must not retain duplicate descriptor route policy")
 
 for token in (
     "class_name ObjectRenderer",
@@ -448,7 +450,6 @@ for token in (
     "static func get_entry_kind",
     "static func get_layer_bias",
     "static func make_draw_entry",
-    "static func get_descriptor_mode",
     "static func build_descriptor_for_contract",
     "static func build_authored_canvas_descriptor",
     "static func build_object_descriptor",
