@@ -23,6 +23,7 @@ func _check_normalization() -> void:
 	_expect(RouteRendererRef.normalize_install_mode({"hidden_installation": true}) == "hidden", "hidden install mode changed")
 	_expect(RouteRendererRef.normalize_install_mode({}) == "floor", "default floor install mode changed")
 	_expect(RouteRendererRef.normalize_wall_routing_mode({"route_mode": "in-wall"}) == "inner", "inner routing normalization changed")
+	_expect(RouteRendererRef.normalize_wall_routing_mode({"route_mode": "outer", "routing_mode": "inner"}) == "outer", "route mode precedence changed")
 	_expect(RouteRendererRef.normalize_wall_routing_mode({}) == "outer", "default outer routing changed")
 	_expect(RouteRendererRef.get_health_state({"cut": true}) == "cut", "cut health state changed")
 	_expect(RouteRendererRef.is_broken_route({"cable_state": "broken"}), "broken route detection changed")
