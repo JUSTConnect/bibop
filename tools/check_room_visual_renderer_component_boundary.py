@@ -49,7 +49,7 @@ renderer_lines = len(renderer.splitlines())
 ROOM_VISUAL_RENDERER_OBJECT_PRIMITIVE_CAP = 5854
 if renderer_lines > ROOM_VISUAL_RENDERER_OBJECT_PRIMITIVE_CAP:
     errors.append(
-        "RoomVisualRenderer grew beyond fog extraction cap: "
+        "RoomVisualRenderer grew beyond object primitive extraction cap: "
         f"{renderer_lines} > {ROOM_VISUAL_RENDERER_OBJECT_PRIMITIVE_CAP}"
     )
 
@@ -84,6 +84,67 @@ for token in (
 ):
     if token not in marker_body:
         errors.append(f"RoomVisualRenderer draw_iso_object_marker missing retained/delegated object primitive flow: {token}")
+
+
+
+for name in (
+    "draw_iso_object_slab", "draw_iso_object_pillar", "draw_iso_object_door_panel",
+    "draw_iso_object_terminal_console", "draw_iso_object_small_marker",
+    "draw_iso_object_line", "draw_iso_object_heat_marker",
+):
+    body = function_body(renderer, name)
+    for token in ("ObjectPrimitiveRendererRef.build_shape_commands", "_draw_object_primitive_commands"):
+        if token not in body:
+            errors.append(f"RoomVisualRenderer {name} must be a thin ObjectPrimitiveRenderer shape delegate: {token}")
+    if "grid_to_iso(cell)" not in body and "visual_center_override" not in body:
+        errors.append(f"RoomVisualRenderer {name} must assemble a center/context before delegation")
+    for forbidden in ("draw_line", "draw_circle", "draw_rect", "draw_arc", "draw_colored_polygon", "Color("):
+        if forbidden in body:
+            errors.append(f"RoomVisualRenderer {name} retained migrated procedural Canvas/style policy: {forbidden}")
+
+wall_shape_body = function_body(renderer, "draw_wall_mounted_object_shape")
+for token in ("ObjectPrimitiveRendererRef.build_wall_mounted_commands", "_draw_object_primitive_commands"):
+    if token not in wall_shape_body:
+        errors.append(f"RoomVisualRenderer draw_wall_mounted_object_shape must delegate wall primitives: {token}")
+for forbidden in ("draw_iso_wall_", "draw_iso_socket", "draw_iso_light_marker", "match profile_key"):
+    if forbidden in wall_shape_body:
+        errors.append(f"RoomVisualRenderer draw_wall_mounted_object_shape retained old wall-mounted helper dispatch: {forbidden}")
+
+for removed_helper in (
+    "draw_iso_wall_terminal_panel", "draw_iso_wall_door_terminal", "draw_iso_wall_platform_terminal",
+    "draw_iso_wall_cooling_terminal", "draw_iso_wall_firewall_panel", "draw_iso_wall_breaker_box",
+    "draw_iso_wall_fuse_box", "draw_iso_wall_light_switch", "draw_iso_socket",
+    "draw_iso_light_marker", "draw_iso_wall_cable_reel",
+):
+    if function_body(renderer, removed_helper):
+        errors.append(f"RoomVisualRenderer retained removed wall-mounted procedural helper: {removed_helper}")
+
+for retained in (
+    "draw_iso_object_png_texture_asset", "draw_optional_visual_texture_asset", "draw_iso_texture_asset",
+    "_iso_object_png_texture_cache", "load(", "draw_iso_door_insert", "draw_iso_cable_topology_line",
+    "draw_iso_cable_segment_shape", "draw_wall_procedural_cable", "draw_wall_procedural_air_duct",
+    "draw_wall_procedural_water_pipe",
+):
+    if retained not in renderer:
+        errors.append(f"RoomVisualRenderer lost retained coordinator/texture/route boundary token: {retained}")
+    if retained in object_primitive_renderer:
+        errors.append(f"ObjectPrimitiveRenderer contains retained coordinator/texture/route token: {retained}")
+
+marker_order = (
+    "get_iso_object_grounding_profile", "ObjectPrimitiveRendererRef.build_floor_base_commands",
+    "draw_iso_object_png_texture_asset", "ObjectPrimitiveRendererRef.build_texture_accent_commands",
+    "draw_wall_mounted_object_shape", "ObjectPrimitiveRendererRef.build_shape_commands",
+)
+marker_positions = []
+search_from = 0
+for token in marker_order:
+    position = marker_body.find(token, search_from)
+    marker_positions.append(position)
+    if position >= 0:
+        search_from = position + len(token)
+grounding_overlay_position = marker_body.rfind("_draw_grounding_overlay")
+if any(value < 0 for value in marker_positions) or grounding_overlay_position < 0 or grounding_overlay_position < marker_positions[-1]:
+    errors.append("RoomVisualRenderer draw_iso_object_marker object primitive flow ordering changed")
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',

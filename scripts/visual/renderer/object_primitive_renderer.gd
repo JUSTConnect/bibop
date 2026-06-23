@@ -61,38 +61,93 @@ static func get_profile(profile_key: String) -> Dictionary:
 	}
 
 
+static func _read_vector2(value: Variant, fallback: Vector2) -> Vector2:
+	if value is Vector2:
+		return Vector2(value)
+	if value is Vector2i:
+		return Vector2(Vector2i(value))
+	return fallback
+
+static func _read_vector2_array(value: Variant) -> PackedVector2Array:
+	if value is PackedVector2Array:
+		return PackedVector2Array(value)
+	if value is Array:
+		var result: PackedVector2Array = PackedVector2Array()
+		for item in Array(value):
+			if item is Vector2 or item is Vector2i:
+				result.append(_read_vector2(item, Vector2.ZERO))
+		return result
+	return PackedVector2Array()
+
+static func _read_dictionary(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return Dictionary(value)
+	return {}
+
+static func _read_color(value: Variant, fallback: Color) -> Color:
+	if value is Color:
+		return Color(value)
+	return fallback
+
+static func _read_float(value: Variant, fallback: float) -> float:
+	if value is float or value is int:
+		return float(value)
+	return fallback
+
+static func _read_bool(value: Variant, fallback: bool) -> bool:
+	if value is bool:
+		return bool(value)
+	return fallback
+
 static func _cmd(kind: String, order: int, data: Dictionary) -> Dictionary:
 	var command: Dictionary = data.duplicate(true)
 	command["kind"] = kind
 	command["order"] = order
-	return command
+	return _normalize_command_schema(command)
 
 static func _profile_color(profile: Dictionary, key: String, fallback: Color) -> Color:
-	return Color(profile.get(key, fallback))
+	return _read_color(profile.get(key, fallback), fallback)
+
+static func _normalize_command_schema(command: Dictionary) -> Dictionary:
+	var kind: String = str(command.get("kind", ""))
+	match kind:
+		"line":
+			if not command.has("antialiased"):
+				command["antialiased"] = false
+		"arc":
+			if not command.has("antialiased"):
+				command["antialiased"] = false
+		"rect":
+			if not command.has("filled"):
+				command["filled"] = true
+			if not command.has("width"):
+				command["width"] = 1.0
+	return command
 
 static func _ordered(commands: Array[Dictionary]) -> Array[Dictionary]:
 	for idx in range(commands.size()):
 		commands[idx]["order"] = idx
+		commands[idx] = _normalize_command_schema(commands[idx])
 	return commands
 
 static func build_floor_base_commands(context: Dictionary) -> Array[Dictionary]:
-	if bool(context.get("is_wall_visual", false)):
+	if _read_bool(context.get("is_wall_visual", false), false):
 		return []
 	var commands: Array[Dictionary] = []
-	var shadow: PackedVector2Array = PackedVector2Array(context.get("shadow_polygon", PackedVector2Array()))
+	var shadow: PackedVector2Array = _read_vector2_array(context.get("shadow_polygon", PackedVector2Array()))
 	if shadow.size() >= 3:
 		commands.append(_cmd("polygon", commands.size(), {"points": shadow, "color": Color(0.03, 0.05, 0.08, 0.26)}))
-	var footprint: PackedVector2Array = PackedVector2Array(context.get("footprint_polygon", PackedVector2Array()))
+	var footprint: PackedVector2Array = _read_vector2_array(context.get("footprint_polygon", PackedVector2Array()))
 	if footprint.size() >= 3:
 		commands.append(_cmd("polygon", commands.size(), {"points": footprint, "color": Color(0.2, 0.24, 0.28, 0.2)}))
 	return commands
 
 static func build_texture_accent_commands(context: Dictionary) -> Array[Dictionary]:
-	if not bool(context.get("enabled", true)):
+	if not _read_bool(context.get("enabled", true), true):
 		return []
-	var center: Vector2 = Vector2(context.get("visual_center", Vector2.ZERO))
-	var marker_height: float = float(context.get("marker_height", 18.0))
-	var accent: Color = Color(context.get("accent", Color.WHITE))
+	var center: Vector2 = _read_vector2(context.get("visual_center", Vector2.ZERO), Vector2.ZERO)
+	var marker_height: float = _read_float(context.get("marker_height", 18.0), 18.0)
+	var accent: Color = _read_color(context.get("accent", Color.WHITE), Color.WHITE)
 	return _ordered([
 		{"kind":"circle", "center": center + Vector2(0.0, -marker_height - 8.0), "radius": 2.4, "color": accent},
 		{"kind":"line", "start": center + Vector2(-4.0, -marker_height - 3.0), "end": center + Vector2(4.0, -marker_height - 3.0), "color": accent, "width": 1.5},
@@ -110,7 +165,7 @@ static func build_shape_commands(shape: String, context: Dictionary) -> Array[Di
 	return []
 
 static func _base_context(context: Dictionary) -> Dictionary:
-	return {"center": Vector2(context.get("visual_center", Vector2.ZERO)), "diamond": PackedVector2Array(context.get("diamond", PackedVector2Array())), "half_size": Vector2(context.get("half_size", Vector2(64,35.5))), "marker_height": maxf(float(context.get("marker_height", 18.0)), 1.0), "profile": Dictionary(context.get("profile", {})), "outlines": bool(context.get("outlines", false))}
+	return {"center": _read_vector2(context.get("visual_center", Vector2.ZERO), Vector2.ZERO), "diamond": _read_vector2_array(context.get("diamond", PackedVector2Array())), "half_size": _read_vector2(context.get("half_size", Vector2(64.0, 35.5)), Vector2(64.0, 35.5)), "marker_height": maxf(_read_float(context.get("marker_height", 18.0), 18.0), 1.0), "profile": _read_dictionary(context.get("profile", {})), "outlines": _read_bool(context.get("outlines", false), false)}
 
 static func _outline_poly(commands: Array[Dictionary], points: PackedVector2Array, color: Color) -> void:
 	for i in range(points.size()):
@@ -218,9 +273,9 @@ static func _build_heat_marker(context: Dictionary) -> Array[Dictionary]:
 	return _ordered(cmds)
 
 static func build_wall_mounted_commands(profile_key: String, context: Dictionary) -> Array[Dictionary]:
-	var center: Vector2 = Vector2(context.get("visual_center", Vector2.ZERO))
-	var profile: Dictionary = Dictionary(context.get("profile", {}))
-	var outlines: bool = bool(context.get("outlines", false))
+	var center: Vector2 = _read_vector2(context.get("visual_center", Vector2.ZERO), Vector2.ZERO)
+	var profile: Dictionary = _read_dictionary(context.get("profile", {}))
+	var outlines: bool = _read_bool(context.get("outlines", false), false)
 	match profile_key:
 		"door_terminal": return _wall_terminal(center, profile, Color(0.36, 0.95, 1.0, 0.98), "door", outlines)
 		"platform_terminal": return _wall_terminal(center, profile, Color(1.0, 0.72, 0.24, 0.98), "platform", outlines)
@@ -254,7 +309,7 @@ static func _wall_terminal(center: Vector2, profile: Dictionary, screen_tint: Co
 			cmds.append({"kind":"rect", "rect":glow, "color":outline, "filled":false, "width":1.0})
 	elif variant == "platform":
 		var indicator_y: float = center.y - 8.5
-		cmds.append({"kind":"line", "start":center + Vector2(-5.6, indicator_y - center.y), "end":center + Vector2(5.6, indicator_y - center.y), "color":Color(1.0, 0.86, 0.45, 0.92), "width":1.5})
+		cmds.append({"kind":"line", "start":center + Vector2(-5.6, indicator_y), "end":center + Vector2(5.6, indicator_y), "color":Color(1.0, 0.86, 0.45, 0.92), "width":1.5})
 		cmds.append({"kind":"circle", "center":center + Vector2(4.8, -14.0), "radius":1.1, "color":Color(1.0, 0.56, 0.18, 0.95)})
 		if outlines:
 			cmds.append({"kind":"arc", "center":center + Vector2(4.8, -14.0), "radius":1.1, "start_angle":0.0, "end_angle":PI * 2.0, "point_count":12, "color":outline, "width":1.0})
