@@ -12,6 +12,7 @@ FLOOR = ROOT / "scripts/visual/renderer/floor_renderer.gd"
 WALL = ROOT / "scripts/visual/renderer/wall_renderer.gd"
 OBJECT = ROOT / "scripts/visual/renderer/object_renderer.gd"
 ROUTE = ROOT / "scripts/visual/renderer/route_renderer.gd"
+OVERLAY = ROOT / "scripts/visual/renderer/overlay_renderer.gd"
 errors: list[str] = []
 
 
@@ -34,10 +35,15 @@ floor = read(FLOOR)
 wall = read(WALL)
 object_renderer = read(OBJECT)
 route_renderer = read(ROUTE)
+overlay_renderer = read(OVERLAY)
 
 renderer_lines = len(renderer.splitlines())
-if renderer_lines > 6450:
-    errors.append(f"RoomVisualRenderer grew beyond object-policy extraction cap: {renderer_lines} > 6450")
+ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP = 6205
+if renderer_lines > ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP:
+    errors.append(
+        "RoomVisualRenderer grew beyond selection/interaction overlay extraction cap: "
+        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP}"
+    )
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
@@ -46,6 +52,7 @@ for token in (
     'preload("res://scripts/visual/renderer/wall_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_renderer.gd")',
     'preload("res://scripts/visual/renderer/route_renderer.gd")',
+    'preload("res://scripts/visual/renderer/overlay_renderer.gd")',
 ):
     if token not in renderer:
         errors.append(f"RoomVisualRenderer missing component preload: {token}")
@@ -225,10 +232,31 @@ for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon("
     if forbidden in projection:
         errors.append(f"projection component contains forbidden runtime dependency: {forbidden}")
 
-for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer)):
+for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer), ("OverlayRenderer", overlay_renderer)):
     for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "queue_redraw(", "get_node("):
         if forbidden in component_source:
             errors.append(f"{component_name} contains forbidden CanvasItem/runtime dependency: {forbidden}")
+
+for forbidden in (
+    "GridManager",
+    "MissionManager",
+    "Node",
+    "Node2D",
+    "get_node(",
+    "get_tree(",
+    "ResourceLoader",
+    "load(",
+    "Time",
+    "queue_redraw(",
+    "grid_to_iso(",
+    "draw_line(",
+    "draw_polyline(",
+    "draw_colored_polygon(",
+    "draw_rect(",
+    "draw_arc(",
+):
+    if forbidden in overlay_renderer:
+        errors.append(f"OverlayRenderer contains forbidden runtime/projection/resource/Canvas dependency: {forbidden}")
 
 for token in (
     "class_name IsoProjectionService",
@@ -306,6 +334,58 @@ for token in (
 ):
     if token not in route_renderer:
         errors.append(f"RouteRenderer missing contract: {token}")
+
+for token in (
+    "class_name OverlayRenderer",
+    "static func build_mouse_selection_commands",
+    "static func build_interaction_target_rect",
+    "static func get_interaction_pulse",
+    "static func build_interaction_target_commands",
+):
+    if token not in overlay_renderer:
+        errors.append(f"OverlayRenderer missing contract: {token}")
+
+if "OverlayRendererRef.build_mouse_selection_commands" not in function_body(renderer, "draw_iso_mouse_selection_overlay"):
+    errors.append("RoomVisualRenderer draw_iso_mouse_selection_overlay must delegate overlay policy to OverlayRenderer")
+if "OverlayRendererRef.build_interaction_target_commands" not in function_body(renderer, "draw_selected_interaction_target_overlay"):
+    errors.append("RoomVisualRenderer draw_selected_interaction_target_overlay must delegate interaction overlay policy to OverlayRenderer")
+if "OverlayRendererRef.build_interaction_target_rect" not in function_body(renderer, "_get_selected_interaction_overlay_rect"):
+    errors.append("RoomVisualRenderer _get_selected_interaction_overlay_rect must delegate interaction rect policy to OverlayRenderer")
+
+selection_body = function_body(renderer, "draw_iso_mouse_selection_overlay")
+interaction_body = function_body(renderer, "draw_selected_interaction_target_overlay")
+rect_body = function_body(renderer, "_get_selected_interaction_overlay_rect")
+for token in (
+    "Color(0.29, 0.75, 0.95",
+    "Color(0.85, 0.93, 1.0",
+    "Color(0.8, 0.97, 1.0",
+    "Color(0.98, 0.66, 0.35",
+    "Color(0.99, 0.75, 0.45",
+    "Color(0.35, 0.92, 1.0",
+    "Color(1.0, 0.8, 0.35",
+    "Color(1.0, 0.96, 0.3",
+    "draw_colored_polygon(",
+    "draw_polyline(",
+    "draw_line(",
+):
+    if token in selection_body:
+        errors.append(f"RoomVisualRenderer draw_iso_mouse_selection_overlay contains migrated selection overlay policy token: {token}")
+
+for token in (
+    "0.65 + 0.35 * sin",
+    "Color(0.2, 0.9, 1.0",
+    "Color(0.02, 0.05, 0.07",
+    "maxf(10.0",
+    "minf(rect.size.x",
+    "width + 2.0",
+    "draw_line(",
+):
+    if token in interaction_body or token in rect_body:
+        errors.append(f"RoomVisualRenderer contains migrated interaction overlay policy token: {token}")
+
+for name in ("draw_map_constructor_visual_overlay_passes", "draw_iso_fog_overlay", "should_render_iso_fog_visuals"):
+    if not function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer must retain {name} ownership in this stage")
 
 if "[AUTHORED WALL TEST]" in renderer:
     errors.append("RoomVisualRenderer must not contain unconditional authored-wall descriptor logging")
