@@ -740,7 +740,6 @@ func _draw_overlay_commands(commands: Array[Dictionary]) -> void:
 					PackedVector2Array(command.get("points", PackedVector2Array())),
 					Color(command.get("color", Color.WHITE)),
 					float(command.get("width", 1.0)),
-					bool(command.get("closed", false)),
 					bool(command.get("antialiased", false))
 				)
 			"line":

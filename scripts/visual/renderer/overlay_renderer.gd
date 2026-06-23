@@ -11,32 +11,27 @@ static func build_mouse_selection_commands(context: Dictionary) -> Array[Diction
 			continue
 		commands.append(_polygon_command(route_points, Color(0.29, 0.75, 0.95, 0.14), order))
 		order += 1
-		commands.append(_polyline_command(route_points, Color(0.29, 0.75, 0.95, 0.45), 1.6, true, false, order))
-		order += 1
+		order = _append_outline_line_commands(commands, route_points, Color(0.29, 0.75, 0.95, 0.45), 1.6, false, order)
 
 	var selected_points: PackedVector2Array = PackedVector2Array(context.get("selected_points", PackedVector2Array()))
 	if selected_points.size() >= 4:
 		commands.append(_polygon_command(selected_points, Color(0.85, 0.93, 1.0, 0.09), order))
 		order += 1
-		commands.append(_polyline_command(selected_points, Color(0.8, 0.97, 1.0, 1.0), 2.6, true, false, order))
-		order += 1
+		order = _append_outline_line_commands(commands, selected_points, Color(0.8, 0.97, 1.0, 1.0), 2.6, false, order)
 
 	var action_points: PackedVector2Array = PackedVector2Array(context.get("action_points", PackedVector2Array()))
 	if action_points.size() >= 4:
 		commands.append(_polygon_command(action_points, Color(0.98, 0.66, 0.35, 0.24), order))
 		order += 1
-		commands.append(_polyline_command(action_points, Color(0.99, 0.75, 0.45, 1.0), 2.8, true, false, order))
-		order += 1
+		order = _append_outline_line_commands(commands, action_points, Color(0.99, 0.75, 0.45, 1.0), 2.8, false, order)
 
 	var wall_anchor_points: PackedVector2Array = PackedVector2Array(context.get("wall_anchor_points", PackedVector2Array()))
 	if wall_anchor_points.size() >= 4:
-		commands.append(_polyline_command(wall_anchor_points, Color(0.35, 0.92, 1.0, 1.0), 2.8, true, false, order))
-		order += 1
+		order = _append_outline_line_commands(commands, wall_anchor_points, Color(0.35, 0.92, 1.0, 1.0), 2.8, false, order)
 
 	var attached_wall_points: PackedVector2Array = PackedVector2Array(context.get("attached_wall_points", PackedVector2Array()))
 	if attached_wall_points.size() >= 4:
-		commands.append(_polyline_command(attached_wall_points, Color(1.0, 0.8, 0.35, 1.0), 2.8, true, false, order))
-		order += 1
+		order = _append_outline_line_commands(commands, attached_wall_points, Color(1.0, 0.8, 0.35, 1.0), 2.8, false, order)
 
 	if bool(context.get("has_wall_object_center", false)):
 		var center: Vector2 = Vector2(context.get("wall_object_center", Vector2.ZERO))
@@ -47,7 +42,7 @@ static func build_mouse_selection_commands(context: Dictionary) -> Array[Diction
 			center + Vector2(0.0, radius),
 			center + Vector2(-radius, 0.0)
 		])
-		commands.append(_polyline_command(marker_points, Color(1.0, 0.96, 0.3, 1.0), 2.8, true, false, order))
+		commands.append(_polyline_command(marker_points, Color(1.0, 0.96, 0.3, 1.0), 2.8, false, true, order))
 
 	return commands
 
@@ -104,6 +99,14 @@ static func build_interaction_target_commands(context: Dictionary) -> Array[Dict
 		commands.append(_line_command(point, point + Vector2(0.0, corner * sy), color, width, true, order))
 		order += 1
 	return commands
+
+
+static func _append_outline_line_commands(commands: Array[Dictionary], points: PackedVector2Array, color: Color, width: float, antialiased: bool, order: int) -> int:
+	for edge_index in range(points.size()):
+		var next_index: int = (edge_index + 1) % points.size()
+		commands.append(_line_command(points[edge_index], points[next_index], color, width, antialiased, order))
+		order += 1
+	return order
 
 
 static func _polygon_command(points: PackedVector2Array, color: Color, order: int) -> Dictionary:
