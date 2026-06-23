@@ -16,6 +16,7 @@ OVERLAY = ROOT / "scripts/visual/renderer/overlay_renderer.gd"
 MAP_CONSTRUCTOR_OVERLAY = ROOT / "scripts/visual/renderer/map_constructor_overlay_renderer.gd"
 RUNTIME_DEBUG_OVERLAY = ROOT / "scripts/visual/renderer/runtime_debug_overlay_renderer.gd"
 FOG_RENDERER = ROOT / "scripts/visual/renderer/fog_renderer.gd"
+OBJECT_PRIMITIVE = ROOT / "scripts/visual/renderer/object_primitive_renderer.gd"
 errors: list[str] = []
 
 
@@ -42,14 +43,47 @@ overlay_renderer = read(OVERLAY)
 map_constructor_overlay_renderer = read(MAP_CONSTRUCTOR_OVERLAY)
 runtime_debug_overlay_renderer = read(RUNTIME_DEBUG_OVERLAY)
 fog_renderer = read(FOG_RENDERER)
+object_primitive_renderer = read(OBJECT_PRIMITIVE)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_FOG_EXTRACTION_CAP = 6153
-if renderer_lines > ROOM_VISUAL_RENDERER_FOG_EXTRACTION_CAP:
+ROOM_VISUAL_RENDERER_OBJECT_PRIMITIVE_CAP = 5854
+if renderer_lines > ROOM_VISUAL_RENDERER_OBJECT_PRIMITIVE_CAP:
     errors.append(
         "RoomVisualRenderer grew beyond fog extraction cap: "
-        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_FOG_EXTRACTION_CAP}"
+        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_OBJECT_PRIMITIVE_CAP}"
     )
+
+
+for name in (
+    "get_visual_profiles", "get_profile", "build_floor_base_commands",
+    "build_shape_commands", "build_wall_mounted_commands", "build_texture_accent_commands",
+):
+    if not function_body(object_primitive_renderer, name):
+        errors.append(f"ObjectPrimitiveRenderer missing focused API: {name}")
+
+for forbidden in (
+    "extends Node", "GridManager", "MissionManager", "grid_to_iso", "draw_", "queue_redraw",
+    "Texture", "ResourceLoader", "load(", "Time", "ThemeDB", "fallback_font", "Canvas",
+):
+    if forbidden in object_primitive_renderer:
+        errors.append(f"ObjectPrimitiveRenderer contains forbidden coordinator/runtime dependency: {forbidden}")
+
+for name, token in {
+    "get_iso_object_visual_profiles": "ObjectPrimitiveRendererRef.get_visual_profiles",
+    "get_iso_object_profile": "ObjectPrimitiveRendererRef.get_profile",
+}.items():
+    if token not in function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer {name} must delegate to ObjectPrimitiveRenderer: {token}")
+
+marker_body = function_body(renderer, "draw_iso_object_marker")
+for token in (
+    "draw_iso_object_png_texture_asset", "draw_optional_visual_texture_asset", "draw_iso_texture_asset",
+    "ObjectPrimitiveRendererRef.build_floor_base_commands",
+    "ObjectPrimitiveRendererRef.build_texture_accent_commands",
+    "ObjectPrimitiveRendererRef.build_shape_commands",
+):
+    if token not in marker_body:
+        errors.append(f"RoomVisualRenderer draw_iso_object_marker missing retained/delegated object primitive flow: {token}")
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
@@ -57,6 +91,7 @@ for token in (
     'preload("res://scripts/visual/renderer/floor_renderer.gd")',
     'preload("res://scripts/visual/renderer/wall_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_renderer.gd")',
+    'preload("res://scripts/visual/renderer/object_primitive_renderer.gd")',
     'preload("res://scripts/visual/renderer/route_renderer.gd")',
     'preload("res://scripts/visual/renderer/overlay_renderer.gd")',
     'preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")',
