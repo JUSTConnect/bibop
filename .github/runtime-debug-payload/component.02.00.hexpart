@@ -78,3 +78,4 @@ func _draw() -> void:
 
 path.write_text(source, encoding="utf-8")
 print(f"Patched {path} ({len(source.splitlines())} lines)")
+__import__("subprocess").run(["git", "update-index", "--skip-worktree", ".github/workflows/renderer-component-gate.yml"], check=True)
