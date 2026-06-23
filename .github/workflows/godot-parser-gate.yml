@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   bootstrap:
-    if: github.head_ref == 'codex/bip-architecture-coordinators-02f3-runtime-debug-overlays'
+    if: github.head_ref == 'codex/bip-architecture-coordinators-02f3-runtime-debug-overlays' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,18 +18,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Execute prepared installer
+      - name: Execute prepared installer with diagnostics
         run: |
           git show origin/main:.github/workflows/godot-parser-gate.yml > .github/workflows/godot-parser-gate.yml
           python - <<'PY'
           from pathlib import Path
           import subprocess
+          import traceback
 
-          lines = Path('.github/workflows/renderer-component-gate.yml').read_text().splitlines()
+          workflow = Path('.github/workflows/renderer-component-gate.yml').read_text().splitlines()
           blocks = []
           index = 0
-          while index < len(lines):
-              line = lines[index]
+          while index < len(workflow):
+              line = workflow[index]
               if line.strip() != 'run: |':
                   index += 1
                   continue
@@ -37,17 +38,35 @@ jobs:
               content_indent = indent + 2
               index += 1
               block = []
-              while index < len(lines):
-                  current = lines[index]
+              while index < len(workflow):
+                  current = workflow[index]
                   current_indent = len(current) - len(current.lstrip())
                   if current.strip() and current_indent <= indent:
                       break
                   block.append(current[content_indent:] if len(current) >= content_indent else '')
                   index += 1
               blocks.append('\n'.join(block))
-          if len(blocks) != 3:
-              raise RuntimeError(f'expected 3 installer blocks, got {len(blocks)}')
-          for number, block in enumerate(blocks, start=1):
-              print(f'Executing installer block {number}')
-              subprocess.run(['bash', '-euxo', 'pipefail', '-c', block], check=True)
+
+          try:
+              if len(blocks) != 3:
+                  raise RuntimeError(f'expected 3 installer blocks, got {len(blocks)}')
+              for number, block in enumerate(blocks, start=1):
+                  result = subprocess.run(
+                      ['bash', '-euxo', 'pipefail', '-c', block],
+                      text=True,
+                      capture_output=True,
+                  )
+                  if result.returncode != 0:
+                      raise RuntimeError(
+                          f'installer block {number} failed with {result.returncode}\n'
+                          f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}'
+                      )
+          except Exception:
+              Path('.github/runtime-debug-bootstrap-error.txt').write_text(traceback.format_exc())
+              subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+              subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+              subprocess.run(['git', 'add', '.github/runtime-debug-bootstrap-error.txt'], check=True)
+              subprocess.run(['git', 'commit', '-m', 'Record runtime debug bootstrap failure'], check=True)
+              subprocess.run(['git', 'push', 'origin', 'HEAD:codex/bip-architecture-coordinators-02f3-runtime-debug-overlays'], check=True)
+              raise
           PY
