@@ -30,3 +30,5 @@ jobs:
         run: godot --headless --path . --script res://tools/ci/check_wall_renderer_contract.gd
       - name: Check ObjectRenderer policy contract
         run: godot --headless --path . --script res://tools/ci/check_object_renderer_contract.gd
+      - name: Check RouteRenderer contract
+        run: godot --headless --path . --script res://tools/ci/check_route_renderer_contract.gd
