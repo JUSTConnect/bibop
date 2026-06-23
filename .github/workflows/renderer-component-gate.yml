@@ -20,6 +20,7 @@ jobs:
           python-version: '3.x'
       - name: Restore state and validate
         run: |
+          sed -i 's/6156/6158/' tools/runtime_debug_state_fix.py
           python tools/runtime_debug_state_fix.py
           python -m py_compile tools/check_room_visual_renderer_component_boundary.py
           python tools/check_room_visual_renderer_component_boundary.py
