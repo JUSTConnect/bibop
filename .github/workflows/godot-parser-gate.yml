@@ -26,6 +26,7 @@ jobs:
           import subprocess
           import traceback
 
+          Path('.github/runtime-debug-bootstrap-error.txt').unlink(missing_ok=True)
           workflow = Path('.github/workflows/renderer-component-gate.yml').read_text().splitlines()
           blocks = []
           index = 0
@@ -45,7 +46,7 @@ jobs:
                       break
                   block.append(current[content_indent:] if len(current) >= content_indent else '')
                   index += 1
-              blocks.append('\n'.join(block))
+              blocks.append('\n'.join(block).replace('/mnt/data', '/tmp/runtime-debug-work'))
 
           try:
               if len(blocks) != 3:
