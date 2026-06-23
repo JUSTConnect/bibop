@@ -1,10 +1,38 @@
-name: Renderer Component Gate Cleanup
+name: Renderer Component Gate
 
 on:
-  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
 
 jobs:
-  cleanup-placeholder:
+  renderer-component-gate:
     runs-on: ubuntu-latest
     steps:
-      - run: echo cleanup
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Check renderer component boundary
+        run: python tools/check_room_visual_renderer_component_boundary.py
+      - name: Import project
+        run: godot --headless --path . --import
+      - name: Check projection contract
+        run: godot --headless --path . --script res://tools/ci/check_renderer_projection_contract.gd
+      - name: Check FloorRenderer contract
+        run: godot --headless --path . --script res://tools/ci/check_floor_renderer_contract.gd
+      - name: Check WallRenderer contract
+        run: godot --headless --path . --script res://tools/ci/check_wall_renderer_contract.gd
+      - name: Check ObjectRenderer policy contract
+        run: godot --headless --path . --script res://tools/ci/check_object_renderer_contract.gd
+      - name: Check RouteRenderer contract
+        run: godot --headless --path . --script res://tools/ci/check_route_renderer_contract.gd
+      - name: Check OverlayRenderer contract
+        run: godot --headless --path . --script res://tools/ci/check_overlay_renderer_contract.gd
+      - name: Check MapConstructorOverlayRenderer contract
+        run: godot --headless --path . --script res://tools/ci/check_map_constructor_overlay_renderer_contract.gd
