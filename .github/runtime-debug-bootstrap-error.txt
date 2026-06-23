@@ -1,14 +1,57 @@
 Traceback (most recent call last):
-  File "<stdin>", line 36, in <module>
-RuntimeError: installer block 1 failed with 1
+  File "<stdin>", line 37, in <module>
+RuntimeError: installer block 3 failed with 1
 STDOUT:
+RoomVisualRenderer component boundary audit FAILED:
+ - RoomVisualRenderer missing component preload: preload("res://scripts/visual/renderer/runtime_debug_overlay_renderer.gd")
+ - RoomVisualRenderer draw_iso_asset_alignment_overlay must delegate runtime/debug policy
+ - RoomVisualRenderer draw_iso_asset_alignment_overlay contains migrated policy: draw_line(
+ - RoomVisualRenderer draw_iso_asset_alignment_overlay contains migrated policy: draw_circle(
+ - RoomVisualRenderer draw_iso_asset_alignment_overlay contains migrated policy: draw_rect(
+ - RoomVisualRenderer draw_iso_asset_alignment_overlay contains migrated policy: draw_string(
+ - RoomVisualRenderer draw_iso_asset_alignment_overlay contains migrated policy: Color(
+ - RoomVisualRenderer draw_iso_wall_debug_and_mount_overlays must delegate runtime/debug policy
+ - RoomVisualRenderer draw_iso_wall_debug_and_mount_overlays contains migrated policy: draw_polyline(
+ - RoomVisualRenderer draw_iso_wall_debug_and_mount_overlays contains migrated policy: draw_colored_polygon(
+ - RoomVisualRenderer draw_iso_wall_debug_and_mount_overlays contains migrated policy: draw_string(
+ - RoomVisualRenderer draw_iso_wall_debug_and_mount_overlays contains migrated policy: Color(
+ - RoomVisualRenderer _draw_grounding_overlay must delegate runtime/debug policy
+ - RoomVisualRenderer _draw_grounding_overlay contains migrated policy: draw_line(
+ - RoomVisualRenderer _draw_grounding_overlay contains migrated policy: draw_colored_polygon(
+ - RoomVisualRenderer _draw_grounding_overlay contains migrated policy: draw_circle(
+ - RoomVisualRenderer _draw_grounding_overlay contains migrated policy: draw_string(
+ - RoomVisualRenderer _draw_grounding_overlay contains migrated policy: Color(
+ - RoomVisualRenderer draw_door_opening_overlay_for_context must delegate runtime/debug policy
+ - RoomVisualRenderer draw_door_opening_overlay_for_context contains migrated policy: draw_polyline(
+ - RoomVisualRenderer draw_door_opening_overlay_for_context contains migrated policy: draw_colored_polygon(
+ - RoomVisualRenderer draw_door_opening_overlay_for_context contains migrated policy: draw_circle(
+ - RoomVisualRenderer draw_door_opening_overlay_for_context contains migrated policy: draw_string(
+ - RoomVisualRenderer draw_door_opening_overlay_for_context contains migrated policy: Color(
+ - RoomVisualRenderer draw_world_overlay_markers must delegate runtime/debug policy
+ - RoomVisualRenderer draw_world_overlay_markers contains migrated policy: draw_string(
+ - RoomVisualRenderer draw_world_overlay_markers contains migrated policy: Color(
+ - RoomVisualRenderer draw_fan_platform_marker must delegate runtime/debug policy
+ - RoomVisualRenderer draw_fan_platform_marker contains migrated policy: draw_line(
+ - RoomVisualRenderer draw_fan_platform_marker contains migrated policy: draw_colored_polygon(
+ - RoomVisualRenderer draw_fan_platform_marker contains migrated policy: Color(
+ - RoomVisualRenderer draw_wall_mount_zones_overlay must delegate runtime/debug policy
+ - RoomVisualRenderer draw_wall_mount_zones_overlay contains migrated policy: draw_circle(
+ - RoomVisualRenderer draw_wall_mount_zones_overlay contains migrated policy: draw_string(
+ - RoomVisualRenderer draw_wall_mount_zones_overlay contains migrated policy: Color(
+ - RoomVisualRenderer draw_wall_run_overlay must delegate runtime/debug policy
+ - RoomVisualRenderer draw_wall_run_overlay contains migrated policy: draw_line(
+ - RoomVisualRenderer draw_wall_run_overlay contains migrated policy: draw_string(
+ - RoomVisualRenderer draw_wall_run_overlay contains migrated policy: Color(
+ - RoomVisualRenderer draw_floor_join_overlay must delegate runtime/debug policy
+ - RoomVisualRenderer draw_floor_join_overlay contains migrated policy: draw_line(
+ - RoomVisualRenderer draw_floor_join_overlay contains migrated policy: Color(
+ - RoomVisualRenderer overlay dispatcher must execute rect and text commands
+ - RoomVisualRenderer runtime/debug overlay ordering changed
 
 STDERR:
-+ python -
-Traceback (most recent call last):
-  File "<stdin>", line 8, in <module>
-  File "/opt/hostedtoolcache/Python/3.14.6/x64/lib/python3.14/pathlib/__init__.py", line 1011, in mkdir
-    os.mkdir(self, mode)
-    ~~~~~~~~^^^^^^^^^^^^
-PermissionError: [Errno 13] Permission denied: '/mnt/data'
++ git show origin/main:.github/workflows/renderer-component-gate.yml
++ cat
++ rm -rf .github/runtime-debug-payload
++ python -m py_compile tools/check_room_visual_renderer_component_boundary.py
++ python tools/check_room_visual_renderer_component_boundary.py
 
