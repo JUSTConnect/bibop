@@ -1,97 +1,70 @@
-name: Runtime Debug Extraction Bootstrap
+name: Godot Parser Gate
 
 on:
   pull_request:
-
-permissions:
-  contents: write
+  push:
+    branches:
+      - main
 
 jobs:
-  bootstrap:
-    if: github.head_ref == 'codex/bip-architecture-coordinators-02f3-runtime-debug-overlays' && github.actor != 'github-actions[bot]'
+  godot-parser-gate:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: codex/bip-architecture-coordinators-02f3-runtime-debug-overlays
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - name: Apply direct runtime debug extraction
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: ScreenRouter static gate
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import os
-          import subprocess
-          import traceback
+          python3 tools/check_screen_router.py
 
-          branch = 'codex/bip-architecture-coordinators-02f3-runtime-debug-overlays'
-          error_path = Path('.github/runtime-debug-bootstrap-error.txt')
-          error_path.unlink(missing_ok=True)
-          subprocess.run(
-              ['git', 'show', 'origin/main:.github/workflows/godot-parser-gate.yml'],
-              check=True,
-              stdout=Path('.github/workflows/godot-parser-gate.yml').open('w'),
-              text=True,
-          )
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
 
-          payload = Path('.github/runtime-debug-payload')
-          patch_source = ''.join(
-              (payload / name).read_text(encoding='utf-8')
-              for name in (
-                  'component.00.hexpart',
-                  'component.01.hexpart',
-                  'component.02.00.hexpart',
-              )
-          )
-          patch_path = Path('/tmp/direct_runtime_debug_patch.py')
-          patch_path.write_text(patch_source, encoding='utf-8')
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
 
-          workflow_lines = Path('.github/workflows/renderer-component-gate.yml').read_text().splitlines()
-          blocks = []
-          index = 0
-          while index < len(workflow_lines):
-              line = workflow_lines[index]
-              if line.strip() != 'run: |':
-                  index += 1
-                  continue
-              indent = len(line) - len(line.lstrip())
-              content_indent = indent + 2
-              index += 1
-              block = []
-              while index < len(workflow_lines):
-                  current = workflow_lines[index]
-                  current_indent = len(current) - len(current.lstrip())
-                  if current.strip() and current_indent <= indent:
-                      break
-                  block.append(current[content_indent:] if len(current) >= content_indent else '')
-                  index += 1
-              blocks.append('\n'.join(block))
+      - name: Static checks
+        run: |
+          git diff --check
+          python tools/check_gdscript_safety_patterns.py
+          python tools/check_map_constructor_game_ui_proxy.py
+          python tools/check_grid_manager_rendering_boundary.py
+          python tools/check_map_constructor_sections.py
+          python tools/check_constructor_placement_contract.py
+          python tools/check_map_constructor_prefab_catalog.py
+          python tools/check_world_state_store.py
+          python tools/check_runtime_readiness_service.py
+          python tools/check_event_driven_runtime_hud.py
 
-          def run(command, label: str) -> None:
-              result = subprocess.run(command, text=True, capture_output=True)
-              if result.returncode != 0:
-                  raise RuntimeError(
-                      f'{label} failed with {result.returncode}\n'
-                      f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}'
-                  )
+      - name: Godot import smoke
+        run: |
+          godot --headless --path . --import
 
-          try:
-              if len(blocks) != 3:
-                  raise RuntimeError(f'expected 3 installer blocks, got {len(blocks)}')
-              run(['python', str(patch_path)], 'direct renderer patch')
-              run(['cp', str(payload / 'component.00.srcpart'), 'scripts/visual/renderer/runtime_debug_overlay_renderer.gd'], 'component install')
-              run(['cp', str(payload / 'component.00.part'), 'tools/ci/check_runtime_debug_overlay_renderer_contract.gd'], 'contract install')
-              run(['bash', '-euxo', 'pipefail', '-c', blocks[1]], 'boundary installer block')
-              run(['bash', '-euxo', 'pipefail', '-c', blocks[2]], 'finalize installer block')
-          except Exception:
-              run_id = os.environ.get('GITHUB_RUN_ID', 'unknown')
-              error_path.write_text(f'run_id={run_id}\n' + traceback.format_exc(), encoding='utf-8')
-              subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
-              subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
-              subprocess.run(['git', 'add', str(error_path)], check=True)
-              subprocess.run(['git', 'commit', '--allow-empty', '-m', 'Record runtime debug bootstrap failure'], check=True)
-              subprocess.run(['git', 'push', 'origin', f'HEAD:{branch}'], check=True)
-              raise
-          PY
+      - name: GDScript parser/load gate
+        run: |
+          godot --headless --path . --script res://tools/ci/parse_all_gd.gd
+          godot --headless --path . --script res://tools/ci/check_map_constructor_session_state_contract.gd
+          godot --headless --path . --script res://tools/ci/check_runtime_readiness_service.gd
+          godot --headless --path . --script res://tools/ci/check_event_driven_runtime_hud.gd
+          godot --headless --path . --script res://tools/ci/check_screen_router.gd
+
+      - name: World state store behavior gate
+        run: |
+          godot --headless --path . --script res://tools/ci/check_world_state_store.gd
+          godot --headless --path . --script res://tools/ci/check_grid_manager_renderer_contract.gd
+
+      - name: Constructor placement behavior gate
+        run: |
+          godot --headless --path . --script res://tools/ci/check_constructor_placement_contracts.gd
+
+      - name: Map Constructor prefab catalog gate
+        run: |
+          timeout 120s godot --headless --path . \
+            --script res://tools/ci/check_map_constructor_prefab_catalog.gd
