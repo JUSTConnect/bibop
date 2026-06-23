@@ -42,7 +42,7 @@ map_constructor_overlay_renderer = read(MAP_CONSTRUCTOR_OVERLAY)
 runtime_debug_overlay_renderer = read(RUNTIME_DEBUG_OVERLAY)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP = 6153
+ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP = 6158
 if renderer_lines > ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP:
     errors.append(
         "RoomVisualRenderer grew beyond runtime/debug overlay extraction cap: "

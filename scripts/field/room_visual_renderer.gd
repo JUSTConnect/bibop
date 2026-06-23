@@ -778,6 +778,16 @@ func _draw_overlay_commands(commands: Array[Dictionary]) -> void:
 					Color(command.get("color", Color.WHITE))
 				)
 
+var map_constructor_overlay_prefs: Dictionary = {
+	"show_preview": true,
+	"show_validation": true,
+	"show_links": true,
+	"show_power": true,
+	"show_wall_side_arrows": true,
+	"show_multi_select": true
+}
+var map_constructor_overlay_data: Dictionary = {}
+var map_constructor_editor_render_active: bool = false
 func set_map_constructor_overlay_preferences(prefs: Dictionary) -> void:
 	for key_variant in prefs.keys():
 		var key: String = str(key_variant)
