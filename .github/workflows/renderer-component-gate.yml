@@ -1,31 +1,10 @@
-name: Restore Map Constructor Overlay State
+name: Renderer Component Gate Cleanup
 
 on:
-  pull_request:
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
-  restore-state:
-    if: github.head_ref == 'codex/bip-architecture-coordinators-02f3-runtime-debug-overlays' && github.actor != 'github-actions[bot]'
+  cleanup-placeholder:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: codex/bip-architecture-coordinators-02f3-runtime-debug-overlays
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - name: Restore state and validate
-        run: |
-          sed -i 's/6156/6158/' tools/runtime_debug_state_fix.py
-          python tools/runtime_debug_state_fix.py
-          python -m py_compile tools/check_room_visual_renderer_component_boundary.py
-          python tools/check_room_visual_renderer_component_boundary.py
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add scripts/field/room_visual_renderer.gd tools/check_room_visual_renderer_component_boundary.py
-          git commit -m "Restore Map Constructor overlay state"
-          git push origin HEAD:codex/bip-architecture-coordinators-02f3-runtime-debug-overlays
+      - run: echo cleanup
