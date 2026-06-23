@@ -12,6 +12,7 @@ FLOOR = ROOT / "scripts/visual/renderer/floor_renderer.gd"
 WALL = ROOT / "scripts/visual/renderer/wall_renderer.gd"
 OBJECT = ROOT / "scripts/visual/renderer/object_renderer.gd"
 ROUTE = ROOT / "scripts/visual/renderer/route_renderer.gd"
+OVERLAY = ROOT / "scripts/visual/renderer/overlay_renderer.gd"
 errors: list[str] = []
 
 
@@ -34,6 +35,7 @@ floor = read(FLOOR)
 wall = read(WALL)
 object_renderer = read(OBJECT)
 route_renderer = read(ROUTE)
+overlay_renderer = read(OVERLAY)
 
 renderer_lines = len(renderer.splitlines())
 if renderer_lines > 6450:
@@ -46,6 +48,7 @@ for token in (
     'preload("res://scripts/visual/renderer/wall_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_renderer.gd")',
     'preload("res://scripts/visual/renderer/route_renderer.gd")',
+    'preload("res://scripts/visual/renderer/overlay_renderer.gd")',
 ):
     if token not in renderer:
         errors.append(f"RoomVisualRenderer missing component preload: {token}")
@@ -225,7 +228,7 @@ for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon("
     if forbidden in projection:
         errors.append(f"projection component contains forbidden runtime dependency: {forbidden}")
 
-for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer)):
+for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer), ("OverlayRenderer", overlay_renderer)):
     for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "queue_redraw(", "get_node("):
         if forbidden in component_source:
             errors.append(f"{component_name} contains forbidden CanvasItem/runtime dependency: {forbidden}")
@@ -306,6 +309,21 @@ for token in (
 ):
     if token not in route_renderer:
         errors.append(f"RouteRenderer missing contract: {token}")
+
+for token in (
+    "class_name OverlayRenderer",
+    "static func build_mouse_selection_commands",
+    "static func build_interaction_target_rect",
+    "static func get_interaction_pulse",
+    "static func build_interaction_target_commands",
+):
+    if token not in overlay_renderer:
+        errors.append(f"OverlayRenderer missing contract: {token}")
+
+if "OverlayRendererRef.build_mouse_selection_commands" not in function_body(renderer, "draw_iso_mouse_selection_overlay"):
+    errors.append("RoomVisualRenderer draw_iso_mouse_selection_overlay must delegate overlay policy to OverlayRenderer")
+if "OverlayRendererRef.build_interaction_target_commands" not in function_body(renderer, "draw_selected_interaction_target_overlay"):
+    errors.append("RoomVisualRenderer draw_selected_interaction_target_overlay must delegate interaction overlay policy to OverlayRenderer")
 
 if "[AUTHORED WALL TEST]" in renderer:
     errors.append("RoomVisualRenderer must not contain unconditional authored-wall descriptor logging")

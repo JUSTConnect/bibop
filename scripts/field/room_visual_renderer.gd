@@ -17,6 +17,7 @@ const FloorRendererRef = preload("res://scripts/visual/renderer/floor_renderer.g
 const WallRendererRef = preload("res://scripts/visual/renderer/wall_renderer.gd")
 const ObjectRendererRef = preload("res://scripts/visual/renderer/object_renderer.gd")
 const RouteRendererRef = preload("res://scripts/visual/renderer/route_renderer.gd")
+const OverlayRendererRef = preload("res://scripts/visual/renderer/overlay_renderer.gd")
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
@@ -473,47 +474,27 @@ func _get_selected_interaction_target_cell() -> Vector2i:
 
 
 func _get_selected_interaction_overlay_rect(cell: Vector2i) -> Rect2:
-	var kind: String = str(selected_interaction_target.get("kind", "world_object")).strip_edges().to_lower()
-	var object_type: String = str(selected_interaction_target.get("object_type", "")).strip_edges().to_lower()
-	var center: Vector2 = get_object_visual_center(cell, selected_interaction_target)
-	var half: Vector2 = get_iso_tile_half_size()
-	var size: Vector2 = Vector2(half.x * 0.72, half.y * 1.05)
-	if kind == "wall" or object_type.contains("wall"):
-		center = grid_to_iso(cell) + Vector2(0.0, -iso_wall_height * 0.35)
-		size = Vector2(half.x * 0.95, half.y * 1.2 + iso_wall_height * 0.35)
-	elif kind == "cable" or object_type.contains("cable"):
-		size = Vector2(half.x * 0.86, half.y * 0.58)
-	elif kind == "item":
-		size = Vector2(half.x * 0.52, half.y * 0.62)
-	else:
-		size = Vector2(half.x * 0.72, half.y * 0.92 + iso_object_marker_height * 0.45)
-	return Rect2(center - size * 0.5, size)
+	return OverlayRendererRef.build_interaction_target_rect(_build_selected_interaction_overlay_context(cell))
+
+
+func _build_selected_interaction_overlay_context(cell: Vector2i) -> Dictionary:
+	return {
+		"kind": str(selected_interaction_target.get("kind", "world_object")).strip_edges().to_lower(),
+		"object_type": str(selected_interaction_target.get("object_type", "")).strip_edges().to_lower(),
+		"default_center": get_object_visual_center(cell, selected_interaction_target),
+		"wall_center": grid_to_iso(cell) + Vector2(0.0, -iso_wall_height * 0.35),
+		"tile_half_size": get_iso_tile_half_size(),
+		"wall_height": iso_wall_height,
+		"object_marker_height": iso_object_marker_height,
+		"time_seconds": selected_interaction_overlay_time
+	}
 
 
 func draw_selected_interaction_target_overlay() -> void:
 	var cell: Vector2i = _get_selected_interaction_target_cell()
 	if cell.x < 0 or cell.y < 0:
 		return
-	var rect: Rect2 = _get_selected_interaction_overlay_rect(cell).grow(6.0)
-	var pulse: float = 0.65 + 0.35 * sin(selected_interaction_overlay_time * 5.0)
-	var color: Color = Color(0.2, 0.9, 1.0, 0.45 + 0.35 * pulse)
-	var shadow: Color = Color(0.02, 0.05, 0.07, color.a * 0.72)
-	var corner: float = maxf(10.0, minf(rect.size.x, rect.size.y) * 0.24)
-	var width: float = 2.0 + pulse
-	var points: Array[Vector2] = [
-		rect.position,
-		rect.position + Vector2(rect.size.x, 0.0),
-		rect.position + rect.size,
-		rect.position + Vector2(0.0, rect.size.y)
-	]
-	for idx in range(points.size()):
-		var point: Vector2 = points[idx]
-		var sx: float = 1.0 if idx == 0 or idx == 3 else -1.0
-		var sy: float = 1.0 if idx == 0 or idx == 1 else -1.0
-		draw_line(point, point + Vector2(corner * sx, 0.0), shadow, width + 2.0, true)
-		draw_line(point, point + Vector2(0.0, corner * sy), shadow, width + 2.0, true)
-		draw_line(point, point + Vector2(corner * sx, 0.0), color, width, true)
-		draw_line(point, point + Vector2(0.0, corner * sy), color, width, true)
+	_draw_overlay_commands(OverlayRendererRef.build_interaction_target_commands(_build_selected_interaction_overlay_context(cell)))
 
 func iso_to_grid(iso_position: Vector2) -> Vector2i:
 	return IsoProjectionServiceRef.iso_to_grid(iso_position, iso_origin, get_iso_tile_half_size())
@@ -703,54 +684,29 @@ func clear_map_constructor_link_target() -> void:
 	queue_redraw()
 
 func draw_iso_mouse_selection_overlay() -> void:
+	var route_point_sets: Array[PackedVector2Array] = []
 	for route_cell in selected_iso_route_cells:
 		var route_points: PackedVector2Array = get_iso_inset_surface_diamond_points(route_cell, iso_floor_visual_inset + 10.0)
+		route_point_sets.append(route_points)
 
-		if route_points.size() < 4:
-			continue
-
-		draw_colored_polygon(route_points, Color(0.29, 0.75, 0.95, 0.14))
-
-		for edge_index in range(route_points.size()):
-			var next_index: int = (edge_index + 1) % route_points.size()
-			draw_line(route_points[edge_index], route_points[next_index], Color(0.29, 0.75, 0.95, 0.45), 1.6)
-
+	var selected_points: PackedVector2Array = PackedVector2Array()
 	if selected_iso_cell.x >= 0 and selected_iso_cell.y >= 0:
-		var selected_points: PackedVector2Array = get_iso_inset_surface_diamond_points(selected_iso_cell, iso_floor_visual_inset + 2.0)
+		selected_points = get_iso_inset_surface_diamond_points(selected_iso_cell, iso_floor_visual_inset + 2.0)
 
-		if selected_points.size() >= 4:
-			draw_colored_polygon(selected_points, Color(0.85, 0.93, 1.0, 0.09))
-
-			for edge_index in range(selected_points.size()):
-				var next_index: int = (edge_index + 1) % selected_points.size()
-				draw_line(selected_points[edge_index], selected_points[next_index], Color(0.8, 0.97, 1.0, 1.0), 2.6)
-
+	var action_points: PackedVector2Array = PackedVector2Array()
 	if selected_iso_action_cell.x >= 0 and selected_iso_action_cell.y >= 0:
-		var action_points: PackedVector2Array = get_iso_inset_surface_diamond_points(selected_iso_action_cell, iso_floor_visual_inset + 6.0)
+		action_points = get_iso_inset_surface_diamond_points(selected_iso_action_cell, iso_floor_visual_inset + 6.0)
 
-		if action_points.size() >= 4:
-			draw_colored_polygon(action_points, Color(0.98, 0.66, 0.35, 0.24))
-
-			for edge_index in range(action_points.size()):
-				var next_index: int = (edge_index + 1) % action_points.size()
-				draw_line(action_points[edge_index], action_points[next_index], Color(0.99, 0.75, 0.45, 1.0), 2.8)
-
+	var wall_anchor_points: PackedVector2Array = PackedVector2Array()
 	if selected_wall_mounted_anchor_cell.x >= 0 and selected_wall_mounted_anchor_cell.y >= 0:
-		var anchor_points: PackedVector2Array = get_iso_inset_diamond_points(selected_wall_mounted_anchor_cell, iso_floor_visual_inset + 4.0)
+		wall_anchor_points = get_iso_inset_diamond_points(selected_wall_mounted_anchor_cell, iso_floor_visual_inset + 4.0)
 
-		if anchor_points.size() >= 4:
-			for edge_index in range(anchor_points.size()):
-				var next_index: int = (edge_index + 1) % anchor_points.size()
-				draw_line(anchor_points[edge_index], anchor_points[next_index], Color(0.35, 0.92, 1.0, 1.0), 2.8)
-
+	var attached_wall_points: PackedVector2Array = PackedVector2Array()
 	if selected_wall_mounted_attached_wall_cell.x >= 0 and selected_wall_mounted_attached_wall_cell.y >= 0:
-		var attached_points: PackedVector2Array = get_iso_inset_diamond_points(selected_wall_mounted_attached_wall_cell, iso_floor_visual_inset + 8.0)
+		attached_wall_points = get_iso_inset_diamond_points(selected_wall_mounted_attached_wall_cell, iso_floor_visual_inset + 8.0)
 
-		if attached_points.size() >= 4:
-			for edge_index in range(attached_points.size()):
-				var next_index: int = (edge_index + 1) % attached_points.size()
-				draw_line(attached_points[edge_index], attached_points[next_index], Color(1.0, 0.8, 0.35, 1.0), 2.8)
-
+	var has_wall_object_center: bool = false
+	var wall_object_center: Vector2 = Vector2.ZERO
 	if not selected_wall_mounted_object_id.is_empty():
 		var mission_manager: Node = get_mission_manager_ref()
 		var obj: Dictionary = {}
@@ -759,15 +715,42 @@ func draw_iso_mouse_selection_overlay() -> void:
 			obj = Dictionary(mission_manager.call("get_world_object_at_cell", selected_wall_mounted_anchor_cell))
 
 		if str(obj.get("id", "")) == selected_wall_mounted_object_id:
-			var center: Vector2 = get_object_visual_center(selected_wall_mounted_anchor_cell, obj)
-			var r: float = 9.0
-			var pts: PackedVector2Array = PackedVector2Array([
-				center + Vector2(0, -r),
-				center + Vector2(r, 0),
-				center + Vector2(0, r),
-				center + Vector2(-r, 0)
-			])
-			draw_polyline(pts, Color(1.0, 0.96, 0.3, 1.0), 2.8, true)
+			wall_object_center = get_object_visual_center(selected_wall_mounted_anchor_cell, obj)
+			has_wall_object_center = true
+
+	_draw_overlay_commands(OverlayRendererRef.build_mouse_selection_commands({
+		"route_point_sets": route_point_sets,
+		"selected_points": selected_points,
+		"action_points": action_points,
+		"wall_anchor_points": wall_anchor_points,
+		"attached_wall_points": attached_wall_points,
+		"has_wall_object_center": has_wall_object_center,
+		"wall_object_center": wall_object_center
+	}))
+
+
+func _draw_overlay_commands(commands: Array[Dictionary]) -> void:
+	for command in commands:
+		var kind: String = str(command.get("kind", ""))
+		match kind:
+			"polygon":
+				draw_colored_polygon(PackedVector2Array(command.get("points", PackedVector2Array())), Color(command.get("color", Color.WHITE)))
+			"polyline":
+				draw_polyline(
+					PackedVector2Array(command.get("points", PackedVector2Array())),
+					Color(command.get("color", Color.WHITE)),
+					float(command.get("width", 1.0)),
+					bool(command.get("closed", false)),
+					bool(command.get("antialiased", false))
+				)
+			"line":
+				draw_line(
+					Vector2(command.get("start", Vector2.ZERO)),
+					Vector2(command.get("end", Vector2.ZERO)),
+					Color(command.get("color", Color.WHITE)),
+					float(command.get("width", 1.0)),
+					bool(command.get("antialiased", false))
+				)
 
 
 var map_constructor_overlay_prefs: Dictionary = {
