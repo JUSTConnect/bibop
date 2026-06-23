@@ -122,6 +122,17 @@ const ISO_CLASSIC_TILE_SIZE: Vector2 = IsoProjectionServiceRef.CLASSIC_TILE_SIZE
 const WALL_CABLE_RAIL_Y_RATIO: float = 0.44
 const WALL_CABLE_RAIL_HALF_WIDTH_RATIO: float = 0.30
 
+
+# Authored cooling-canvas and outer utility layout policy stays in the
+# coordinator. RouteRenderer owns route geometry, not asset canvas regions.
+const OUTER_UTILITY_WIDTH_SCALE := 5.0
+const OUTER_UTILITY_HEIGHT_SCALE := 2.0
+const OUTER_UTILITY_VERTICAL_OFFSET_SCALE := 2.0
+const ISO_COOLING_WALL_CANVAS_FACE_REGIONS: Dictionary = {
+	"sw": Rect2(0.0, 0.0, 0.5, 1.0),
+	"se": Rect2(0.5, 0.0, 0.5, 1.0)
+}
+
 const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
 	"power_source_01", "terminal_01", "radiator_01", "radiator_floor_01", "light_01",
 	"light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01",
