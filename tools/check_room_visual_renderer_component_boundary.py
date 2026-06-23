@@ -236,7 +236,7 @@ for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon("
         errors.append(f"projection component contains forbidden runtime dependency: {forbidden}")
 
 for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer), ("OverlayRenderer", overlay_renderer), ("MapConstructorOverlayRenderer", map_constructor_overlay_renderer)):
-    for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "queue_redraw(", "get_node("):
+    for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "draw_circle(", "queue_redraw(", "get_node("):
         if forbidden in component_source:
             errors.append(f"{component_name} contains forbidden CanvasItem/runtime dependency: {forbidden}")
 
@@ -255,6 +255,7 @@ for forbidden in (
     "draw_line(",
     "draw_polyline(",
     "draw_colored_polygon(",
+    "draw_circle(",
     "draw_rect(",
     "draw_arc(",
 ):
@@ -352,6 +353,7 @@ for token in (
 
 for token in (
     "class_name MapConstructorOverlayRenderer",
+    "static func normalize_preview_mode",
     "static func build_commands",
 ):
     if token not in map_constructor_overlay_renderer:
@@ -365,6 +367,8 @@ if "OverlayRendererRef.build_interaction_target_rect" not in function_body(rende
     errors.append("RoomVisualRenderer _get_selected_interaction_overlay_rect must delegate interaction rect policy to OverlayRenderer")
 if "MapConstructorOverlayRendererRef.build_commands" not in function_body(renderer, "draw_map_constructor_visual_overlay_passes"):
     errors.append("RoomVisualRenderer draw_map_constructor_visual_overlay_passes must delegate Map Constructor overlay policy")
+if "MapConstructorOverlayRendererRef.normalize_preview_mode" not in function_body(renderer, "_build_map_constructor_overlay_context"):
+    errors.append("RoomVisualRenderer must normalize Map Constructor preview mode through MapConstructorOverlayRenderer")
 
 selection_body = function_body(renderer, "draw_iso_mouse_selection_overlay")
 interaction_body = function_body(renderer, "draw_selected_interaction_target_overlay")
@@ -398,9 +402,13 @@ for token in (
         errors.append(f"RoomVisualRenderer contains migrated interaction overlay policy token: {token}")
 
 map_constructor_body = function_body(renderer, "draw_map_constructor_visual_overlay_passes")
-for token in ("Color(", "draw_line(", "draw_circle(", "draw_colored_polygon(", "16.0", "2.0", "3.0"):
+map_constructor_context_body = function_body(renderer, "_build_map_constructor_overlay_context")
+for token in ("Color(", "draw_line(", "draw_circle(", "draw_colored_polygon(", "draw_polyline(", "16.0", "2.0", "3.0"):
     if token in map_constructor_body:
         errors.append(f"RoomVisualRenderer draw_map_constructor_visual_overlay_passes contains migrated Map Constructor overlay policy token: {token}")
+for token in ("Color(", "draw_line(", "draw_circle(", "draw_colored_polygon(", "draw_polyline("):
+    if token in map_constructor_context_body:
+        errors.append(f"RoomVisualRenderer _build_map_constructor_overlay_context contains direct Canvas/style policy token: {token}")
 for name in ("draw_map_constructor_visual_overlay_passes", "draw_iso_fog_overlay", "should_render_iso_fog_visuals"):
     if not function_body(renderer, name):
         errors.append(f"RoomVisualRenderer must retain {name} ownership in this stage")

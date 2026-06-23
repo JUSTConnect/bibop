@@ -6,6 +6,7 @@ var failures: Array[String] = []
 
 func _initialize() -> void:
 	_check_core_passes()
+	_check_preview_normalization()
 	_check_arrows_invalid_order_and_stability()
 	if failures.is_empty():
 		print("MapConstructorOverlayRenderer contract OK")
@@ -60,6 +61,7 @@ func _check_core_passes() -> void:
 	_expect_line(commands[37], Vector2(1.0, 2.0), Vector2(3.0, 4.0), Color(0.9, 0.58, 1.0, 0.85), 1.8, false, "normal link")
 	_expect_line(commands[38], Vector2(5.0, 6.0), Vector2(7.0, 8.0), Color(1.0, 0.3, 0.3, 0.9), 1.8, false, "broken link")
 	_expect_line(commands[39], Vector2(9.0, 10.0), Vector2(11.0, 12.0), Color(0.45, 0.9, 1.0, 0.65), 1.2, false, "power link")
+	_assert_schema_and_order(commands, "mixed pass")
 	_check_preview_mode("blocked", Color(1.0, 0.35, 0.25, 0.2), Color(1.0, 0.55, 0.3, 1.0))
 	_check_preview_mode("destructive", Color(1.0, 0.62, 0.22, 0.17), Color(1.0, 0.7, 0.3, 1.0))
 
@@ -68,6 +70,13 @@ func _check_preview_mode(mode: String, fill: Color, stroke: Color) -> void:
 	var commands := Renderer.build_commands({"preview_points": d, "preview_mode": mode})
 	_expect_polygon(commands[0], d, fill, "%s preview fill" % mode)
 	_expect_line(commands[1], d[0], d[1], stroke, 2.2, false, "%s preview stroke" % mode)
+
+func _check_preview_normalization() -> void:
+	_expect(Renderer.normalize_preview_mode(true, "") == "blocked", "blocked flag must force blocked preview")
+	_expect(Renderer.normalize_preview_mode(true, "destructive") == "blocked", "blocked flag must take precedence over destructive")
+	_expect(Renderer.normalize_preview_mode(false, "destructive") == "destructive", "destructive raw mode should be preserved")
+	_expect(Renderer.normalize_preview_mode(false, "blocked") == "normal", "raw blocked mode without blocked flag must normalize to normal")
+	_expect(Renderer.normalize_preview_mode(false, "") == "normal", "empty raw mode must normalize to normal")
 
 func _check_arrows_invalid_order_and_stability() -> void:
 	var commands := Renderer.build_commands({"selected_points": PackedVector2Array([Vector2.ZERO]), "wall_side_arrows": [
@@ -84,11 +93,25 @@ func _check_arrows_invalid_order_and_stability() -> void:
 	_expect_line(commands[4], Vector2.ZERO, Vector2(0.0, 16.0), Color(0.82, 0.95, 1.0, 1.0), 2.0, false, "south arrow")
 	_expect_line(commands[6], Vector2.ZERO, Vector2(-16.0, 0.0), Color(1.0, 0.88, 0.35, 1.0), 2.0, false, "west arrow")
 	_expect_line(commands[8], Vector2.ZERO, Vector2(0.0, -16.0), Color(0.82, 0.95, 1.0, 1.0), 2.0, false, "default arrow")
-	for index in range(commands.size()):
-		_expect(int(commands[index].get("order", -1)) == index, "orders must be monotonic")
-		_expect(commands[index].has("kind") and commands[index].has("color") and commands[index].has("order"), "command missing required fields")
+	_assert_schema_and_order(commands, "arrow pass")
 	var context := {"wall_side_arrows": [{"center": Vector2.ZERO, "wall_side": "north", "mode": "preview"}]}
 	_expect(str(Renderer.build_commands(context)) == str(Renderer.build_commands(context)), "identical input must produce stable output")
+
+func _assert_schema_and_order(commands: Array[Dictionary], label: String) -> void:
+	for index in range(commands.size()):
+		var command: Dictionary = commands[index]
+		var kind: String = str(command.get("kind", ""))
+		_expect(int(command.get("order", -1)) == index, "%s orders must be monotonic" % label)
+		_expect(command.has("kind") and command.has("color") and command.has("order"), "%s command missing common fields" % label)
+		match kind:
+			"polygon":
+				_expect(command.has("points"), "%s polygon missing points" % label)
+			"line":
+				_expect(command.has("start") and command.has("end") and command.has("width") and command.has("antialiased"), "%s line missing geometry fields" % label)
+			"circle":
+				_expect(command.has("center") and command.has("radius"), "%s circle missing geometry fields" % label)
+			_:
+				_expect(false, "%s unsupported command kind %s" % [label, kind])
 
 func _expect_polygon(command: Dictionary, points: PackedVector2Array, color: Color, label: String) -> void:
 	_expect(str(command.get("kind", "")) == "polygon", "%s kind" % label)

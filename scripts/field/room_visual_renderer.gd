@@ -802,7 +802,7 @@ func _build_map_constructor_overlay_context() -> Dictionary:
 	if bool(map_constructor_overlay_prefs.get("show_preview", true)):
 		if map_constructor_preview_cell.x >= 0 and map_constructor_preview_cell.y >= 0:
 			context["preview_points"] = get_iso_inset_diamond_points(map_constructor_preview_cell, iso_floor_visual_inset + 3.0)
-			context["preview_mode"] = "blocked" if map_constructor_preview_is_blocked else str(preview.get("mode", "normal"))
+			context["preview_mode"] = MapConstructorOverlayRendererRef.normalize_preview_mode(map_constructor_preview_is_blocked, str(preview.get("mode", "")))
 		var room_walls: Array[Dictionary] = []
 		for wall_row_variant in Array(room_visual_preview.get("walls", [])):
 			var wall_row: Dictionary = Dictionary(wall_row_variant)

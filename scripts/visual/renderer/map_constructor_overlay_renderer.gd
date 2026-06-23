@@ -1,6 +1,13 @@
 extends RefCounted
 class_name MapConstructorOverlayRenderer
 
+static func normalize_preview_mode(is_blocked: bool, raw_mode: String) -> String:
+	if is_blocked:
+		return "blocked"
+	if raw_mode == "destructive":
+		return "destructive"
+	return "normal"
+
 static func build_commands(context: Dictionary) -> Array[Dictionary]:
 	var commands: Array[Dictionary] = []
 	var order: int = 0
