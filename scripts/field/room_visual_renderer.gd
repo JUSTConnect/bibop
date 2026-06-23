@@ -17,6 +17,7 @@ const FloorRendererRef = preload("res://scripts/visual/renderer/floor_renderer.g
 const WallRendererRef = preload("res://scripts/visual/renderer/wall_renderer.gd")
 const ObjectRendererRef = preload("res://scripts/visual/renderer/object_renderer.gd")
 const ObjectPrimitiveRendererRef = preload("res://scripts/visual/renderer/object_primitive_renderer.gd")
+const ObjectTextureDispatchPolicyRef = preload("res://scripts/visual/renderer/object_texture_dispatch_policy.gd")
 const RouteRendererRef = preload("res://scripts/visual/renderer/route_renderer.gd")
 const OverlayRendererRef = preload("res://scripts/visual/renderer/overlay_renderer.gd")
 const MapConstructorOverlayRendererRef = preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")
@@ -3434,7 +3435,7 @@ func log_authored_canvas_descriptor(object_data: Dictionary, asset_key: String, 
 	])
 
 func build_iso_object_visual_descriptor_for_contract(object_data: Dictionary, asset_key: String, texture_path: String, render_contract: String, visual_center: Vector2, texture: Texture2D) -> Dictionary:
-	match ObjectRendererRef.get_descriptor_mode(render_contract, VisualAssetRenderContractServiceRef.CONTRACT_WALL_AUTHORED_CANVAS, VisualAssetRenderContractServiceRef.CONTRACT_FLOOR_AUTHORED_CANVAS):
+	match ObjectTextureDispatchPolicyRef.get_descriptor_route(render_contract, VisualAssetRenderContractServiceRef.CONTRACT_WALL_AUTHORED_CANVAS, VisualAssetRenderContractServiceRef.CONTRACT_FLOOR_AUTHORED_CANVAS):
 		"wall_authored":
 			return build_authored_wall_canvas_descriptor(object_data, asset_key, texture_path, visual_center, texture)
 		"floor_authored":
@@ -5262,33 +5263,20 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	if draw_wall_routed_procedural_visual(object_data, profile, cell):
 		return
 	draw_wall_mounted_cable_tap(object_data, visual_center, get_iso_object_profile("cable"), has_terminal_visual)
-	# Topology-aware cable cells are rendered procedurally below so placed and preview
-	# cables share one continuous visual language instead of falling back to the old
-	# per-cell cable icon/marker texture.
-	var used_texture_asset: bool = false
 	var is_case_visual: bool = VisualStateAssetServiceRef.is_loot_case_object(object_data)
-	if is_case_visual:
-		used_texture_asset = draw_iso_object_png_texture_asset(cell, VisualStateAssetServiceRef.resolve_visual_asset_id(object_data), visual_center, object_data)
-	elif profile_key != "cable":
-		if is_iso_object_png_asset_key(object_asset_key):
-			used_texture_asset = draw_iso_object_png_texture_asset(cell, object_asset_key, visual_center, object_data)
-		else:
-			used_texture_asset = draw_optional_visual_texture_asset(object_asset_key, cell, "draw_iso_object_marker", {"visual_center": visual_center})
-			if not used_texture_asset:
-				used_texture_asset = draw_iso_texture_asset(cell, object_asset_key, visual_center)
-	if not used_texture_asset and has_door_visual:
-		used_texture_asset = draw_optional_visual_texture_asset(str(door_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
-	if not used_texture_asset and has_terminal_visual:
-		used_texture_asset = draw_optional_visual_texture_asset(str(terminal_visual.get("texture_asset_id", "")), cell, "draw_iso_object_marker", {"visual_center": visual_center})
+	var texture_plan_context := {"profile_key": profile_key, "primary_asset_id": object_asset_key, "primary_is_png": is_iso_object_png_asset_key(object_asset_key), "is_case_visual": is_case_visual}
+	texture_plan_context["case_asset_id"] = VisualStateAssetServiceRef.resolve_visual_asset_id(object_data) if is_case_visual else ""
+	texture_plan_context["has_door_visual"] = has_door_visual; texture_plan_context["door_texture_asset_id"] = str(door_visual.get("texture_asset_id", ""))
+	texture_plan_context["has_terminal_visual"] = has_terminal_visual; texture_plan_context["terminal_texture_asset_id"] = str(terminal_visual.get("texture_asset_id", ""))
+	var used_texture_asset: bool = _execute_object_texture_attempt_plan(ObjectTextureDispatchPolicyRef.build_attempt_plan(texture_plan_context), cell, visual_center, object_data)
 	if used_texture_asset:
-		if is_case_visual:
-			return
-		_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_texture_accent_commands({
-			"visual_center": visual_center,
-			"marker_height": iso_object_marker_height,
-			"accent": overlay_accent,
-			"enabled": true,
-		}))
+		if ObjectTextureDispatchPolicyRef.should_draw_success_accent({"texture_succeeded": true, "is_case_visual": is_case_visual}):
+			_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_texture_accent_commands({
+				"visual_center": visual_center,
+				"marker_height": iso_object_marker_height,
+				"accent": overlay_accent,
+				"enabled": true,
+			}))
 		return
 	if draw_wall_mounted_object_shape(cell, profile_key, profile, visual_center):
 		return
@@ -5314,6 +5302,17 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands(primitive_shape, _build_object_primitive_context(cell, profile, visual_center)))
 	if show_object_grounding_overlay:
 		_draw_grounding_overlay(profile_data)
+
+func _execute_object_texture_attempt_plan(attempts: Array[Dictionary], cell: Vector2i, visual_center: Vector2, object_data: Dictionary) -> bool:
+	for attempt in attempts:
+		var kind := str(attempt.get("kind", "")); var asset_id := str(attempt.get("asset_id", ""))
+		var used_texture_asset := false
+		match kind:
+			"png": used_texture_asset = draw_iso_object_png_texture_asset(cell, asset_id, visual_center, object_data)
+			"optional": used_texture_asset = draw_optional_visual_texture_asset(asset_id, cell, "draw_iso_object_marker", {"visual_center": visual_center})
+			"legacy": used_texture_asset = draw_iso_texture_asset(cell, asset_id, visual_center)
+		if used_texture_asset: return true
+	return false
 
 func build_iso_floor_draw_entries() -> Array[Dictionary]:
 	return FloorRendererRef.build_draw_entries(
