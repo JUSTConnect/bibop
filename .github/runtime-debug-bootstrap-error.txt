@@ -4,6 +4,7 @@ Traceback (most recent call last):
 RuntimeError: finalize installer block failed with 1
 STDOUT:
 RoomVisualRenderer component boundary audit FAILED:
+ - RoomVisualRenderer grew beyond runtime/debug overlay extraction cap: 6156 > 6153
  - RoomVisualRenderer draw_iso_wall_debug_and_mount_overlays contains migrated policy: Color(
 
 STDERR:
