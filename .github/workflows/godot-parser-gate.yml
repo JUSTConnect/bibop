@@ -48,6 +48,12 @@ jobs:
                   index += 1
               blocks.append('\n'.join(block).replace('/mnt/data', '/tmp/runtime-debug-work'))
 
+          if blocks:
+              blocks[0] = blocks[0].replace(
+                  "Path('/tmp/transform_runtime_debug.py').write_bytes(transform)",
+                  "transform = transform.replace(b'/mnt/data', b'/tmp/runtime-debug-work')\nPath('/tmp/transform_runtime_debug.py').write_bytes(transform)",
+              )
+
           try:
               if len(blocks) != 3:
                   raise RuntimeError(f'expected 3 installer blocks, got {len(blocks)}')
