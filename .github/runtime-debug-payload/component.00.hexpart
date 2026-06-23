@@ -100,3 +100,15 @@ func draw_iso_wall_debug_and_mount_overlays(cell: Vector2i, arch: Dictionary, to
 			var zone: Dictionary = Dictionary(zone_variant)
 			if not bool(zone.get("mountable", false)):
 				continue
+			var mount_poly: PackedVector2Array = PackedVector2Array(zone.get("mount_zone_polygon", PackedVector2Array()))
+			if mount_poly.size() < 3:
+				continue
+			var mount_zone_context: Dictionary = {
+				"points": mount_poly,
+				"draw_outline": debug_draw_iso_wall_outlines,
+			}
+			if arch.has("mount_band_color"):
+				mount_zone_context["fill_color"] = arch.get("mount_band_color")
+			if arch.has("mount_band_edge_color"):
+				mount_zone_context["edge_color"] = arch.get("mount_band_edge_color")
+			mount_zones.append(mount_zone_context)
