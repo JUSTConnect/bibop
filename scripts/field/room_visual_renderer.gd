@@ -18,6 +18,7 @@ const WallRendererRef = preload("res://scripts/visual/renderer/wall_renderer.gd"
 const ObjectRendererRef = preload("res://scripts/visual/renderer/object_renderer.gd")
 const RouteRendererRef = preload("res://scripts/visual/renderer/route_renderer.gd")
 const OverlayRendererRef = preload("res://scripts/visual/renderer/overlay_renderer.gd")
+const MapConstructorOverlayRendererRef = preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
@@ -750,6 +751,12 @@ func _draw_overlay_commands(commands: Array[Dictionary]) -> void:
 					float(command.get("width", 1.0)),
 					bool(command.get("antialiased", false))
 				)
+			"circle":
+				draw_circle(
+					Vector2(command.get("center", Vector2.ZERO)),
+					float(command.get("radius", 1.0)),
+					Color(command.get("color", Color.WHITE))
+				)
 
 
 var map_constructor_overlay_prefs: Dictionary = {
@@ -778,150 +785,102 @@ func set_map_constructor_editor_render_active(active: bool) -> void:
 	map_constructor_editor_render_active = active
 	queue_redraw()
 
-func _draw_wall_side_arrow(cell: Vector2i, wall_side: String, color: Color) -> void:
-	var center: Vector2 = grid_to_iso(cell)
-	var dir: Vector2 = Vector2(0.0, -1.0)
-	match wall_side:
-		"north":
-			dir = Vector2(0.0, -1.0)
-		"east":
-			dir = Vector2(1.0, 0.0)
-		"south":
-			dir = Vector2(0.0, 1.0)
-		"west":
-			dir = Vector2(-1.0, 0.0)
-		_:
-			dir = Vector2(0.0, -1.0)
-	var tip: Vector2 = center + dir * 16.0
-	draw_line(center, tip, color, 2.0)
-	draw_circle(tip, 3.0, color)
-
-func draw_map_constructor_visual_overlay_passes() -> void:
+func _build_map_constructor_overlay_context() -> Dictionary:
 	var selected: Dictionary = Dictionary(map_constructor_overlay_data.get("selected", {}))
 	var hover: Dictionary = Dictionary(map_constructor_overlay_data.get("hover", {}))
 	var preview: Dictionary = Dictionary(map_constructor_overlay_data.get("preview", {}))
-	var issues: Array = Array(map_constructor_overlay_data.get("validation", []))
-	var links: Array = Array(map_constructor_overlay_data.get("links", []))
-	var power: Array = Array(map_constructor_overlay_data.get("power", []))
-	var multi_select: Array = Array(map_constructor_overlay_data.get("multi_select", []))
 	var room_visual_preview: Dictionary = Dictionary(map_constructor_overlay_data.get("room_visual_preview", {}))
+	var context: Dictionary = {}
 	if selected.has("cell"):
 		var selected_cell: Vector2i = Vector2i(selected.get("cell", Vector2i(-1, -1)))
 		if selected_cell.x >= 0 and selected_cell.y >= 0:
-			var selected_poly: PackedVector2Array = get_iso_inset_diamond_points(selected_cell, iso_floor_visual_inset + 1.5)
-			if selected_poly.size() >= 4:
-				draw_colored_polygon(selected_poly, Color(1.0, 0.92, 0.24, 0.11))
-				for selected_edge_index in range(selected_poly.size()):
-					var selected_next_index: int = (selected_edge_index + 1) % selected_poly.size()
-					draw_line(selected_poly[selected_edge_index], selected_poly[selected_next_index], Color(1.0, 0.92, 0.24, 0.95), 2.4)
+			context["selected_points"] = get_iso_inset_diamond_points(selected_cell, iso_floor_visual_inset + 1.5)
 	if hover.has("cell"):
 		var hover_cell: Vector2i = Vector2i(hover.get("cell", Vector2i(-1, -1)))
 		if hover_cell.x >= 0 and hover_cell.y >= 0:
-			var hover_poly: PackedVector2Array = get_iso_inset_diamond_points(hover_cell, iso_floor_visual_inset + 6.0)
-			for hover_edge_index in range(hover_poly.size()):
-				var hover_next_index: int = (hover_edge_index + 1) % hover_poly.size()
-				draw_line(hover_poly[hover_edge_index], hover_poly[hover_next_index], Color(0.72, 0.92, 1.0, 0.45), 1.2)
+			context["hover_points"] = get_iso_inset_diamond_points(hover_cell, iso_floor_visual_inset + 6.0)
 	if bool(map_constructor_overlay_prefs.get("show_preview", true)):
-		var destructive: bool = str(preview.get("mode", "")) == "destructive"
-		var preview_blocked: bool = map_constructor_preview_is_blocked
 		if map_constructor_preview_cell.x >= 0 and map_constructor_preview_cell.y >= 0:
-			var p: PackedVector2Array = get_iso_inset_diamond_points(map_constructor_preview_cell, iso_floor_visual_inset + 3.0)
-			if p.size() >= 4:
-				var c: Color = Color(0.35, 1.0, 0.85, 0.16)
-				var s: Color = Color(0.45, 1.0, 0.92, 1.0)
-				if preview_blocked:
-					c = Color(1.0, 0.35, 0.25, 0.2)
-					s = Color(1.0, 0.55, 0.3, 1.0)
-				elif destructive:
-					c = Color(1.0, 0.62, 0.22, 0.17)
-					s = Color(1.0, 0.7, 0.3, 1.0)
-				draw_colored_polygon(p, c)
-				for edge_index in range(p.size()):
-					var next_index: int = (edge_index + 1) % p.size()
-					draw_line(p[edge_index], p[next_index], s, 2.2)
-	if bool(map_constructor_overlay_prefs.get("show_preview", true)):
+			context["preview_points"] = get_iso_inset_diamond_points(map_constructor_preview_cell, iso_floor_visual_inset + 3.0)
+			context["preview_mode"] = "blocked" if map_constructor_preview_is_blocked else str(preview.get("mode", "normal"))
+		var room_walls: Array[Dictionary] = []
 		for wall_row_variant in Array(room_visual_preview.get("walls", [])):
 			var wall_row: Dictionary = Dictionary(wall_row_variant)
 			var wall_cell: Vector2i = Vector2i(wall_row.get("cell", Vector2i(-1, -1)))
 			if wall_cell.x < 0 or wall_cell.y < 0:
 				continue
-			var wall_poly: PackedVector2Array = get_iso_inset_diamond_points(wall_cell, iso_floor_visual_inset + 12.0)
-			for wall_edge_index in range(wall_poly.size()):
-				var wall_next_index: int = (wall_edge_index + 1) % wall_poly.size()
-				draw_line(wall_poly[wall_edge_index], wall_poly[wall_next_index], Color(0.95, 0.74, 0.28, 0.42), 1.5)
-			var wall_center: Vector2 = grid_to_iso(wall_cell)
-			draw_circle(wall_center + Vector2(0.0, -8.0), 2.1, Color(0.45, 0.9, 1.0, 0.76))
+			room_walls.append({"points": get_iso_inset_diamond_points(wall_cell, iso_floor_visual_inset + 12.0), "center": grid_to_iso(wall_cell)})
+		context["room_walls"] = room_walls
+		var door_centers: Array[Vector2] = []
 		for door_row_variant in Array(room_visual_preview.get("doors", [])):
-			var door_row: Dictionary = Dictionary(door_row_variant)
-			var door_cell: Vector2i = Vector2i(door_row.get("cell", Vector2i(-1, -1)))
+			var door_cell: Vector2i = Vector2i(Dictionary(door_row_variant).get("cell", Vector2i(-1, -1)))
 			if door_cell.x < 0 or door_cell.y < 0:
 				continue
-			draw_circle(grid_to_iso(door_cell) + Vector2(-5.0, -9.0), 2.8, Color(1.0, 0.76, 0.28, 0.88))
+			door_centers.append(grid_to_iso(door_cell))
+		context["room_door_centers"] = door_centers
+		var terminal_centers: Array[Vector2] = []
 		for terminal_row_variant in Array(room_visual_preview.get("terminals", [])):
-			var terminal_row: Dictionary = Dictionary(terminal_row_variant)
-			var terminal_cell: Vector2i = Vector2i(terminal_row.get("cell", Vector2i(-1, -1)))
+			var terminal_cell: Vector2i = Vector2i(Dictionary(terminal_row_variant).get("cell", Vector2i(-1, -1)))
 			if terminal_cell.x < 0 or terminal_cell.y < 0:
 				continue
-			draw_circle(grid_to_iso(terminal_cell) + Vector2(5.0, -9.0), 2.8, Color(0.44, 0.9, 1.0, 0.88))
+			terminal_centers.append(grid_to_iso(terminal_cell))
+		context["room_terminal_centers"] = terminal_centers
+		var floor_point_sets: Array[PackedVector2Array] = []
 		for floor_row_variant in Array(room_visual_preview.get("floors", [])):
-			var floor_row: Dictionary = Dictionary(floor_row_variant)
-			var floor_cell: Vector2i = Vector2i(floor_row.get("cell", Vector2i(-1, -1)))
+			var floor_cell: Vector2i = Vector2i(Dictionary(floor_row_variant).get("cell", Vector2i(-1, -1)))
 			if floor_cell.x < 0 or floor_cell.y < 0:
 				continue
-			var floor_poly: PackedVector2Array = get_iso_inset_diamond_points(floor_cell, iso_floor_visual_inset + 5.0)
-			for floor_edge_index in range(floor_poly.size()):
-				var floor_next_index: int = (floor_edge_index + 1) % floor_poly.size()
-				draw_line(floor_poly[floor_edge_index], floor_poly[floor_next_index], Color(0.56, 0.78, 0.96, 0.48), 1.15)
+			floor_point_sets.append(get_iso_inset_diamond_points(floor_cell, iso_floor_visual_inset + 5.0))
+		context["room_floor_point_sets"] = floor_point_sets
 	if bool(map_constructor_overlay_prefs.get("show_multi_select", true)):
-		for row_variant in multi_select:
-			var row: Dictionary = Dictionary(row_variant)
-			var cell: Vector2i = Vector2i(row.get("cell", Vector2i(-1, -1)))
+		var multi_select_point_sets: Array[PackedVector2Array] = []
+		for row_variant in Array(map_constructor_overlay_data.get("multi_select", [])):
+			var cell: Vector2i = Vector2i(Dictionary(row_variant).get("cell", Vector2i(-1, -1)))
 			if cell.x < 0 or cell.y < 0:
 				continue
-			var mp: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset + 10.0)
-			for edge_index in range(mp.size()):
-				var next_index: int = (edge_index + 1) % mp.size()
-				draw_line(mp[edge_index], mp[next_index], Color(0.75, 0.85, 1.0, 0.8), 1.4)
+			multi_select_point_sets.append(get_iso_inset_diamond_points(cell, iso_floor_visual_inset + 10.0))
+		context["multi_select_point_sets"] = multi_select_point_sets
 	if bool(map_constructor_overlay_prefs.get("show_validation", true)):
-		for issue_variant in issues:
+		var validation_markers: Array[Dictionary] = []
+		for issue_variant in Array(map_constructor_overlay_data.get("validation", [])):
 			var issue: Dictionary = Dictionary(issue_variant)
 			var cell: Vector2i = Vector2i(issue.get("cell", Vector2i(-1, -1)))
 			if cell.x < 0 or cell.y < 0:
 				continue
-			var sev: String = str(issue.get("severity", "info"))
-			var expected_invalid: bool = bool(issue.get("expected_invalid", false)) or sev.to_lower() == "expected_invalid"
-			var mc: Color = Color(0.62, 0.8, 1.0, 0.95)
-			if expected_invalid:
-				mc = Color(0.74, 0.66, 0.86, 0.95)
-			elif sev == "error":
-				mc = Color(1.0, 0.3, 0.3, 0.95)
-			elif sev == "warning":
-				mc = Color(1.0, 0.74, 0.3, 0.95)
-			draw_circle(grid_to_iso(cell), 6.0, mc)
+			validation_markers.append({"center": grid_to_iso(cell), "severity": str(issue.get("severity", "info")), "expected_invalid": bool(issue.get("expected_invalid", false))})
+		context["validation_markers"] = validation_markers
 	if bool(map_constructor_overlay_prefs.get("show_links", true)):
-		for link_variant in links:
+		var link_rows: Array[Dictionary] = []
+		for link_variant in Array(map_constructor_overlay_data.get("links", [])):
 			var link: Dictionary = Dictionary(link_variant)
 			var from_cell: Vector2i = Vector2i(link.get("from_cell", Vector2i(-1, -1)))
 			var to_cell: Vector2i = Vector2i(link.get("to_cell", Vector2i(-1, -1)))
 			if from_cell.x < 0 or to_cell.x < 0:
 				continue
-			var lc: Color = Color(0.9, 0.58, 1.0, 0.85)
-			if bool(link.get("broken", false)):
-				lc = Color(1.0, 0.3, 0.3, 0.9)
-			draw_line(grid_to_iso(from_cell), grid_to_iso(to_cell), lc, 1.8)
+			link_rows.append({"start": grid_to_iso(from_cell), "end": grid_to_iso(to_cell), "broken": bool(link.get("broken", false))})
+		context["links"] = link_rows
 	if bool(map_constructor_overlay_prefs.get("show_power", true)):
-		for prow_variant in power:
+		var power_rows: Array[Dictionary] = []
+		for prow_variant in Array(map_constructor_overlay_data.get("power", [])):
 			var prow: Dictionary = Dictionary(prow_variant)
 			var f: Vector2i = Vector2i(prow.get("from_cell", Vector2i(-1, -1)))
 			var t: Vector2i = Vector2i(prow.get("to_cell", Vector2i(-1, -1)))
 			if f.x < 0 or t.x < 0:
 				continue
-			draw_line(grid_to_iso(f), grid_to_iso(t), Color(0.45, 0.9, 1.0, 0.65), 1.2)
+			power_rows.append({"start": grid_to_iso(f), "end": grid_to_iso(t)})
+		context["power_links"] = power_rows
 	if bool(map_constructor_overlay_prefs.get("show_wall_side_arrows", true)):
+		var wall_side_arrows: Array[Dictionary] = []
 		if str(preview.get("wall_side", "")) != "" and map_constructor_preview_cell.x >= 0:
-			_draw_wall_side_arrow(map_constructor_preview_cell, str(preview.get("wall_side", "")), Color(0.82, 0.95, 1.0, 1.0))
+			wall_side_arrows.append({"center": grid_to_iso(map_constructor_preview_cell), "wall_side": str(preview.get("wall_side", "")), "mode": "preview"})
 		if str(selected.get("wall_side", "")) != "":
-			_draw_wall_side_arrow(Vector2i(selected.get("cell", Vector2i(-1, -1))), str(selected.get("wall_side", "")), Color(1.0, 0.88, 0.35, 1.0))
+			wall_side_arrows.append({"center": grid_to_iso(Vector2i(selected.get("cell", Vector2i(-1, -1)))), "wall_side": str(selected.get("wall_side", "")), "mode": "selected"})
+		context["wall_side_arrows"] = wall_side_arrows
+	return context
+
+func draw_map_constructor_visual_overlay_passes() -> void:
+	_draw_overlay_commands(MapConstructorOverlayRendererRef.build_commands(_build_map_constructor_overlay_context()))
+
 const ISO_LAYER_BIAS_FLOOR: float = IsoDrawEntryContractRef.LAYER_BIAS_FLOOR
 const ISO_LAYER_BIAS_CABLE: float = IsoDrawEntryContractRef.LAYER_BIAS_CABLE
 const ISO_LAYER_BIAS_ITEM: float = IsoDrawEntryContractRef.LAYER_BIAS_ITEM
