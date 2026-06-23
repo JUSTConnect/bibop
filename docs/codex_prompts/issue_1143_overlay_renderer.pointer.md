@@ -1,0 +1,1 @@
+Use [`issue_1143_overlay_renderer.md`](issue_1143_overlay_renderer.md) as the implementation prompt for GitHub issue #1143. Current-code audit notes are in [`issue_1143_overlay_renderer.notes.md`](issue_1143_overlay_renderer.notes.md).
