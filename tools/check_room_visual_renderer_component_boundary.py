@@ -14,6 +14,7 @@ OBJECT = ROOT / "scripts/visual/renderer/object_renderer.gd"
 ROUTE = ROOT / "scripts/visual/renderer/route_renderer.gd"
 OVERLAY = ROOT / "scripts/visual/renderer/overlay_renderer.gd"
 MAP_CONSTRUCTOR_OVERLAY = ROOT / "scripts/visual/renderer/map_constructor_overlay_renderer.gd"
+RUNTIME_DEBUG_OVERLAY = ROOT / "scripts/visual/renderer/runtime_debug_overlay_renderer.gd"
 errors: list[str] = []
 
 
@@ -38,13 +39,14 @@ object_renderer = read(OBJECT)
 route_renderer = read(ROUTE)
 overlay_renderer = read(OVERLAY)
 map_constructor_overlay_renderer = read(MAP_CONSTRUCTOR_OVERLAY)
+runtime_debug_overlay_renderer = read(RUNTIME_DEBUG_OVERLAY)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP = 6162
-if renderer_lines > ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP:
+ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP = 6158
+if renderer_lines > ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP:
     errors.append(
-        "RoomVisualRenderer grew beyond selection/interaction overlay extraction cap: "
-        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP}"
+        "RoomVisualRenderer grew beyond runtime/debug overlay extraction cap: "
+        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP}"
     )
 
 for token in (
@@ -56,6 +58,7 @@ for token in (
     'preload("res://scripts/visual/renderer/route_renderer.gd")',
     'preload("res://scripts/visual/renderer/overlay_renderer.gd")',
     'preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")',
+    'preload("res://scripts/visual/renderer/runtime_debug_overlay_renderer.gd")',
 ):
     if token not in renderer:
         errors.append(f"RoomVisualRenderer missing component preload: {token}")
@@ -235,7 +238,7 @@ for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon("
     if forbidden in projection:
         errors.append(f"projection component contains forbidden runtime dependency: {forbidden}")
 
-for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer), ("OverlayRenderer", overlay_renderer), ("MapConstructorOverlayRenderer", map_constructor_overlay_renderer)):
+for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer), ("OverlayRenderer", overlay_renderer), ("MapConstructorOverlayRenderer", map_constructor_overlay_renderer), ("RuntimeDebugOverlayRenderer", runtime_debug_overlay_renderer)):
     for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "draw_circle(", "queue_redraw(", "get_node("):
         if forbidden in component_source:
             errors.append(f"{component_name} contains forbidden CanvasItem/runtime dependency: {forbidden}")
@@ -425,6 +428,83 @@ if "func draw_iso_floor_cell" in floor:
     errors.append("FloorRenderer must not own Canvas drawing in this stage")
 if "func draw_iso_wall_block" in wall:
     errors.append("WallRenderer must not own Canvas drawing in this stage")
+
+
+for token in (
+    "class_name RuntimeDebugOverlayRenderer",
+    "static func build_origin_commands",
+    "static func build_helper_preview_commands",
+    "static func build_wall_mount_zone_commands",
+    "static func build_wall_run_commands",
+    "static func build_floor_join_commands",
+    "static func build_world_marker_commands",
+    "static func build_fan_marker_commands",
+    "static func build_asset_alignment_commands",
+    "static func build_grounding_commands",
+    "static func build_door_opening_commands",
+    "static func build_wall_debug_commands",
+):
+    if token not in runtime_debug_overlay_renderer:
+        errors.append(f"RuntimeDebugOverlayRenderer missing contract: {token}")
+
+for forbidden in (
+    "GridManager", "MissionManager", "Node", "Node2D", "get_node(", "get_tree(",
+    "ThemeDB", "Font", "ResourceLoader", "load(", "Texture2D", "Time", "queue_redraw(",
+    "grid_to_iso(", "draw_line(", "draw_polyline(", "draw_colored_polygon(",
+    "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(",
+):
+    if forbidden in runtime_debug_overlay_renderer:
+        errors.append(f"RuntimeDebugOverlayRenderer contains forbidden dependency: {forbidden}")
+
+runtime_debug_delegates = {
+    "draw_iso_asset_alignment_overlay": "RuntimeDebugOverlayRendererRef.build_asset_alignment_commands",
+    "draw_iso_wall_debug_and_mount_overlays": "RuntimeDebugOverlayRendererRef.build_wall_debug_commands",
+    "_draw_grounding_overlay": "RuntimeDebugOverlayRendererRef.build_grounding_commands",
+    "draw_door_opening_overlay_for_context": "RuntimeDebugOverlayRendererRef.build_door_opening_commands",
+    "draw_world_overlay_markers": "RuntimeDebugOverlayRendererRef.build_world_marker_commands",
+    "draw_fan_platform_marker": "RuntimeDebugOverlayRendererRef.build_fan_marker_commands",
+    "draw_wall_mount_zones_overlay": "RuntimeDebugOverlayRendererRef.build_wall_mount_zone_commands",
+    "draw_wall_run_overlay": "RuntimeDebugOverlayRendererRef.build_wall_run_commands",
+    "draw_floor_join_overlay": "RuntimeDebugOverlayRendererRef.build_floor_join_commands",
+}
+for name, delegate in runtime_debug_delegates.items():
+    body = function_body(renderer, name)
+    if delegate not in body:
+        errors.append(f"RoomVisualRenderer {name} must delegate runtime/debug policy")
+    for forbidden in ("draw_line(", "draw_polyline(", "draw_colored_polygon(", "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(", "Color("):
+        if forbidden in body:
+            errors.append(f"RoomVisualRenderer {name} contains migrated policy: {forbidden}")
+
+dispatcher = function_body(renderer, "_draw_overlay_commands")
+if '"rect":' not in dispatcher or '"text":' not in dispatcher:
+    errors.append("RoomVisualRenderer overlay dispatcher must execute rect and text commands")
+
+for name, token in (
+    ("draw_iso_wall_block", "draw_iso_wall_debug_and_mount_overlays"),
+    ("draw_iso_object_marker", "_draw_grounding_overlay"),
+    ("draw_iso_door_insert", "draw_door_opening_overlay_for_context"),
+):
+    if token not in function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer {name} lost inline diagnostic placement")
+
+draw_body = function_body(renderer, "_draw")
+order = (
+    "draw_iso_geometry_prototype", "draw_wall_mount_zones_overlay", "draw_wall_run_overlay",
+    "draw_floor_join_overlay", "draw_cable_reel_drag_trail", "draw_iso_mouse_selection_overlay",
+    "draw_map_constructor_visual_overlay_passes", "draw_selected_interaction_target_overlay",
+    "draw_world_overlay_markers", "draw_fan_platform_marker", "draw_iso_fog_overlay",
+    "RuntimeDebugOverlayRendererRef.build_helper_preview_commands",
+)
+positions = [draw_body.find(token) for token in order]
+if any(value < 0 for value in positions) or positions != sorted(positions):
+    errors.append("RoomVisualRenderer runtime/debug overlay ordering changed")
+
+for name in (
+    "draw_cable_reel_drag_trail", "draw_iso_fog_overlay", "draw_iso_fog_cell_overlay",
+    "draw_iso_fog_wall_overlay", "draw_iso_floor_cell", "draw_iso_wall_block", "draw_iso_object_marker",
+):
+    if not function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer must retain {name} ownership")
 
 if errors:
     print("RoomVisualRenderer component boundary audit FAILED:")

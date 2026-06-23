@@ -19,6 +19,7 @@ const ObjectRendererRef = preload("res://scripts/visual/renderer/object_renderer
 const RouteRendererRef = preload("res://scripts/visual/renderer/route_renderer.gd")
 const OverlayRendererRef = preload("res://scripts/visual/renderer/overlay_renderer.gd")
 const MapConstructorOverlayRendererRef = preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")
+const RuntimeDebugOverlayRendererRef = preload("res://scripts/visual/renderer/runtime_debug_overlay_renderer.gd")
 const SurfaceMaterialCatalogRef = preload("res://scripts/world/surface_material_catalog.gd")
 const WallHeightCatalogRef = preload("res://scripts/world/wall_height_catalog.gd")
 const LightVisualServiceRef = preload("res://scripts/visual/light_visual_service.gd")
@@ -730,6 +731,7 @@ func draw_iso_mouse_selection_overlay() -> void:
 	}))
 
 
+
 func _draw_overlay_commands(commands: Array[Dictionary]) -> void:
 	for command in commands:
 		var kind: String = str(command.get("kind", ""))
@@ -757,7 +759,24 @@ func _draw_overlay_commands(commands: Array[Dictionary]) -> void:
 					float(command.get("radius", 1.0)),
 					Color(command.get("color", Color.WHITE))
 				)
-
+			"rect":
+				draw_rect(
+					Rect2(command.get("rect", Rect2())),
+					Color(command.get("color", Color.WHITE)),
+					bool(command.get("filled", true)),
+					float(command.get("width", 1.0)),
+					bool(command.get("antialiased", false))
+				)
+			"text":
+				draw_string(
+					ThemeDB.fallback_font,
+					Vector2(command.get("position", Vector2.ZERO)),
+					str(command.get("text", "")),
+					int(command.get("alignment", HORIZONTAL_ALIGNMENT_LEFT)),
+					float(command.get("width", -1.0)),
+					int(command.get("font_size", 10)),
+					Color(command.get("color", Color.WHITE))
+				)
 
 var map_constructor_overlay_prefs: Dictionary = {
 	"show_preview": true,
@@ -769,7 +788,6 @@ var map_constructor_overlay_prefs: Dictionary = {
 }
 var map_constructor_overlay_data: Dictionary = {}
 var map_constructor_editor_render_active: bool = false
-
 func set_map_constructor_overlay_preferences(prefs: Dictionary) -> void:
 	for key_variant in prefs.keys():
 		var key: String = str(key_variant)
@@ -3575,6 +3593,7 @@ func should_draw_iso_asset_with_rect(asset_key: String) -> bool:
 		return true
 	return anchor != "center"
 
+
 func draw_iso_asset_alignment_overlay(asset_key: String, anchor_position: Vector2, actual_rect: Rect2) -> void:
 	if not show_asset_alignment_overlay and not show_object_grounding_overlay:
 		return
@@ -3582,13 +3601,12 @@ func draw_iso_asset_alignment_overlay(asset_key: String, anchor_position: Vector
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
 	var expected_anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "center")), expected_size)
 	var expected_rect: Rect2 = Rect2(anchor_position - expected_anchor_offset + Vector2(rule.get("offset", Vector2.ZERO)), expected_size)
-	draw_rect(expected_rect, Color(1.0, 0.78, 0.22, 0.18), true)
-	draw_rect(expected_rect, Color(1.0, 0.78, 0.22, 0.95), false, 1.0)
-	draw_rect(actual_rect, Color(0.2, 0.9, 1.0, 0.72), false, 1.0)
-	draw_line(anchor_position + Vector2(-4.0, 0.0), anchor_position + Vector2(4.0, 0.0), Color(1.0, 0.25, 0.25, 0.95), 1.5)
-	draw_line(anchor_position + Vector2(0.0, -4.0), anchor_position + Vector2(0.0, 4.0), Color(1.0, 0.25, 0.25, 0.95), 1.5)
-	draw_circle(anchor_position, 2.5, Color(1.0, 0.25, 0.25, 0.95))
-	draw_string(ThemeDB.fallback_font, expected_rect.position + Vector2(2.0, -3.0), asset_key, HORIZONTAL_ALIGNMENT_LEFT, maxf(expected_rect.size.x, 40.0), 9, Color(1.0, 0.95, 0.78, 0.95))
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_asset_alignment_commands({
+		"asset_key": asset_key,
+		"anchor_position": anchor_position,
+		"expected_rect": expected_rect,
+		"actual_rect": actual_rect,
+	}))
 
 func draw_iso_texture_with_alignment(texture: Texture2D, asset_key: String, center: Vector2) -> void:
 	var destination_rect: Rect2 = get_iso_texture_draw_rect_for_asset_key(asset_key, center, texture)
@@ -4061,23 +4079,34 @@ func draw_iso_breachable_wall_overlay(cell: Vector2i) -> void:
 	draw_line(crack_center + Vector2(-5.0, 5.0) * crack_scale, crack_center + Vector2(-1.0, 13.0) * crack_scale, crack_color, 1.4 * crack_scale)
 	draw_line(crack_center + Vector2(7.0, 7.0) * crack_scale, crack_center + Vector2(3.0, 14.0) * crack_scale, crack_color, 1.4 * crack_scale)
 
+
 func draw_iso_wall_debug_and_mount_overlays(cell: Vector2i, arch: Dictionary, topology: String) -> void:
-	if show_wall_topology_overlay:
-		draw_string(ThemeDB.fallback_font, grid_to_iso(cell) + Vector2(-20.0, -float(arch.get("height_px", 24)) - 4.0), topology, HORIZONTAL_ALIGNMENT_LEFT, 56.0, 9, Color(0.95, 0.96, 1.0, 0.9))
-	# Wall mount zones are visual metadata for editor/debug workflows. Keep them
-	# out of normal wall rendering unless the explicit debug overlay is enabled.
-	if not show_wall_mount_zones_overlay or not bool(arch.get("mount_band_enabled", true)):
-		return
-	var mount_zones: Array[Dictionary] = get_wall_mounted_anchor_zones(cell)
-	for zone_variant in mount_zones:
-		var zone: Dictionary = Dictionary(zone_variant)
-		if not bool(zone.get("mountable", false)):
-			continue
-		var mount_poly: PackedVector2Array = PackedVector2Array(zone.get("mount_zone_polygon", PackedVector2Array()))
-		if mount_poly.size() >= 3:
-			draw_colored_polygon(mount_poly, Color(arch.get("mount_band_color", Color(0.6, 0.62, 0.66, 0.35))))
-			if debug_draw_iso_wall_outlines:
-				draw_polyline(mount_poly, Color(arch.get("mount_band_edge_color", Color.WHITE)), 1.1, true)
+	var context: Dictionary = {
+		"show_topology": show_wall_topology_overlay,
+		"topology": topology,
+		"topology_position": grid_to_iso(cell) + Vector2(-20.0, -float(arch.get("height_px", 24)) - 4.0),
+		"mount_zones": [],
+	}
+	if show_wall_mount_zones_overlay and bool(arch.get("mount_band_enabled", true)):
+		var mount_zones: Array[Dictionary] = []
+		for zone_variant in get_wall_mounted_anchor_zones(cell):
+			var zone: Dictionary = Dictionary(zone_variant)
+			if not bool(zone.get("mountable", false)):
+				continue
+			var mount_poly: PackedVector2Array = PackedVector2Array(zone.get("mount_zone_polygon", PackedVector2Array()))
+			if mount_poly.size() < 3:
+				continue
+			var mount_zone_context: Dictionary = {
+				"points": mount_poly,
+				"draw_outline": debug_draw_iso_wall_outlines,
+			}
+			if arch.has("mount_band_color"):
+				mount_zone_context["fill_color"] = arch.get("mount_band_color")
+			if arch.has("mount_band_edge_color"):
+				mount_zone_context["edge_color"] = arch.get("mount_band_edge_color")
+			mount_zones.append(mount_zone_context)
+		context["mount_zones"] = mount_zones
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_wall_debug_commands(context))
 
 func draw_iso_wall_surface_accent(
 	left_face: PackedVector2Array,
@@ -5292,24 +5321,9 @@ func get_iso_object_grounding_profile(object_data: Dictionary, fallback_cell: Ve
 		"height_px": 18, "scale": shape_scale, "badge_enabled": true
 	}
 
+
 func _draw_grounding_overlay(profile: Dictionary) -> void:
-	var fp: PackedVector2Array = PackedVector2Array(profile.get("footprint_polygon", PackedVector2Array()))
-	if fp.size() >= 3:
-		draw_colored_polygon(fp, Color(0.28, 0.7, 0.95, 0.08))
-		for i in range(fp.size()):
-			var n: int = (i + 1) % fp.size()
-			draw_line(fp[i], fp[n], Color(0.28, 0.8, 1.0, 0.65), 1.0)
-	var center: Vector2 = Vector2(profile.get("visual_center", Vector2.ZERO))
-	draw_circle(center, 2.0, Color(0.96, 0.96, 0.2, 0.95))
-	var gt: String = str(profile.get("grounding_type", "unknown"))
-	var short: String = "UN"
-	match gt:
-		"floor_standing": short = "FS"
-		"wall_mounted": short = "WM"
-		"door_insert": short = "DR"
-		"floor_pickup": short = "IT"
-		"cable_like": short = "CB"
-	draw_string(ThemeDB.fallback_font, center + Vector2(4.0, -6.0), short, HORIZONTAL_ALIGNMENT_LEFT, 18.0, 10, Color(0.95, 1.0, 0.98, 0.95))
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_grounding_commands(profile))
 
 func _get_door_axis_vectors(orientation: String) -> Dictionary:
 	if orientation == "axis_y":
@@ -5434,20 +5448,21 @@ func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictiona
 	if show_door_opening_overlay:
 		draw_door_opening_overlay_for_context(context)
 
+
 func draw_door_opening_overlay_for_context(context: Dictionary) -> void:
 	var cell: Vector2i = Vector2i(context.get("cell", Vector2i(-1, -1)))
 	if cell.x < 0 or cell.y < 0:
 		return
-	var threshold_polygon: PackedVector2Array = PackedVector2Array(context.get("threshold_polygon", PackedVector2Array()))
-	if threshold_polygon.size() >= 3:
-		draw_colored_polygon(threshold_polygon, Color(0.2, 0.85, 1.0, 0.16))
-		draw_polyline(threshold_polygon, Color(0.35, 0.95, 1.0, 0.92), 1.2, true)
-	var insert_center: Vector2 = Vector2(context.get("door_insert_center", grid_to_iso(cell)))
-	draw_circle(insert_center, 3.5, Color(1.0, 0.3, 0.9, 0.95))
+	var adjacent_wall_centers: Array[Vector2] = []
 	for wall_cell_variant in Array(context.get("adjacent_wall_cells", [])):
 		var wall_cell: Vector2i = Vector2i(wall_cell_variant)
-		draw_circle(grid_to_iso(wall_cell) + Vector2(0.0, -iso_wall_height * 0.35), 3.0, Color(0.95, 0.74, 0.28, 0.95))
-	draw_string(ThemeDB.fallback_font, insert_center + Vector2(5.0, -7.0), str(context.get("orientation", "unknown")), HORIZONTAL_ALIGNMENT_LEFT, 64.0, 9, Color(0.95, 1.0, 1.0, 0.95))
+		adjacent_wall_centers.append(grid_to_iso(wall_cell) + Vector2(0.0, -iso_wall_height * 0.35))
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_door_opening_commands({
+		"threshold_polygon": PackedVector2Array(context.get("threshold_polygon", PackedVector2Array())),
+		"insert_center": Vector2(context.get("door_insert_center", grid_to_iso(cell))),
+		"adjacent_wall_centers": adjacent_wall_centers,
+		"orientation": str(context.get("orientation", "unknown")),
+	}))
 
 func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data: Dictionary = {}) -> void:
 	var object_meta: Dictionary = _get_iso_world_object_metadata_for_cell(cell)
@@ -5918,10 +5933,12 @@ func draw_iso_fog_wall_overlay(cell: Vector2i) -> void:
 			var next_top_index: int = (edge_index + 1) % top_face.size()
 			draw_line(top_face[edge_index], top_face[next_top_index], Color(0.5, 0.6, 0.75, 0.75), 1.0)
 
+
 func draw_world_overlay_markers() -> void:
 	if _grid_manager == null or not _grid_manager.has_method("get_world_overlay_markers"):
 		return
 	var markers: Dictionary = Dictionary(_grid_manager.call("get_world_overlay_markers"))
+	var rows: Array[Dictionary] = []
 	for cell_variant in markers.keys():
 		var cell: Vector2i = Vector2i(cell_variant)
 		if _grid_manager.has_method("is_cell_visible") and not _grid_manager.is_cell_visible(cell):
@@ -5929,8 +5946,8 @@ func draw_world_overlay_markers() -> void:
 		var marker: String = str(markers.get(cell_variant, ""))
 		if marker.is_empty():
 			continue
-		var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -10.0)
-		draw_string(ThemeDB.fallback_font, center + Vector2(-12.0, 4.0), marker, HORIZONTAL_ALIGNMENT_LEFT, 48.0, 14, Color(1.0, 0.95, 0.4))
+		rows.append({"center": grid_to_iso(cell) + Vector2(0.0, -10.0), "text": marker})
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_world_marker_commands(rows))
 
 func get_projected_grid_direction(cell: Vector2i, grid_direction: Vector2i) -> Vector2:
 	var direction: Vector2 = grid_to_iso(cell + grid_direction) - grid_to_iso(cell)
@@ -5940,6 +5957,7 @@ func get_projected_grid_direction(cell: Vector2i, grid_direction: Vector2i) -> V
 		return Vector2.RIGHT
 	return direction.normalized()
 
+
 func draw_fan_platform_marker() -> void:
 	if _grid_manager == null or not _grid_manager.has_method("get_fan_platform_marker"):
 		return
@@ -5948,15 +5966,10 @@ func draw_fan_platform_marker() -> void:
 		return
 	var cell: Vector2i = Vector2i(marker.get("position", Vector2i(-1, -1)))
 	var direction_i: Vector2i = Vector2i(marker.get("direction", Vector2i.RIGHT))
-	var direction: Vector2 = get_projected_grid_direction(cell, direction_i)
-	var perpendicular: Vector2 = Vector2(-direction.y, direction.x)
-	var center: Vector2 = grid_to_iso(cell) + Vector2(0.0, -8.0)
-	var tip: Vector2 = center + direction * 18.0
-	var base: Vector2 = center - direction * 5.0
-	var left: Vector2 = base + perpendicular * 10.0
-	var right: Vector2 = base - perpendicular * 10.0
-	draw_colored_polygon(PackedVector2Array([tip, left, right]), Color(0.97, 0.97, 1.0, 0.96))
-	draw_line(base, tip, Color(0.18, 0.28, 0.45, 0.9), 2.0)
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_fan_marker_commands({
+		"center": grid_to_iso(cell) + Vector2(0.0, -8.0),
+		"direction": get_projected_grid_direction(cell, direction_i),
+	}))
 
 func draw_iso_fog_overlay() -> void:
 	# Visual-only fog overlay pass for isometric prototypes.
@@ -5985,58 +5998,59 @@ func draw_iso_fog_overlay() -> void:
 			draw_iso_fog_wall_overlay(cell)
 		draw_iso_fog_cell_overlay(cell)
 
+
 func draw_wall_mount_zones_overlay() -> void:
 	if _grid_manager == null:
 		return
+	var rows: Array[Dictionary] = []
 	for y in range(_grid_manager.get_map_height()):
 		for x in range(_grid_manager.get_map_width()):
 			var wall_cell: Vector2i = Vector2i(x, y)
 			if _grid_manager.get_tile(wall_cell) != GridManager.TILE_WALL:
 				continue
-			var zones: Array[Dictionary] = get_wall_mounted_anchor_zones(wall_cell)
-			for zone_variant in zones:
+			for zone_variant in get_wall_mounted_anchor_zones(wall_cell):
 				var zone: Dictionary = Dictionary(zone_variant)
 				if not bool(zone.get("mountable", false)):
 					continue
-				var center: Vector2 = Vector2(zone.get("mount_zone_center", grid_to_iso(wall_cell)))
-				draw_circle(center, 2.8, Color(0.35, 0.98, 0.86, 0.95))
-				var side: String = str(zone.get("wall_side", ""))
-				var label: String = side.substr(0, 1).to_upper()
-				draw_string(ThemeDB.fallback_font, center + Vector2(3.0, -4.0), label, HORIZONTAL_ALIGNMENT_LEFT, 12.0, 10, Color(0.9, 0.98, 1.0, 0.9))
+				rows.append({
+					"center": Vector2(zone.get("mount_zone_center", grid_to_iso(wall_cell))),
+					"side": str(zone.get("wall_side", "")),
+				})
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_wall_mount_zone_commands(rows))
+
 
 func draw_wall_run_overlay() -> void:
 	if _grid_manager == null:
 		return
+	var rows: Array[Dictionary] = []
 	for y in range(_grid_manager.get_map_height()):
 		for x in range(_grid_manager.get_map_width()):
 			var cell: Vector2i = Vector2i(x, y)
 			if _grid_manager.get_tile(cell) != GridManager.TILE_WALL:
 				continue
 			var topology: Dictionary = get_wall_render_topology(cell)
-			var shape: String = str(topology.get("shape", "unknown"))
-			var center: Vector2 = grid_to_iso(cell) + Vector2(-28.0, -iso_wall_height - 10.0)
-			var label: String = shape
-			if bool(topology.get("run_x", false)):
-				label += " RX"
-			if bool(topology.get("run_y", false)):
-				label += " RY"
-			var cap_sides: Array = Array(topology.get("cap_sides", []))
-			if cap_sides.size() > 0 and shape.begins_with("end_cap_"):
-				label += " cap"
-			draw_string(ThemeDB.fallback_font, center, label, HORIZONTAL_ALIGNMENT_LEFT, 96.0, 8, Color(1.0, 0.92, 0.42, 0.95))
+			var edges: Array[Dictionary] = []
+			var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
 			for side in WALL_SIDE_ORDER:
 				var edge_points: Array[Vector2] = get_iso_diamond_edge_points(get_iso_wall_connected_base_points(cell, topology), side)
 				if edge_points.size() < 2:
 					continue
-				var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
-				var edge_color: Color = Color(0.25, 1.0, 0.78, 0.82)
-				if not bool(neighbors.get(side, false)):
-					edge_color = Color(1.0, 0.55, 0.2, 0.9)
-				draw_line(edge_points[0], edge_points[1], edge_color, 1.2)
+				edges.append({"start": edge_points[0], "end": edge_points[1], "connected": bool(neighbors.get(side, false))})
+			rows.append({
+				"shape": str(topology.get("shape", "unknown")),
+				"run_x": bool(topology.get("run_x", false)),
+				"run_y": bool(topology.get("run_y", false)),
+				"has_cap": not Array(topology.get("cap_sides", [])).is_empty(),
+				"label_position": grid_to_iso(cell) + Vector2(-28.0, -iso_wall_height - 10.0),
+				"edges": edges,
+			})
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_wall_run_commands(rows))
+
 
 func draw_floor_join_overlay() -> void:
 	if _grid_manager == null:
 		return
+	var rows: Array[Dictionary] = []
 	for y in range(_grid_manager.get_map_height()):
 		for x in range(_grid_manager.get_map_width()):
 			var cell: Vector2i = Vector2i(x, y)
@@ -6048,13 +6062,12 @@ func draw_floor_join_overlay() -> void:
 				var edge_points: Array[Vector2] = get_iso_diamond_edge_points(points, side)
 				if edge_points.size() < 2:
 					continue
-				var shown: bool = should_draw_floor_edge_border(cell, side)
-				var edge_color: Color = Color(0.25, 0.9, 1.0, 0.35)
-				var edge_width: float = 0.65
-				if shown:
-					edge_color = Color(1.0, 0.82, 0.25, 0.92)
-					edge_width = 1.35
-				draw_line(edge_points[0], edge_points[1], edge_color, edge_width)
+				rows.append({
+					"start": edge_points[0],
+					"end": edge_points[1],
+					"shown": should_draw_floor_edge_border(cell, side),
+				})
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_floor_join_commands(rows))
 
 func draw_cable_reel_drag_trail() -> void:
 	var mission_manager: Node = get_mission_manager_ref()
@@ -6108,10 +6121,10 @@ func _process(delta: float) -> void:
 	if _iso_light_overlay_animation_requested:
 		queue_redraw()
 
+
 func _draw() -> void:
 	_iso_light_overlay_animation_requested = false
-	if debug_draw_marker:
-		draw_circle(Vector2.ZERO, 3.0, Color(0.8, 0.95, 1.0, 0.75))
+	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_origin_commands(debug_draw_marker))
 
 	# Isometric render pass order:
 	# 1) unified floor/ground/walls/objects queue (screen-Y depth sorted)
@@ -6139,11 +6152,6 @@ func _draw() -> void:
 	if should_render_iso_fog_visuals():
 		draw_iso_fog_overlay()
 
-	if not debug_draw_iso_helper_preview:
-		return
+	if debug_draw_iso_helper_preview:
+		_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_helper_preview_commands(get_iso_diamond_points(Vector2i.ZERO)))
 
-	var preview_points: PackedVector2Array = get_iso_diamond_points(Vector2i.ZERO)
-	draw_colored_polygon(preview_points, Color(0.2, 0.8, 1.0, 0.15))
-	for idx in range(preview_points.size()):
-		var next_idx: int = (idx + 1) % preview_points.size()
-		draw_line(preview_points[idx], preview_points[next_idx], Color(0.2, 0.8, 1.0, 0.9), 1.0)
