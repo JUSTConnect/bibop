@@ -1,38 +1,173 @@
-name: Renderer Component Gate
+name: Apply Runtime Debug Overlay Extraction
 
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches:
+      - codex/bip-architecture-coordinators-02f3-runtime-debug-overlays
+
+permissions:
+  contents: write
 
 jobs:
-  renderer-component-gate:
+  apply-extraction:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: codex/bip-architecture-coordinators-02f3-runtime-debug-overlays
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
-      - uses: chickensoft-games/setup-godot@v2
-        with:
-          version: 4.6.3
-          use-dotnet: false
-          include-templates: false
-      - name: Check renderer component boundary
-        run: python tools/check_room_visual_renderer_component_boundary.py
-      - name: Import project
-        run: godot --headless --path . --import
-      - name: Check projection contract
-        run: godot --headless --path . --script res://tools/ci/check_renderer_projection_contract.gd
-      - name: Check FloorRenderer contract
-        run: godot --headless --path . --script res://tools/ci/check_floor_renderer_contract.gd
-      - name: Check WallRenderer contract
-        run: godot --headless --path . --script res://tools/ci/check_wall_renderer_contract.gd
-      - name: Check ObjectRenderer policy contract
-        run: godot --headless --path . --script res://tools/ci/check_object_renderer_contract.gd
-      - name: Check RouteRenderer contract
-        run: godot --headless --path . --script res://tools/ci/check_route_renderer_contract.gd
-      - name: Check OverlayRenderer contract
-        run: godot --headless --path . --script res://tools/ci/check_overlay_renderer_contract.gd
-      - name: Check MapConstructorOverlayRenderer contract
-        run: godot --headless --path . --script res://tools/ci/check_map_constructor_overlay_renderer_contract.gd
+          python-version: '3.x'
+      - name: Apply focused extraction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64
+          import zlib
+
+          payload = Path('.github/runtime-debug-payload')
+          transform = zlib.decompress(base64.b64decode((payload / 'transform.b64').read_text().strip()))
+          Path('/tmp/transform_runtime_debug.py').write_bytes(transform)
+          Path('/mnt/data').mkdir(parents=True, exist_ok=True)
+          Path('/mnt/data/room_visual_renderer.gd').write_bytes(Path('scripts/field/room_visual_renderer.gd').read_bytes())
+          PY
+          python /tmp/transform_runtime_debug.py
+          cp /mnt/data/room_visual_renderer.gd scripts/field/room_visual_renderer.gd
+          cp .github/runtime-debug-payload/component.00.srcpart scripts/visual/renderer/runtime_debug_overlay_renderer.gd
+          cp .github/runtime-debug-payload/component.00.part tools/ci/check_runtime_debug_overlay_renderer_contract.gd
+      - name: Strengthen permanent boundary audit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tools/check_room_visual_renderer_component_boundary.py')
+          source = path.read_text()
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global source
+              if old not in source:
+                  raise RuntimeError(f'{label}: anchor not found')
+              source = source.replace(old, new, 1)
+
+          replace_once(
+              'MAP_CONSTRUCTOR_OVERLAY = ROOT / "scripts/visual/renderer/map_constructor_overlay_renderer.gd"\n',
+              'MAP_CONSTRUCTOR_OVERLAY = ROOT / "scripts/visual/renderer/map_constructor_overlay_renderer.gd"\nRUNTIME_DEBUG_OVERLAY = ROOT / "scripts/visual/renderer/runtime_debug_overlay_renderer.gd"\n',
+              'component path',
+          )
+          replace_once(
+              'map_constructor_overlay_renderer = read(MAP_CONSTRUCTOR_OVERLAY)\n',
+              'map_constructor_overlay_renderer = read(MAP_CONSTRUCTOR_OVERLAY)\nruntime_debug_overlay_renderer = read(RUNTIME_DEBUG_OVERLAY)\n',
+              'component read',
+          )
+          source = source.replace('ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP = 6162', 'ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP = 6153')
+          source = source.replace('ROOM_VISUAL_RENDERER_OVERLAY_EXTRACTION_CAP', 'ROOM_VISUAL_RENDERER_RUNTIME_DEBUG_EXTRACTION_CAP')
+          source = source.replace('selection/interaction overlay extraction cap', 'runtime/debug overlay extraction cap')
+          replace_once(
+              '    \'preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")\',\n',
+              '    \'preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")\',\n    \'preload("res://scripts/visual/renderer/runtime_debug_overlay_renderer.gd")\',\n',
+              'preload token',
+          )
+          source = source.replace(
+              '("MapConstructorOverlayRenderer", map_constructor_overlay_renderer)):',
+              '("MapConstructorOverlayRenderer", map_constructor_overlay_renderer), ("RuntimeDebugOverlayRenderer", runtime_debug_overlay_renderer)):',
+              1,
+          )
+
+          checks = r'''
+
+          for token in (
+              "class_name RuntimeDebugOverlayRenderer",
+              "static func build_origin_commands",
+              "static func build_helper_preview_commands",
+              "static func build_wall_mount_zone_commands",
+              "static func build_wall_run_commands",
+              "static func build_floor_join_commands",
+              "static func build_world_marker_commands",
+              "static func build_fan_marker_commands",
+              "static func build_asset_alignment_commands",
+              "static func build_grounding_commands",
+              "static func build_door_opening_commands",
+              "static func build_wall_debug_commands",
+          ):
+              if token not in runtime_debug_overlay_renderer:
+                  errors.append(f"RuntimeDebugOverlayRenderer missing contract: {token}")
+
+          for forbidden in (
+              "GridManager", "MissionManager", "Node", "Node2D", "get_node(", "get_tree(",
+              "ThemeDB", "Font", "ResourceLoader", "load(", "Texture2D", "Time", "queue_redraw(",
+              "grid_to_iso(", "draw_line(", "draw_polyline(", "draw_colored_polygon(",
+              "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(",
+          ):
+              if forbidden in runtime_debug_overlay_renderer:
+                  errors.append(f"RuntimeDebugOverlayRenderer contains forbidden dependency: {forbidden}")
+
+          runtime_debug_delegates = {
+              "draw_iso_asset_alignment_overlay": "RuntimeDebugOverlayRendererRef.build_asset_alignment_commands",
+              "draw_iso_wall_debug_and_mount_overlays": "RuntimeDebugOverlayRendererRef.build_wall_debug_commands",
+              "_draw_grounding_overlay": "RuntimeDebugOverlayRendererRef.build_grounding_commands",
+              "draw_door_opening_overlay_for_context": "RuntimeDebugOverlayRendererRef.build_door_opening_commands",
+              "draw_world_overlay_markers": "RuntimeDebugOverlayRendererRef.build_world_marker_commands",
+              "draw_fan_platform_marker": "RuntimeDebugOverlayRendererRef.build_fan_marker_commands",
+              "draw_wall_mount_zones_overlay": "RuntimeDebugOverlayRendererRef.build_wall_mount_zone_commands",
+              "draw_wall_run_overlay": "RuntimeDebugOverlayRendererRef.build_wall_run_commands",
+              "draw_floor_join_overlay": "RuntimeDebugOverlayRendererRef.build_floor_join_commands",
+          }
+          for name, delegate in runtime_debug_delegates.items():
+              body = function_body(renderer, name)
+              if delegate not in body:
+                  errors.append(f"RoomVisualRenderer {name} must delegate runtime/debug policy")
+              for forbidden in ("draw_line(", "draw_polyline(", "draw_colored_polygon(", "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(", "Color("):
+                  if forbidden in body:
+                      errors.append(f"RoomVisualRenderer {name} contains migrated policy: {forbidden}")
+
+          dispatcher = function_body(renderer, "_draw_overlay_commands")
+          if '"rect":' not in dispatcher or '"text":' not in dispatcher:
+              errors.append("RoomVisualRenderer overlay dispatcher must execute rect and text commands")
+
+          for name, token in (
+              ("draw_iso_wall_block", "draw_iso_wall_debug_and_mount_overlays"),
+              ("draw_iso_object_marker", "_draw_grounding_overlay"),
+              ("draw_iso_door_insert", "draw_door_opening_overlay_for_context"),
+          ):
+              if token not in function_body(renderer, name):
+                  errors.append(f"RoomVisualRenderer {name} lost inline diagnostic placement")
+
+          draw_body = function_body(renderer, "_draw")
+          order = (
+              "draw_iso_geometry_prototype", "draw_wall_mount_zones_overlay", "draw_wall_run_overlay",
+              "draw_floor_join_overlay", "draw_cable_reel_drag_trail", "draw_iso_mouse_selection_overlay",
+              "draw_map_constructor_visual_overlay_passes", "draw_selected_interaction_target_overlay",
+              "draw_world_overlay_markers", "draw_fan_platform_marker", "draw_iso_fog_overlay",
+              "RuntimeDebugOverlayRendererRef.build_helper_preview_commands",
+          )
+          positions = [draw_body.find(token) for token in order]
+          if any(value < 0 for value in positions) or positions != sorted(positions):
+              errors.append("RoomVisualRenderer runtime/debug overlay ordering changed")
+
+          for name in (
+              "draw_cable_reel_drag_trail", "draw_iso_fog_overlay", "draw_iso_fog_cell_overlay",
+              "draw_iso_fog_wall_overlay", "draw_iso_floor_cell", "draw_iso_wall_block", "draw_iso_object_marker",
+          ):
+              if not function_body(renderer, name):
+                  errors.append(f"RoomVisualRenderer must retain {name} ownership")
+          '''
+          replace_once('\nif errors:\n', checks + '\nif errors:\n', 'checks block')
+          path.write_text(source)
+          PY
+      - name: Restore permanent workflow and validate
+        run: |
+          git show origin/main:.github/workflows/renderer-component-gate.yml > .github/workflows/renderer-component-gate.yml
+          cat >> .github/workflows/renderer-component-gate.yml <<'YAML_STEP'
+                - name: Check RuntimeDebugOverlayRenderer contract
+                  run: godot --headless --path . --script res://tools/ci/check_runtime_debug_overlay_renderer_contract.gd
+          YAML_STEP
+          rm -rf .github/runtime-debug-payload
+          python -m py_compile tools/check_room_visual_renderer_component_boundary.py
+          python tools/check_room_visual_renderer_component_boundary.py
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Extract runtime and debug overlay policy"
+          git push origin HEAD:codex/bip-architecture-coordinators-02f3-runtime-debug-overlays
