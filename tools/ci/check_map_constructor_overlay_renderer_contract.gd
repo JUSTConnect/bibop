@@ -8,8 +8,9 @@ func _initialize() -> void:
 	_check_core_passes()
 	_check_preview_normalization()
 	_check_arrows_invalid_order_and_stability()
+	_check_runtime_debug_contract()
 	if failures.is_empty():
-		print("MapConstructorOverlayRenderer contract OK")
+		print("MapConstructorOverlayRenderer and RuntimeDebugOverlayRenderer contracts OK")
 		quit(0)
 		return
 	for failure in failures:
@@ -96,6 +97,23 @@ func _check_arrows_invalid_order_and_stability() -> void:
 	_assert_schema_and_order(commands, "arrow pass")
 	var context := {"wall_side_arrows": [{"center": Vector2.ZERO, "wall_side": "north", "mode": "preview"}]}
 	_expect(str(Renderer.build_commands(context)) == str(Renderer.build_commands(context)), "identical input must produce stable output")
+
+func _check_runtime_debug_contract() -> void:
+	var output: Array = []
+	var exit_code: int = OS.execute(
+		OS.get_executable_path(),
+		[
+			"--headless",
+			"--path",
+			ProjectSettings.globalize_path("res://"),
+			"--script",
+			"res://tools/ci/check_runtime_debug_overlay_renderer_contract.gd",
+		],
+		output,
+		true
+	)
+	if exit_code != 0:
+		failures.append("RuntimeDebugOverlayRenderer contract failed with %d: %s" % [exit_code, str(output)])
 
 func _assert_schema_and_order(commands: Array[Dictionary], label: String) -> void:
 	for index in range(commands.size()):
