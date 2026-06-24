@@ -1,0 +1,240 @@
+diff --git a/.github/workflows/renderer-component-gate.yml b/.github/workflows/renderer-component-gate.yml
+index bca35ed..549200f 100644
+--- a/.github/workflows/renderer-component-gate.yml
++++ b/.github/workflows/renderer-component-gate.yml
+@@ -20,6 +20,8 @@ jobs:
+           include-templates: false
+       - name: Check renderer component boundary
+         run: python tools/check_room_visual_renderer_component_boundary.py
++      - name: Check CableCanvasRenderer boundary
++        run: python tools/check_cable_canvas_renderer_boundary.py
+       - name: Import project
+         run: godot --headless --path . --import
+       - name: Check projection contract
+@@ -38,6 +40,8 @@ jobs:
+         run: godot --headless --path . --script res://tools/ci/check_door_canvas_renderer_contract.gd
+       - name: Check RouteRenderer contract
+         run: godot --headless --path . --script res://tools/ci/check_route_renderer_contract.gd
++      - name: Check CableCanvasRenderer contract
++        run: godot --headless --path . --script res://tools/ci/check_cable_canvas_renderer_contract.gd
+       - name: Check OverlayRenderer contract
+         run: godot --headless --path . --script res://tools/ci/check_overlay_renderer_contract.gd
+       - name: Check MapConstructorOverlayRenderer contract
+ diff --git a/scripts/field/room_visual_renderer.gd b/scripts/field/room_visual_renderer.gd
+index 477fc8f..a32acbe 100644
+--- a/scripts/field/room_visual_renderer.gd
++++ b/scripts/field/room_visual_renderer.gd
+@@ -20,6 +20,7 @@ const ObjectPrimitiveRendererRef = preload("res://scripts/visual/renderer/object
+ const ObjectTextureDispatchPolicyRef = preload("res://scripts/visual/renderer/object_texture_dispatch_policy.gd")
+ const DoorCanvasRendererRef = preload("res://scripts/visual/renderer/door_canvas_renderer.gd")
+ const RouteRendererRef = preload("res://scripts/visual/renderer/route_renderer.gd")
++const CableCanvasRendererRef = preload("res://scripts/visual/renderer/cable_canvas_renderer.gd")
+ const OverlayRendererRef = preload("res://scripts/visual/renderer/overlay_renderer.gd")
+ const MapConstructorOverlayRendererRef = preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")
+ const RuntimeDebugOverlayRendererRef = preload("res://scripts/visual/renderer/runtime_debug_overlay_renderer.gd")
+@@ -2801,28 +2802,57 @@ func _draw_route_commands(commands: Array[Dictionary], fallback_profile: Diction
+ 	for command in commands:
+ 		match str(command.get("kind", "")):
+ 			"line":
+-				draw_line(
+-					Vector2(command.get("start", Vector2.ZERO)),
+-					Vector2(command.get("end", Vector2.ZERO)),
+-					Color(command.get("color", Color.WHITE)),
+-					float(command.get("width", 1.0)),
+-					bool(command.get("antialiased", true))
+-				)
++				var start_value: Variant = command.get("start", null)
++				var end_value: Variant = command.get("end", null)
++				var color_value: Variant = command.get("color", null)
++				if not (start_value is Vector2) or not (end_value is Vector2) or not (color_value is Color):
++					continue
++				draw_line(Vector2(start_value), Vector2(end_value), Color(color_value), float(command.get("width", 1.0)), bool(command.get("antialiased", true)))
+ 			"circle":
+-				draw_circle(
+-					Vector2(command.get("center", Vector2.ZERO)),
++				var center_value: Variant = command.get("center", null)
++				var circle_color_value: Variant = command.get("color", null)
++				if not (center_value is Vector2) or not (circle_color_value is Color):
++					continue
++				draw_circle(Vector2(center_value), float(command.get("radius", 1.0)), Color(circle_color_value))
++			"polyline":
++				var raw_points: Variant = command.get("points", PackedVector2Array())
++				var polyline_color_value: Variant = command.get("color", null)
++				if not (polyline_color_value is Color):
++					continue
++				var points := PackedVector2Array()
++				if raw_points is PackedVector2Array:
++					points = PackedVector2Array(raw_points)
++				elif raw_points is Array:
++					for point_value in Array(raw_points):
++						if point_value is Vector2:
++							points.append(point_value)
++				if points.size() < 2:
++					continue
++				draw_polyline(points, Color(polyline_color_value), float(command.get("width", 1.0)), bool(command.get("antialiased", true)))
++			"arc":
++				var arc_center_value: Variant = command.get("center", null)
++				var arc_color_value: Variant = command.get("color", null)
++				if not (arc_center_value is Vector2) or not (arc_color_value is Color):
++					continue
++				draw_arc(
++					Vector2(arc_center_value),
+ 					float(command.get("radius", 1.0)),
+-					Color(command.get("color", Color.WHITE))
++					float(command.get("start_angle", 0.0)),
++					float(command.get("end_angle", TAU)),
++					int(command.get("point_count", 24)),
++					Color(arc_color_value),
++					float(command.get("width", 1.0)),
++					bool(command.get("antialiased", true))
+ 				)
+ 			"wall_cable_segment":
++				var segment_start_value: Variant = command.get("start", null)
++				var segment_end_value: Variant = command.get("end", null)
++				if not (segment_start_value is Vector2) or not (segment_end_value is Vector2):
++					continue
+ 				var profile: Dictionary = fallback_profile
+ 				if command.get("profile", {}) is Dictionary:
+ 					profile = Dictionary(command.get("profile", {}))
+-				draw_iso_cable_wall_segment(
+-					Vector2(command.get("start", Vector2.ZERO)),
+-					Vector2(command.get("end", Vector2.ZERO)),
+-					profile
+-				)
++				draw_iso_cable_wall_segment(Vector2(segment_start_value), Vector2(segment_end_value), profile)
+ 	return not commands.is_empty()
+ 
+ func get_wall_routing_mode(object_data: Dictionary) -> String:
+@@ -4587,15 +4617,7 @@ func draw_iso_object_line(cell: Vector2i, profile: Dictionary, visual_center_ove
+ 	_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands("line", _build_object_primitive_context(cell, profile, center)))
+ 
+ func _get_line_color_from_id(color_id: String, fallback: Color) -> Color:
+-	match color_id.strip_edges().to_lower():
+-		"red": return Color(1.0, 0.22, 0.18, fallback.a)
+-		"blue": return Color(0.22, 0.48, 1.0, fallback.a)
+-		"green": return Color(0.24, 0.92, 0.42, fallback.a)
+-		"yellow": return Color(1.0, 0.88, 0.2, fallback.a)
+-		"orange": return Color(1.0, 0.55, 0.18, fallback.a)
+-		"purple": return Color(0.72, 0.38, 1.0, fallback.a)
+-		"white": return Color(0.95, 0.95, 0.92, fallback.a)
+-	return fallback
++	return CableCanvasRendererRef.resolve_line_color(color_id, fallback)
+ 
+ func draw_iso_cable_topology_line(cell: Vector2i, profile: Dictionary, object_data: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
+ 	var visual_center: Vector2 = grid_to_iso(cell)
+@@ -4607,80 +4629,49 @@ func draw_iso_cable_topology_line(cell: Vector2i, profile: Dictionary, object_da
+ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile: Dictionary, visual_center: Vector2, object_data: Dictionary = {}) -> void:
+ 	var install_mode: String = get_cable_install_mode(object_data)
+ 	var health_state: String = get_cable_health_state(object_data)
+-	var editor_render: bool = is_map_constructor_editor_render()
+-	if install_mode == "hidden" and not editor_render:
++	if install_mode == "hidden" and not is_map_constructor_editor_render():
+ 		return
+ 	var cable_center: Vector2 = visual_center + Vector2(0.0, -4.0)
+ 	if install_mode == "wall" and _cell_has_wall_for_iso_cable(cell):
+ 		cable_center = _get_iso_cable_wall_center(visual_center)
+ 		if draw_wall_cable_visual_path(cell, object_data, visual_center, profile, topology):
+-			if health_state in ["damaged", "broken", "cut"]:
+-				draw_iso_cable_damage_marker(_get_wall_cable_rail_anchor(cell, get_cable_wall_side(object_data)), health_state, profile)
++			_draw_route_commands(CableCanvasRendererRef.build_damage_marker_commands({
++				"center": _get_wall_cable_rail_anchor(cell, get_cable_wall_side(object_data)),
++				"health_state": health_state,
++			}))
+ 			return
+ 	var route_plan: Dictionary = RouteRendererRef.build_floor_topology_plan(topology)
+-	var shape: String = str(route_plan.get("shape", "isolated"))
+-	var object_links: Dictionary = Dictionary(topology.get("object_links", {}))
+-	var has_switch: bool = bool(route_plan.get("has_switch", false))
+-	var valid: bool = bool(route_plan.get("valid", true))
+-	var active_dirs: Array[String] = []
++	var endpoints: Dictionary = {}
++	var direction_vectors: Dictionary = {}
+ 	for direction_variant in Array(route_plan.get("active_dirs", [])):
+-		active_dirs.append(str(direction_variant))
+-
+-	var base_color: Color = _get_color_from_dict(profile, "base", Color.WHITE)
+-	var accent_color: Color = _get_color_from_dict(profile, "accent", Color.WHITE)
+-	var line_color_id: String = str(object_data.get("line_color_id", object_data.get("color_id", ""))).strip_edges()
+-	if not line_color_id.is_empty():
+-		accent_color = _get_line_color_from_id(line_color_id, accent_color)
+-		base_color = _get_line_color_from_id(line_color_id, base_color).darkened(0.35)
+-	var outline_color: Color = _get_color_from_dict(profile, "outline", Color.WHITE)
+-	if install_mode == "hidden":
+-		base_color = Color(base_color.r, base_color.g, base_color.b, 0.72)
+-		accent_color = Color(accent_color.r, accent_color.g, accent_color.b, 0.82)
+-	if install_mode == "wall":
+-		base_color = base_color.lightened(0.08)
+-		accent_color = accent_color.lightened(0.12)
+-	if not valid:
+-		base_color = Color(1.0, 0.25, 0.08, 0.98)
+-		accent_color = Color(1.0, 0.82, 0.15, 0.98)
+-		outline_color = Color(0.45, 0.04, 0.02, 0.98)
+-	var cable_profile: Dictionary = profile.duplicate()
+-	cable_profile["base"] = base_color
+-	cable_profile["accent"] = accent_color
+-	cable_profile["outline"] = outline_color
+-	cable_profile["install_mode"] = install_mode
+-
+-	var drew_any_line: bool = false
+-	if active_dirs.is_empty():
+-		var isolated_half_width: float = maxf(get_iso_tile_half_size().x * 0.12, 7.0)
+-		var isolated_start: Vector2 = cable_center + Vector2(-isolated_half_width, 0.0)
+-		var isolated_end: Vector2 = cable_center + Vector2(isolated_half_width, 0.0)
+-		draw_iso_cable_mode_segment(isolated_start, isolated_end, cable_profile)
+-		draw_circle(cable_center, 4.5, accent_color)
+-		draw_arc(cable_center, 7.0, 0.0, PI * 2.0, 20, outline_color, 1.4, true)
+-		drew_any_line = true
+-	else:
+-		if active_dirs.size() == 2 and not shape.begins_with("junction") and not shape.begins_with("invalid"):
+-			if (active_dirs.has("east") and active_dirs.has("west")) or (active_dirs.has("north") and active_dirs.has("south")):
+-				draw_iso_cable_mode_polyline([_get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[0], cable_center), _get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[1], cable_center)], cable_profile)
+-			else:
+-				draw_iso_cable_elbow(cable_center, active_dirs[0], active_dirs[1], cable_profile)
+-		else:
+-			for direction in active_dirs:
+-				draw_iso_cable_mode_polyline([cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center)], cable_profile)
+-		drew_any_line = true
+-
+-	draw_iso_cable_object_links(cell, object_links, cable_center, cable_profile)
+-	if active_dirs.size() == 1 and not has_switch:
+-		draw_iso_cable_endpoint_cap(_get_iso_cable_branch_endpoint_for_visual_center(cell, active_dirs[0], cable_center), active_dirs[0], accent_color)
+-	if not valid:
+-		draw_iso_cable_invalid_marker(cable_center, shape)
+-	elif shape.begins_with("junction") and not has_switch:
+-		draw_circle(cable_center, 3.6, accent_color)
+-	if health_state in ["damaged", "broken", "cut"] and drew_any_line:
+-		draw_iso_cable_damage_marker(cable_center, health_state, cable_profile)
+-	if debug_draw_iso_object_outlines:
+-		for direction in active_dirs:
+-			draw_line(cable_center, _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center), outline_color, 1.0, true)
++		var direction := str(direction_variant)
++		endpoints[direction] = _get_iso_cable_branch_endpoint_for_visual_center(cell, direction, cable_center)
++		direction_vectors[direction] = _get_iso_cable_screen_direction(direction)
++	var object_link_rows: Array[Dictionary] = []
++	for direction_variant in Dictionary(topology.get("object_links", {})).keys():
++		var direction := str(direction_variant)
++		var screen_direction := _get_iso_cable_screen_direction(direction)
++		if screen_direction.length_squared() <= 0.0001:
++			continue
++		var direction_vector := screen_direction.normalized()
++		object_link_rows.append({
++			"direction": direction,
++			"start": cable_center + direction_vector * minf(screen_direction.length() * 0.18, 12.0),
++			"end": cable_center + direction_vector * minf(screen_direction.length() * 0.34, 22.0),
++		})
++	_draw_route_commands(CableCanvasRendererRef.build_floor_cable_commands({
++		"center": cable_center,
++		"tile_half_size": get_iso_tile_half_size(),
++		"profile": profile,
++		"install_mode": install_mode,
++		"line_color_id": str(object_data.get("line_color_id", object_data.get("color_id", ""))),
++		"route_plan": route_plan,
++		"endpoints": endpoints,
++		"direction_vectors": direction_vectors,
++		"object_link_rows": object_link_rows,
++		"health_state": health_state,
++		"debug_outlines": debug_draw_iso_object_outlines,
++	}))
+ 
+ func get_cable_install_mode(object_data: Dictionary) -> String:
+ 	return RouteRendererRef.normalize_install_mode(object_data)
