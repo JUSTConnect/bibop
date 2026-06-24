@@ -53,7 +53,7 @@ renderer_lines = len(renderer.splitlines())
 ROOM_VISUAL_RENDERER_DOOR_CANVAS_CAP = 5723
 if renderer_lines > ROOM_VISUAL_RENDERER_DOOR_CANVAS_CAP:
     errors.append(
-        "RoomVisualRenderer grew beyond object texture dispatch cap: "
+        "RoomVisualRenderer grew beyond door Canvas extraction cap: "
         f"{renderer_lines} > {ROOM_VISUAL_RENDERER_DOOR_CANVAS_CAP}"
     )
 

@@ -1109,13 +1109,13 @@ func get_iso_door_opening_visual_profile(cell: Vector2i, object_data: Dictionary
 	var mission_manager: Node = get_mission_manager_ref()
 	if not object_id.is_empty() and mission_manager != null and mission_manager.has_method("get_map_constructor_door_visual_state"):
 		var resolved_state: Dictionary = Dictionary(mission_manager.call("get_map_constructor_door_visual_state", object_id))
-		if resolved_state.get("ok", false) is bool and bool(resolved_state.get("ok", false)):
+		if bool(resolved_state.get("ok", false)):
 			door_state = str(resolved_state.get("state", door_state)).to_lower().strip_edges()
-	if object_data.get("is_open", object_data.get("open", false)) is bool and bool(object_data.get("is_open", object_data.get("open", false))):
+	if bool(object_data.get("is_open", object_data.get("open", false))):
 		door_state = "open"
-	if object_data.get("is_locked", object_data.get("locked", false)) is bool and bool(object_data.get("is_locked", object_data.get("locked", false))):
+	if bool(object_data.get("is_locked", object_data.get("locked", false))):
 		door_state = "locked"
-	if object_data.get("damaged", object_data.get("broken", false)) is bool and bool(object_data.get("damaged", object_data.get("broken", false))):
+	if bool(object_data.get("damaged", object_data.get("broken", false))):
 		door_state = "damaged"
 	door_state = DoorCanvasRendererRef.normalize_state(door_state)
 	return DoorCanvasRendererRef.build_visual_profile(door_kind, door_state)
@@ -4999,12 +4999,12 @@ func _draw_grounding_overlay(profile: Dictionary) -> void:
 
 func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictionary = {}) -> void:
 	var context: Dictionary = get_door_opening_context(cell)
-	if not (context.get("ok", false) is bool and bool(context.get("ok", false))):
+	if not bool(context.get("ok", false)):
 		return
 	var profile: Dictionary = get_iso_door_opening_visual_profile(cell, object_data)
 	context["profile"] = profile
 	var threshold_texture_succeeded: bool = false
-	if profile.get("threshold_enabled", true) is bool and bool(profile.get("threshold_enabled", true)):
+	if bool(profile.get("threshold_enabled", true)):
 		threshold_texture_succeeded = draw_iso_texture_asset(cell, "floor_door_underlay")
 	context["threshold_texture_succeeded"] = threshold_texture_succeeded
 	_draw_object_primitive_commands(DoorCanvasRendererRef.build_threshold_commands(context))
