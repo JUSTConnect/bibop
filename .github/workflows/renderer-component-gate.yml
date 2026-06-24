@@ -5,17 +5,11 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-
 jobs:
   renderer-component-gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: codex/bip-architecture-coordinators-02f5d-cable-canvas
-          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -54,9 +48,3 @@ jobs:
         run: godot --headless --path . --script res://tools/ci/check_map_constructor_overlay_renderer_contract.gd
       - name: Check FogRenderer contract
         run: godot --headless --path . --script res://tools/ci/check_fog_renderer_contract.gd
-      - name: Remove generated and temporary files
-        run: python tools/tmp_cleanup_cable_refactor.py
-      - uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          branch: codex/bip-architecture-coordinators-02f5d-cable-canvas
-          commit_message: "BIP-Architecture-Coordinators-02F5D: Clean verified cable extraction"
