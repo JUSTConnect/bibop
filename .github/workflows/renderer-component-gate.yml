@@ -59,4 +59,4 @@ jobs:
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           branch: codex/bip-architecture-coordinators-02f5d-cable-canvas
-          commit_message: BIP-Architecture-Coordinators-02F5D: Extract cable Canvas policy
+          commit_message: "BIP-Architecture-Coordinators-02F5D: Extract cable Canvas policy"
