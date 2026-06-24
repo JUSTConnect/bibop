@@ -29,13 +29,17 @@ func _check_attempt_plans() -> void:
 	_expect_plan("case with fallbacks", {"is_case_visual": true, "case_asset_id": "case_open", "has_door_visual": true, "door_texture_asset_id": "door_locked", "has_terminal_visual": true, "terminal_texture_asset_id": "terminal_on"}, [_a(0, "png", "case_open", "case"), _a(1, "optional", "door_locked", "door_state"), _a(2, "optional", "terminal_on", "terminal_state")])
 	_expect_plan("empty asset ids", {"profile_key": "crate", "primary_asset_id": "", "primary_is_png": false, "has_door_visual": true, "door_texture_asset_id": "", "has_terminal_visual": true, "terminal_texture_asset_id": ""}, [_a(0, "optional", "", "primary"), _a(1, "legacy", "", "primary"), _a(2, "optional", "", "door_state"), _a(3, "optional", "", "terminal_state")])
 	_expect_plan("malformed", {}, [_a(0, "optional", "", "primary"), _a(1, "legacy", "", "primary")])
+	var wrong_type_context := {"profile_key": 42, "primary_asset_id": ["bad"], "primary_is_png": "bad", "is_case_visual": 0, "case_asset_id": {}, "has_door_visual": [], "door_texture_asset_id": 17, "has_terminal_visual": null, "terminal_texture_asset_id": false}
+	var wrong_type_expected := [_a(0, "optional", "", "primary"), _a(1, "legacy", "", "primary")]
+	_expect_plan("wrong type malformed", wrong_type_context, wrong_type_expected)
+	_expect(PolicyRef.build_attempt_plan(wrong_type_context) == wrong_type_expected, "wrong-type repeated input must be stable")
 	var context := {"profile_key": "crate", "primary_asset_id": "crate_01", "primary_is_png": true}
 	_expect(PolicyRef.build_attempt_plan(context) == PolicyRef.build_attempt_plan(context), "repeated identical input must be stable")
 
 func _check_accent_policy() -> void:
-	_expect(PolicyRef.should_draw_success_accent({"texture_succeeded": true, "is_case_visual": false}), "non-case success must draw accent")
-	_expect(not PolicyRef.should_draw_success_accent({"texture_succeeded": true, "is_case_visual": true}), "case success must suppress accent")
-	_expect(not PolicyRef.should_draw_success_accent({"texture_succeeded": false, "is_case_visual": false}), "failed texture must not draw accent")
+	_expect(PolicyRef.should_emit_success_accent({"texture_succeeded": true, "is_case_visual": false}), "non-case success must draw accent")
+	_expect(not PolicyRef.should_emit_success_accent({"texture_succeeded": true, "is_case_visual": true}), "case success must suppress accent")
+	_expect(not PolicyRef.should_emit_success_accent({"texture_succeeded": false, "is_case_visual": false}), "failed texture must not draw accent")
 
 func _check_descriptor_routes() -> void:
 	_expect(PolicyRef.get_descriptor_route("object_sprite", "wall_authored_canvas", "floor_authored_canvas") == "object", "object route changed")

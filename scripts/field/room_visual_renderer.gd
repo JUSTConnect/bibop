@@ -5264,9 +5264,10 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var texture_plan_context := {"profile_key": profile_key, "primary_asset_id": object_asset_key, "primary_is_png": is_iso_object_png_asset_key(object_asset_key), "is_case_visual": is_case_visual}
 	texture_plan_context["case_asset_id"] = VisualStateAssetServiceRef.resolve_visual_asset_id(object_data) if is_case_visual else ""; texture_plan_context["has_door_visual"] = has_door_visual
 	texture_plan_context["door_texture_asset_id"] = str(door_visual.get("texture_asset_id", "")); texture_plan_context["has_terminal_visual"] = has_terminal_visual; texture_plan_context["terminal_texture_asset_id"] = str(terminal_visual.get("texture_asset_id", ""))
-	var used_texture_asset: bool = _execute_object_texture_attempt_plan(ObjectTextureDispatchPolicyRef.build_attempt_plan(texture_plan_context), cell, visual_center, object_data)
+	var texture_attempt_plan: Array[Dictionary] = ObjectTextureDispatchPolicyRef.build_attempt_plan(texture_plan_context)
+	var used_texture_asset: bool = _execute_object_texture_attempt_plan(texture_attempt_plan, cell, visual_center, object_data)
 	if used_texture_asset:
-		if ObjectTextureDispatchPolicyRef.should_draw_success_accent({"texture_succeeded": true, "is_case_visual": is_case_visual}):
+		if ObjectTextureDispatchPolicyRef.should_emit_success_accent({"texture_succeeded": true, "is_case_visual": is_case_visual}):
 			_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_texture_accent_commands({
 				"visual_center": visual_center,
 				"marker_height": iso_object_marker_height,
@@ -5298,7 +5299,6 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands(primitive_shape, _build_object_primitive_context(cell, profile, visual_center)))
 	if show_object_grounding_overlay:
 		_draw_grounding_overlay(profile_data)
-
 func _execute_object_texture_attempt_plan(attempts: Array[Dictionary], cell: Vector2i, visual_center: Vector2, object_data: Dictionary) -> bool:
 	var any_texture_succeeded := false
 	for attempt in attempts:

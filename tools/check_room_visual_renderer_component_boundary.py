@@ -135,16 +135,17 @@ for retained in (
 for token in (
     'preload("res://scripts/visual/renderer/object_texture_dispatch_policy.gd")',
     "ObjectTextureDispatchPolicyRef.build_attempt_plan",
-    "ObjectTextureDispatchPolicyRef.should_draw_success_accent",
+    "ObjectTextureDispatchPolicyRef.should_emit_success_accent",
 ):
     if token not in renderer:
         errors.append(f"RoomVisualRenderer missing ObjectTextureDispatchPolicy integration: {token}")
-for name in ("build_attempt_plan", "get_descriptor_route", "should_draw_success_accent"):
+for name in ("build_attempt_plan", "get_descriptor_route", "should_emit_success_accent"):
     if not function_body(object_texture_policy, name):
         errors.append(f"ObjectTextureDispatchPolicy missing focused API: {name}")
 for forbidden in (
-    "extends Node", "GridManager", "MissionManager", "grid_to_iso", "queue_redraw",
-    "ResourceLoader", "Resource", "Texture2D", "load(", "Time", "ThemeDB", "fallback_font", "Canvas", "VisualAsset", "ObjectRendererRef",
+    "Texture", "Resource", "draw_", "ResourceLoader", "load(", "Time", "Canvas",
+    "GridManager", "MissionManager", "Node", "Node2D", "get_node(", "get_tree(",
+    "queue_redraw", "grid_to_iso", "ThemeDB", "fallback_font", "VisualAsset", "ObjectRendererRef",
 ):
     if forbidden in object_texture_policy:
         errors.append(f"ObjectTextureDispatchPolicy contains forbidden coordinator/runtime dependency: {forbidden}")
@@ -153,6 +154,20 @@ if "_execute_object_texture_attempt_plan" not in renderer or "build_attempt_plan
 for removed in ("elif profile_key != \"cable\"", "not used_texture_asset and has_door_visual", "not used_texture_asset and has_terminal_visual"):
     if removed in marker_body:
         errors.append(f"draw_iso_object_marker retained hard-coded texture chain: {removed}")
+
+png_texture_body = function_body(renderer, "draw_iso_object_png_texture_asset")
+for token in (
+    "VisualStateAssetServiceRef.object_uses_visual_states",
+    "get_iso_object_png_asset_path",
+    "get_iso_object_png_texture_for_resolved_path",
+    "draw_missing_iso_asset_debug_fallback",
+    "build_iso_object_visual_descriptor_for_contract",
+    "draw_iso_object_png_texture_with_descriptor",
+    "draw_visual_state_overlays_for_descriptor",
+):
+    if token not in png_texture_body:
+        errors.append(f"RoomVisualRenderer coordinator lost PNG texture resource/Canvas ownership token: {token}")
+
 executor_body = function_body(renderer, "_execute_object_texture_attempt_plan")
 for token in ("draw_iso_object_png_texture_asset", "draw_optional_visual_texture_asset", "draw_iso_texture_asset"):
     if token not in executor_body:
@@ -161,10 +176,16 @@ for token in ("draw_iso_object_png_texture_asset", "draw_optional_visual_texture
         errors.append(f"ObjectTextureDispatchPolicy must not call coordinator draw method: {token}")
 
 marker_order = (
-    "is_door_floor_object_visual", "draw_wall_routed_procedural_visual",
-    "_execute_object_texture_attempt_plan", "ObjectTextureDispatchPolicyRef.build_attempt_plan",
-    "ObjectPrimitiveRendererRef.build_texture_accent_commands", "draw_wall_mounted_object_shape",
-    "ObjectPrimitiveRendererRef.build_shape_commands", "_draw_grounding_overlay",
+    "is_door_floor_object_visual",
+    "draw_iso_object_png_texture_asset",
+    "ObjectPrimitiveRendererRef.build_floor_base_commands",
+    "draw_wall_routed_procedural_visual",
+    "ObjectTextureDispatchPolicyRef.build_attempt_plan",
+    "_execute_object_texture_attempt_plan",
+    "ObjectPrimitiveRendererRef.build_texture_accent_commands",
+    "draw_wall_mounted_object_shape",
+    "ObjectPrimitiveRendererRef.build_shape_commands",
+    "_draw_grounding_overlay",
 )
 marker_positions = []
 search_from = 0
