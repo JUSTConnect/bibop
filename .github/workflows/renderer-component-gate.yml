@@ -24,8 +24,6 @@ jobs:
           version: 4.6.3
           use-dotnet: false
           include-templates: false
-      - name: Apply focused cable migration
-        run: python tools/tmp_apply_cable_refactor.py
       - name: Check renderer component boundary
         run: python tools/check_room_visual_renderer_component_boundary.py
       - name: Check CableCanvasRenderer boundary
@@ -56,7 +54,9 @@ jobs:
         run: godot --headless --path . --script res://tools/ci/check_map_constructor_overlay_renderer_contract.gd
       - name: Check FogRenderer contract
         run: godot --headless --path . --script res://tools/ci/check_fog_renderer_contract.gd
+      - name: Remove generated and temporary files
+        run: python tools/tmp_cleanup_cable_refactor.py
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           branch: codex/bip-architecture-coordinators-02f5d-cable-canvas
-          commit_message: "BIP-Architecture-Coordinators-02F5D: Extract cable Canvas policy"
+          commit_message: "BIP-Architecture-Coordinators-02F5D: Clean verified cable extraction"
