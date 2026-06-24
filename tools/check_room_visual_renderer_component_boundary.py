@@ -50,11 +50,11 @@ object_texture_policy = read(OBJECT_TEXTURE_POLICY)
 door_canvas_renderer = read(DOOR_CANVAS_RENDERER)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_DOOR_CANVAS_CAP = 5723
-if renderer_lines > ROOM_VISUAL_RENDERER_DOOR_CANVAS_CAP:
+ROOM_VISUAL_RENDERER_CABLE_CANVAS_CAP = 5653
+if renderer_lines > ROOM_VISUAL_RENDERER_CABLE_CANVAS_CAP:
     errors.append(
-        "RoomVisualRenderer grew beyond door Canvas extraction cap: "
-        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_DOOR_CANVAS_CAP}"
+        "RoomVisualRenderer grew beyond cable Canvas extraction cap: "
+        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_CABLE_CANVAS_CAP}"
     )
 
 
@@ -252,6 +252,7 @@ for token in (
     'preload("res://scripts/visual/renderer/object_primitive_renderer.gd")',
     'preload("res://scripts/visual/renderer/door_canvas_renderer.gd")',
     'preload("res://scripts/visual/renderer/route_renderer.gd")',
+    'preload("res://scripts/visual/renderer/cable_canvas_renderer.gd")',
     'preload("res://scripts/visual/renderer/overlay_renderer.gd")',
     'preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")',
     'preload("res://scripts/visual/renderer/runtime_debug_overlay_renderer.gd")',
