@@ -17,6 +17,7 @@ MAP_CONSTRUCTOR_OVERLAY = ROOT / "scripts/visual/renderer/map_constructor_overla
 RUNTIME_DEBUG_OVERLAY = ROOT / "scripts/visual/renderer/runtime_debug_overlay_renderer.gd"
 FOG_RENDERER = ROOT / "scripts/visual/renderer/fog_renderer.gd"
 OBJECT_PRIMITIVE = ROOT / "scripts/visual/renderer/object_primitive_renderer.gd"
+OBJECT_TEXTURE_POLICY = ROOT / "scripts/visual/renderer/object_texture_dispatch_policy.gd"
 errors: list[str] = []
 
 
@@ -44,13 +45,14 @@ map_constructor_overlay_renderer = read(MAP_CONSTRUCTOR_OVERLAY)
 runtime_debug_overlay_renderer = read(RUNTIME_DEBUG_OVERLAY)
 fog_renderer = read(FOG_RENDERER)
 object_primitive_renderer = read(OBJECT_PRIMITIVE)
+object_texture_policy = read(OBJECT_TEXTURE_POLICY)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_OBJECT_PRIMITIVE_CAP = 5854
-if renderer_lines > ROOM_VISUAL_RENDERER_OBJECT_PRIMITIVE_CAP:
+ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP = 5852
+if renderer_lines > ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP:
     errors.append(
-        "RoomVisualRenderer grew beyond object primitive extraction cap: "
-        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_OBJECT_PRIMITIVE_CAP}"
+        "RoomVisualRenderer grew beyond object texture dispatch cap: "
+        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP}"
     )
 
 
@@ -77,7 +79,7 @@ for name, token in {
 
 marker_body = function_body(renderer, "draw_iso_object_marker")
 for token in (
-    "draw_iso_object_png_texture_asset", "draw_optional_visual_texture_asset", "draw_iso_texture_asset",
+    "ObjectTextureDispatchPolicyRef.build_attempt_plan", "_execute_object_texture_attempt_plan",
     "ObjectPrimitiveRendererRef.build_floor_base_commands",
     "ObjectPrimitiveRendererRef.build_texture_accent_commands",
     "ObjectPrimitiveRendererRef.build_shape_commands",
@@ -130,10 +132,60 @@ for retained in (
     if retained in object_primitive_renderer:
         errors.append(f"ObjectPrimitiveRenderer contains retained coordinator/texture/route token: {retained}")
 
+for token in (
+    'preload("res://scripts/visual/renderer/object_texture_dispatch_policy.gd")',
+    "ObjectTextureDispatchPolicyRef.build_attempt_plan",
+    "ObjectTextureDispatchPolicyRef.should_emit_success_accent",
+):
+    if token not in renderer:
+        errors.append(f"RoomVisualRenderer missing ObjectTextureDispatchPolicy integration: {token}")
+for name in ("build_attempt_plan", "get_descriptor_route", "should_emit_success_accent"):
+    if not function_body(object_texture_policy, name):
+        errors.append(f"ObjectTextureDispatchPolicy missing focused API: {name}")
+for forbidden in (
+    "Texture", "Resource", "draw_", "ResourceLoader", "load(", "Time", "Canvas",
+    "GridManager", "MissionManager", "Node", "Node2D", "get_node(", "get_tree(",
+    "queue_redraw", "grid_to_iso", "ThemeDB", "fallback_font", "VisualAsset", "ObjectRendererRef",
+):
+    if forbidden in object_texture_policy:
+        errors.append(f"ObjectTextureDispatchPolicy contains forbidden coordinator/runtime dependency: {forbidden}")
+if "_execute_object_texture_attempt_plan" not in renderer or "build_attempt_plan" not in marker_body:
+    errors.append("draw_iso_object_marker must use policy plan and thin coordinator executor")
+for removed in ("elif profile_key != \"cable\"", "not used_texture_asset and has_door_visual", "not used_texture_asset and has_terminal_visual"):
+    if removed in marker_body:
+        errors.append(f"draw_iso_object_marker retained hard-coded texture chain: {removed}")
+
+png_texture_body = function_body(renderer, "draw_iso_object_png_texture_asset")
+for token in (
+    "VisualStateAssetServiceRef.object_uses_visual_states",
+    "get_iso_object_png_asset_path",
+    "get_iso_object_png_texture_for_resolved_path",
+    "draw_missing_iso_asset_debug_fallback",
+    "build_iso_object_visual_descriptor_for_contract",
+    "draw_iso_object_png_texture_with_descriptor",
+    "draw_visual_state_overlays_for_descriptor",
+):
+    if token not in png_texture_body:
+        errors.append(f"RoomVisualRenderer coordinator lost PNG texture resource/Canvas ownership token: {token}")
+
+executor_body = function_body(renderer, "_execute_object_texture_attempt_plan")
+for token in ("draw_iso_object_png_texture_asset", "draw_optional_visual_texture_asset", "draw_iso_texture_asset"):
+    if token not in executor_body:
+        errors.append(f"object texture attempt executor missing draw dispatch: {token}")
+    if token in object_texture_policy:
+        errors.append(f"ObjectTextureDispatchPolicy must not call coordinator draw method: {token}")
+
 marker_order = (
-    "get_iso_object_grounding_profile", "ObjectPrimitiveRendererRef.build_floor_base_commands",
-    "draw_iso_object_png_texture_asset", "ObjectPrimitiveRendererRef.build_texture_accent_commands",
-    "draw_wall_mounted_object_shape", "ObjectPrimitiveRendererRef.build_shape_commands",
+    "is_door_floor_object_visual",
+    "draw_iso_object_png_texture_asset",
+    "ObjectPrimitiveRendererRef.build_floor_base_commands",
+    "draw_wall_routed_procedural_visual",
+    "ObjectTextureDispatchPolicyRef.build_attempt_plan",
+    "_execute_object_texture_attempt_plan",
+    "ObjectPrimitiveRendererRef.build_texture_accent_commands",
+    "draw_wall_mounted_object_shape",
+    "ObjectPrimitiveRendererRef.build_shape_commands",
+    "_draw_grounding_overlay",
 )
 marker_positions = []
 search_from = 0
@@ -142,9 +194,8 @@ for token in marker_order:
     marker_positions.append(position)
     if position >= 0:
         search_from = position + len(token)
-grounding_overlay_position = marker_body.rfind("_draw_grounding_overlay")
-if any(value < 0 for value in marker_positions) or grounding_overlay_position < 0 or grounding_overlay_position < marker_positions[-1]:
-    errors.append("RoomVisualRenderer draw_iso_object_marker object primitive flow ordering changed")
+if any(value < 0 for value in marker_positions):
+    errors.append("RoomVisualRenderer draw_iso_object_marker door/route/plan/accent/fallback/grounding order changed")
 
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
@@ -257,7 +308,7 @@ object_descriptor_delegates = {
     "build_iso_object_visual_descriptor": "ObjectRendererRef.build_descriptor_for_contract",
     "build_authored_wall_canvas_descriptor": "ObjectRendererRef.build_descriptor_for_contract",
     "build_authored_floor_canvas_descriptor": "ObjectRendererRef.build_descriptor_for_contract",
-    "build_iso_object_visual_descriptor_for_contract": "ObjectRendererRef.get_descriptor_mode",
+    "build_iso_object_visual_descriptor_for_contract": "ObjectTextureDispatchPolicyRef.get_descriptor_route",
 }
 for name, delegate in object_descriptor_delegates.items():
     if delegate not in function_body(renderer, name):
@@ -407,6 +458,8 @@ for token in (
 ):
     if token not in wall:
         errors.append(f"WallRenderer missing contract: {token}")
+if "static func get_descriptor_mode" in object_renderer:
+    errors.append("ObjectRenderer must not retain duplicate descriptor route policy")
 
 for token in (
     "class_name ObjectRenderer",
@@ -418,7 +471,6 @@ for token in (
     "static func get_entry_kind",
     "static func get_layer_bias",
     "static func make_draw_entry",
-    "static func get_descriptor_mode",
     "static func build_descriptor_for_contract",
     "static func build_authored_canvas_descriptor",
     "static func build_object_descriptor",

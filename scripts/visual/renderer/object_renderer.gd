@@ -329,11 +329,3 @@ static func build_descriptor_for_contract(context: Dictionary) -> Dictionary:
 	if str(context.get("descriptor_mode", "object")) == "authored_canvas":
 		return build_authored_canvas_descriptor(context)
 	return build_object_descriptor(context)
-
-static func get_descriptor_mode(render_contract: String, wall_contract: String, floor_contract: String) -> String:
-	if render_contract == wall_contract:
-		return "wall_authored"
-	if render_contract == floor_contract:
-		return "floor_authored"
-	return "object"
-

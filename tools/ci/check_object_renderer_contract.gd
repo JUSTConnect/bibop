@@ -174,9 +174,6 @@ func _check_descriptor_policy() -> void:
 	_expect(is_equal_approx(float(authored_descriptor.get("visual_scale", 0.0)), 0.25), "authored canvas scale changed")
 	_expect(Rect2(authored_descriptor.get("destination_rect", Rect2())) == Rect2(Vector2(240, 128), Vector2(128, 100)), "authored canvas rect changed")
 	_expect(str(authored_descriptor.get("texture_path", "")) == "res://test.png", "authored canvas path changed")
-	_expect(ObjectRendererRef.get_descriptor_mode("wall", "wall", "floor") == "wall_authored", "wall contract dispatch changed")
-	_expect(ObjectRendererRef.get_descriptor_mode("floor", "wall", "floor") == "floor_authored", "floor contract dispatch changed")
-	_expect(ObjectRendererRef.get_descriptor_mode("object", "wall", "floor") == "object", "object contract dispatch changed")
 
 func _expect(condition: bool, message: String) -> void:
 	if not condition:
