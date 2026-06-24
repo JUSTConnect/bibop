@@ -18,6 +18,7 @@ RUNTIME_DEBUG_OVERLAY = ROOT / "scripts/visual/renderer/runtime_debug_overlay_re
 FOG_RENDERER = ROOT / "scripts/visual/renderer/fog_renderer.gd"
 OBJECT_PRIMITIVE = ROOT / "scripts/visual/renderer/object_primitive_renderer.gd"
 OBJECT_TEXTURE_POLICY = ROOT / "scripts/visual/renderer/object_texture_dispatch_policy.gd"
+DOOR_CANVAS_RENDERER = ROOT / "scripts/visual/renderer/door_canvas_renderer.gd"
 errors: list[str] = []
 
 
@@ -46,15 +47,60 @@ runtime_debug_overlay_renderer = read(RUNTIME_DEBUG_OVERLAY)
 fog_renderer = read(FOG_RENDERER)
 object_primitive_renderer = read(OBJECT_PRIMITIVE)
 object_texture_policy = read(OBJECT_TEXTURE_POLICY)
+door_canvas_renderer = read(DOOR_CANVAS_RENDERER)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP = 5852
-if renderer_lines > ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP:
+ROOM_VISUAL_RENDERER_DOOR_CANVAS_CAP = 5723
+if renderer_lines > ROOM_VISUAL_RENDERER_DOOR_CANVAS_CAP:
     errors.append(
         "RoomVisualRenderer grew beyond object texture dispatch cap: "
-        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_OBJECT_TEXTURE_CAP}"
+        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_DOOR_CANVAS_CAP}"
     )
 
+
+
+for token in (
+    "class_name DoorCanvasRenderer", "static func normalize_state", "static func build_visual_profile",
+    "static func build_threshold_commands", "static func build_frame_commands",
+    "static func build_body_commands", "static func build_state_overlay_commands",
+):
+    if token not in door_canvas_renderer:
+        errors.append(f"DoorCanvasRenderer missing focused API/token: {token}")
+for forbidden in (
+    "extends Node", "extends Node2D", "GridManager", "MissionManager", "get_node(", "get_tree(",
+    "grid_to_iso(", "ResourceLoader", "load(", "Texture2D", "Time", "ThemeDB", "queue_redraw(",
+    "draw_line(", "draw_circle(", "draw_colored_polygon(", "draw_rect(", "draw_arc(",
+    "draw_polyline(", "draw_texture", "draw_set_transform",
+):
+    if forbidden in door_canvas_renderer:
+        errors.append(f"DoorCanvasRenderer contains forbidden coordinator/runtime dependency: {forbidden}")
+
+profile_body = function_body(renderer, "get_iso_door_opening_visual_profile")
+for token in ("_get_door_kind_for_tile", "get_mission_manager_ref", "get_map_constructor_door_visual_state", "DoorCanvasRendererRef.normalize_state", "DoorCanvasRendererRef.build_visual_profile"):
+    if token not in profile_body:
+        errors.append(f"RoomVisualRenderer get_iso_door_opening_visual_profile lost runtime/profile split token: {token}")
+context_body = function_body(renderer, "get_door_opening_context")
+for token in ("_grid_manager", "is_cell_in_bounds", "is_door_like_tile", "is_wall_tile", "grid_to_iso", "_get_door_opening_polygon"):
+    if token not in context_body:
+        errors.append(f"RoomVisualRenderer get_door_opening_context lost retained ownership token: {token}")
+door_body = function_body(renderer, "draw_iso_door_insert")
+door_order = ("get_door_opening_context", "get_iso_door_opening_visual_profile", "draw_iso_texture_asset", "DoorCanvasRendererRef.build_threshold_commands", "valid_jamb_centers", "DoorCanvasRendererRef.build_frame_commands", "draw_iso_object_png_texture_asset", "DoorCanvasRendererRef.build_body_commands", "DoorCanvasRendererRef.build_state_overlay_commands", "draw_door_opening_overlay_for_context")
+search_from = 0
+for token in door_order:
+    pos = door_body.find(token, search_from)
+    if pos < 0:
+        errors.append(f"RoomVisualRenderer draw_iso_door_insert missing/out-of-order coordinator token: {token}")
+    else:
+        search_from = pos + len(token)
+if door_body.count("_draw_object_primitive_commands") < 4:
+    errors.append("RoomVisualRenderer draw_iso_door_insert must execute every DoorCanvasRenderer command phase")
+for forbidden in ("draw_line", "draw_circle", "draw_colored_polygon", "draw_rect", "draw_arc", "draw_polyline"):
+    if forbidden in door_body:
+        errors.append(f"RoomVisualRenderer draw_iso_door_insert retained direct Canvas call: {forbidden}")
+if function_body(renderer, "_get_door_axis_vectors"):
+    errors.append("RoomVisualRenderer retained migrated _get_door_axis_vectors helper")
+if 'preload("res://scripts/visual/renderer/door_canvas_renderer.gd")' not in renderer:
+    errors.append("RoomVisualRenderer missing DoorCanvasRenderer preload")
 
 for name in (
     "get_visual_profiles", "get_profile", "build_floor_base_commands",
@@ -204,6 +250,7 @@ for token in (
     'preload("res://scripts/visual/renderer/wall_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_primitive_renderer.gd")',
+    'preload("res://scripts/visual/renderer/door_canvas_renderer.gd")',
     'preload("res://scripts/visual/renderer/route_renderer.gd")',
     'preload("res://scripts/visual/renderer/overlay_renderer.gd")',
     'preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")',

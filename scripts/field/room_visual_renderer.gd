@@ -18,6 +18,7 @@ const WallRendererRef = preload("res://scripts/visual/renderer/wall_renderer.gd"
 const ObjectRendererRef = preload("res://scripts/visual/renderer/object_renderer.gd")
 const ObjectPrimitiveRendererRef = preload("res://scripts/visual/renderer/object_primitive_renderer.gd")
 const ObjectTextureDispatchPolicyRef = preload("res://scripts/visual/renderer/object_texture_dispatch_policy.gd")
+const DoorCanvasRendererRef = preload("res://scripts/visual/renderer/door_canvas_renderer.gd")
 const RouteRendererRef = preload("res://scripts/visual/renderer/route_renderer.gd")
 const OverlayRendererRef = preload("res://scripts/visual/renderer/overlay_renderer.gd")
 const MapConstructorOverlayRendererRef = preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")
@@ -1108,60 +1109,16 @@ func get_iso_door_opening_visual_profile(cell: Vector2i, object_data: Dictionary
 	var mission_manager: Node = get_mission_manager_ref()
 	if not object_id.is_empty() and mission_manager != null and mission_manager.has_method("get_map_constructor_door_visual_state"):
 		var resolved_state: Dictionary = Dictionary(mission_manager.call("get_map_constructor_door_visual_state", object_id))
-		if bool(resolved_state.get("ok", false)):
+		if resolved_state.get("ok", false) is bool and bool(resolved_state.get("ok", false)):
 			door_state = str(resolved_state.get("state", door_state)).to_lower().strip_edges()
-	if bool(object_data.get("is_open", object_data.get("open", false))):
+	if object_data.get("is_open", object_data.get("open", false)) is bool and bool(object_data.get("is_open", object_data.get("open", false))):
 		door_state = "open"
-	if bool(object_data.get("is_locked", object_data.get("locked", false))):
+	if object_data.get("is_locked", object_data.get("locked", false)) is bool and bool(object_data.get("is_locked", object_data.get("locked", false))):
 		door_state = "locked"
-	if bool(object_data.get("damaged", object_data.get("broken", false))):
+	if object_data.get("damaged", object_data.get("broken", false)) is bool and bool(object_data.get("damaged", object_data.get("broken", false))):
 		door_state = "damaged"
-	if door_state == "broken" or door_state == "jammed" or door_state == "destroyed":
-		door_state = "damaged"
-	if door_state.is_empty() or not (door_state in ["open", "closed", "locked", "powered", "unpowered", "damaged"]):
-		door_state = "closed"
-	var base_color: Color = Color(0.27, 0.24, 0.22, 0.96)
-	var frame_color: Color = Color(0.12, 0.14, 0.16, 0.98)
-	var accent_color: Color = Color(0.88, 0.72, 0.36, 0.98)
-	var warning_color: Color = Color(1.0, 0.3, 0.22, 0.98)
-	var threshold_color: Color = Color(0.16, 0.18, 0.2, 0.82)
-	var alpha: float = 0.96
-	if door_kind == "digital_door":
-		base_color = Color(0.13, 0.2, 0.28, 0.96)
-		accent_color = Color(0.38, 0.88, 1.0, 0.98)
-	elif door_kind == "powered_gate":
-		base_color = Color(0.09, 0.14, 0.2, 0.9)
-		accent_color = Color(0.48, 0.96, 1.0, 0.98)
-	if door_state == "open":
-		alpha = 0.38
-		base_color = base_color.darkened(0.18)
-		accent_color = Color(0.58, 0.9, 0.98, 0.92)
-	elif door_state == "locked":
-		accent_color = Color(1.0, 0.72, 0.22, 0.99)
-		warning_color = Color(1.0, 0.86, 0.24, 0.99)
-	elif door_state == "powered":
-		accent_color = Color(0.32, 0.92, 1.0, 0.99)
-	elif door_state == "unpowered":
-		base_color = Color(0.18, 0.19, 0.21, 0.86)
-		accent_color = Color(0.48, 0.54, 0.58, 0.86)
-		alpha = 0.72
-	elif door_state == "damaged":
-		accent_color = Color(1.0, 0.34, 0.22, 0.99)
-		warning_color = Color(1.0, 0.18, 0.12, 0.99)
-	return {
-		"door_state": door_state,
-		"door_kind": door_kind,
-		"base_color": base_color,
-		"frame_color": frame_color,
-		"accent_color": accent_color,
-		"warning_color": warning_color,
-		"threshold_color": threshold_color,
-		"alpha": alpha,
-		"frame_enabled": true,
-		"threshold_enabled": true,
-		"state_badge_enabled": door_state != "closed",
-		"damage_overlay_enabled": door_state == "damaged"
-	}
+	door_state = DoorCanvasRendererRef.normalize_state(door_state)
+	return DoorCanvasRendererRef.build_visual_profile(door_kind, door_state)
 
 func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
 	return FloorRendererRef.get_prototype_color(tile_type, cell)
@@ -5040,129 +4997,43 @@ func get_iso_object_grounding_profile(object_data: Dictionary, fallback_cell: Ve
 func _draw_grounding_overlay(profile: Dictionary) -> void:
 	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_grounding_commands(profile))
 
-func _get_door_axis_vectors(orientation: String) -> Dictionary:
-	if orientation == "axis_y":
-		return {"along": Vector2(0.78, 0.39).normalized(), "up": Vector2(0.0, -1.0)}
-	return {"along": Vector2(0.78, -0.39).normalized(), "up": Vector2(0.0, -1.0)}
-
 func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictionary = {}) -> void:
 	var context: Dictionary = get_door_opening_context(cell)
-	if not bool(context.get("ok", false)):
+	if not (context.get("ok", false) is bool and bool(context.get("ok", false))):
 		return
 	var profile: Dictionary = get_iso_door_opening_visual_profile(cell, object_data)
-	var orientation: String = str(context.get("orientation", "unknown"))
+	context["profile"] = profile
+	var threshold_texture_succeeded: bool = false
+	if profile.get("threshold_enabled", true) is bool and bool(profile.get("threshold_enabled", true)):
+		threshold_texture_succeeded = draw_iso_texture_asset(cell, "floor_door_underlay")
+	context["threshold_texture_succeeded"] = threshold_texture_succeeded
+	_draw_object_primitive_commands(DoorCanvasRendererRef.build_threshold_commands(context))
+	var valid_jamb_centers: Array[Vector2] = []
+	for jamb_cell in [Vector2i(context.get("left_jamb_cell", Vector2i(-1, -1))), Vector2i(context.get("right_jamb_cell", Vector2i(-1, -1)))]:
+		if jamb_cell.x < 0 or jamb_cell.y < 0:
+			continue
+		if not is_cell_in_bounds(jamb_cell):
+			continue
+		if not is_wall_tile(_grid_manager.get_tile(jamb_cell)):
+			continue
+		valid_jamb_centers.append(grid_to_iso(jamb_cell) + Vector2(0.0, -iso_wall_height * 0.4))
+	context["valid_jamb_centers"] = valid_jamb_centers
+	_draw_object_primitive_commands(DoorCanvasRendererRef.build_frame_commands(context))
 	var door_insert_center: Vector2 = Vector2(context.get("door_insert_center", grid_to_iso(cell)))
-	var threshold_polygon: PackedVector2Array = PackedVector2Array(context.get("threshold_polygon", PackedVector2Array()))
-	var frame_polygon: PackedVector2Array = PackedVector2Array(context.get("door_frame_polygon", PackedVector2Array()))
-	var base_color: Color = Color(profile.get("base_color", Color(0.25, 0.25, 0.28, 0.96)))
-	var frame_color: Color = Color(profile.get("frame_color", Color(0.1, 0.12, 0.14, 0.98)))
-	var accent_color: Color = Color(profile.get("accent_color", Color(0.8, 0.8, 0.72, 0.98)))
-	var warning_color: Color = Color(profile.get("warning_color", Color(1.0, 0.28, 0.2, 0.98)))
-	var threshold_color: Color = Color(profile.get("threshold_color", Color(0.14, 0.16, 0.18, 0.82)))
-	var alpha: float = float(profile.get("alpha", 0.96))
-	base_color.a *= alpha
-	accent_color.a *= maxf(alpha, 0.55)
-	if bool(profile.get("threshold_enabled", true)):
-		if draw_iso_texture_asset(cell, "floor_door_underlay"):
-			pass
-		elif threshold_polygon.size() >= 3:
-			draw_colored_polygon(threshold_polygon, threshold_color)
-			for threshold_index in range(threshold_polygon.size()):
-				var threshold_next_index: int = (threshold_index + 1) % threshold_polygon.size()
-				draw_line(threshold_polygon[threshold_index], threshold_polygon[threshold_next_index], accent_color.darkened(0.25), 1.0)
-	if bool(profile.get("frame_enabled", true)) and frame_polygon.size() >= 4:
-		draw_colored_polygon(frame_polygon, Color(frame_color.r, frame_color.g, frame_color.b, 0.72))
-		for frame_index in range(frame_polygon.size()):
-			var frame_next_index: int = (frame_index + 1) % frame_polygon.size()
-			draw_line(frame_polygon[frame_index], frame_polygon[frame_next_index], frame_color.lightened(0.18), 2.0)
-		var left_jamb_cell: Vector2i = Vector2i(context.get("left_jamb_cell", Vector2i(-1, -1)))
-		var right_jamb_cell: Vector2i = Vector2i(context.get("right_jamb_cell", Vector2i(-1, -1)))
-		var jamb_cells: Array[Vector2i] = [left_jamb_cell, right_jamb_cell]
-		for jamb_cell in jamb_cells:
-			if jamb_cell.x < 0 or jamb_cell.y < 0:
-				continue
-			if not is_cell_in_bounds(jamb_cell):
-				continue
-			if not is_wall_tile(_grid_manager.get_tile(jamb_cell)):
-				continue
-			var jamb_center: Vector2 = grid_to_iso(jamb_cell) + Vector2(0.0, -iso_wall_height * 0.4)
-			draw_line(jamb_center + Vector2(0.0, -10.0), jamb_center + Vector2(0.0, 13.0), frame_color.lightened(0.24), 3.0)
-	var door_kind: String = str(profile.get("door_kind", "mechanical_door"))
-	var door_state: String = str(profile.get("door_state", "closed"))
 	var door_visual_data: Dictionary = object_data.duplicate(true)
 	if not door_visual_data.has("visual_family") and not door_visual_data.has("visual_asset_family"):
 		door_visual_data["visual_family"] = "door"
 	if not door_visual_data.has("object_type") and not door_visual_data.has("type"):
 		door_visual_data["object_type"] = "door"
-	var used_texture_asset: bool = draw_iso_object_png_texture_asset(cell, "door", door_insert_center, door_visual_data)
-	if not used_texture_asset:
-		var axis_data: Dictionary = _get_door_axis_vectors(orientation)
-		var along_axis: Vector2 = Vector2(axis_data.get("along", Vector2(1.0, 0.0)))
-		var up_axis: Vector2 = Vector2(axis_data.get("up", Vector2(0.0, -1.0)))
-		var half_width: float = get_iso_tile_half_size().x * 0.24
-		var panel_height: float = iso_wall_height * 0.58
-		var panel_bottom: Vector2 = door_insert_center + Vector2(0.0, 12.0)
-		var panel_top: Vector2 = panel_bottom + up_axis * panel_height
-		var panel_points: PackedVector2Array = PackedVector2Array([
-			panel_top - along_axis * half_width,
-			panel_top + along_axis * half_width,
-			panel_bottom + along_axis * half_width,
-			panel_bottom - along_axis * half_width
-		])
-		if door_state == "open":
-			var split_offset: Vector2 = along_axis * half_width * 0.58
-			var left_panel: PackedVector2Array = PackedVector2Array([panel_points[0] - split_offset, panel_points[0], panel_points[3], panel_points[3] - split_offset])
-			var right_panel: PackedVector2Array = PackedVector2Array([panel_points[1], panel_points[1] + split_offset, panel_points[2] + split_offset, panel_points[2]])
-			draw_colored_polygon(left_panel, base_color)
-			draw_colored_polygon(right_panel, base_color)
-		else:
-			draw_colored_polygon(panel_points, base_color)
-		if door_kind == "digital_door":
-			var strip_start: Vector2 = panel_top + along_axis * half_width * 0.58
-			var strip_end: Vector2 = panel_bottom + along_axis * half_width * 0.58
-			draw_line(strip_start, strip_end, accent_color, 3.2)
-			draw_circle(strip_start.lerp(strip_end, 0.35), 2.8, accent_color.lightened(0.2))
-		elif door_kind == "powered_gate":
-			for bar_index in range(4):
-				var bar_t: float = 0.2 + float(bar_index) * 0.2
-				var bar_center: Vector2 = panel_top.lerp(panel_bottom, bar_t)
-				draw_line(bar_center - along_axis * half_width * 0.84, bar_center + along_axis * half_width * 0.84, accent_color, 1.8)
-				draw_circle(bar_center, 1.6, accent_color.lightened(0.18))
-		else:
-			draw_line(panel_points[0].lerp(panel_points[3], 0.5), panel_points[1].lerp(panel_points[2], 0.5), accent_color, 1.6)
-		if debug_draw_iso_object_outlines:
-			for panel_index in range(panel_points.size()):
-				var panel_next_index: int = (panel_index + 1) % panel_points.size()
-				draw_line(panel_points[panel_index], panel_points[panel_next_index], frame_color.lightened(0.28), 1.0)
-	else:
-		if door_kind == "digital_door":
-			draw_line(door_insert_center + Vector2(10.0, -43.0), door_insert_center + Vector2(10.0, -13.0), accent_color, 2.6)
-			draw_circle(door_insert_center + Vector2(10.0, -28.0), 2.4, accent_color.lightened(0.2))
-		elif door_kind == "powered_gate":
-			for texture_bar_index in range(3):
-				var texture_bar_y: float = -38.0 + float(texture_bar_index) * 10.0
-				draw_line(door_insert_center + Vector2(-13.0, texture_bar_y), door_insert_center + Vector2(13.0, texture_bar_y), accent_color, 1.8)
-		else:
-			draw_line(door_insert_center + Vector2(-9.0, -24.0), door_insert_center + Vector2(9.0, -24.0), accent_color, 2.0)
-		draw_circle(door_insert_center + Vector2(0.0, -31.0), 2.5, accent_color)
-	if bool(profile.get("state_badge_enabled", false)):
-		var badge_center: Vector2 = door_insert_center + Vector2(18.0, -22.0)
-		var badge_color: Color = accent_color
-		if door_state == "locked":
-			badge_color = warning_color
-		elif door_state == "damaged":
-			badge_color = warning_color
-		draw_circle(badge_center, 4.2, badge_color)
-		if door_state == "locked":
-			draw_line(badge_center + Vector2(-2.0, -1.0), badge_center + Vector2(2.0, -1.0), frame_color, 1.2)
-		elif door_state == "unpowered":
-			draw_line(badge_center + Vector2(-2.8, 2.0), badge_center + Vector2(2.8, -2.0), frame_color, 1.4)
-	if bool(profile.get("damage_overlay_enabled", false)):
-		draw_line(door_insert_center + Vector2(-12.0, -36.0), door_insert_center + Vector2(-2.0, -23.0), warning_color, 1.8)
-		draw_line(door_insert_center + Vector2(-2.0, -23.0), door_insert_center + Vector2(-8.0, -14.0), warning_color, 1.4)
+	var door_texture_succeeded: bool = draw_iso_object_png_texture_asset(cell, "door", door_insert_center, door_visual_data)
+	context["door_texture_succeeded"] = door_texture_succeeded
+	context["debug_outlines"] = debug_draw_iso_object_outlines
+	context["tile_half_size"] = get_iso_tile_half_size()
+	context["wall_height"] = iso_wall_height
+	_draw_object_primitive_commands(DoorCanvasRendererRef.build_body_commands(context))
+	_draw_object_primitive_commands(DoorCanvasRendererRef.build_state_overlay_commands(context))
 	if show_door_opening_overlay:
 		draw_door_opening_overlay_for_context(context)
-
 
 func draw_door_opening_overlay_for_context(context: Dictionary) -> void:
 	var cell: Vector2i = Vector2i(context.get("cell", Vector2i(-1, -1)))

@@ -34,6 +34,8 @@ jobs:
         run: godot --headless --path . --script res://tools/ci/check_object_primitive_renderer_contract.gd
       - name: Check ObjectTextureDispatchPolicy contract
         run: godot --headless --path . --script res://tools/ci/check_object_texture_dispatch_policy_contract.gd
+      - name: Check DoorCanvasRenderer contract
+        run: godot --headless --path . --script res://tools/ci/check_door_canvas_renderer_contract.gd
       - name: Check RouteRenderer contract
         run: godot --headless --path . --script res://tools/ci/check_route_renderer_contract.gd
       - name: Check OverlayRenderer contract
