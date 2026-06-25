@@ -1,0 +1,26 @@
+name: Check issue 1162 transport fixes
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  check-fixes:
+    if: github.event.pull_request.head.ref == 'codex/bip-architecture-coordinators-02f7-final-cleanup'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          wc -c .github/issue-1162-transport/part00.b64 .github/issue-1162-transport/part01.b64 .github/issue-1162-transport/fix*.b64 | tee /tmp/issue-1162-fix-check.txt
+          sha256sum .github/issue-1162-transport/part00.b64 .github/issue-1162-transport/part01.b64 .github/issue-1162-transport/fix*.b64 | tee -a /tmp/issue-1162-fix-check.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-1162-fix-check
+          path: /tmp/issue-1162-fix-check.txt
+          retention-days: 1
