@@ -6,6 +6,8 @@ The decomposition started from a 7,811-line `scripts/field/room_visual_renderer.
 
 After the controlled extraction sequence through issues #1141–#1162, the final coordinator is capped at **4,288 lines**. The remaining size is dominated by scene-facing context assembly and Canvas execution that depends on live `GridManager`, mission runtime and serialized scene configuration.
 
+This 4,288-line baseline is the final ownership limit established by #1162; future deterministic rendering policy must be added to focused components rather than returned to the coordinator.
+
 ## Dependency direction
 
 ```text
