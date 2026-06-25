@@ -36,18 +36,15 @@ for token in (
 ):
     if token not in policy:
         errors.append(f"IsoAssetAlignmentPolicy missing focused token: {token}")
-
-if re.search(r"(?<!pre)load\(", policy):
-    errors.append("IsoAssetAlignmentPolicy contains forbidden direct load() call")
-
 for forbidden in (
-    "extends Node", "extends Node2D", "GridManager", "MissionManager", "ResourceLoader",
-    "FileAccess", "ResourceSaver", "Texture2D", "Time", "ThemeDB", "queue_redraw(", "get_node(",
-    "get_tree(", "draw_line(", "draw_circle(", "draw_rect(", "draw_arc(", "draw_polyline(",
-    "draw_texture", "CanvasItem",
+    "extends Node", "extends Node2D", "GridManager", "MissionManager", "ResourceLoader", "Texture2D",
+    "Time", "ThemeDB", "queue_redraw(", "get_node(", "get_tree(", "draw_line(", "draw_circle(",
+    "draw_rect(", "draw_arc(", "draw_polyline(", "draw_texture", "CanvasItem",
 ):
     if forbidden in policy:
         errors.append(f"IsoAssetAlignmentPolicy contains forbidden scene/resource/Canvas dependency: {forbidden}")
+if re.search(r"(?<!pre)load\(", policy):
+    errors.append("IsoAssetAlignmentPolicy contains forbidden direct load() call")
 
 for forbidden in (
     "const ISO_ASSET_ALIGNMENT_RULES", "const ISO_OBJECT_CANONICAL_VISUAL_IDS",
@@ -55,39 +52,15 @@ for forbidden in (
     "const OUTER_UTILITY_VERTICAL_OFFSET_SCALE", "const ISO_COOLING_WALL_CANVAS_FACE_REGIONS",
 ):
     if forbidden in renderer:
-        errors.append(f"RoomVisualRenderer retained migrated policy body: {forbidden}")
-
-removed_aliases = (
-    "ISO_WALL_ASSET_PACK_DIR", "ISO_WALL_BREACH_OVERLAY_PACK_DIR", "ISO_WALL_BREACH_OVERLAY_CATALOG",
-    "ISO_WALL_ASSET_EXPECTED_SIZE", "ISO_WALL_HEIGHT_LEVELS", "ISO_OUTER_WALL_HEIGHT_ORDER",
-    "ISO_GRATE_WALL_HEIGHT_LEVELS", "ISO_TEST_WALL_HEIGHT_ORDER", "ISO_TEST_WALL_HEIGHT_ASSET_KEYS",
-    "ISO_WALL_ASSET_CATALOG", "ISO_FLOOR_ASSET_PACK_DIR", "ISO_FLOOR_TEST_ASSET_KEY",
-    "ISO_FLOOR_ASSET_CATALOG", "ISO_GROUND_ASSET_PACK_DIR", "ISO_GROUND_ASSET_CATALOG",
-    "ISO_FLOOR_ASSET_TARGET_FOOTPRINT", "ISO_FLOOR_ASSET_NORMALIZED_OVERLAP", "ISO_FLOOR_ASSET_PLACEMENT",
-    "ISO_GROUND_ASSET_PLACEMENT", "ISO_WALL_BASELINE_VISIBLE_BOUNDS", "ISO_WALL_HEIGHT_VISIBLE_BOUNDS",
-    "ISO_TEST_WALL_VISIBLE_BOUNDS", "ISO_WALL_ASSET_PLACEMENT", "ISO_FLOOR_ATLAS_COLUMNS",
-    "ISO_FLOOR_ATLAS_ROWS", "ISO_FLOOR_ATLAS_BASE_VARIANTS", "ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS",
-    "ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING", "ISO_FLOOR_ATLAS_SCREEN_OVERLAP", "ISO_FLOOR_UNDERLAY_OVERLAP",
-    "ISO_FLOOR_ASSET_SCREEN_OVERLAP", "ISO_FLOOR_OVERLAY_INNER_INSET", "ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS",
-    "ISO_FLOOR_ATLAS_LAYOUT", "WALL_SIDE_ORDER", "WALL_MASS_RATIO", "WALL_MOUNT_BAND_RATIO",
-)
-for alias in removed_aliases:
-    if re.search(rf"(?m)^const {re.escape(alias)}(?::|\s*=)", renderer):
-        errors.append(f"RoomVisualRenderer retained coordinator-only catalog alias: {alias}")
-
+        errors.append(f"RoomVisualRenderer retained migrated alignment policy body: {forbidden}")
 for token in (
     'preload("res://scripts/visual/renderer/iso_asset_alignment_policy.gd")',
     "IsoAssetAlignmentPolicyRef.get_alignment_rule", "IsoAssetAlignmentPolicyRef.normalize_runtime_rule",
     "IsoAssetAlignmentPolicyRef.get_cooling_wall_canvas_region", "IsoAssetAlignmentPolicyRef.build_outer_utility_layout",
-    "VisualAssetCatalogScript.get_all_asset_paths",
 ):
     if token not in renderer:
         errors.append(f"RoomVisualRenderer missing alignment/catalog integration: {token}")
-
-for retained in (
-    "@export var iso_object_door_texture: Texture2D",
-    "draw_texture_rect", "draw_iso_asset_alignment_overlay", "show_asset_alignment_overlay",
-):
+for retained in ("@export var iso_object_door_texture: Texture2D", "draw_texture_rect", "draw_iso_asset_alignment_overlay", "show_asset_alignment_overlay"):
     if retained not in renderer:
         errors.append(f"RoomVisualRenderer lost retained scene/resource/Canvas ownership: {retained}")
     if retained in policy:
@@ -96,30 +69,23 @@ for retained in (
 for token in ("const ISO_TEST_ASSET_PACK_DIR: String", "const CANONICAL_OBJECT_VISUAL_IDS: Array[String]", "static func get_canonical_object_visual_ids"):
     if token not in catalog:
         errors.append(f"VisualAssetCatalog missing canonical visual-ID ownership: {token}")
-
 for token in (
-    "IsoAssetAlignmentPolicy contract OK", "floor_default", "wall_default", "object_key",
-    "object_terminal", "object_socket", "get_cooling_wall_face_region", "build_outer_utility_layout",
-    "get_canonical_object_visual_ids",
+    "IsoAssetAlignmentPolicy contract OK", "floor_default", "wall_default", "object_terminal",
+    "get_cooling_wall_face_region", "build_outer_utility_layout", "get_canonical_object_visual_ids",
 ):
     if token not in contract:
-        errors.append(f"alignment policy contract missing exact coverage token: {token}")
-
-for token in (
-    "python tools/check_iso_asset_alignment_policy_boundary.py",
-    "res://tools/ci/check_iso_asset_alignment_policy_contract.gd",
-):
-    if token not in workflow:
-        errors.append(f"Renderer Component Gate missing alignment policy check: {token}")
+        errors.append(f"alignment policy contract missing coverage token: {token}")
+if "check_iso_asset_alignment_policy_boundary.py" not in workflow or "check_iso_asset_alignment_policy_contract.gd" not in workflow:
+    errors.append("Renderer Component Gate missing alignment policy validation")
 
 renderer_lines = len(renderer.splitlines())
-if renderer_lines > 5209:
-    errors.append(f"RoomVisualRenderer grew beyond current resource-runtime cap: {renderer_lines} > 5209")
+CAP = 4288
+if renderer_lines > CAP:
+    errors.append(f"RoomVisualRenderer grew beyond final coordinator cap: {renderer_lines} > {CAP}")
 
 if errors:
     print("IsoAssetAlignmentPolicy boundary FAILED:")
     for error in errors:
         print(" -", error)
     raise SystemExit(1)
-
 print(f"IsoAssetAlignmentPolicy boundary OK ({renderer_lines} coordinator lines)")

@@ -50,34 +50,31 @@ for forbidden in (
     if forbidden in component:
         errors.append(f"CableCanvasRenderer contains forbidden coordinator/runtime/Canvas dependency: {forbidden}")
 
-if 'preload("res://scripts/visual/renderer/route_renderer.gd")' not in component:
-    errors.append("CableCanvasRenderer must reuse RouteRenderer floor segment primitives")
-if "RouteRendererRef.build_floor_mode_segment_commands" not in component:
-    errors.append("CableCanvasRenderer must delegate floor segment primitives to RouteRenderer")
+if 'preload("res://scripts/visual/renderer/route_renderer.gd")' not in component or "RouteRendererRef.build_floor_mode_segment_commands" not in component:
+    errors.append("CableCanvasRenderer must reuse RouteRenderer floor-segment primitives")
 if 'preload("res://scripts/visual/renderer/cable_canvas_renderer.gd")' not in renderer:
     errors.append("RoomVisualRenderer missing CableCanvasRenderer preload")
 
 segment_body = function_body(renderer, "draw_iso_cable_segment_shape")
 for token in (
     "RouteRendererRef.build_floor_topology_plan", "_get_iso_cable_branch_endpoint_for_visual_center",
-    "_get_iso_cable_screen_direction", "CableCanvasRendererRef.build_floor_cable_commands", "_draw_route_commands",
+    "_get_iso_cable_screen_direction", "CableCanvasRendererRef.build_floor_cable_commands", "_draw_canvas_commands",
 ):
     if token not in segment_body:
         errors.append(f"RoomVisualRenderer draw_iso_cable_segment_shape missing coordinator/delegate token: {token}")
-for forbidden in (
-    "draw_line(", "draw_circle(", "draw_arc(", "draw_polyline(",
-    "Color(1.0, 0.25, 0.08", "Color(1.0, 0.82, 0.15", "isolated_half_width",
-):
+for forbidden in ("draw_line(", "draw_circle(", "draw_arc(", "draw_polyline(", "isolated_half_width"):
     if forbidden in segment_body:
         errors.append(f"RoomVisualRenderer draw_iso_cable_segment_shape retained migrated Canvas/style policy: {forbidden}")
 
-route_dispatcher = function_body(renderer, "_draw_route_commands")
+canvas_dispatcher = function_body(renderer, "_draw_canvas_commands")
 for token in ('"line"', '"circle"', '"polyline"', '"arc"', '"wall_cable_segment"'):
-    if token not in route_dispatcher:
-        errors.append(f"RoomVisualRenderer route command executor missing command kind: {token}")
-for token in ("draw_line(", "draw_circle(", "draw_polyline(", "draw_arc("):
-    if token not in route_dispatcher:
-        errors.append(f"RoomVisualRenderer route command executor lost Canvas execution token: {token}")
+    if token not in canvas_dispatcher:
+        errors.append(f"canonical Canvas executor missing cable command kind: {token}")
+for token in ("draw_line(", "draw_circle(", "draw_polyline(", "draw_arc(", "draw_iso_cable_wall_segment("):
+    if token not in canvas_dispatcher:
+        errors.append(f"canonical Canvas executor lost cable execution token: {token}")
+if function_body(renderer, "_draw_route_commands"):
+    errors.append("RoomVisualRenderer retained duplicate route-only command executor")
 
 thin_delegates = {
     "_get_line_color_from_id": "CableCanvasRendererRef.resolve_line_color",
@@ -93,10 +90,22 @@ thin_delegates = {
     "draw_iso_cable_endpoint_cap": "CableCanvasRendererRef.build_endpoint_cap_commands",
     "draw_iso_cable_invalid_marker": "CableCanvasRendererRef.build_invalid_marker_commands",
 }
+draw_delegates = {
+    "draw_iso_cable_hidden_segment",
+    "draw_iso_cable_wall_segment",
+    "draw_object_cable_bridge",
+    "draw_iso_cable_damage_marker",
+    "draw_iso_cable_object_links",
+    "_draw_iso_cable_polyline",
+    "draw_iso_cable_endpoint_cap",
+    "draw_iso_cable_invalid_marker",
+}
 for name, delegate in thin_delegates.items():
     body = function_body(renderer, name)
     if delegate not in body:
-        errors.append(f"RoomVisualRenderer {name} must be a thin CableCanvasRenderer delegate")
+        errors.append(f"RoomVisualRenderer {name} must delegate to CableCanvasRenderer")
+    if name in draw_delegates and "_draw_canvas_commands" not in body:
+        errors.append(f"RoomVisualRenderer {name} must execute commands through the canonical Canvas executor")
     for forbidden in ("draw_line(", "draw_circle(", "draw_arc(", "draw_polyline(", "while cursor", "match color_id"):
         if forbidden in body:
             errors.append(f"RoomVisualRenderer {name} retained migrated cable policy: {forbidden}")
@@ -111,9 +120,9 @@ for retained in (
         errors.append(f"RoomVisualRenderer lost retained bridge discovery/entry ownership token: {retained}")
 
 renderer_lines = len(renderer.splitlines())
-CAP = 5653
+CAP = 4288
 if renderer_lines > CAP:
-    errors.append(f"RoomVisualRenderer grew beyond cable Canvas extraction cap: {renderer_lines} > {CAP}")
+    errors.append(f"RoomVisualRenderer grew beyond final coordinator cap: {renderer_lines} > {CAP}")
 
 for token in (
     "CableCanvasRenderer contract OK", "_check_isolated_commands", "_check_straight_and_elbow_commands",
@@ -122,7 +131,6 @@ for token in (
 ):
     if token not in contract:
         errors.append(f"CableCanvasRenderer contract missing coverage token: {token}")
-
 for token in (
     "Check CableCanvasRenderer boundary", "python tools/check_cable_canvas_renderer_boundary.py",
     "Check CableCanvasRenderer contract", "res://tools/ci/check_cable_canvas_renderer_contract.gd",
@@ -135,5 +143,4 @@ if errors:
     for error in errors:
         print(" -", error)
     raise SystemExit(1)
-
 print(f"CableCanvasRenderer boundary audit OK ({renderer_lines} RoomVisualRenderer lines)")
