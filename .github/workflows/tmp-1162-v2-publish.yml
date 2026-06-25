@@ -4,16 +4,20 @@ on:
   push:
     branches:
       - codex/bip-architecture-coordinators-02f7-final-cleanup-v2
+  pull_request:
+    types: [opened, reopened, synchronize]
 
 permissions:
   contents: write
 
 jobs:
   reconstruct-validate-publish:
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'codex/bip-architecture-coordinators-02f7-final-cleanup-v2'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: codex/bip-architecture-coordinators-02f7-final-cleanup-v2
           fetch-depth: 1
       - uses: actions/setup-python@v5
         with:
