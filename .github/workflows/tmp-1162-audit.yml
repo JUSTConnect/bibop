@@ -39,36 +39,43 @@ jobs:
               if match:
                   funcs.append((match.group(1), index))
 
+          names = {name for name, _ in funcs}
+          combined = re.compile(r'(?<![A-Za-z0-9_])(' + '|'.join(sorted(map(re.escape, names), key=len, reverse=True)) + r')\s*\(')
+          internal_counts = {name: 0 for name in names}
+          external_hits = {name: [] for name in names}
+
+          for line in lines:
+              for match in combined.finditer(line):
+                  internal_counts[match.group(1)] += 1
+          for name, _ in funcs:
+              internal_counts[name] = max(internal_counts[name] - 1, 0)
+
           searchable = []
           for pattern in ('*.gd', '*.tscn', '*.tres', '*.py', '*.md', '*.yml', '*.yaml'):
               searchable.extend(root.rglob(pattern))
-          searchable = [p for p in searchable if '.git' not in p.parts and '.godot' not in p.parts]
+          for path in searchable:
+              if path == renderer or '.git' in path.parts or '.godot' in path.parts:
+                  continue
+              try:
+                  source_lines = path.read_text(encoding='utf-8').splitlines()
+              except Exception:
+                  continue
+              for hit_no, hit_line in enumerate(source_lines, 1):
+                  matched = {m.group(1) for m in combined.finditer(hit_line)}
+                  for name in matched:
+                      external_hits[name].append(f'{path}:{hit_no}:{hit_line.strip()}')
 
           rows = []
           for name, line_no in funcs:
-              internal = len(re.findall(r'(?<![A-Za-z0-9_])' + re.escape(name) + r'\s*\(', text)) - 1
-              external_hits = []
-              needle = re.compile(r'(?<![A-Za-z0-9_])' + re.escape(name) + r'\s*\(')
-              for path in searchable:
-                  if path == renderer:
-                      continue
-                  try:
-                      source = path.read_text(encoding='utf-8')
-                  except Exception:
-                      continue
-                  for hit_no, hit_line in enumerate(source.splitlines(), 1):
-                      if needle.search(hit_line):
-                          external_hits.append(f'{path}:{hit_no}:{hit_line.strip()}')
               rows.append({
                   'name': name,
                   'line': line_no,
-                  'internal_calls': internal,
-                  'external_count': len(external_hits),
-                  'external_hits': external_hits,
+                  'internal_calls': internal_counts[name],
+                  'external_count': len(external_hits[name]),
+                  'external_hits': external_hits[name],
               })
 
           reports = Path('/tmp/issue-1162-audit/reports')
-          reports.mkdir(parents=True, exist_ok=True)
           (reports / 'line_count.txt').write_text(f'{len(lines)}\n', encoding='utf-8')
           with (reports / 'function_ownership_map.md').open('w', encoding='utf-8') as out:
               out.write(f'# RoomVisualRenderer function map\n\nLine count: {len(lines)}\n\n')
