@@ -1,4 +1,4 @@
-name: Diagnose issue 1162 archive
+name: Validate issue 1162 final files
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  validate-final-files:
     if: github.event.pull_request.head.ref == 'codex/bip-architecture-coordinators-02f7-final-cleanup-v2'
     runs-on: ubuntu-latest
     steps:
@@ -16,49 +16,25 @@ jobs:
         with:
           ref: codex/bip-architecture-coordinators-02f7-final-cleanup-v2
           fetch-depth: 1
-      - name: Diagnose archive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Reconstruct and validate final files
         shell: bash
-        run: |
-          exec > >(tee /tmp/issue-1162-archive-diagnostics.txt) 2>&1
-          set +e
-          echo '== file sizes =='
-          wc -c .github/issue-1162-v2/*.b64
-          echo '== file checksums =='
-          sha256sum .github/issue-1162-v2/*.b64
-          echo '== concatenate =='
-          cat \
-            .github/issue-1162-v2/part00.b64 \
-            .github/issue-1162-v2/combo01.b64 \
-            .github/issue-1162-v2/restA.b64 \
-            .github/issue-1162-v2/restB.b64 \
-            > /tmp/issue-1162-source.b64
-          concat_status=$?
-          wc -c /tmp/issue-1162-source.b64
-          sha256sum /tmp/issue-1162-source.b64
-          echo "concat_status=$concat_status"
-          echo '== base64 decode =='
-          base64 --decode /tmp/issue-1162-source.b64 > /tmp/issue-1162-source.tar.gz
-          decode_status=$?
-          ls -l /tmp/issue-1162-source.tar.gz
-          sha256sum /tmp/issue-1162-source.tar.gz
-          echo "decode_status=$decode_status"
-          echo '== gzip test =='
-          gzip -tv /tmp/issue-1162-source.tar.gz
-          gzip_status=$?
-          echo "gzip_status=$gzip_status"
-          echo '== tar list =='
-          tar -tzvf /tmp/issue-1162-source.tar.gz
-          tar_status=$?
-          echo "tar_status=$tar_status"
-          test "$concat_status" -eq 0
-          test "$decode_status" -eq 0
-          test "$gzip_status" -eq 0
-          test "$tar_status" -eq 0
-      - name: Upload diagnostics
+        run: bash .github/issue-1162-v2/finalize.sh
+      - name: Upload validated final files
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: issue-1162-v2-archive-diagnostics
-          path: /tmp/issue-1162-archive-diagnostics.txt
-          if-no-files-found: error
+          name: issue-1162-validated-final-files
+          path: |
+            /tmp/issue-1162-final-files.tar.gz
+            /tmp/issue-1162-final-files.sha256
+            /tmp/issue-1162-finalize.log
+          if-no-files-found: warn
           retention-days: 2
