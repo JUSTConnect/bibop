@@ -1,0 +1,63 @@
+name: Audit issue 1162 dynamic API
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  dynamic-audit:
+    if: github.event.pull_request.head.ref == 'codex/bip-architecture-coordinators-02f7-final-cleanup'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find raw renderer function references
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/issue-1162-dynamic-audit
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+          renderer = root / 'scripts/field/room_visual_renderer.gd'
+          source = renderer.read_text(encoding='utf-8')
+          funcs = []
+          for line_no, line in enumerate(source.splitlines(), 1):
+              match = re.match(r'^func\s+([A-Za-z0-9_]+)\s*\(', line)
+              if match:
+                  funcs.append((match.group(1), line_no))
+          names = {name for name, _ in funcs}
+          pattern = re.compile(r'(?<![A-Za-z0-9_])(' + '|'.join(sorted(map(re.escape, names), key=len, reverse=True)) + r')(?![A-Za-z0-9_])')
+          hits = {name: [] for name in names}
+          searchable = []
+          for glob in ('*.gd', '*.tscn', '*.tres', '*.py', '*.md', '*.yml', '*.yaml'):
+              searchable.extend(root.rglob(glob))
+          for path in searchable:
+              if path == renderer or '.git' in path.parts or '.godot' in path.parts:
+                  continue
+              try:
+                  lines = path.read_text(encoding='utf-8').splitlines()
+              except Exception:
+                  continue
+              for line_no, line in enumerate(lines, 1):
+                  for name in {match.group(1) for match in pattern.finditer(line)}:
+                      hits[name].append(f'{path}:{line_no}:{line.strip()}')
+          output = Path('/tmp/issue-1162-dynamic-audit/raw_function_references.md')
+          with output.open('w', encoding='utf-8') as out:
+              for name, renderer_line in funcs:
+                  if not hits[name]:
+                      continue
+                  out.write(f'## {renderer_line} `{name}` ({len(hits[name])})\n')
+                  for hit in hits[name]:
+                      out.write(f'- `{hit}`\n')
+                  out.write('\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-1162-dynamic-audit
+          path: /tmp/issue-1162-dynamic-audit
+          retention-days: 1
