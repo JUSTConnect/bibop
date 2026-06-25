@@ -22,6 +22,7 @@ jobs:
       - name: Reconstruct final source archive
         shell: bash
         run: |
+          exec > >(tee /tmp/issue-1162-transport-diagnostics.txt) 2>&1
           set -euo pipefail
           wc -c .github/issue-1162-transport/part*.b64
           sha256sum .github/issue-1162-transport/part*.b64
@@ -30,14 +31,24 @@ jobs:
           test "$(sha256sum .github/issue-1162-transport/part02.b64 | cut -d' ' -f1)" = "4da9481eb4bbd35245b479d35e523832952af053e69bdad060f35255b0f5535b"
           test "$(sha256sum .github/issue-1162-transport/part03.b64 | cut -d' ' -f1)" = "bef35dc9420dbfe23b66645798f4aaac5b1149b080c5a78a6e44298340df0d9c"
           cat .github/issue-1162-transport/part*.b64 > /tmp/issue-1162-final.b64
+          sha256sum /tmp/issue-1162-final.b64
           test "$(sha256sum /tmp/issue-1162-final.b64 | cut -d' ' -f1)" = "a87e0f0470c6385ee38cc178f9ff8c59b63b4fed8fd2637ff780e9b105e28111"
           base64 --decode /tmp/issue-1162-final.b64 > /tmp/issue-1162-final.tar.gz
+          sha256sum /tmp/issue-1162-final.tar.gz
           test "$(sha256sum /tmp/issue-1162-final.tar.gz | cut -d' ' -f1)" = "a28927aaa543b63049506591757e9b5b4c507f2471d869524fd51ccbe7f7a13e"
           git fetch origin main
           git reset --hard origin/main
           git clean -fd
           tar -xzf /tmp/issue-1162-final.tar.gz
           rm -f MANIFEST.txt
+      - name: Upload transport diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1162-transport-diagnostics
+          path: /tmp/issue-1162-transport-diagnostics.txt
+          if-no-files-found: warn
+          retention-days: 1
       - uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.6.3
