@@ -11,6 +11,7 @@ const ISO_WALL_ASSET_PACK_DIR: String = "res://assets/visual/isometric/wall/"
 const ISO_PLACEHOLDER_ASSET_PACK_DIR: String = "res://assets/visual/isometric/placeholders/"
 const ISO_LIGHT_ASSET_PACK_DIR: String = "res://assets/visual/isometric/light/"
 const ISO_COOLING_SYSTEM_ASSET_PACK_DIR: String = "res://assets/visual/isometric/cooling system/"
+const ISO_TEST_ASSET_PACK_DIR: String = "res://assets/visual/isometric/test/"
 
 
 const LEGACY_VISUAL_PATH_MIGRATIONS: Dictionary = {

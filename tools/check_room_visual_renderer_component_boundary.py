@@ -19,6 +19,7 @@ FOG_RENDERER = ROOT / "scripts/visual/renderer/fog_renderer.gd"
 OBJECT_PRIMITIVE = ROOT / "scripts/visual/renderer/object_primitive_renderer.gd"
 OBJECT_TEXTURE_POLICY = ROOT / "scripts/visual/renderer/object_texture_dispatch_policy.gd"
 DOOR_CANVAS_RENDERER = ROOT / "scripts/visual/renderer/door_canvas_renderer.gd"
+ALIGNMENT_POLICY = ROOT / "scripts/visual/renderer/iso_asset_alignment_policy.gd"
 errors: list[str] = []
 
 
@@ -48,13 +49,14 @@ fog_renderer = read(FOG_RENDERER)
 object_primitive_renderer = read(OBJECT_PRIMITIVE)
 object_texture_policy = read(OBJECT_TEXTURE_POLICY)
 door_canvas_renderer = read(DOOR_CANVAS_RENDERER)
+alignment_policy = read(ALIGNMENT_POLICY)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_CABLE_CANVAS_CAP = 5653
-if renderer_lines > ROOM_VISUAL_RENDERER_CABLE_CANVAS_CAP:
+ROOM_VISUAL_RENDERER_ALIGNMENT_POLICY_CAP = 5488
+if renderer_lines > ROOM_VISUAL_RENDERER_ALIGNMENT_POLICY_CAP:
     errors.append(
-        "RoomVisualRenderer grew beyond cable Canvas extraction cap: "
-        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_CABLE_CANVAS_CAP}"
+        "RoomVisualRenderer grew beyond asset alignment extraction cap: "
+        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_ALIGNMENT_POLICY_CAP}"
     )
 
 
@@ -246,6 +248,7 @@ if any(value < 0 for value in marker_positions):
 for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
     'preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")',
+    'preload("res://scripts/visual/renderer/iso_asset_alignment_policy.gd")',
     'preload("res://scripts/visual/renderer/floor_renderer.gd")',
     'preload("res://scripts/visual/renderer/wall_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_renderer.gd")',
@@ -420,17 +423,10 @@ for constant_name in (
     "ISO_STANDARD_TILE_SIZE",
     "ISO_LAYER_BIAS_WALL",
     "ISO_DRAW_SUB_ORDER_FLOOR",
-    "ISO_FLOOR_TEST_ASSET_KEY",
-    "ISO_FLOOR_ASSET_CATALOG",
-    "ISO_FLOOR_ATLAS_LAYOUT",
-    "ISO_WALL_ASSET_CATALOG",
-    "ISO_WALL_ASSET_PLACEMENT",
-    "WALL_SIDE_ORDER",
-    "WALL_MASS_RATIO",
 ):
     line = next((row for row in renderer.splitlines() if row.startswith(f"const {constant_name}:")), "")
     if "Ref." not in line:
-        errors.append(f"renderer constant {constant_name} must be a component alias")
+        errors.append(f"renderer compatibility constant {constant_name} must be a component alias")
 
 for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon(", "queue_redraw("):
     if forbidden in projection:
@@ -495,9 +491,6 @@ for token in (
 
 for token in (
     "class_name WallRenderer",
-    "const ISO_WALL_ASSET_CATALOG",
-    "const ISO_WALL_ASSET_PLACEMENT",
-    "const WALL_SIDE_ORDER",
     "static func get_visual_profiles",
     "static func get_asset_key_for_material_and_height",
     "static func get_render_topology",
@@ -767,6 +760,17 @@ for name in (
 ):
     if not function_body(renderer, name):
         errors.append(f"RoomVisualRenderer must retain {name} ownership")
+
+
+for token in (
+    "class_name IsoAssetAlignmentPolicy", "const ALIGNMENT_RULES: Dictionary",
+    "static func normalize_runtime_rule", "static func build_outer_utility_layout",
+):
+    if token not in alignment_policy:
+        errors.append(f"IsoAssetAlignmentPolicy missing contract: {token}")
+for forbidden in ("Node2D", "GridManager", "ResourceLoader", "Texture2D", "draw_line(", "queue_redraw("):
+    if forbidden in alignment_policy:
+        errors.append(f"IsoAssetAlignmentPolicy contains forbidden runtime dependency: {forbidden}")
 
 if errors:
     print("RoomVisualRenderer component boundary audit FAILED:")
