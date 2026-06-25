@@ -1,0 +1,100 @@
+name: Audit issue 1162 coordinator cleanup
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.event.pull_request.head.ref == 'codex/bip-architecture-coordinators-02f7-final-cleanup'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Build coordinator audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/issue-1162-audit/reports
+          cp --parents scripts/field/room_visual_renderer.gd /tmp/issue-1162-audit/
+          cp -r scripts/visual/renderer /tmp/issue-1162-audit/scripts/visual/
+          cp --parents tools/check_room_visual_renderer_component_boundary.py /tmp/issue-1162-audit/
+          cp --parents .github/workflows/renderer-component-gate.yml /tmp/issue-1162-audit/
+          cp -r docs /tmp/issue-1162-audit/ || true
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+          renderer = root / 'scripts/field/room_visual_renderer.gd'
+          text = renderer.read_text(encoding='utf-8')
+          lines = text.splitlines()
+          funcs = []
+          for index, line in enumerate(lines, 1):
+              match = re.match(r'^func\s+([A-Za-z0-9_]+)\s*\(', line)
+              if match:
+                  funcs.append((match.group(1), index))
+
+          searchable = []
+          for pattern in ('*.gd', '*.tscn', '*.tres', '*.py', '*.md', '*.yml', '*.yaml'):
+              searchable.extend(root.rglob(pattern))
+          searchable = [p for p in searchable if '.git' not in p.parts and '.godot' not in p.parts]
+
+          rows = []
+          for name, line_no in funcs:
+              internal = len(re.findall(r'(?<![A-Za-z0-9_])' + re.escape(name) + r'\s*\(', text)) - 1
+              external_hits = []
+              needle = re.compile(r'(?<![A-Za-z0-9_])' + re.escape(name) + r'\s*\(')
+              for path in searchable:
+                  if path == renderer:
+                      continue
+                  try:
+                      source = path.read_text(encoding='utf-8')
+                  except Exception:
+                      continue
+                  for hit_no, hit_line in enumerate(source.splitlines(), 1):
+                      if needle.search(hit_line):
+                          external_hits.append(f'{path}:{hit_no}:{hit_line.strip()}')
+              rows.append({
+                  'name': name,
+                  'line': line_no,
+                  'internal_calls': internal,
+                  'external_count': len(external_hits),
+                  'external_hits': external_hits,
+              })
+
+          reports = Path('/tmp/issue-1162-audit/reports')
+          reports.mkdir(parents=True, exist_ok=True)
+          (reports / 'line_count.txt').write_text(f'{len(lines)}\n', encoding='utf-8')
+          with (reports / 'function_ownership_map.md').open('w', encoding='utf-8') as out:
+              out.write(f'# RoomVisualRenderer function map\n\nLine count: {len(lines)}\n\n')
+              out.write('| Line | Function | Internal calls | External calls |\n|---:|---|---:|---:|\n')
+              for row in rows:
+                  out.write(f"| {row['line']} | `{row['name']}` | {row['internal_calls']} | {row['external_count']} |\n")
+              out.write('\n## External call details\n')
+              for row in rows:
+                  if row['external_hits']:
+                      out.write(f"\n### `{row['name']}`\n")
+                      for hit in row['external_hits']:
+                          out.write(f'- `{hit}`\n')
+          with (reports / 'uncalled_functions.txt').open('w', encoding='utf-8') as out:
+              for row in rows:
+                  if row['internal_calls'] == 0 and row['external_count'] == 0:
+                      out.write(f"{row['line']}\t{row['name']}\n")
+          with (reports / 'external_api_functions.txt').open('w', encoding='utf-8') as out:
+              for row in rows:
+                  if row['external_count']:
+                      out.write(f"{row['line']}\t{row['name']}\t{row['external_count']}\n")
+          PY
+          grep -nE '^func |^const |^var |^@export' scripts/field/room_visual_renderer.gd > /tmp/issue-1162-audit/reports/declaration_index.txt
+          grep -RIn --exclude=room_visual_renderer.gd 'RoomVisualRenderer\|room_visual_renderer' scripts tools docs .github 2>/dev/null > /tmp/issue-1162-audit/reports/renderer_references.txt || true
+          tar -C /tmp -czf /tmp/issue-1162-audit.tar.gz issue-1162-audit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-1162-audit
+          path: /tmp/issue-1162-audit.tar.gz
+          retention-days: 1
