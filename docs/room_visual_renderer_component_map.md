@@ -1,15 +1,10 @@
 # RoomVisualRenderer component map
 
-## Baseline
+## Final coordinator baseline
 
-Before the first extraction stage, `scripts/field/room_visual_renderer.gd` contained:
+The decomposition started from a 7,811-line `scripts/field/room_visual_renderer.gd` that mixed scene coordination, visual catalogs, deterministic geometry/style policy, resource loading, caches, debug reports and Canvas execution.
 
-- 7,811 lines;
-- 435 functions;
-- 106 constants;
-- 82 exported properties.
-
-The renderer combines scene coordination with floor, wall, object, route, overlay, fog, asset-resolution, projection, depth sorting and debug responsibilities.
+After the controlled extraction sequence through issues #1141–#1162, the final coordinator is capped at **4,288 lines**. The remaining size is dominated by scene-facing context assembly and Canvas execution that depends on live `GridManager`, mission runtime and serialized scene configuration.
 
 ## Dependency direction
 
@@ -20,98 +15,100 @@ RoomVisualRenderer
     -> read-only GridManager / mission runtime inputs
 ```
 
-Focused renderer components must not call each other. Shared geometry and draw-entry data flow through explicit arguments and dictionaries.
+Focused policy components never call `RoomVisualRenderer`, never access the scene tree and never execute Canvas commands. They receive explicit contexts and return draw entries, command arrays or normalized values.
 
-## Extracted owners
+## Focused owners
 
-### `IsoProjectionService`
+| Owner | Responsibility |
+|---|---|
+| `IsoProjectionService` | Projection mode normalization, tile geometry, grid/screen conversion and depth keys. |
+| `IsoDrawEntryContract` | Canonical draw-entry schema, sub-order/layer constants, validation and deterministic comparison. |
+| `FloorRenderer` | Floor/ground catalogs, classification, material/height normalization, atlas policy and floor draw entries. |
+| `WallRenderer` | Wall catalogs, material/height policy, topology, visible sides, mount zones and wall draw entries. |
+| `ObjectRenderer` | Object classification, visual profile/asset selection, mount policy, descriptor policy and object draw entries. |
+| `ObjectPrimitiveRenderer` | Deterministic procedural object command plans. |
+| `ObjectTextureDispatchPolicy` | Texture-attempt ordering, authored descriptor route and success-accent policy. |
+| `DoorCanvasRenderer` | Door profile, threshold, frame, body and state-overlay command plans. |
+| `RouteRenderer` | Route normalization, wall route geometry and procedural cable/duct/pipe command plans. |
+| `CableCanvasRenderer` | Floor cable, hidden/wall cable, endpoint, damage, object-link and bridge command plans. |
+| `OverlayRenderer` | Selection and interaction-target overlay command plans. |
+| `MapConstructorOverlayRenderer` | Map Constructor preview, validation, links, power and side-arrow command plans. |
+| `RuntimeDebugOverlayRenderer` | Origin/helper, wall, join, marker, grounding and diagnostic overlay command plans. |
+| `FogRenderer` | Fog color and floor/wall fog command plans. |
+| `IsoAssetAlignmentPolicy` | Stateless expected-size, anchor, scale, offset and authored utility-layout policy. |
+| `VisualAssetResourceRuntime` | The single scene-facing texture/path/cache/fallback runtime. |
+| `VisualAssetCatalog` | Canonical visual IDs and resource paths. |
 
-Owns reusable projection primitives:
+## Responsibilities retained by RoomVisualRenderer
 
-- projection mode normalization;
-- standard/classic/custom tile sizes;
-- pitch-corrected half-tile geometry;
-- grid-to-screen and screen-to-grid conversion;
-- diamond and inset-diamond point generation;
-- screen-space depth keys;
-- deterministic cell depth comparison.
+`RoomVisualRenderer` is the scene-facing coordinator and Canvas executor. It retains only responsibilities that require one or more of the following:
 
-It has no gameplay, scene-tree or draw API dependency.
+- serialized `@export` configuration and texture overrides;
+- binding to the live `GridManager` and mission/runtime services;
+- assembling component request contexts from live scene data;
+- requesting and composing floor, wall, platform, object and bridge draw entries;
+- sorting the unified geometry queue through `IsoDrawEntryContract`;
+- dispatching draw entries and executing Canvas/texture commands;
+- coordinating selection, constructor, runtime/debug and fog passes;
+- explicit cache invalidation and redraw requests;
+- externally used compatibility methods for UI/controller integration.
 
-### `IsoDrawEntryContract`
+It no longer owns:
 
-Owns the stable queue-entry schema and ordering metadata:
+- visual path or ID catalogs;
+- floor/wall/object/route/door/overlay/fog deterministic policy;
+- texture loading or cache dictionaries;
+- asset-alignment datasets;
+- duplicate overlay, route and object command executors;
+- internal debug-report APIs with no runtime consumer;
+- coordinator-only aliases to focused component APIs.
+
+## Canonical command execution
+
+All component command arrays are executed by one policy-free coordinator method:
 
 ```text
-cell
-layer
-layer_bias (optional)
-kind
-depth_key
-sub_order
-payload
+_draw_canvas_commands(commands, fallback_profile)
 ```
 
-It also owns layer biases, sub-order constants, validation and deterministic entry comparison.
+Supported command kinds are:
 
-### `FloorRenderer`
+```text
+polygon
+polyline
+line
+circle
+rect
+arc
+text
+wall_cable_segment
+```
 
-Owns floor data and pure rendering decisions:
+The dispatcher validates primitive input and performs Canvas calls only. Geometry, colors, widths, ordering and fallback decisions remain in focused components.
 
-- floor and raised-ground asset catalogs and placement metadata;
-- floor visual profiles and passage/interactive classification;
-- material and height normalization through the focused domain catalogs;
-- atlas layout, variants, seam-safe policy and UV geometry;
-- floor draw-entry generation through `IsoDrawEntryContract`.
+## Frame order
 
-`FloorRenderer` does not call CanvasItem drawing APIs. `RoomVisualRenderer` temporarily retains `draw_iso_floor_cell`, texture drawing and atlas draw dispatch until the dedicated Canvas floor-rendering stage.
+The representative frame order is permanently guarded:
 
-### `WallRenderer`
+1. unified floor/ground/platform/cable/object/door/wall/wall-mounted queue;
+2. wall diagnostics and editor overlays;
+3. cable-reel transient trail;
+4. selection and Map Constructor overlays;
+5. interaction/world/debug markers;
+6. fog as the final visual pass.
 
-Owns wall data and pure rendering decisions:
+`tools/ci/check_room_visual_renderer_smoke_contract.gd` covers representative TASK TEST floor/wall topology, wall-mounted occlusion, door phases, cable/route/bridge ordering, selection/constructor/debug overlays, fog and asset fallback/alignment.
 
-- production/test wall asset catalogs and placement metadata;
-- material and wall-height normalization through focused catalogs;
-- procedural wall visual profiles and metadata-to-profile resolution;
-- connected-wall topology, end caps, corners, T-junctions and crosses;
-- visible wall sides and wall-mounted anchor zones;
-- connected base geometry and depth keys;
-- wall draw-entry generation through `IsoDrawEntryContract`.
+## Architecture enforcement
 
-`WallRenderer` has no CanvasItem drawing dependency. `RoomVisualRenderer` temporarily retains wall texture/procedural drawing, breach overlays and draw-entry dispatch until a later Canvas wall-rendering stage.
+Permanent checks prevent responsibilities from returning to the coordinator:
 
-### `ObjectRenderer`
+```text
+python tools/check_room_visual_renderer_component_boundary.py
+python tools/check_cable_canvas_renderer_boundary.py
+python tools/check_iso_asset_alignment_policy_boundary.py
+python tools/check_visual_asset_resource_runtime_boundary.py
+godot --headless --path . --script res://tools/ci/check_room_visual_renderer_smoke_contract.gd
+```
 
-Owns pure object classification and asset-selection policy:
-
-- metadata-to-profile classification;
-- profile-to-asset resolution;
-- wall/floor mount classification;
-- switch state and fuse presence normalization;
-- object-data-to-asset selection, including visual-state assets.
-
-`ObjectRenderer` has no CanvasItem, ResourceLoader, scene-tree or runtime lookup dependency. Texture loading, descriptors, grounding, draw entries and Canvas drawing remain in `RoomVisualRenderer` for later controlled slices.
-
-## Remaining extraction clusters
-
-| Component | Main current responsibilities | Representative current functions |
-|---|---|---|
-| Floor Canvas renderer | texture/atlas drawing and procedural floor geometry | `draw_iso_floor_cell`, `draw_floor_atlas_layer`, `draw_iso_floor_texture_asset` |
-| Wall Canvas renderer | wall texture/procedural drawing and breach overlays | `draw_iso_wall_block`, `draw_iso_wall_asset`, `draw_iso_breachable_wall_overlay` |
-| Object descriptor/entry renderer | texture resolution, descriptors, grounding, object markers and entries | `build_iso_object_visual_descriptor`, `draw_iso_object_marker`, `build_iso_object_draw_entries` |
-| Route renderer | cable/pipe/airflow paths, wall routes, cable bridges | `draw_iso_cable_segment_shape`, `draw_inner_wall_route_asset`, `build_iso_cable_object_bridge_draw_entries` |
-| Overlay renderer | selection, constructor preview, debug overlays and reports | `draw_map_constructor_visual_overlay_passes`, `draw_iso_mouse_selection_overlay` |
-| Fog renderer | visibility colors, floor/wall fog passes | `draw_iso_fog_overlay`, `draw_iso_fog_wall_overlay` |
-
-## Coordinator target
-
-`RoomVisualRenderer` should ultimately retain only:
-
-- scene/runtime dependency binding;
-- invalidation and redraw coordination;
-- component context construction;
-- requesting component draw entries;
-- final queue composition and sorting;
-- draw-entry dispatch during the migration period.
-
-Every later extraction must delete the migrated implementation from the coordinator in the same change. No fallback implementation should remain.
+Every future visual feature must extend the focused owner responsible for its deterministic policy. `RoomVisualRenderer` may only receive the resulting command/entry contract and execute it against the live scene.

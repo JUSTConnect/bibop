@@ -6,248 +6,66 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RENDERER = ROOT / "scripts/field/room_visual_renderer.gd"
-PROJECTION = ROOT / "scripts/visual/renderer/iso_projection_service.gd"
-DRAW_ENTRY = ROOT / "scripts/visual/renderer/iso_draw_entry_contract.gd"
-FLOOR = ROOT / "scripts/visual/renderer/floor_renderer.gd"
-WALL = ROOT / "scripts/visual/renderer/wall_renderer.gd"
-OBJECT = ROOT / "scripts/visual/renderer/object_renderer.gd"
-ROUTE = ROOT / "scripts/visual/renderer/route_renderer.gd"
-OVERLAY = ROOT / "scripts/visual/renderer/overlay_renderer.gd"
-MAP_CONSTRUCTOR_OVERLAY = ROOT / "scripts/visual/renderer/map_constructor_overlay_renderer.gd"
-RUNTIME_DEBUG_OVERLAY = ROOT / "scripts/visual/renderer/runtime_debug_overlay_renderer.gd"
-FOG_RENDERER = ROOT / "scripts/visual/renderer/fog_renderer.gd"
-OBJECT_PRIMITIVE = ROOT / "scripts/visual/renderer/object_primitive_renderer.gd"
-OBJECT_TEXTURE_POLICY = ROOT / "scripts/visual/renderer/object_texture_dispatch_policy.gd"
-DOOR_CANVAS_RENDERER = ROOT / "scripts/visual/renderer/door_canvas_renderer.gd"
-ALIGNMENT_POLICY = ROOT / "scripts/visual/renderer/iso_asset_alignment_policy.gd"
-RESOURCE_RUNTIME = ROOT / "scripts/visual/renderer/visual_asset_resource_runtime.gd"
+RENDERER_DIR = ROOT / "scripts/visual/renderer"
+SMOKE = ROOT / "tools/ci/check_room_visual_renderer_smoke_contract.gd"
+WORKFLOW = ROOT / ".github/workflows/renderer-component-gate.yml"
+COMPONENT_MAP = ROOT / "docs/room_visual_renderer_component_map.md"
 errors: list[str] = []
 
 
 def read(path: Path) -> str:
     if not path.exists():
-        errors.append(f"missing required renderer component: {path.relative_to(ROOT)}")
+        errors.append(f"missing required file: {path.relative_to(ROOT)}")
         return ""
     return path.read_text(encoding="utf-8")
 
 
 def function_body(source: str, name: str) -> str:
-    match = re.search(rf"(?ms)^(?:static\s+)?func {re.escape(name)}\s*\(.*?(?=^(?:static\s+)?func |\Z)", source)
+    match = re.search(rf"(?ms)^func {re.escape(name)}\s*\(.*?(?=^func |\Z)", source)
     return match.group(0) if match else ""
 
 
+def expect_tokens(source: str, label: str, tokens: tuple[str, ...]) -> None:
+    for token in tokens:
+        if token not in source:
+            errors.append(f"{label} missing required token: {token}")
+
+
 renderer = read(RENDERER)
-projection = read(PROJECTION)
-draw_entry = read(DRAW_ENTRY)
-floor = read(FLOOR)
-wall = read(WALL)
-object_renderer = read(OBJECT)
-route_renderer = read(ROUTE)
-overlay_renderer = read(OVERLAY)
-map_constructor_overlay_renderer = read(MAP_CONSTRUCTOR_OVERLAY)
-runtime_debug_overlay_renderer = read(RUNTIME_DEBUG_OVERLAY)
-fog_renderer = read(FOG_RENDERER)
-object_primitive_renderer = read(OBJECT_PRIMITIVE)
-object_texture_policy = read(OBJECT_TEXTURE_POLICY)
-door_canvas_renderer = read(DOOR_CANVAS_RENDERER)
-alignment_policy = read(ALIGNMENT_POLICY)
-resource_runtime = read(RESOURCE_RUNTIME)
+workflow = read(WORKFLOW)
+smoke = read(SMOKE)
+component_map = read(COMPONENT_MAP)
+
+component_contracts = {
+    "iso_projection_service.gd": ("class_name IsoProjectionService", "static func grid_to_iso", "static func iso_to_grid", "static func get_depth_key"),
+    "iso_draw_entry_contract.gd": ("class_name IsoDrawEntryContract", "static func make_entry", "static func less", "static func validate_entry"),
+    "floor_renderer.gd": ("class_name FloorRenderer", "static func build_draw_entries", "static func get_visual_profile_key_for_cell"),
+    "wall_renderer.gd": ("class_name WallRenderer", "static func get_render_topology", "static func get_mounted_anchor_zones", "static func build_draw_entries"),
+    "object_renderer.gd": ("static func make_draw_entry", "static func build_object_descriptor", "static func get_wall_mounted_render_layer"),
+    "object_primitive_renderer.gd": ("static func build_floor_base_commands", "static func build_wall_mounted_commands", "static func build_shape_commands"),
+    "object_texture_dispatch_policy.gd": ("static func build_attempt_plan", "static func get_descriptor_route", "static func should_emit_success_accent"),
+    "door_canvas_renderer.gd": ("class_name DoorCanvasRenderer", "static func build_threshold_commands", "static func build_frame_commands", "static func build_body_commands", "static func build_state_overlay_commands"),
+    "route_renderer.gd": ("class_name RouteRenderer", "static func build_wall_route_segment", "static func build_floor_topology_plan", "static func build_procedural_route_commands"),
+    "cable_canvas_renderer.gd": ("class_name CableCanvasRenderer", "static func build_floor_cable_commands", "static func build_bridge_commands"),
+    "overlay_renderer.gd": ("class_name OverlayRenderer", "static func build_mouse_selection_commands", "static func build_interaction_target_commands"),
+    "map_constructor_overlay_renderer.gd": ("class_name MapConstructorOverlayRenderer", "static func build_commands"),
+    "runtime_debug_overlay_renderer.gd": ("class_name RuntimeDebugOverlayRenderer", "static func build_helper_preview_commands", "static func build_wall_debug_commands"),
+    "fog_renderer.gd": ("class_name FogRenderer", "static func get_fog_color", "static func build_cell_overlay_commands", "static func build_wall_overlay_commands"),
+    "iso_asset_alignment_policy.gd": ("class_name IsoAssetAlignmentPolicy", "const ALIGNMENT_RULES: Dictionary", "static func normalize_runtime_rule"),
+    "visual_asset_resource_runtime.gd": ("class_name VisualAssetResourceRuntime", "func resolve_texture", "func clear_all_caches"),
+}
+components: dict[str, str] = {}
+for filename, tokens in component_contracts.items():
+    source = read(RENDERER_DIR / filename)
+    components[filename] = source
+    expect_tokens(source, filename, tokens)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_RESOURCE_RUNTIME_CAP = 5209
-if renderer_lines > ROOM_VISUAL_RENDERER_RESOURCE_RUNTIME_CAP:
-    errors.append(
-        "RoomVisualRenderer grew beyond resource runtime extraction cap: "
-        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_RESOURCE_RUNTIME_CAP}"
-    )
+ROOM_VISUAL_RENDERER_FINAL_CAP = 4288
+if renderer_lines > ROOM_VISUAL_RENDERER_FINAL_CAP:
+    errors.append(f"RoomVisualRenderer grew beyond final coordinator cap: {renderer_lines} > {ROOM_VISUAL_RENDERER_FINAL_CAP}")
 
-
-
-for token in (
-    "class_name DoorCanvasRenderer", "static func normalize_state", "static func build_visual_profile",
-    "static func build_threshold_commands", "static func build_frame_commands",
-    "static func build_body_commands", "static func build_state_overlay_commands",
-):
-    if token not in door_canvas_renderer:
-        errors.append(f"DoorCanvasRenderer missing focused API/token: {token}")
-for forbidden in (
-    "extends Node", "extends Node2D", "GridManager", "MissionManager", "get_node(", "get_tree(",
-    "grid_to_iso(", "ResourceLoader", "load(", "Texture2D", "Time", "ThemeDB", "queue_redraw(",
-    "draw_line(", "draw_circle(", "draw_colored_polygon(", "draw_rect(", "draw_arc(",
-    "draw_polyline(", "draw_texture", "draw_set_transform",
-):
-    if forbidden in door_canvas_renderer:
-        errors.append(f"DoorCanvasRenderer contains forbidden coordinator/runtime dependency: {forbidden}")
-
-profile_body = function_body(renderer, "get_iso_door_opening_visual_profile")
-for token in ("_get_door_kind_for_tile", "get_mission_manager_ref", "get_map_constructor_door_visual_state", "DoorCanvasRendererRef.normalize_state", "DoorCanvasRendererRef.build_visual_profile"):
-    if token not in profile_body:
-        errors.append(f"RoomVisualRenderer get_iso_door_opening_visual_profile lost runtime/profile split token: {token}")
-context_body = function_body(renderer, "get_door_opening_context")
-for token in ("_grid_manager", "is_cell_in_bounds", "is_door_like_tile", "is_wall_tile", "grid_to_iso", "_get_door_opening_polygon"):
-    if token not in context_body:
-        errors.append(f"RoomVisualRenderer get_door_opening_context lost retained ownership token: {token}")
-door_body = function_body(renderer, "draw_iso_door_insert")
-door_order = ("get_door_opening_context", "get_iso_door_opening_visual_profile", "draw_iso_texture_asset", "DoorCanvasRendererRef.build_threshold_commands", "valid_jamb_centers", "DoorCanvasRendererRef.build_frame_commands", "draw_iso_object_png_texture_asset", "DoorCanvasRendererRef.build_body_commands", "DoorCanvasRendererRef.build_state_overlay_commands", "draw_door_opening_overlay_for_context")
-search_from = 0
-for token in door_order:
-    pos = door_body.find(token, search_from)
-    if pos < 0:
-        errors.append(f"RoomVisualRenderer draw_iso_door_insert missing/out-of-order coordinator token: {token}")
-    else:
-        search_from = pos + len(token)
-if door_body.count("_draw_object_primitive_commands") < 4:
-    errors.append("RoomVisualRenderer draw_iso_door_insert must execute every DoorCanvasRenderer command phase")
-for forbidden in ("draw_line", "draw_circle", "draw_colored_polygon", "draw_rect", "draw_arc", "draw_polyline"):
-    if forbidden in door_body:
-        errors.append(f"RoomVisualRenderer draw_iso_door_insert retained direct Canvas call: {forbidden}")
-if function_body(renderer, "_get_door_axis_vectors"):
-    errors.append("RoomVisualRenderer retained migrated _get_door_axis_vectors helper")
-if 'preload("res://scripts/visual/renderer/door_canvas_renderer.gd")' not in renderer:
-    errors.append("RoomVisualRenderer missing DoorCanvasRenderer preload")
-
-for name in (
-    "get_visual_profiles", "get_profile", "build_floor_base_commands",
-    "build_shape_commands", "build_wall_mounted_commands", "build_texture_accent_commands",
-):
-    if not function_body(object_primitive_renderer, name):
-        errors.append(f"ObjectPrimitiveRenderer missing focused API: {name}")
-
-for forbidden in (
-    "extends Node", "GridManager", "MissionManager", "grid_to_iso", "draw_", "queue_redraw",
-    "Texture", "ResourceLoader", "load(", "Time", "ThemeDB", "fallback_font", "Canvas",
-):
-    if forbidden in object_primitive_renderer:
-        errors.append(f"ObjectPrimitiveRenderer contains forbidden coordinator/runtime dependency: {forbidden}")
-
-for name, token in {
-    "get_iso_object_visual_profiles": "ObjectPrimitiveRendererRef.get_visual_profiles",
-    "get_iso_object_profile": "ObjectPrimitiveRendererRef.get_profile",
-}.items():
-    if token not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} must delegate to ObjectPrimitiveRenderer: {token}")
-
-marker_body = function_body(renderer, "draw_iso_object_marker")
-for token in (
-    "ObjectTextureDispatchPolicyRef.build_attempt_plan", "_execute_object_texture_attempt_plan",
-    "ObjectPrimitiveRendererRef.build_floor_base_commands",
-    "ObjectPrimitiveRendererRef.build_texture_accent_commands",
-    "ObjectPrimitiveRendererRef.build_shape_commands",
-):
-    if token not in marker_body:
-        errors.append(f"RoomVisualRenderer draw_iso_object_marker missing retained/delegated object primitive flow: {token}")
-
-
-
-for name in (
-    "draw_iso_object_slab", "draw_iso_object_pillar", "draw_iso_object_door_panel",
-    "draw_iso_object_terminal_console", "draw_iso_object_small_marker",
-    "draw_iso_object_line", "draw_iso_object_heat_marker",
-):
-    body = function_body(renderer, name)
-    for token in ("ObjectPrimitiveRendererRef.build_shape_commands", "_draw_object_primitive_commands"):
-        if token not in body:
-            errors.append(f"RoomVisualRenderer {name} must be a thin ObjectPrimitiveRenderer shape delegate: {token}")
-    if "grid_to_iso(cell)" not in body and "visual_center_override" not in body:
-        errors.append(f"RoomVisualRenderer {name} must assemble a center/context before delegation")
-    for forbidden in ("draw_line", "draw_circle", "draw_rect", "draw_arc", "draw_colored_polygon", "Color("):
-        if forbidden in body:
-            errors.append(f"RoomVisualRenderer {name} retained migrated procedural Canvas/style policy: {forbidden}")
-
-wall_shape_body = function_body(renderer, "draw_wall_mounted_object_shape")
-for token in ("ObjectPrimitiveRendererRef.build_wall_mounted_commands", "_draw_object_primitive_commands"):
-    if token not in wall_shape_body:
-        errors.append(f"RoomVisualRenderer draw_wall_mounted_object_shape must delegate wall primitives: {token}")
-for forbidden in ("draw_iso_wall_", "draw_iso_socket", "draw_iso_light_marker", "match profile_key"):
-    if forbidden in wall_shape_body:
-        errors.append(f"RoomVisualRenderer draw_wall_mounted_object_shape retained old wall-mounted helper dispatch: {forbidden}")
-
-for removed_helper in (
-    "draw_iso_wall_terminal_panel", "draw_iso_wall_door_terminal", "draw_iso_wall_platform_terminal",
-    "draw_iso_wall_cooling_terminal", "draw_iso_wall_firewall_panel", "draw_iso_wall_breaker_box",
-    "draw_iso_wall_fuse_box", "draw_iso_wall_light_switch", "draw_iso_socket",
-    "draw_iso_light_marker", "draw_iso_wall_cable_reel",
-):
-    if function_body(renderer, removed_helper):
-        errors.append(f"RoomVisualRenderer retained removed wall-mounted procedural helper: {removed_helper}")
-
-for retained in (
-    "draw_iso_object_png_texture_asset", "draw_optional_visual_texture_asset", "draw_iso_texture_asset",
-    "_visual_asset_resource_runtime", "draw_iso_door_insert", "draw_iso_cable_topology_line",
-    "draw_iso_cable_segment_shape", "draw_wall_procedural_cable", "draw_wall_procedural_air_duct",
-    "draw_wall_procedural_water_pipe",
-):
-    if retained not in renderer:
-        errors.append(f"RoomVisualRenderer lost retained coordinator/texture/route boundary token: {retained}")
-    if retained in object_primitive_renderer:
-        errors.append(f"ObjectPrimitiveRenderer contains retained coordinator/texture/route token: {retained}")
-
-for token in (
-    'preload("res://scripts/visual/renderer/object_texture_dispatch_policy.gd")',
-    "ObjectTextureDispatchPolicyRef.build_attempt_plan",
-    "ObjectTextureDispatchPolicyRef.should_emit_success_accent",
-):
-    if token not in renderer:
-        errors.append(f"RoomVisualRenderer missing ObjectTextureDispatchPolicy integration: {token}")
-for name in ("build_attempt_plan", "get_descriptor_route", "should_emit_success_accent"):
-    if not function_body(object_texture_policy, name):
-        errors.append(f"ObjectTextureDispatchPolicy missing focused API: {name}")
-for forbidden in (
-    "Texture", "Resource", "draw_", "ResourceLoader", "load(", "Time", "Canvas",
-    "GridManager", "MissionManager", "Node", "Node2D", "get_node(", "get_tree(",
-    "queue_redraw", "grid_to_iso", "ThemeDB", "fallback_font", "VisualAsset", "ObjectRendererRef",
-):
-    if forbidden in object_texture_policy:
-        errors.append(f"ObjectTextureDispatchPolicy contains forbidden coordinator/runtime dependency: {forbidden}")
-if "_execute_object_texture_attempt_plan" not in renderer or "build_attempt_plan" not in marker_body:
-    errors.append("draw_iso_object_marker must use policy plan and thin coordinator executor")
-for removed in ("elif profile_key != \"cable\"", "not used_texture_asset and has_door_visual", "not used_texture_asset and has_terminal_visual"):
-    if removed in marker_body:
-        errors.append(f"draw_iso_object_marker retained hard-coded texture chain: {removed}")
-
-png_texture_body = function_body(renderer, "draw_iso_object_png_texture_asset")
-for token in (
-    "VisualStateAssetServiceRef.object_uses_visual_states",
-    "get_iso_object_png_asset_path",
-    "get_iso_object_png_texture_for_resolved_path",
-    "draw_missing_iso_asset_debug_fallback",
-    "build_iso_object_visual_descriptor_for_contract",
-    "draw_iso_object_png_texture_with_descriptor",
-    "draw_visual_state_overlays_for_descriptor",
-):
-    if token not in png_texture_body:
-        errors.append(f"RoomVisualRenderer coordinator lost PNG texture resource/Canvas ownership token: {token}")
-
-executor_body = function_body(renderer, "_execute_object_texture_attempt_plan")
-for token in ("draw_iso_object_png_texture_asset", "draw_optional_visual_texture_asset", "draw_iso_texture_asset"):
-    if token not in executor_body:
-        errors.append(f"object texture attempt executor missing draw dispatch: {token}")
-    if token in object_texture_policy:
-        errors.append(f"ObjectTextureDispatchPolicy must not call coordinator draw method: {token}")
-
-marker_order = (
-    "is_door_floor_object_visual",
-    "draw_iso_object_png_texture_asset",
-    "ObjectPrimitiveRendererRef.build_floor_base_commands",
-    "draw_wall_routed_procedural_visual",
-    "ObjectTextureDispatchPolicyRef.build_attempt_plan",
-    "_execute_object_texture_attempt_plan",
-    "ObjectPrimitiveRendererRef.build_texture_accent_commands",
-    "draw_wall_mounted_object_shape",
-    "ObjectPrimitiveRendererRef.build_shape_commands",
-    "_draw_grounding_overlay",
-)
-marker_positions = []
-search_from = 0
-for token in marker_order:
-    position = marker_body.find(token, search_from)
-    marker_positions.append(position)
-    if position >= 0:
-        search_from = position + len(token)
-if any(value < 0 for value in marker_positions):
-    errors.append("RoomVisualRenderer draw_iso_object_marker door/route/plan/accent/fallback/grounding order changed")
-
-for token in (
+expect_tokens(renderer, "RoomVisualRenderer", (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
     'preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")',
     'preload("res://scripts/visual/renderer/iso_asset_alignment_policy.gd")',
@@ -256,6 +74,7 @@ for token in (
     'preload("res://scripts/visual/renderer/wall_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_primitive_renderer.gd")',
+    'preload("res://scripts/visual/renderer/object_texture_dispatch_policy.gd")',
     'preload("res://scripts/visual/renderer/door_canvas_renderer.gd")',
     'preload("res://scripts/visual/renderer/route_renderer.gd")',
     'preload("res://scripts/visual/renderer/cable_canvas_renderer.gd")',
@@ -263,545 +82,153 @@ for token in (
     'preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")',
     'preload("res://scripts/visual/renderer/runtime_debug_overlay_renderer.gd")',
     'preload("res://scripts/visual/renderer/fog_renderer.gd")',
+    "var _visual_asset_resource_runtime = VisualAssetResourceRuntimeRef.new()",
+))
+
+# The final coordinator keeps serialized scene inputs and actual Canvas execution.
+for token in (
+    "@export var iso_floor_default_texture: Texture2D",
+    "@export var iso_wall_default_texture: Texture2D",
+    "@export var iso_object_generic_texture: Texture2D",
+    "func _enter_tree()", "func _ready()", "func _exit_tree()", "func _process(", "func _draw()",
+    "draw_texture_rect(", "draw_texture_rect_region(", "draw_set_transform(",
 ):
     if token not in renderer:
-        errors.append(f"RoomVisualRenderer missing component preload: {token}")
+        errors.append(f"RoomVisualRenderer lost retained scene/Canvas responsibility: {token}")
 
-for name, delegate in {
-    "get_iso_projection_mode": "IsoProjectionServiceRef.normalize_mode",
-    "get_iso_tile_size": "IsoProjectionServiceRef.get_tile_size",
-    "get_iso_exported_tile_size_matches_active_mode": "IsoProjectionServiceRef.exported_tile_size_matches_active_mode",
-    "get_iso_tile_half_size": "IsoProjectionServiceRef.get_tile_half_size",
-    "grid_to_iso": "IsoProjectionServiceRef.grid_to_iso",
-    "iso_to_grid": "IsoProjectionServiceRef.iso_to_grid",
-    "get_iso_diamond_points": "IsoProjectionServiceRef.get_diamond_points",
-    "get_iso_inset_diamond_points": "IsoProjectionServiceRef.get_inset_diamond_points",
-    "get_iso_depth_key": "IsoProjectionServiceRef.get_depth_key",
-    "get_iso_floor_depth_key": "IsoProjectionServiceRef.get_depth_key",
-    "sort_cells_by_iso_depth": "IsoProjectionServiceRef.sort_cells_by_depth",
-}.items():
-    if delegate not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} must delegate to projection component")
+# Public methods actually used by UI/controller/runtime integrations must remain.
+for public_api in (
+    "should_preview_drive_bipob_visual_position",
+    "get_iso_tile_half_size", "grid_to_iso", "iso_to_grid", "get_object_visual_center",
+    "get_cell_at_iso_visual_position", "set_iso_mouse_selection_visuals", "clear_iso_mouse_selection_visuals",
+    "set_map_constructor_preview_cell", "set_map_constructor_wall_mounted_preview",
+    "set_selected_wall_mounted_object", "clear_selected_wall_mounted_object",
+    "set_map_constructor_link_target", "clear_map_constructor_link_target",
+    "set_map_constructor_overlay_preferences", "set_map_constructor_overlay_data",
+    "set_map_constructor_editor_render_active", "set_selected_interaction_target",
+    "is_grid_visual_invalidation_connected",
+):
+    if not function_body(renderer, public_api):
+        errors.append(f"RoomVisualRenderer lost externally used compatibility API: {public_api}")
 
-floor_delegates = {
-    "is_floor_like_tile": "FloorRendererRef.is_floor_like_tile",
-    "get_floor_prototype_color": "FloorRendererRef.get_prototype_color",
-    "is_walkable_floor_like_for_iso_passage": "FloorRendererRef.is_walkable_floor_like_for_passage",
-    "is_iso_interactive_floor_tile": "FloorRendererRef.is_interactive_floor_tile",
-    "is_iso_passage_floor_cell": "FloorRendererRef.is_passage_floor_cell",
-    "get_iso_floor_visual_profile_key_for_cell": "FloorRendererRef.get_visual_profile_key_for_cell",
-    "get_iso_floor_material_family_for_cell": "FloorRendererRef.get_material_family_for_cell",
-    "get_iso_floor_visual_profile": "FloorRendererRef.get_visual_profile",
-    "normalize_floor_material_key": "FloorRendererRef.normalize_material_key",
-    "get_iso_floor_asset_key_for_material_key": "FloorRendererRef.get_asset_key_for_material_key",
-    "get_iso_floor_asset_key_for_tile": "FloorRendererRef.get_asset_key_for_tile",
-    "get_iso_floor_asset_key_for_visual_height": "FloorRendererRef.get_asset_key_for_visual_height",
-    "get_iso_floor_asset_key_for_visual_state": "FloorRendererRef.get_asset_key_for_visual_state",
-    "get_iso_floor_asset_placement": "FloorRendererRef.get_asset_placement",
-    "normalize_floor_height_level": "FloorRendererRef.normalize_height_level",
-    "get_iso_ground_asset_key_for_floor_height": "FloorRendererRef.get_ground_asset_key_for_floor_height",
-    "get_ground_asset_key_for_cell": "FloorRendererRef.get_ground_asset_key_for_cell",
-    "get_floor_atlas_cell_size": "FloorRendererRef.get_atlas_cell_size",
-    "get_floor_atlas_region": "FloorRendererRef.get_atlas_region",
-    "get_floor_state_for_cell": "FloorRendererRef.get_floor_state_for_cell",
-    "get_floor_base_atlas_key": "FloorRendererRef.get_base_atlas_key",
-    "get_floor_overlay_atlas_key": "FloorRendererRef.get_overlay_atlas_key",
-    "get_floor_atlas_variant_for_cell": "FloorRendererRef.get_atlas_variant_for_cell",
-    "get_floor_atlas_seam_safe_variant": "FloorRendererRef.get_atlas_seam_safe_variant",
-    "get_floor_atlas_safe_source_rect": "FloorRendererRef.get_atlas_safe_source_rect",
-    "get_floor_atlas_destination_rect": "FloorRendererRef.get_atlas_destination_rect",
-    "get_floor_atlas_inner_overlay_points": "FloorRendererRef.get_atlas_inner_overlay_points",
-    "get_floor_atlas_uvs_for_destination_points": "FloorRendererRef.get_atlas_uvs_for_destination_points",
-    "build_iso_floor_draw_entries": "FloorRendererRef.build_draw_entries",
-}
-for name, delegate in floor_delegates.items():
-    if delegate not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} must delegate to FloorRenderer")
-
-wall_delegates = {
-    "is_wall_tile": "WallRendererRef.is_wall_tile",
-    "_get_wall_side_delta": "WallRendererRef.get_side_delta",
-    "_is_wall_in_bounds": "WallRendererRef.is_in_bounds",
-    "_is_wall_cell": "WallRendererRef.is_wall_cell",
-    "_get_wall_neighbor_mask": "WallRendererRef.get_neighbor_mask",
-    "_is_wall_mount_neighbor_visible": "WallRendererRef.is_mount_neighbor_visible",
-    "_is_door_like_tile": "WallRendererRef.is_door_like_tile",
-    "is_outer_border_cell": "WallRendererRef.is_outer_border_cell",
-    "get_iso_wall_connected_base_points": "WallRendererRef.get_connected_base_points",
-    "get_iso_wall_base_points": "WallRendererRef.get_base_points",
-    "get_iso_wall_depth_key_for_cell": "WallRendererRef.get_depth_key_for_cell",
-    "get_iso_wall_asset_catalog": "WallRendererRef.get_asset_catalog",
-    "normalize_wall_asset_key": "WallRendererRef.normalize_asset_key",
-    "normalize_wall_height_level": "WallRendererRef.normalize_height_level",
-    "get_wall_visual_profiles": "WallRendererRef.get_visual_profiles",
-    "get_wall_visual_profile": "WallRendererRef.get_visual_profile",
-    "get_wall_visual_profile_key_for_cell": "WallRendererRef.get_visual_profile_key_for_cell",
-    "get_wall_object_type_for_cell": "WallRendererRef.get_object_type_for_metadata",
-    "get_visible_wall_sides": "WallRendererRef.get_visible_sides",
-    "get_wall_mounted_anchor_zones": "WallRendererRef.get_mounted_anchor_zones",
-    "get_wall_render_topology": "WallRendererRef.get_render_topology",
-    "build_iso_wall_draw_entries": "WallRendererRef.build_draw_entries",
-}
-
-if "ObjectRendererRef.get_sub_order" not in function_body(renderer, "get_iso_object_sub_order"):
-    errors.append("RoomVisualRenderer get_iso_object_sub_order must delegate to ObjectRenderer")
-
-if "ObjectRendererRef.get_wall_mounted_render_layer" not in function_body(renderer, "get_wall_mounted_render_layer"):
-    errors.append("RoomVisualRenderer get_wall_mounted_render_layer must delegate to ObjectRenderer")
-
-if "ObjectRendererRef.make_draw_entry" not in function_body(renderer, "make_iso_object_draw_entry"):
-    errors.append("RoomVisualRenderer make_iso_object_draw_entry must delegate to ObjectRenderer")
-
-for name, delegate in wall_delegates.items():
-    if delegate not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} must delegate to WallRenderer")
-
-object_descriptor_delegates = {
-    "get_safe_iso_object_png_visual_scale": "ObjectRendererRef.get_safe_visual_scale",
-    "build_iso_object_surface_context": "ObjectRendererRef.get_surface_context_policy",
-    "build_iso_object_visual_descriptor": "ObjectRendererRef.build_descriptor_for_contract",
-    "build_authored_wall_canvas_descriptor": "ObjectRendererRef.build_descriptor_for_contract",
-    "build_authored_floor_canvas_descriptor": "ObjectRendererRef.build_descriptor_for_contract",
-    "build_iso_object_visual_descriptor_for_contract": "ObjectTextureDispatchPolicyRef.get_descriptor_route",
-}
-for name, delegate in object_descriptor_delegates.items():
-    if delegate not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} must delegate object descriptor policy to ObjectRenderer")
-
-object_delegates = {
-    "get_iso_object_asset_key_for_profile": "ObjectRendererRef.get_asset_key_for_profile",
-    "get_iso_object_profile_key_for_object_data": "ObjectRendererRef.get_profile_key_for_object_data",
-    "is_wall_mounted_runtime_object": "ObjectRendererRef.is_wall_mounted_runtime_object",
-    "get_wall_mounted_cardinal_side": "ObjectRendererRef.get_wall_mounted_cardinal_side",
-    "_get_object_mount_mode": "ObjectRendererRef.get_mount_mode",
-    "_is_object_state_on": "ObjectRendererRef.is_state_on",
-    "_is_fuse_present": "ObjectRendererRef.is_fuse_present",
-    "get_iso_object_asset_key_for_object_data": "ObjectRendererRef.get_asset_key_for_object_data",
-}
-for name, delegate in object_delegates.items():
-    if delegate not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} must delegate to ObjectRenderer")
-
-
-route_delegates = {
-    "get_wall_routing_mode": "RouteRendererRef.normalize_wall_routing_mode",
-    "_get_wall_cable_visual_axis_for_side": "RouteRendererRef.get_wall_visual_axis_for_side",
-    "_get_wall_cable_face_occluder_delta": "RouteRendererRef.get_wall_face_occluder_delta",
-    "_is_wall_cable_broken": "RouteRendererRef.is_broken_route",
-    "_get_wall_cable_face_line_segment": "RouteRendererRef.build_wall_face_segment",
-    "_draw_wall_cable_broken_overlay_segment": "RouteRendererRef.build_wall_cable_commands",
-    "_draw_wall_cable_break_overlay": "RouteRendererRef.build_wall_break_overlay_commands",
-    "_draw_wall_cable_broken_end": "RouteRendererRef.build_wall_broken_end_commands",
-    "_get_wall_routed_object_family": "RouteRendererRef.get_route_family",
-    "is_wall_procedural_routed_object": "RouteRendererRef.is_wall_procedural_routed_object",
-    "get_wall_routed_height_source_px": "RouteRendererRef.get_wall_routed_height_source_px",
-    "get_wall_route_segment_points": "RouteRendererRef.build_wall_route_segment",
-    "draw_wall_procedural_cable": "RouteRendererRef.build_procedural_route_commands",
-    "draw_wall_procedural_air_duct": "RouteRendererRef.build_procedural_route_commands",
-    "draw_wall_procedural_water_pipe": "RouteRendererRef.build_procedural_route_commands",
-    "get_cable_install_mode": "RouteRendererRef.normalize_install_mode",
-    "get_cable_health_state": "RouteRendererRef.get_health_state",
-    "draw_iso_cable_mode_segment": "RouteRendererRef.build_floor_mode_segment_commands",
-    "draw_iso_cable_segment_shape": "RouteRendererRef.build_floor_topology_plan",
-}
-for name, delegate in route_delegates.items():
-    if delegate not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} must delegate route policy to RouteRenderer")
-
-if "IsoDrawEntryContractRef.less" not in function_body(renderer, "sort_iso_draw_entries"):
-    errors.append("RoomVisualRenderer draw-entry sorting must delegate to contract")
-
-draw_entry_calls = (
-    renderer.count("IsoDrawEntryContractRef.make_entry")
-    + floor.count("IsoDrawEntryContractRef.make_entry")
-    + wall.count("IsoDrawEntryContractRef.make_entry")
-    + object_renderer.count("IsoDrawEntryContractRef.make_entry")
+# Repository-wide audit proved these coordinator-only compatibility/debug APIs have no caller.
+removed_functions = (
+    "initialize_from_grid", "clear_visuals", "is_task_test_visual_preview_context",
+    "get_iso_visual_preview_state", "get_iso_visual_preview_state_text",
+    "get_iso_exported_tile_size_matches_active_mode", "get_iso_projection_diagnostic_text",
+    "is_walkable_floor_like_for_iso_passage", "is_iso_interactive_floor_tile", "is_iso_passage_floor_cell",
+    "get_iso_floor_asset_key_for_visual_height", "get_iso_floor_asset_key_for_visual_state",
+    "get_platform_data_for_floor_cell", "_get_platform_occupants_for_cell",
+    "get_iso_wall_asset_key_for_profile", "get_iso_gray_test_asset_path",
+    "normalize_wall_height_level", "get_wall_asset_key_for_material_and_height",
+    "_is_object_state_on", "_is_fuse_present", "get_iso_placeholder_texture_for_asset_key",
+    "clear_iso_placeholder_texture_cache", "has_iso_texture_for_asset_key",
+    "get_iso_visual_layer_debug_state", "get_iso_visual_texture_debug_state",
+    "validate_iso_object_png_assets", "get_iso_asset_alignment_diagnostics",
+    "get_iso_visual_cell_stats", "get_iso_visual_debug_report", "validate_iso_visual_debug_report",
+    "draw_wall_procedural_cable", "draw_cooling_wall_canvas_asset",
+    "can_draw_optional_visual_texture_asset", "draw_iso_wall_texture_for_cell",
+    "draw_iso_floor_prototype", "draw_iso_wall_prototype", "get_iso_object_sub_order",
 )
-if draw_entry_calls < 5:
-    errors.append("renderer components must use the shared draw-entry contract")
+for name in removed_functions:
+    if function_body(renderer, name):
+        errors.append(f"RoomVisualRenderer retained audited dead/compatibility function: {name}")
 
-for constant_name in (
-    "ISO_PROJECTION_STANDARD",
-    "ISO_PROJECTION_CLASSIC",
-    "ISO_STANDARD_TILE_SIZE",
-    "ISO_LAYER_BIAS_WALL",
-    "ISO_DRAW_SUB_ORDER_FLOOR",
+# Resource/cache and policy ownership must not return to the coordinator.
+for cache_name in (
+    "_iso_placeholder_texture_cache", "_iso_object_png_texture_cache", "_iso_wall_asset_texture_cache",
+    "_iso_wall_breach_overlay_texture_cache", "_iso_floor_asset_texture_cache", "_iso_ground_asset_texture_cache",
 ):
-    line = next((row for row in renderer.splitlines() if row.startswith(f"const {constant_name}:")), "")
-    if "Ref." not in line:
-        errors.append(f"renderer compatibility constant {constant_name} must be a component alias")
-
-for forbidden in ("GridManager", "MissionManager", "draw_line(", "draw_polygon(", "queue_redraw("):
-    if forbidden in projection:
-        errors.append(f"projection component contains forbidden runtime dependency: {forbidden}")
-
-for component_name, component_source in (("FloorRenderer", floor), ("WallRenderer", wall), ("ObjectRenderer", object_renderer), ("RouteRenderer", route_renderer), ("OverlayRenderer", overlay_renderer), ("MapConstructorOverlayRenderer", map_constructor_overlay_renderer), ("RuntimeDebugOverlayRenderer", runtime_debug_overlay_renderer), ("FogRenderer", fog_renderer)):
-    for forbidden in ("draw_line(", "draw_polygon(", "draw_colored_polygon(", "draw_circle(", "queue_redraw(", "get_node("):
-        if forbidden in component_source:
-            errors.append(f"{component_name} contains forbidden CanvasItem/runtime dependency: {forbidden}")
-
-for forbidden in (
-    "GridManager",
-    "MissionManager",
-    "Node",
-    "Node2D",
-    "get_node(",
-    "get_tree(",
-    "ResourceLoader",
-    "load(",
-    "Time",
-    "queue_redraw(",
-    "grid_to_iso(",
-    "draw_line(",
-    "draw_polyline(",
-    "draw_colored_polygon(",
-    "draw_circle(",
-    "draw_rect(",
-    "draw_arc(",
+    if re.search(rf"(?m)^var {re.escape(cache_name)}\b", renderer):
+        errors.append(f"RoomVisualRenderer retained migrated cache: {cache_name}")
+renderer_without_preloads = re.sub(r"preload\([^\n]+\)", "", renderer)
+if "ResourceLoader" in renderer or re.search(r"(?<![A-Za-z_])load\s*\(", renderer_without_preloads):
+    errors.append("RoomVisualRenderer retained direct resource loading")
+for forbidden_constant in (
+    "ISO_ASSET_ALIGNMENT_RULES", "ISO_OBJECT_CANONICAL_VISUAL_IDS", "ISO_FLOOR_ASSET_CATALOG",
+    "ISO_WALL_ASSET_CATALOG", "ISO_GROUND_ASSET_CATALOG", "ISO_FLOOR_ATLAS_LAYOUT",
 ):
-    if forbidden in overlay_renderer:
-        errors.append(f"OverlayRenderer contains forbidden runtime/projection/resource/Canvas dependency: {forbidden}")
-    if forbidden in map_constructor_overlay_renderer:
-        errors.append(f"MapConstructorOverlayRenderer contains forbidden runtime/projection/resource/Canvas dependency: {forbidden}")
+    if re.search(rf"(?m)^const {forbidden_constant}\b", renderer):
+        errors.append(f"RoomVisualRenderer retained migrated policy/catalog constant: {forbidden_constant}")
 
+# One canonical, policy-free Canvas command executor replaces overlay/route/object duplicates.
+for old_dispatcher in ("_draw_overlay_commands", "_draw_route_commands", "_draw_object_primitive_commands"):
+    if function_body(renderer, old_dispatcher) or f"{old_dispatcher}(" in renderer:
+        errors.append(f"RoomVisualRenderer retained duplicate command executor: {old_dispatcher}")
+dispatcher = function_body(renderer, "_draw_canvas_commands")
+point_adapter = function_body(renderer, "_as_canvas_point_array")
+for token in ('"polygon"', '"polyline"', '"line"', '"circle"', '"rect"', '"arc"', '"text"', '"wall_cable_segment"'):
+    if token not in dispatcher:
+        errors.append(f"canonical Canvas dispatcher missing command kind: {token}")
+for token in ("draw_colored_polygon(", "draw_polyline(", "draw_line(", "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(", "draw_iso_cable_wall_segment("):
+    if token not in dispatcher:
+        errors.append(f"canonical Canvas dispatcher missing execution token: {token}")
+for forbidden in ("FloorRendererRef", "WallRendererRef", "ObjectRendererRef", "DoorCanvasRendererRef", "RouteRendererRef", "FogRendererRef", "GridManager", "MissionManager"):
+    if forbidden in dispatcher:
+        errors.append(f"canonical Canvas dispatcher contains policy/runtime branching: {forbidden}")
+if "PackedVector2Array" not in point_adapter or "Vector2i" not in point_adapter:
+    errors.append("canonical Canvas point adapter lost packed/array compatibility")
+
+for delegate_name in (
+    "draw_iso_mouse_selection_overlay", "draw_map_constructor_visual_overlay_passes",
+    "draw_iso_object_slab", "draw_iso_object_pillar", "draw_iso_object_door_panel",
+    "draw_iso_object_terminal_console", "draw_iso_object_small_marker", "draw_iso_object_line",
+    "draw_iso_object_heat_marker", "draw_wall_mounted_object_shape", "draw_iso_door_insert",
+    "draw_iso_fog_cell_overlay", "draw_iso_fog_wall_overlay",
+):
+    body = function_body(renderer, delegate_name)
+    if "_draw_canvas_commands" not in body:
+        errors.append(f"RoomVisualRenderer {delegate_name} must use canonical Canvas command execution")
+
+# Unified geometry queue and frame passes remain explicit and deterministic.
+queue_body = function_body(renderer, "build_iso_geometry_draw_entries")
 for token in (
-    "class_name IsoProjectionService",
-    "static func grid_to_iso",
-    "static func iso_to_grid",
-    "static func get_depth_key",
+    "build_iso_floor_draw_entries", "build_iso_platform_surface_draw_entries", "build_iso_wall_draw_entries",
+    "build_iso_cable_object_bridge_draw_entries", "build_iso_object_draw_entries", "sort_custom(sort_iso_draw_entries)",
 ):
-    if token not in projection:
-        errors.append(f"projection component missing contract: {token}")
-
-for token in (
-    "class_name IsoDrawEntryContract",
-    "static func make_entry",
-    "static func less",
-    "static func validate_entry",
-):
-    if token not in draw_entry:
-        errors.append(f"draw-entry component missing contract: {token}")
-
-for token in (
-    "class_name FloorRenderer",
-    "const FLOOR_ASSET_CATALOG",
-    "const FLOOR_ATLAS_LAYOUT",
-    "static func get_visual_profile_key_for_cell",
-    "static func build_draw_entries",
-):
-    if token not in floor:
-        errors.append(f"FloorRenderer missing contract: {token}")
-
-for token in (
-    "class_name WallRenderer",
-    "static func get_visual_profiles",
-    "static func get_asset_key_for_material_and_height",
-    "static func get_render_topology",
-    "static func get_mounted_anchor_zones",
-    "static func build_draw_entries",
-):
-    if token not in wall:
-        errors.append(f"WallRenderer missing contract: {token}")
-if "static func get_descriptor_mode" in object_renderer:
-    errors.append("ObjectRenderer must not retain duplicate descriptor route policy")
-
-for token in (
-    "class_name ObjectRenderer",
-    "static func get_asset_key_for_profile",
-    "static func get_profile_key_for_object_data",
-    "static func get_asset_key_for_object_data",
-    "static func get_sub_order",
-    "static func get_wall_mounted_render_layer",
-    "static func get_entry_kind",
-    "static func get_layer_bias",
-    "static func make_draw_entry",
-    "static func build_descriptor_for_contract",
-    "static func build_authored_canvas_descriptor",
-    "static func build_object_descriptor",
-    "static func get_surface_context_policy",
-    "static func get_safe_visual_scale",
-):
-    if token not in object_renderer:
-        errors.append(f"ObjectRenderer missing contract: {token}")
-
-
-for token in (
-    "class_name RouteRenderer",
-    "static func normalize_install_mode",
-    "static func normalize_wall_routing_mode",
-    "static func get_route_family",
-    "static func build_wall_face_segment",
-    "static func build_wall_cable_commands",
-    "static func build_floor_mode_segment_commands",
-    "static func build_floor_topology_plan",
-    "static func build_procedural_route_commands",
-):
-    if token not in route_renderer:
-        errors.append(f"RouteRenderer missing contract: {token}")
-
-for token in (
-    "class_name OverlayRenderer",
-    "static func build_mouse_selection_commands",
-    "static func build_interaction_target_rect",
-    "static func get_interaction_pulse",
-    "static func build_interaction_target_commands",
-):
-    if token not in overlay_renderer:
-        errors.append(f"OverlayRenderer missing contract: {token}")
-
-for token in (
-    "class_name MapConstructorOverlayRenderer",
-    "static func normalize_preview_mode",
-    "static func build_commands",
-):
-    if token not in map_constructor_overlay_renderer:
-        errors.append(f"MapConstructorOverlayRenderer missing contract: {token}")
-
-if "OverlayRendererRef.build_mouse_selection_commands" not in function_body(renderer, "draw_iso_mouse_selection_overlay"):
-    errors.append("RoomVisualRenderer draw_iso_mouse_selection_overlay must delegate overlay policy to OverlayRenderer")
-if "OverlayRendererRef.build_interaction_target_commands" not in function_body(renderer, "draw_selected_interaction_target_overlay"):
-    errors.append("RoomVisualRenderer draw_selected_interaction_target_overlay must delegate interaction overlay policy to OverlayRenderer")
-if "OverlayRendererRef.build_interaction_target_rect" not in function_body(renderer, "_get_selected_interaction_overlay_rect"):
-    errors.append("RoomVisualRenderer _get_selected_interaction_overlay_rect must delegate interaction rect policy to OverlayRenderer")
-if "MapConstructorOverlayRendererRef.build_commands" not in function_body(renderer, "draw_map_constructor_visual_overlay_passes"):
-    errors.append("RoomVisualRenderer draw_map_constructor_visual_overlay_passes must delegate Map Constructor overlay policy")
-if "MapConstructorOverlayRendererRef.normalize_preview_mode" not in function_body(renderer, "_build_map_constructor_overlay_context"):
-    errors.append("RoomVisualRenderer must normalize Map Constructor preview mode through MapConstructorOverlayRenderer")
-
-selection_body = function_body(renderer, "draw_iso_mouse_selection_overlay")
-interaction_body = function_body(renderer, "draw_selected_interaction_target_overlay")
-rect_body = function_body(renderer, "_get_selected_interaction_overlay_rect")
-for token in (
-    "Color(0.29, 0.75, 0.95",
-    "Color(0.85, 0.93, 1.0",
-    "Color(0.8, 0.97, 1.0",
-    "Color(0.98, 0.66, 0.35",
-    "Color(0.99, 0.75, 0.45",
-    "Color(0.35, 0.92, 1.0",
-    "Color(1.0, 0.8, 0.35",
-    "Color(1.0, 0.96, 0.3",
-    "draw_colored_polygon(",
-    "draw_polyline(",
-    "draw_line(",
-):
-    if token in selection_body:
-        errors.append(f"RoomVisualRenderer draw_iso_mouse_selection_overlay contains migrated selection overlay policy token: {token}")
-
-for token in (
-    "0.65 + 0.35 * sin",
-    "Color(0.2, 0.9, 1.0",
-    "Color(0.02, 0.05, 0.07",
-    "maxf(10.0",
-    "minf(rect.size.x",
-    "width + 2.0",
-    "draw_line(",
-):
-    if token in interaction_body or token in rect_body:
-        errors.append(f"RoomVisualRenderer contains migrated interaction overlay policy token: {token}")
-
-map_constructor_body = function_body(renderer, "draw_map_constructor_visual_overlay_passes")
-map_constructor_context_body = function_body(renderer, "_build_map_constructor_overlay_context")
-for token in ("Color(", "draw_line(", "draw_circle(", "draw_colored_polygon(", "draw_polyline(", "16.0", "2.0", "3.0"):
-    if token in map_constructor_body:
-        errors.append(f"RoomVisualRenderer draw_map_constructor_visual_overlay_passes contains migrated Map Constructor overlay policy token: {token}")
-for token in ("Color(", "draw_line(", "draw_circle(", "draw_colored_polygon(", "draw_polyline("):
-    if token in map_constructor_context_body:
-        errors.append(f"RoomVisualRenderer _build_map_constructor_overlay_context contains direct Canvas/style policy token: {token}")
-for name in ("draw_map_constructor_visual_overlay_passes", "draw_iso_fog_overlay", "should_render_iso_fog_visuals"):
-    if not function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer must retain {name} ownership in this stage")
-
-if "[AUTHORED WALL TEST]" in renderer:
-    errors.append("RoomVisualRenderer must not contain unconditional authored-wall descriptor logging")
-
-if "IsoDrawEntryContractRef.make_entry" not in function_body(object_renderer, "make_draw_entry"):
-    errors.append("ObjectRenderer draw-entry policy must use the shared draw-entry contract")
-
-if "func draw_iso_floor_cell" not in renderer or "func draw_iso_wall_block" not in renderer:
-    errors.append("stage boundary changed: Canvas floor/wall drawing must remain in RoomVisualRenderer")
-if "func draw_iso_floor_cell" in floor:
-    errors.append("FloorRenderer must not own Canvas drawing in this stage")
-if "func draw_iso_wall_block" in wall:
-    errors.append("WallRenderer must not own Canvas drawing in this stage")
-
-
-for token in (
-    "class_name RuntimeDebugOverlayRenderer",
-    "static func build_origin_commands",
-    "static func build_helper_preview_commands",
-    "static func build_wall_mount_zone_commands",
-    "static func build_wall_run_commands",
-    "static func build_floor_join_commands",
-    "static func build_world_marker_commands",
-    "static func build_fan_marker_commands",
-    "static func build_asset_alignment_commands",
-    "static func build_grounding_commands",
-    "static func build_door_opening_commands",
-    "static func build_wall_debug_commands",
-):
-    if token not in runtime_debug_overlay_renderer:
-        errors.append(f"RuntimeDebugOverlayRenderer missing contract: {token}")
-
-for forbidden in (
-    "GridManager", "MissionManager", "Node", "Node2D", "get_node(", "get_tree(",
-    "ThemeDB", "Font", "ResourceLoader", "load(", "Texture2D", "Time", "queue_redraw(",
-    "grid_to_iso(", "draw_line(", "draw_polyline(", "draw_colored_polygon(",
-    "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(",
-):
-    if forbidden in runtime_debug_overlay_renderer:
-        errors.append(f"RuntimeDebugOverlayRenderer contains forbidden dependency: {forbidden}")
-
-runtime_debug_delegates = {
-    "draw_iso_asset_alignment_overlay": "RuntimeDebugOverlayRendererRef.build_asset_alignment_commands",
-    "draw_iso_wall_debug_and_mount_overlays": "RuntimeDebugOverlayRendererRef.build_wall_debug_commands",
-    "_draw_grounding_overlay": "RuntimeDebugOverlayRendererRef.build_grounding_commands",
-    "draw_door_opening_overlay_for_context": "RuntimeDebugOverlayRendererRef.build_door_opening_commands",
-    "draw_world_overlay_markers": "RuntimeDebugOverlayRendererRef.build_world_marker_commands",
-    "draw_fan_platform_marker": "RuntimeDebugOverlayRendererRef.build_fan_marker_commands",
-    "draw_wall_mount_zones_overlay": "RuntimeDebugOverlayRendererRef.build_wall_mount_zone_commands",
-    "draw_wall_run_overlay": "RuntimeDebugOverlayRendererRef.build_wall_run_commands",
-    "draw_floor_join_overlay": "RuntimeDebugOverlayRendererRef.build_floor_join_commands",
-}
-for name, delegate in runtime_debug_delegates.items():
-    body = function_body(renderer, name)
-    if delegate not in body:
-        errors.append(f"RoomVisualRenderer {name} must delegate runtime/debug policy")
-    for forbidden in ("draw_line(", "draw_polyline(", "draw_colored_polygon(", "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(", "Color("):
-        if forbidden in body:
-            errors.append(f"RoomVisualRenderer {name} contains migrated policy: {forbidden}")
-
-
-for token in (
-    "class_name FogRenderer",
-    "static func get_fog_color",
-    "static func build_cell_overlay_commands",
-    "static func build_wall_overlay_commands",
-):
-    if token not in fog_renderer:
-        errors.append(f"FogRenderer missing contract: {token}")
-
-for forbidden in (
-    "GridManager", "MissionManager", "Node", "Node2D", "get_node(", "get_tree(",
-    "ThemeDB", "Font", "ResourceLoader", "load(", "Texture2D", "Time", "queue_redraw(",
-    "grid_to_iso(", "draw_line(", "draw_polyline(", "draw_colored_polygon(",
-    "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(",
-):
-    if forbidden in fog_renderer:
-        errors.append(f"FogRenderer contains forbidden dependency: {forbidden}")
-
-fog_delegates = {
-    "get_iso_fog_color_for_cell": "FogRendererRef.get_fog_color",
-    "draw_iso_fog_cell_overlay": "FogRendererRef.build_cell_overlay_commands",
-    "draw_iso_fog_wall_overlay": "FogRendererRef.build_wall_overlay_commands",
-}
-for name, delegate in fog_delegates.items():
-    body = function_body(renderer, name)
-    if delegate not in body:
-        errors.append(f"RoomVisualRenderer {name} must delegate fog policy")
-for name in ("draw_iso_fog_cell_overlay", "draw_iso_fog_wall_overlay"):
-    body = function_body(renderer, name)
-    for forbidden in ("draw_line(", "draw_polyline(", "draw_colored_polygon(", "draw_circle(", "draw_rect(", "draw_arc(", "draw_string(", "Color(0.5, 0.6, 0.75", "FOG_OUTLINE_COLOR"):
-        if forbidden in body:
-            errors.append(f"RoomVisualRenderer {name} contains migrated fog policy or fallback implementation: {forbidden}")
-
-
-
-fog_color_body = function_body(renderer, "get_iso_fog_color_for_cell")
-for token in (
-    "_grid_manager.is_cell_visible(cell)",
-    "_grid_manager.is_explored(cell)",
-    "FogRendererRef.get_fog_color",
-):
-    if token not in fog_color_body:
-        errors.append(f"RoomVisualRenderer get_iso_fog_color_for_cell must retain coordinator fog state lookup: {token}")
-
-fog_overlay_body = function_body(renderer, "draw_iso_fog_overlay")
-for token in (
-    "_grid_manager.get_map_width()",
-    "_grid_manager.get_map_height()",
-    "_grid_manager.get_tile(cell)",
-    "fog_cells.sort_custom(sort_cells_by_iso_depth)",
-    "draw_iso_fog_cell_overlay(cell)",
-    "draw_iso_fog_wall_overlay(cell)",
-    "tile_type == GridManager.TILE_WALL",
-    "should_render_iso_wall_visuals()",
-):
-    if token not in fog_overlay_body:
-        errors.append(f"RoomVisualRenderer draw_iso_fog_overlay must retain coordinator fog traversal/depth/tile guard: {token}")
-
-for forbidden in ("sort_custom", "sort_cells_by_iso_depth", "get_map_width", "get_map_height", "for x in range", "for y in range", "GridManager", "grid_to_iso("):
-    if forbidden in fog_renderer:
-        errors.append(f"FogRenderer contains forbidden traversal/projection dependency: {forbidden}")
-
-dispatcher = function_body(renderer, "_draw_overlay_commands")
-if '"rect":' not in dispatcher or '"text":' not in dispatcher:
-    errors.append("RoomVisualRenderer overlay dispatcher must execute rect and text commands")
-
-for name, token in (
-    ("draw_iso_wall_block", "draw_iso_wall_debug_and_mount_overlays"),
-    ("draw_iso_object_marker", "_draw_grounding_overlay"),
-    ("draw_iso_door_insert", "draw_door_opening_overlay_for_context"),
-):
-    if token not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} lost inline diagnostic placement")
-
-draw_body = function_body(renderer, "_draw")
-order = (
+    if token not in queue_body:
+        errors.append(f"unified geometry queue lost composition token: {token}")
+entry_dispatch = function_body(renderer, "draw_iso_draw_entry")
+for kind in ('"floor"', '"ground"', '"platform_surface"', '"wall_body"', '"cable_bridge"', '"wall_mounted"'):
+    if kind not in entry_dispatch:
+        errors.append(f"draw-entry dispatcher lost representative kind: {kind}")
+frame_body = function_body(renderer, "_draw")
+frame_order = (
     "draw_iso_geometry_prototype", "draw_wall_mount_zones_overlay", "draw_wall_run_overlay",
     "draw_floor_join_overlay", "draw_cable_reel_drag_trail", "draw_iso_mouse_selection_overlay",
     "draw_map_constructor_visual_overlay_passes", "draw_selected_interaction_target_overlay",
     "draw_world_overlay_markers", "draw_fan_platform_marker", "draw_iso_fog_overlay",
-    "RuntimeDebugOverlayRendererRef.build_helper_preview_commands",
 )
-positions = [draw_body.find(token) for token in order]
-if any(value < 0 for value in positions) or positions != sorted(positions):
-    errors.append("RoomVisualRenderer runtime/debug overlay ordering changed")
+position = 0
+for token in frame_order:
+    found = frame_body.find(token, position)
+    if found < 0:
+        errors.append(f"frame pass order missing/out-of-order token: {token}")
+    else:
+        position = found + len(token)
 
-for name in (
-    "draw_cable_reel_drag_trail", "draw_iso_fog_overlay", "draw_iso_fog_cell_overlay",
-    "draw_iso_fog_wall_overlay", "draw_iso_floor_cell", "draw_iso_wall_block", "draw_iso_object_marker",
-):
-    if not function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer must retain {name} ownership")
-
-
-
+# Deterministic representative smoke coverage is permanent.
 for token in (
-    "class_name VisualAssetResourceRuntime",
-    "func resolve_object_png_path",
-    "func resolve_wall_texture",
-    "func clear_all_caches",
+    "TASK TEST renderer smoke contract OK", "_check_floor_and_connected_walls",
+    "_check_wall_mount_and_door_ordering", "_check_door_route_and_bridge_commands",
+    "_check_selection_constructor_debug_and_fog", "_check_asset_fallback_and_alignment",
 ):
-    if token not in resource_runtime:
-        errors.append(f"VisualAssetResourceRuntime missing contract: {token}")
-for forbidden in ("GridManager", "MissionManager", "draw_texture", "draw_line(", "queue_redraw("):
-    if forbidden in resource_runtime:
-        errors.append(f"VisualAssetResourceRuntime contains forbidden coordinator/Canvas dependency: {forbidden}")
-for forbidden in (
-    "_iso_object_png_texture_cache",
-    "_iso_wall_asset_texture_cache",
-    "_iso_wall_breach_overlay_texture_cache",
-    "_iso_floor_asset_texture_cache",
-    "_iso_ground_asset_texture_cache",
-    "ResourceLoader",
-):
-    if forbidden in renderer:
-        errors.append(f"RoomVisualRenderer retained resource runtime implementation: {forbidden}")
-
+    if token not in smoke:
+        errors.append(f"renderer smoke contract missing coverage token: {token}")
 for token in (
-    "class_name IsoAssetAlignmentPolicy", "const ALIGNMENT_RULES: Dictionary",
-    "static func normalize_runtime_rule", "static func build_outer_utility_layout",
+    "Check RoomVisualRenderer smoke contract",
+    "res://tools/ci/check_room_visual_renderer_smoke_contract.gd",
 ):
-    if token not in alignment_policy:
-        errors.append(f"IsoAssetAlignmentPolicy missing contract: {token}")
-for forbidden in ("Node2D", "GridManager", "ResourceLoader", "Texture2D", "draw_line(", "queue_redraw("):
-    if forbidden in alignment_policy:
-        errors.append(f"IsoAssetAlignmentPolicy contains forbidden runtime dependency: {forbidden}")
+    if token not in workflow:
+        errors.append(f"Renderer Component Gate missing final smoke validation: {token}")
+for token in ("4,288 lines", "_draw_canvas_commands", "VisualAssetResourceRuntime", "IsoAssetAlignmentPolicy"):
+    if token not in component_map:
+        errors.append(f"component map missing final ownership token: {token}")
 
 if errors:
-    print("RoomVisualRenderer component boundary audit FAILED:")
+    print("RoomVisualRenderer final coordinator boundary FAILED:")
     for error in errors:
         print(" -", error)
     raise SystemExit(1)
 
-print(f"RoomVisualRenderer component boundary audit OK ({renderer_lines} lines)")
+print(f"RoomVisualRenderer final coordinator boundary OK ({renderer_lines} lines)")

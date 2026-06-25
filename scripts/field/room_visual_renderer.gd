@@ -174,21 +174,6 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_disconnect_grid_manager_invalidation()
 
-func set_grid_manager(grid: GridManager) -> void:
-	if _grid_manager == grid:
-		_connect_grid_manager_invalidation()
-		return
-	_disconnect_grid_manager_invalidation()
-	_grid_manager = grid
-	_connect_grid_manager_invalidation()
-	request_rebuild()
-
-func initialize_from_grid(grid: GridManager) -> void:
-	# Atlas floor tiles are downsampled heavily, so nearest sampling avoids
-	# bright sub-pixel bleed from neighboring atlas frames and transparent edges.
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	set_grid_manager(grid)
-
 func _connect_grid_manager_invalidation() -> void:
 	if _grid_manager != null and not _grid_manager.grid_visual_invalidated.is_connected(_on_grid_visual_invalidated):
 		_grid_manager.grid_visual_invalidated.connect(_on_grid_visual_invalidated)
@@ -209,10 +194,6 @@ func request_rebuild() -> void:
 	rebuild_visuals()
 	queue_redraw()
 
-func clear_visuals() -> void:
-	_rebuild_requested = false
-	queue_redraw()
-
 func rebuild_visuals() -> void:
 	if _grid_manager == null:
 		_rebuild_requested = false
@@ -222,15 +203,6 @@ func rebuild_visuals() -> void:
 
 func is_iso_visual_preview_active() -> bool:
 	return use_iso_visual_preview_preset
-
-func is_iso_renderer_active() -> bool:
-	return (
-		use_iso_visual_preview_preset
-		or render_iso_floor_prototype
-		or render_iso_wall_prototype
-		or render_iso_object_prototype
-		or use_iso_placeholder_asset_preset
-	)
 
 func should_render_iso_floor_visuals() -> bool:
 	return (render_iso_floor_prototype or use_iso_visual_preview_preset)
@@ -257,9 +229,6 @@ func should_render_iso_fog_visuals() -> bool:
 		return false
 	return fog_requested
 
-func should_draw_iso_fog_cell_shapes() -> bool:
-	return should_render_iso_fog_visuals() and iso_fog_draw_cell_shapes
-
 func should_use_iso_placeholder_asset_preset() -> bool:
 	if not use_iso_placeholder_asset_preset:
 		return false
@@ -274,70 +243,14 @@ func should_use_iso_tile_asset_hook_visuals() -> bool:
 		or should_use_iso_placeholder_asset_preset()
 	)
 
-func is_task_test_visual_preview_context() -> bool:
-	var mission_manager: Node = get_mission_manager_ref()
-	if mission_manager == null:
-		return use_iso_visual_preview_preset
-	if mission_manager.has_method("_is_task_test_constructor_context"):
-		return bool(mission_manager.call("_is_task_test_constructor_context"))
-	if mission_manager.has_method("get_current_mission_id"):
-		return str(mission_manager.call("get_current_mission_id")) == "mission_10"
-	return use_iso_visual_preview_preset
-
 func should_preview_drive_bipob_visual_position() -> bool:
 	return (use_iso_visual_preview_preset and iso_visual_preview_drives_bipob_visual_position)
-
-func get_iso_visual_preview_state() -> Dictionary:
-	var projection_size: Vector2 = get_iso_tile_size()
-	return {
-		"preview_active": is_iso_visual_preview_active(),
-		"projection_mode": get_iso_projection_mode(),
-		"projection_tile_size": projection_size,
-		"floor": should_render_iso_floor_visuals(),
-		"wall": should_render_iso_wall_visuals(),
-		"objects": should_render_iso_object_visuals(),
-		"fog": should_render_iso_fog_visuals(),
-		"fog_cell_shapes": should_draw_iso_fog_cell_shapes(),
-		"constructor_fog_suppressed": should_suppress_iso_fog_for_constructor(),
-		"asset_hooks": should_use_iso_tile_asset_hook_visuals(),
-		"placeholder_assets": should_use_iso_placeholder_asset_preset(),
-		"placeholder_requires_preview": iso_placeholder_asset_preset_requires_preview,
-		"drives_bipob_visual_position": should_preview_drive_bipob_visual_position()
-	}
-
-func get_iso_visual_preview_state_text() -> String:
-	var state: Dictionary = get_iso_visual_preview_state()
-	return "IsoVisualPreview active=%s projection=%s tile=%s floor=%s wall=%s objects=%s fog=%s asset_hooks=%s placeholder_assets=%s drives_bipob=%s" % [
-		str(state.get("preview_active", false)),
-		str(state.get("projection_mode", ISO_PROJECTION_STANDARD)),
-		str(Vector2(state.get("projection_tile_size", ISO_STANDARD_TILE_SIZE))),
-		str(state.get("floor", false)),
-		str(state.get("wall", false)),
-		str(state.get("objects", false)),
-		str(state.get("fog", false)),
-		str(state.get("asset_hooks", false)),
-		str(state.get("placeholder_assets", false)),
-		str(state.get("drives_bipob_visual_position", false))
-	]
 
 func get_iso_projection_mode() -> String:
 	return IsoProjectionServiceRef.normalize_mode(iso_projection_mode)
 
 func get_iso_tile_size() -> Vector2:
 	return IsoProjectionServiceRef.get_tile_size(iso_projection_mode, iso_tile_width, iso_tile_height)
-
-func get_iso_exported_tile_size_matches_active_mode() -> bool:
-	return IsoProjectionServiceRef.exported_tile_size_matches_active_mode(iso_projection_mode, iso_tile_width, iso_tile_height)
-
-func get_iso_projection_diagnostic_text() -> String:
-	var active_size: Vector2 = get_iso_tile_size()
-	var ratio: float = active_size.x / maxf(active_size.y, 1.0)
-	return "Iso projection: %s tile=%s ratio=%.4f exported_match=%s" % [
-		get_iso_projection_mode(),
-		str(active_size),
-		ratio,
-		str(get_iso_exported_tile_size_matches_active_mode())
-	]
 
 func get_iso_tile_half_size() -> Vector2:
 	return IsoProjectionServiceRef.get_tile_half_size(get_iso_tile_size(), iso_floor_projection_pitch_correction_degrees)
@@ -391,7 +304,7 @@ func draw_selected_interaction_target_overlay() -> void:
 	var cell: Vector2i = _get_selected_interaction_target_cell()
 	if cell.x < 0 or cell.y < 0:
 		return
-	_draw_overlay_commands(OverlayRendererRef.build_interaction_target_commands(_build_selected_interaction_overlay_context(cell)))
+	_draw_canvas_commands(OverlayRendererRef.build_interaction_target_commands(_build_selected_interaction_overlay_context(cell)))
 
 func iso_to_grid(iso_position: Vector2) -> Vector2i:
 	return IsoProjectionServiceRef.iso_to_grid(iso_position, iso_origin, get_iso_tile_half_size())
@@ -615,7 +528,7 @@ func draw_iso_mouse_selection_overlay() -> void:
 			wall_object_center = get_object_visual_center(selected_wall_mounted_anchor_cell, obj)
 			has_wall_object_center = true
 
-	_draw_overlay_commands(OverlayRendererRef.build_mouse_selection_commands({
+	_draw_canvas_commands(OverlayRendererRef.build_mouse_selection_commands({
 		"route_point_sets": route_point_sets,
 		"selected_points": selected_points,
 		"action_points": action_points,
@@ -627,62 +540,65 @@ func draw_iso_mouse_selection_overlay() -> void:
 
 
 
-func _draw_overlay_commands(commands: Array[Dictionary]) -> void:
+func _draw_canvas_commands(commands: Array[Dictionary], fallback_profile: Dictionary = {}) -> bool:
 	for command in commands:
 		var kind: String = str(command.get("kind", ""))
 		match kind:
 			"polygon":
-				draw_colored_polygon(PackedVector2Array(command.get("points", PackedVector2Array())), Color(command.get("color", Color.WHITE)))
+				var polygon_points: PackedVector2Array = _as_canvas_point_array(command.get("points", PackedVector2Array()))
+				var polygon_color: Variant = command.get("color", null)
+				if polygon_points.size() >= 3 and polygon_color is Color:
+					draw_colored_polygon(polygon_points, Color(polygon_color))
 			"polyline":
-				draw_polyline(
-					PackedVector2Array(command.get("points", PackedVector2Array())),
-					Color(command.get("color", Color.WHITE)),
-					float(command.get("width", 1.0)),
-					bool(command.get("antialiased", false))
-				)
+				var polyline_points: PackedVector2Array = _as_canvas_point_array(command.get("points", PackedVector2Array()))
+				var polyline_color: Variant = command.get("color", null)
+				if polyline_points.size() >= 2 and polyline_color is Color:
+					draw_polyline(polyline_points, Color(polyline_color), float(command.get("width", 1.0)), bool(command.get("antialiased", false)))
 			"line":
-				draw_line(
-					Vector2(command.get("start", Vector2.ZERO)),
-					Vector2(command.get("end", Vector2.ZERO)),
-					Color(command.get("color", Color.WHITE)),
-					float(command.get("width", 1.0)),
-					bool(command.get("antialiased", false))
-				)
+				var line_start: Variant = command.get("start", null)
+				var line_end: Variant = command.get("end", null)
+				var line_color: Variant = command.get("color", null)
+				if line_start is Vector2 and line_end is Vector2 and line_color is Color:
+					draw_line(Vector2(line_start), Vector2(line_end), Color(line_color), float(command.get("width", 1.0)), bool(command.get("antialiased", false)))
 			"circle":
-				draw_circle(
-					Vector2(command.get("center", Vector2.ZERO)),
-					float(command.get("radius", 1.0)),
-					Color(command.get("color", Color.WHITE))
-				)
+				var circle_center: Variant = command.get("center", null)
+				var circle_color: Variant = command.get("color", null)
+				if circle_center is Vector2 and circle_color is Color:
+					draw_circle(Vector2(circle_center), float(command.get("radius", 1.0)), Color(circle_color))
 			"rect":
-				draw_rect(
-					Rect2(command.get("rect", Rect2())),
-					Color(command.get("color", Color.WHITE)),
-					bool(command.get("filled", true)),
-					float(command.get("width", 1.0)),
-					bool(command.get("antialiased", false))
-				)
+				var rect_value: Variant = command.get("rect", null)
+				var rect_color: Variant = command.get("color", null)
+				if rect_value is Rect2 and rect_color is Color:
+					draw_rect(Rect2(rect_value), Color(rect_color), bool(command.get("filled", true)), float(command.get("width", 1.0)), bool(command.get("antialiased", false)))
 			"arc":
-				draw_arc(
-					Vector2(command.get("center", Vector2.ZERO)),
-					float(command.get("radius", 1.0)),
-					float(command.get("start_angle", 0.0)),
-					float(command.get("end_angle", PI * 2.0)),
-					int(command.get("point_count", 24)),
-					Color(command.get("color", Color.WHITE)),
-					float(command.get("width", 1.0)),
-					bool(command.get("antialiased", false))
-				)
+				var arc_center: Variant = command.get("center", null)
+				var arc_color: Variant = command.get("color", null)
+				if arc_center is Vector2 and arc_color is Color:
+					draw_arc(Vector2(arc_center), float(command.get("radius", 1.0)), float(command.get("start_angle", 0.0)), float(command.get("end_angle", TAU)), int(command.get("point_count", 24)), Color(arc_color), float(command.get("width", 1.0)), bool(command.get("antialiased", false)))
 			"text":
-				draw_string(
-					ThemeDB.fallback_font,
-					Vector2(command.get("position", Vector2.ZERO)),
-					str(command.get("text", "")),
-					int(command.get("alignment", HORIZONTAL_ALIGNMENT_LEFT)),
-					float(command.get("width", -1.0)),
-					int(command.get("font_size", 10)),
-					Color(command.get("color", Color.WHITE))
-				)
+				var text_position: Variant = command.get("position", null)
+				var text_color: Variant = command.get("color", null)
+				if text_position is Vector2 and text_color is Color:
+					draw_string(ThemeDB.fallback_font, Vector2(text_position), str(command.get("text", "")), int(command.get("alignment", HORIZONTAL_ALIGNMENT_LEFT)), float(command.get("width", -1.0)), int(command.get("font_size", 10)), Color(text_color))
+			"wall_cable_segment":
+				var segment_start: Variant = command.get("start", null)
+				var segment_end: Variant = command.get("end", null)
+				if segment_start is Vector2 and segment_end is Vector2:
+					var profile: Dictionary = fallback_profile
+					if command.get("profile", {}) is Dictionary:
+						profile = Dictionary(command.get("profile", {}))
+					draw_iso_cable_wall_segment(Vector2(segment_start), Vector2(segment_end), profile)
+	return not commands.is_empty()
+
+func _as_canvas_point_array(value: Variant) -> PackedVector2Array:
+	if value is PackedVector2Array:
+		return PackedVector2Array(value)
+	var points := PackedVector2Array()
+	if value is Array:
+		for point_value in Array(value):
+			if point_value is Vector2 or point_value is Vector2i:
+				points.append(Vector2(point_value))
+	return points
 
 var map_constructor_overlay_prefs: Dictionary = {
 	"show_preview": true,
@@ -803,7 +719,7 @@ func _build_map_constructor_overlay_context() -> Dictionary:
 	return context
 
 func draw_map_constructor_visual_overlay_passes() -> void:
-	_draw_overlay_commands(MapConstructorOverlayRendererRef.build_commands(_build_map_constructor_overlay_context()))
+	_draw_canvas_commands(MapConstructorOverlayRendererRef.build_commands(_build_map_constructor_overlay_context()))
 
 const ISO_LAYER_BIAS_FLOOR: float = IsoDrawEntryContractRef.LAYER_BIAS_FLOOR
 const ISO_LAYER_BIAS_CABLE: float = IsoDrawEntryContractRef.LAYER_BIAS_CABLE
@@ -1017,19 +933,10 @@ func get_iso_door_opening_visual_profile(cell: Vector2i, object_data: Dictionary
 func get_floor_prototype_color(tile_type: int, cell: Vector2i) -> Color:
 	return FloorRendererRef.get_prototype_color(tile_type, cell)
 
-func is_walkable_floor_like_for_iso_passage(tile_type: int) -> bool:
-	return FloorRendererRef.is_walkable_floor_like_for_passage(tile_type)
-
 func is_cell_in_bounds(cell: Vector2i) -> bool:
 	if _grid_manager == null:
 		return false
 	return _grid_manager.is_in_bounds(cell)
-
-func is_iso_interactive_floor_tile(tile_type: int) -> bool:
-	return FloorRendererRef.is_interactive_floor_tile(tile_type)
-
-func is_iso_passage_floor_cell(cell: Vector2i) -> bool:
-	return FloorRendererRef.is_passage_floor_cell(_grid_manager, cell)
 
 func get_iso_floor_visual_profile_key_for_cell(cell: Vector2i) -> String:
 	return FloorRendererRef.get_visual_profile_key_for_cell(_grid_manager, cell)
@@ -1114,12 +1021,6 @@ func get_iso_floor_asset_key_for_material_key(material_key: String) -> String:
 
 func get_iso_floor_asset_key_for_tile(tile_type: int) -> String:
 	return FloorRendererRef.get_asset_key_for_tile(tile_type, use_gray_room_visual_test_assets)
-
-func get_iso_floor_asset_key_for_visual_height(value: String) -> String:
-	return FloorRendererRef.get_asset_key_for_visual_height(value)
-
-func get_iso_floor_asset_key_for_visual_state(cell: Vector2i) -> String:
-	return FloorRendererRef.get_asset_key_for_visual_state(_grid_manager, cell)
 
 func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
@@ -1222,10 +1123,6 @@ func get_ground_surface_y_offset_for_asset_key(asset_key: String) -> float:
 	var placement: Dictionary = Dictionary(FloorRendererRef.GROUND_ASSET_PLACEMENT.get(asset_key, {}))
 	return IsoVisualAlignmentServiceRef.get_ground_top_surface_y_offset(get_iso_tile_size(), texture.get_size(), placement)
 
-func get_cell_surface_y_offset_for_floor_height(floor_height_level: String) -> float:
-	var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
-	return get_ground_surface_y_offset_for_asset_key(ground_asset_key)
-
 func get_ground_asset_key_for_cell(cell: Vector2i) -> String:
 	return FloorRendererRef.get_ground_asset_key_for_cell(_grid_manager, get_mission_manager_ref(), cell)
 
@@ -1276,9 +1173,6 @@ func draw_platform_floor_visual_for_cell(cell: Vector2i, platform_data: Dictiona
 	draw_iso_asset_alignment_overlay("platform_floor", grid_to_iso(cell) + Vector2(0.0, platform_y_offset), destination_rect)
 	return true
 
-func get_platform_data_for_floor_cell(cell: Vector2i) -> Dictionary:
-	return _get_platform_data_for_cell(cell)
-
 func _get_platform_data_for_cell(cell: Vector2i) -> Dictionary:
 	var mission_manager: Node = get_mission_manager_ref()
 	if mission_manager == null:
@@ -1318,37 +1212,8 @@ func _with_platform_visual_surface_context(object_data: Dictionary, cell: Vector
 		enriched["platform_height_level"] = int(round(float(descriptor.get("visual_level", enriched.get("platform_height_level", 0)))))
 	return enriched
 
-func _get_platform_occupants_for_cell(cell: Vector2i) -> Array[Dictionary]:
-	var occupants: Array[Dictionary] = []
-	var mission_manager: Node = get_mission_manager_ref()
-	if mission_manager == null:
-		return occupants
-	var platform_data: Dictionary = _get_platform_data_for_cell(cell)
-	if platform_data.is_empty():
-		return occupants
-	var platform_id: String = str(platform_data.get("platform_id", platform_data.get("id", ""))).strip_edges()
-	for object_variant in Array(mission_manager.get("mission_world_objects")):
-		if not (object_variant is Dictionary):
-			continue
-		var object_data: Dictionary = Dictionary(object_variant)
-		if object_data.is_empty() or PlatformTypesRef.is_platform_data(object_data):
-			continue
-		if _try_parse_cell_variant(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1)) != cell:
-			continue
-		var object_platform_id: String = str(object_data.get("platform_id", object_data.get("carried_by_platform_id", ""))).strip_edges()
-		var object_platform_cell: Vector2i = _try_parse_cell_variant(object_data.get("platform_cell", cell), cell)
-		if bool(object_data.get("on_platform", false)) or (not platform_id.is_empty() and object_platform_id == platform_id) or object_platform_cell == cell:
-			occupants.append(_with_platform_visual_surface_context(object_data, cell))
-	return occupants
-
-func get_iso_wall_asset_key_for_profile(profile_key: String) -> String:
-	return WallRendererRef.normalize_asset_key(profile_key)
-
 func get_iso_wall_asset_catalog() -> Dictionary:
 	return WallRendererRef.get_asset_catalog()
-
-func get_iso_gray_test_asset_path(asset_key: String) -> String:
-	return _visual_asset_resource_runtime.resolve_gray_test_asset_path(asset_key)
 
 func get_gray_room_visual_test_asset_validation() -> Dictionary:
 	return _visual_asset_resource_runtime.validate_gray_test_assets(
@@ -1390,38 +1255,8 @@ func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 func get_iso_wall_texture_for_profile(profile_key: String) -> Texture2D:
 	return get_iso_wall_texture_for_asset_key(normalize_wall_asset_key(profile_key))
 
-func get_iso_wall_material_base_key_for_material_row(material_row: Dictionary, fallback_profile_key: String) -> String:
-	return WallRendererRef.get_material_base_key_for_row(material_row, fallback_profile_key)
-
-func get_iso_wall_asset_key_for_material_row(material_row: Dictionary, fallback_profile_key: String) -> String:
-	return WallRendererRef.get_asset_key_for_material_row(material_row, fallback_profile_key)
-
-func normalize_test_wall_height(value: String) -> String:
-	return WallRendererRef.normalize_test_height(value)
-
-func normalize_wall_height_level(value: String) -> String:
-	return WallRendererRef.normalize_height_level(value)
-
-func normalize_wall_height_level_for_material(base_key: String, height_level: String) -> String:
-	return WallRendererRef.normalize_height_for_material(base_key, height_level)
-
-func get_wall_asset_key_for_material_and_height(material_asset_key: String, height_level: String) -> String:
-	return WallRendererRef.get_asset_key_for_material_and_height(material_asset_key, height_level)
-
-func get_raw_wall_height_value(wall_data: Dictionary) -> String:
-	return WallRendererRef.get_raw_height_value(wall_data)
-
 func get_iso_wall_depth_bounds() -> Dictionary:
 	return WallRendererRef.get_depth_bounds(_grid_manager)
-
-func resolve_auto_test_wall_height(cell: Vector2i, map_bounds: Dictionary = {}) -> String:
-	return WallRendererRef.resolve_auto_test_height(cell, map_bounds if not map_bounds.is_empty() else get_iso_wall_depth_bounds())
-
-func resolve_outer_wall_height_level(cell: Vector2i, map_bounds: Dictionary = {}) -> String:
-	return WallRendererRef.resolve_outer_height(cell, map_bounds if not map_bounds.is_empty() else get_iso_wall_depth_bounds())
-
-func get_production_wall_height_level(wall_data: Dictionary, cell: Vector2i, material_asset_key: String, map_bounds: Dictionary = {}) -> String:
-	return WallRendererRef.get_production_height_level(wall_data, cell, material_asset_key, map_bounds if not map_bounds.is_empty() else get_iso_wall_depth_bounds())
 
 func get_production_wall_asset_key(wall_data: Dictionary, cell: Vector2i, fallback_profile_key: String, map_bounds: Dictionary = {}) -> String:
 	return WallRendererRef.get_production_asset_key(wall_data, cell, fallback_profile_key, map_bounds if not map_bounds.is_empty() else get_iso_wall_depth_bounds())
@@ -1502,18 +1337,6 @@ func draw_iso_wall_asset_texture_for_cell(cell: Vector2i, profile_key: String, t
 
 func normalize_breach_side(value: String) -> String:
 	return BreachableWallServiceRef.normalize_breach_side(value)
-
-func get_breach_grid_side_for_visual_side(breach_side: String) -> String:
-	match normalize_breach_side(breach_side):
-		"sw":
-			return "south"
-		"se":
-			return "east"
-		"nw":
-			return "west"
-		"ne":
-			return "north"
-	return "south"
 
 func is_breachable_wall_material_id(material_id: String) -> bool:
 	return WallRendererRef.is_breachable_material_id(material_id)
@@ -1677,12 +1500,6 @@ func log_wall_mounted_positioning(object_data: Dictionary, render_path_name: Str
 func _get_object_mount_mode(object_data: Dictionary) -> String:
 	return ObjectRendererRef.get_mount_mode(object_data)
 
-func _is_object_state_on(object_data: Dictionary) -> bool:
-	return ObjectRendererRef.is_state_on(object_data)
-
-func _is_fuse_present(object_data: Dictionary) -> bool:
-	return ObjectRendererRef.is_fuse_present(object_data)
-
 func get_iso_object_asset_key_for_object_data(object_data: Dictionary, fallback_profile_key: String) -> String:
 	return ObjectRendererRef.get_asset_key_for_object_data(object_data, fallback_profile_key)
 
@@ -1769,16 +1586,6 @@ func should_skip_placeholder_object_texture_path_in_gray_test(texture_path: Stri
 		return false
 	return is_placeholder_object_texture_path(texture_path)
 
-func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
-	return _visual_asset_resource_runtime.get_placeholder_texture(
-		asset_key,
-		should_use_iso_placeholder_asset_preset(),
-		should_skip_placeholder_object_texture_in_gray_test(asset_key)
-	)
-
-func clear_iso_placeholder_texture_cache() -> void:
-	_visual_asset_resource_runtime.clear_all_caches()
-
 func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 	match asset_key:
 		"floor_default":
@@ -1858,443 +1665,6 @@ func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 		"placeholder_enabled": should_use_iso_placeholder_asset_preset(),
 		"skip_placeholder": should_skip_placeholder_object_texture_in_gray_test(normalized_asset_key)
 	})
-func has_iso_texture_for_asset_key(asset_key: String) -> bool:
-	return get_iso_texture_for_asset_key(asset_key) != null
-
-func get_iso_visual_layer_debug_state() -> Dictionary:
-	return {
-		"floor_enabled": should_render_iso_floor_visuals(),
-		"wall_enabled": should_render_iso_wall_visuals(),
-		"object_enabled": should_render_iso_object_visuals(),
-		"fog_enabled": should_render_iso_fog_visuals(),
-		"fog_overlay_will_draw": should_draw_iso_fog_cell_shapes(),
-		"fog_cell_shapes_enabled": iso_fog_draw_cell_shapes,
-		"constructor_fog_suppressed": should_suppress_iso_fog_for_constructor(),
-		"asset_hooks_enabled": should_use_iso_tile_asset_hook_visuals(),
-		"placeholder_assets_enabled": should_use_iso_placeholder_asset_preset(),
-		"preview_active": is_iso_visual_preview_active(),
-		"debug_marker": debug_draw_marker,
-		"helper_preview": debug_draw_iso_helper_preview,
-		"fog_outlines": debug_draw_iso_fog_outlines,
-		"cell_outlines": debug_draw_iso_cell_outlines,
-		"wall_outlines": debug_draw_iso_wall_outlines,
-		"object_outlines": debug_draw_iso_object_outlines,
-		"asset_alignment_overlay": show_asset_alignment_overlay,
-		"gray_test_asset_validation": get_gray_room_visual_test_asset_validation()
-	}
-
-func get_iso_visual_texture_debug_state() -> Dictionary:
-	var texture_keys: Array[String] = get_iso_visual_texture_debug_keys()
-	var explicit_textures: Dictionary = {}
-	for texture_key in texture_keys:
-		explicit_textures[texture_key] = get_explicit_iso_texture_for_asset_key(texture_key)
-	return _visual_asset_resource_runtime.build_texture_debug_state(texture_keys, {
-		"explicit_textures": explicit_textures,
-		"placeholder_enabled": should_use_iso_placeholder_asset_preset(),
-		"gray_test_enabled": use_gray_room_visual_test_assets,
-		"floor_test_asset_key": FloorRendererRef.FLOOR_TEST_ASSET_KEY,
-		"wall_catalog": get_iso_wall_asset_catalog(),
-		"ground_catalog": FloorRendererRef.GROUND_ASSET_CATALOG
-	})
-
-func validate_iso_object_png_assets() -> Dictionary:
-	return _visual_asset_resource_runtime.validate_object_png_assets(
-		VisualAssetCatalogScript.get_canonical_object_visual_ids()
-	)
-
-func get_iso_visual_texture_debug_keys() -> Array[String]:
-	return [
-		"floor_concrete", "floor_steel", "floor_titan", "floor_default", "floor_stepped", "floor_clean_lab", "floor_dark_service", "floor_hazard", "floor_power", "floor_damaged", "floor_reinforced", "floor_diagnostic", "floor_door_underlay",
-		"ground_low", "ground_halflow",
-		"wall_concrete_low", "wall_concrete_halflow", "wall_concrete_mid", "wall_concrete_halfmid", "wall_concrete_tall",
-		"wall_steel_low", "wall_steel_halflow", "wall_steel_mid", "wall_steel_halfmid", "wall_steel_tall",
-		"wall_titan_low", "wall_titan_halflow", "wall_titan_mid", "wall_titan_halfmid", "wall_titan_tall",
-		"wall_reinforced_steel_low", "wall_reinforced_steel_halflow", "wall_reinforced_steel_mid", "wall_reinforced_steel_halfmid", "wall_reinforced_steel_tall",
-		"wall_brick_low", "wall_brick_halflow", "wall_brick_mid", "wall_brick_halfmid", "wall_brick_tall",
-		"wall_outer_low", "wall_outer_halflow", "wall_outer_mid", "wall_outer_halfmid", "wall_outer_tall",
-		"wall_grate_mid", "wall_grate_halfmid", "wall_grate_tall",
-		"object_door", "object_terminal", "object_key", "object_component", "object_socket", "object_cable", "object_generic",
-		"object_fuse", "object_repair_kit", "object_keycard", "object_access_code", "object_cable_reel", "object_button", "object_switch",
-		"power_source_01", "terminal_01", "radiator_01", "radiator_floor_01", "light_01", "light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01", "cable_reel_01", "cable_reel_02",
-		"fuse_box_in_01", "fuse_box_out_01", "fuse_box_in_wall_01", "fuse_box_out_wall_01",
-		"barrel_01", "fire_barrel_01", "normal_barrel_floor_01", "fire_barrel_floor_01",
-		"normal_crate_floor_01", "radiator_floor_01"
-	]
-
-
-func get_iso_asset_alignment_diagnostics() -> Dictionary:
-	var missing_alignment_rules: Array[String] = []
-	var unused_alignment_rules: Array[String] = []
-	var scale_overrides: Dictionary = {}
-
-	var known_object_asset_keys: Dictionary = {}
-	var all_asset_paths: Dictionary = VisualAssetCatalogScript.get_all_asset_paths()
-
-	for asset_key_variant in all_asset_paths.keys():
-		var asset_key: String = str(asset_key_variant)
-		var asset_path: String = str(all_asset_paths.get(asset_key, ""))
-
-		if asset_path.find("/objects/") >= 0 or asset_path.find("/moovable/") >= 0:
-			known_object_asset_keys[asset_key] = true
-		elif asset_path.find("/placeholders/") >= 0 and asset_key.begins_with("object_"):
-			known_object_asset_keys[asset_key] = true
-
-	for rule_key in IsoAssetAlignmentPolicyRef.get_alignment_rule_ids():
-		var rule: Dictionary = IsoAssetAlignmentPolicyRef.get_alignment_rule(rule_key)
-
-		if not known_object_asset_keys.has(rule_key):
-			unused_alignment_rules.append(rule_key)
-
-		var scale_value: float = IsoAssetAlignmentPolicyRef.get_rule_scale(rule, 1.0)
-		if not is_equal_approx(scale_value, 1.0):
-			scale_overrides[rule_key] = scale_value
-
-	for asset_key_variant in known_object_asset_keys.keys():
-		var asset_key: String = str(asset_key_variant)
-		if not IsoAssetAlignmentPolicyRef.has_alignment_rule(asset_key):
-			missing_alignment_rules.append(asset_key)
-
-	return {
-		"missing_alignment_rules": missing_alignment_rules,
-		"unused_alignment_rules": unused_alignment_rules,
-		"scale_overrides": scale_overrides
-	}
-
-func _increment_iso_debug_count(counts: Dictionary, key: String) -> void:
-	if key.is_empty():
-		return
-	var current_value: int = int(counts.get(key, 0))
-	counts[key] = current_value + 1
-
-func get_iso_visual_cell_stats() -> Dictionary:
-	var stats: Dictionary = {
-		"has_grid_manager": _grid_manager != null,
-		"map_width": 0,
-		"map_height": 0,
-		"total_cells": 0,
-		"floor_like_cells": 0,
-		"wall_cells": 0,
-		"object_cells": 0,
-		"fog_overlay_cells": 0,
-		"visible_cells": 0,
-		"explored_cells": 0,
-		"unexplored_cells": 0,
-		"tile_type_counts": {},
-		"object_profile_counts": {},
-		"wall_profile_counts": {},
-		"floor_profile_counts": {},
-		"floor_height_counts": {},
-		"asset_key_counts": {}
-	}
-	if _grid_manager == null:
-		return stats
-
-	var map_width: int = _grid_manager.get_map_width()
-	var map_height: int = _grid_manager.get_map_height()
-	stats["map_width"] = map_width
-	stats["map_height"] = map_height
-	var total_cells: int = maxi(map_width, 0) * maxi(map_height, 0)
-	stats["total_cells"] = total_cells
-
-	var tile_type_counts: Dictionary = Dictionary(stats.get("tile_type_counts", {}))
-	var object_profile_counts: Dictionary = Dictionary(stats.get("object_profile_counts", {}))
-	var wall_profile_counts: Dictionary = Dictionary(stats.get("wall_profile_counts", {}))
-	var floor_profile_counts: Dictionary = Dictionary(stats.get("floor_profile_counts", {}))
-	var floor_height_counts: Dictionary = Dictionary(stats.get("floor_height_counts", {}))
-	var asset_key_counts: Dictionary = Dictionary(stats.get("asset_key_counts", {}))
-	var mission_manager: Node = get_mission_manager_ref()
-
-	for y in range(map_height):
-		for x in range(map_width):
-			var cell: Vector2i = Vector2i(x, y)
-			var tile_type: int = _grid_manager.get_tile(cell)
-			_increment_iso_debug_count(tile_type_counts, str(tile_type))
-
-			if is_floor_like_tile(tile_type):
-				stats["floor_like_cells"] = int(stats.get("floor_like_cells", 0)) + 1
-				_increment_iso_debug_count(floor_profile_counts, get_iso_floor_visual_profile_key_for_cell(cell))
-				_increment_iso_debug_count(asset_key_counts, get_iso_floor_asset_key_for_tile(tile_type))
-				var floor_height_level: String = ""
-				if mission_manager != null and mission_manager.has_method("get_map_constructor_floor_material_for_cell"):
-					var floor_material_result: Dictionary = _safe_variant_dictionary(mission_manager.call("get_map_constructor_floor_material_for_cell", cell))
-					if bool(floor_material_result.get("ok", false)):
-						var floor_override: Dictionary = _safe_variant_dictionary(floor_material_result.get("override", {}))
-						floor_height_level = normalize_floor_height_level(str(floor_override.get("floor_height", floor_override.get("floor_visual_height", floor_override.get("ground_height", "")))))
-				if floor_height_level.is_empty() and _grid_manager != null and _grid_manager.has_method("get_floor_height_for_cell"):
-					floor_height_level = normalize_floor_height_level(str(_grid_manager.call("get_floor_height_for_cell", cell)))
-				var floor_height_count_key: String = "default"
-				if not floor_height_level.is_empty():
-					floor_height_count_key = floor_height_level
-				_increment_iso_debug_count(floor_height_counts, floor_height_count_key)
-				var ground_asset_key: String = get_iso_ground_asset_key_for_floor_height(floor_height_level)
-				if not ground_asset_key.is_empty():
-					_increment_iso_debug_count(asset_key_counts, ground_asset_key)
-			if is_wall_tile(tile_type):
-				stats["wall_cells"] = int(stats.get("wall_cells", 0)) + 1
-				var wall_profile_key: String = get_wall_visual_profile_key_for_cell(cell)
-				var wall_material_override: Dictionary = _get_wall_material_override_for_cell(cell)
-				var wall_asset_key: String = get_production_wall_asset_key(wall_material_override, cell, wall_profile_key, get_iso_wall_depth_bounds())
-				if use_gray_room_visual_test_assets:
-					wall_asset_key = get_test_wall_height_asset_key(wall_material_override, cell, get_iso_wall_depth_bounds())
-				_increment_iso_debug_count(wall_profile_counts, wall_profile_key)
-				_increment_iso_debug_count(asset_key_counts, wall_asset_key)
-			if is_iso_object_tile(tile_type):
-				stats["object_cells"] = int(stats.get("object_cells", 0)) + 1
-				var object_profile_key: String = get_iso_object_profile_key_for_tile(tile_type)
-				_increment_iso_debug_count(object_profile_counts, object_profile_key)
-				_increment_iso_debug_count(asset_key_counts, get_iso_object_asset_key_for_profile(object_profile_key))
-			if should_draw_iso_fog_for_cell(cell):
-				stats["fog_overlay_cells"] = int(stats.get("fog_overlay_cells", 0)) + 1
-
-			if _grid_manager.has_method("is_cell_visible") and _grid_manager.is_cell_visible(cell):
-				stats["visible_cells"] = int(stats.get("visible_cells", 0)) + 1
-			if _grid_manager.has_method("is_explored") and _grid_manager.is_explored(cell):
-				stats["explored_cells"] = int(stats.get("explored_cells", 0)) + 1
-
-	stats["unexplored_cells"] = int(stats.get("total_cells", 0)) - int(stats.get("explored_cells", 0))
-	stats["tile_type_counts"] = tile_type_counts
-	stats["object_profile_counts"] = object_profile_counts
-	stats["wall_profile_counts"] = wall_profile_counts
-	stats["floor_profile_counts"] = floor_profile_counts
-	stats["floor_height_counts"] = floor_height_counts
-	stats["asset_key_counts"] = asset_key_counts
-	return stats
-
-func get_iso_visual_cell_stats_text() -> String:
-	var stats: Dictionary = get_iso_visual_cell_stats()
-	var lines: Array[String] = []
-	var asset_key_counts: Dictionary = Dictionary(stats.get("asset_key_counts", {}))
-	lines.append("IsoVisualCellStats:")
-	lines.append("Grid:")
-	lines.append("- has_grid_manager: %s" % str(stats.get("has_grid_manager", false)))
-	lines.append("- map_size: %sx%s" % [str(stats.get("map_width", 0)), str(stats.get("map_height", 0))])
-	lines.append("- total_cells: %s" % str(stats.get("total_cells", 0)))
-	lines.append("Cells:")
-	lines.append("- floor_like: %s" % str(stats.get("floor_like_cells", 0)))
-	lines.append("- walls: %s" % str(stats.get("wall_cells", 0)))
-	lines.append("- objects: %s" % str(stats.get("object_cells", 0)))
-	lines.append("- fog_overlay: %s" % str(stats.get("fog_overlay_cells", 0)))
-	lines.append("- visible: %s" % str(stats.get("visible_cells", 0)))
-	lines.append("- explored: %s" % str(stats.get("explored_cells", 0)))
-	lines.append("- unexplored: %s" % str(stats.get("unexplored_cells", 0)))
-	lines.append("Asset keys:")
-	for asset_key in asset_key_counts.keys():
-		lines.append("- %s: %s" % [str(asset_key), str(asset_key_counts.get(asset_key, 0))])
-	var floor_height_counts: Dictionary = Dictionary(stats.get("floor_height_counts", {}))
-	lines.append("Floor heights:")
-	for floor_height_key in floor_height_counts.keys():
-		lines.append("- %s: %s" % [str(floor_height_key), str(floor_height_counts.get(floor_height_key, 0))])
-	return "\n".join(lines)
-
-func validate_iso_visual_cell_stats() -> Array[String]:
-	var warnings: Array[String] = []
-	var stats: Dictionary = get_iso_visual_cell_stats()
-	if not bool(stats.get("has_grid_manager", false)):
-		warnings.append("iso_cell_stats_missing_grid_manager")
-	if int(stats.get("map_width", 0)) <= 0 or int(stats.get("map_height", 0)) <= 0:
-		warnings.append("iso_cell_stats_empty_map")
-	if int(stats.get("total_cells", 0)) > 0 and int(stats.get("floor_like_cells", 0)) <= 0:
-		warnings.append("iso_cell_stats_no_floor_like_cells")
-	if int(stats.get("total_cells", 0)) > 0 and int(stats.get("wall_cells", 0)) <= 0:
-		warnings.append("iso_cell_stats_no_wall_cells")
-	if int(stats.get("total_cells", 0)) > 0 and int(stats.get("object_cells", 0)) <= 0:
-		warnings.append("iso_cell_stats_no_object_cells")
-	if is_iso_visual_preview_active() and (
-		int(stats.get("floor_like_cells", 0))
-		+ int(stats.get("wall_cells", 0))
-		+ int(stats.get("object_cells", 0))
-	) <= 0:
-		warnings.append("iso_cell_stats_preview_enabled_but_no_visual_cells")
-	return warnings
-
-func get_iso_visual_cell_stats_validation_text() -> String:
-	var warnings: Array[String] = validate_iso_visual_cell_stats()
-	if warnings.is_empty():
-		return "IsoVisualCellStatsValidation: ok"
-	var lines: Array[String] = ["IsoVisualCellStatsValidation:"]
-	for warning_key in warnings:
-		lines.append("- %s" % warning_key)
-	return "\n".join(lines)
-
-func get_iso_visual_debug_report() -> Dictionary:
-	var has_grid_manager: bool = _grid_manager != null
-	var map_width: int = 0
-	var map_height: int = 0
-	var legacy_grid_should_draw: bool = false
-	if has_grid_manager:
-		map_width = _grid_manager.get_map_width()
-		map_height = _grid_manager.get_map_height()
-		legacy_grid_should_draw = false
-	var iso_active: bool = is_iso_renderer_active()
-	var floor_enabled: bool = should_render_iso_floor_visuals()
-	var wall_enabled: bool = should_render_iso_wall_visuals()
-	var object_enabled: bool = should_render_iso_object_visuals()
-	var fog_enabled: bool = should_render_iso_fog_visuals()
-	var fog_overlay_will_draw: bool = should_draw_iso_fog_cell_shapes()
-	var constructor_fog_suppressed: bool = should_suppress_iso_fog_for_constructor()
-	var duplicate_overlay_risk: bool = is_iso_visual_preview_active() and (floor_enabled or wall_enabled or object_enabled) and fog_overlay_will_draw
-	var ground_low_path: String = FloorRendererRef.GROUND_ASSET_PACK_DIR + str(FloorRendererRef.GROUND_ASSET_CATALOG.get("ground_low", ""))
-	var ground_halflow_path: String = FloorRendererRef.GROUND_ASSET_PACK_DIR + str(FloorRendererRef.GROUND_ASSET_CATALOG.get("ground_halflow", ""))
-	return {
-		"single_render_path": not (legacy_grid_should_draw and iso_active),
-		"legacy_grid_should_draw": legacy_grid_should_draw,
-		"iso_renderer_active": iso_active,
-		"placeholder_assets_enabled": should_use_iso_placeholder_asset_preset(),
-		"procedural_wall_under_texture_enabled": false,
-		"ground_assets_enabled": floor_enabled,
-		"ground_low_loaded": _visual_asset_resource_runtime.resource_exists(ground_low_path),
-		"ground_halflow_loaded": _visual_asset_resource_runtime.resource_exists(ground_halflow_path),
-		"fog_enabled": fog_enabled,
-		"fog_overlay_will_draw": fog_overlay_will_draw,
-		"fog_cell_shapes_enabled": iso_fog_draw_cell_shapes,
-		"constructor_fog_suppressed": constructor_fog_suppressed,
-		"duplicate_overlay_risk": duplicate_overlay_risk,
-		"layers": get_iso_visual_layer_debug_state(),
-		"preview": get_iso_visual_preview_state(),
-		"textures": get_iso_visual_texture_debug_state(),
-		"asset_alignment": get_iso_asset_alignment_diagnostics(),
-		"object_png_assets": validate_iso_object_png_assets(),
-		"cell_stats": get_iso_visual_cell_stats(),
-		"iso_settings": {
-			"projection_mode": get_iso_projection_mode(),
-			"projection_diagnostic": get_iso_projection_diagnostic_text(),
-			"tile_width": get_iso_tile_size().x,
-			"tile_height": get_iso_tile_size().y,
-			"tile_ratio": get_iso_tile_size().x / maxf(get_iso_tile_size().y, 1.0),
-			"exported_tile_size_matches_active_mode": get_iso_exported_tile_size_matches_active_mode(),
-			"custom_tile_width": iso_tile_width,
-			"custom_tile_height": iso_tile_height,
-			"wall_height": iso_wall_height,
-			"object_marker_height": iso_object_marker_height,
-			"origin": iso_origin
-		},
-		"grid": {
-			"has_grid_manager": has_grid_manager,
-			"map_width": map_width,
-			"map_height": map_height
-		}
-	}
-
-func get_iso_visual_debug_report_text() -> String:
-	var report: Dictionary = get_iso_visual_debug_report()
-	var lines: Array[String] = []
-	var layers: Dictionary = Dictionary(report.get("layers", {}))
-	var preview: Dictionary = Dictionary(report.get("preview", {}))
-	var textures: Dictionary = Dictionary(report.get("textures", {}))
-	var cell_stats: Dictionary = Dictionary(report.get("cell_stats", {}))
-	var asset_alignment: Dictionary = Dictionary(report.get("asset_alignment", {}))
-	var object_png_assets: Dictionary = Dictionary(report.get("object_png_assets", {}))
-	var grid: Dictionary = Dictionary(report.get("grid", {}))
-	var iso_settings: Dictionary = Dictionary(report.get("iso_settings", {}))
-	lines.append("IsoVisualDebugReport:")
-	lines.append("Single render path:")
-	lines.append("- ok: %s" % str(report.get("single_render_path", false)))
-	lines.append("- legacy_grid_should_draw: %s" % str(report.get("legacy_grid_should_draw", false)))
-	lines.append("- iso_renderer_active: %s" % str(report.get("iso_renderer_active", false)))
-	lines.append("- placeholder_assets_enabled: %s" % str(report.get("placeholder_assets_enabled", false)))
-	lines.append("- procedural_wall_under_texture_enabled: %s" % str(report.get("procedural_wall_under_texture_enabled", false)))
-	lines.append("- ground_assets_enabled: %s" % str(report.get("ground_assets_enabled", false)))
-	lines.append("- ground_low_loaded: %s" % str(report.get("ground_low_loaded", false)))
-	lines.append("- ground_halflow_loaded: %s" % str(report.get("ground_halflow_loaded", false)))
-	lines.append("Fog overlay diagnostics:")
-	lines.append("- fog_enabled: %s" % str(report.get("fog_enabled", false)))
-	lines.append("- fog_overlay_will_draw: %s" % str(report.get("fog_overlay_will_draw", false)))
-	lines.append("- fog_cell_shapes_enabled: %s" % str(report.get("fog_cell_shapes_enabled", false)))
-	lines.append("- constructor_fog_suppressed: %s" % str(report.get("constructor_fog_suppressed", false)))
-	lines.append("- duplicate_overlay_risk: %s" % str(report.get("duplicate_overlay_risk", false)))
-	lines.append("Layers:")
-	lines.append("- floor: %s" % str(layers.get("floor_enabled", false)))
-	lines.append("- wall: %s" % str(layers.get("wall_enabled", false)))
-	lines.append("- objects: %s" % str(layers.get("object_enabled", false)))
-	lines.append("- fog: %s" % str(layers.get("fog_enabled", false)))
-	lines.append("- asset_hooks: %s" % str(layers.get("asset_hooks_enabled", false)))
-	lines.append("- placeholder_assets: %s" % str(layers.get("placeholder_assets_enabled", false)))
-	lines.append("- asset_alignment_overlay: %s" % str(layers.get("asset_alignment_overlay", false)))
-	lines.append("Preview:")
-	lines.append("- active: %s" % str(preview.get("preview_active", false)))
-	lines.append("- includes_fog: %s" % str(iso_visual_preview_includes_fog))
-	lines.append("- includes_asset_hooks: %s" % str(iso_visual_preview_includes_asset_hooks))
-	lines.append("Asset alignment:")
-	lines.append("- ok: %s" % str(asset_alignment.get("ok", false)))
-	lines.append("- assets/rules: %s/%s" % [str(asset_alignment.get("asset_count", 0)), str(asset_alignment.get("rule_count", 0))])
-	lines.append("- missing_rules: %s" % str(asset_alignment.get("missing_alignment_rules", [])))
-	lines.append("Object PNG assets:")
-	lines.append("- ok: %s" % str(object_png_assets.get("ok", false)))
-	lines.append("- asset_count: %s" % str(object_png_assets.get("asset_count", 0)))
-	lines.append("- missing_paths: %s" % str(object_png_assets.get("missing_paths", [])))
-	lines.append("- invalid_textures: %s" % str(object_png_assets.get("invalid_textures", [])))
-	lines.append("- svg_conflicts: %s" % str(object_png_assets.get("svg_conflicts", [])))
-	lines.append("Textures:")
-	for texture_key in get_iso_visual_texture_debug_keys():
-		var texture_entry: Dictionary = Dictionary(textures.get(texture_key, {}))
-		lines.append("- %s: %s" % [texture_key, str(texture_entry.get("active_texture_source", "none"))])
-	lines.append("Grid:")
-	lines.append("- has_grid_manager: %s" % str(grid.get("has_grid_manager", false)))
-	lines.append("- map_size: %sx%s" % [str(grid.get("map_width", 0)), str(grid.get("map_height", 0))])
-	lines.append("Cell stats:")
-	lines.append("- floor_like: %s" % str(cell_stats.get("floor_like_cells", 0)))
-	lines.append("- floor_height_counts: %s" % str(cell_stats.get("floor_height_counts", {})))
-	lines.append("- walls: %s" % str(cell_stats.get("wall_cells", 0)))
-	lines.append("- objects: %s" % str(cell_stats.get("object_cells", 0)))
-	lines.append("- fog_overlay: %s" % str(cell_stats.get("fog_overlay_cells", 0)))
-	lines.append("Iso:")
-	lines.append("- %s" % str(iso_settings.get("projection_diagnostic", get_iso_projection_diagnostic_text())))
-	lines.append("- projection: %s" % str(iso_settings.get("projection_mode", ISO_PROJECTION_STANDARD)))
-	lines.append("- tile: %sx%s" % [str(iso_settings.get("tile_width", 0.0)), str(iso_settings.get("tile_height", 0.0))])
-	lines.append("- ratio: %.4f" % float(iso_settings.get("tile_ratio", 0.0)))
-	lines.append("- exported_match: %s" % str(iso_settings.get("exported_tile_size_matches_active_mode", false)))
-	lines.append("- wall_height: %s" % str(iso_settings.get("wall_height", 0.0)))
-	lines.append("- object_marker_height: %s" % str(iso_settings.get("object_marker_height", 0.0)))
-	return "\n".join(lines)
-
-func validate_iso_visual_debug_report() -> Array[String]:
-	var warnings: Array[String] = []
-
-	if get_iso_tile_size().x <= 0.0:
-		warnings.append("iso_tile_width_invalid")
-
-	if get_iso_tile_size().y <= 0.0:
-		warnings.append("iso_tile_height_invalid")
-
-	if iso_wall_height <= 0.0:
-		warnings.append("iso_wall_height_invalid")
-
-	if iso_object_marker_height <= 0.0:
-		warnings.append("iso_object_marker_height_invalid")
-
-	if use_iso_placeholder_asset_preset and get_iso_placeholder_asset_path("object_generic").is_empty():
-		warnings.append("iso_placeholder_asset_paths_missing")
-
-	var alignment_diagnostics: Dictionary = get_iso_asset_alignment_diagnostics()
-	if not bool(alignment_diagnostics.get("ok", false)):
-		warnings.append("iso_asset_alignment_rules_missing")
-
-	var object_png_diagnostics: Dictionary = validate_iso_object_png_assets()
-	if not bool(object_png_diagnostics.get("ok", false)):
-		warnings.append("iso_object_png_assets_invalid")
-
-	if use_iso_placeholder_asset_preset and iso_placeholder_asset_preset_requires_preview and not is_iso_visual_preview_active():
-		warnings.append("iso_placeholder_preset_waiting_for_preview")
-
-	var debug_report: Dictionary = get_iso_visual_debug_report()
-	if not bool(debug_report.get("single_render_path", false)):
-		warnings.append("iso_single_render_path_conflict")
-
-	var cell_stat_warnings: Array[String] = validate_iso_visual_cell_stats()
-	for warning_key in cell_stat_warnings:
-		warnings.append(warning_key)
-
-	return warnings
-
-func get_iso_visual_debug_validation_text() -> String:
-	var warnings: Array[String] = validate_iso_visual_debug_report()
-	if warnings.is_empty():
-		return "IsoVisualDebugValidation: ok"
-	var lines: Array[String] = ["IsoVisualDebugValidation:"]
-	for warning_key in warnings:
-		lines.append("- %s" % warning_key)
-	return "\n".join(lines)
-
 func _get_color_from_dict(data: Dictionary, key: String, fallback: Color) -> Color:
 	var value: Variant = data.get(key, fallback)
 	if value is Color:
@@ -2367,23 +1737,6 @@ func _parse_visual_pivot(value: Variant, fallback: Vector2) -> Vector2:
 		return Vector2(float(dict.get("x", fallback.x)), float(dict.get("y", fallback.y)))
 	return fallback
 
-func get_wall_mount_height_screen_px(source_height_px: float) -> float:
-	return source_height_px * (get_iso_tile_size().x / ISO_OBJECT_SOURCE_CANVAS_WIDTH)
-
-func get_wall_mounted_object_height_source_px(object_data: Dictionary, asset_key: String) -> float:
-	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
-	var object_type: String = str(object_data.get("object_type", object_data.get("type", ""))).strip_edges().to_lower()
-	var blob: String = "%s %s" % [object_type, normalized_asset_key]
-	if normalized_asset_key == "light_01" or normalized_asset_key.begins_with("light_") or LightVisualServiceRef.is_light_object(object_data):
-		return WALL_MOUNT_HEIGHT_LIGHT_SOURCE_PX
-	if normalized_asset_key.contains("fuse_box") or blob.contains("fuse_box"):
-		return WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX
-	if normalized_asset_key.contains("power_switcher") or blob.contains("power_switcher") or blob.contains("switch"):
-		return WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX
-	if blob.contains("power_socket") or blob.contains("socket"):
-		return WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX
-	return WALL_MOUNT_HEIGHT_DEVICE_SOURCE_PX
-
 func normalize_wall_visual_side(object_data: Dictionary) -> String:
 	var candidates: Array[String] = [
 		str(object_data.get("wall_side", "")),
@@ -2407,64 +1760,8 @@ func normalize_wall_visual_side(object_data: Dictionary) -> String:
 
 	return "sw"
 
-func get_wall_mount_side_visual_offset(object_data: Dictionary) -> Vector2:
-	var side: String = normalize_wall_visual_side(object_data)
-	var half_size: Vector2 = get_iso_tile_half_size()
-
-	# Wall-mounted objects are drawn on one of the two visible wall planes.
-	# SW shifts toward the left wall plane, SE toward the right wall plane.
-	if side == "se":
-		return Vector2(half_size.x * 0.36, -half_size.y * 0.18)
-
-	return Vector2(-half_size.x * 0.36, -half_size.y * 0.18)
-
-func _draw_route_commands(commands: Array[Dictionary], fallback_profile: Dictionary = {}) -> bool:
-	for command in commands:
-		match str(command.get("kind", "")):
-			"line":
-				var start_value: Variant = command.get("start", null)
-				var end_value: Variant = command.get("end", null)
-				var color_value: Variant = command.get("color", null)
-				if start_value is Vector2 and end_value is Vector2 and color_value is Color:
-					draw_line(Vector2(start_value), Vector2(end_value), Color(color_value), float(command.get("width", 1.0)), bool(command.get("antialiased", true)))
-			"circle":
-				var center_value: Variant = command.get("center", null)
-				var circle_color_value: Variant = command.get("color", null)
-				if center_value is Vector2 and circle_color_value is Color:
-					draw_circle(Vector2(center_value), float(command.get("radius", 1.0)), Color(circle_color_value))
-			"polyline":
-				var raw_points: Variant = command.get("points", PackedVector2Array())
-				var polyline_color_value: Variant = command.get("color", null)
-				var points := PackedVector2Array()
-				if raw_points is PackedVector2Array:
-					points = PackedVector2Array(raw_points)
-				elif raw_points is Array:
-					for point_value in Array(raw_points):
-						if point_value is Vector2 or point_value is Vector2i:
-							points.append(Vector2(point_value))
-				if points.size() >= 2 and polyline_color_value is Color:
-					draw_polyline(points, Color(polyline_color_value), float(command.get("width", 1.0)), bool(command.get("antialiased", true)))
-			"arc":
-				var arc_center_value: Variant = command.get("center", null)
-				var arc_color_value: Variant = command.get("color", null)
-				if arc_center_value is Vector2 and arc_color_value is Color:
-					draw_arc(Vector2(arc_center_value), float(command.get("radius", 1.0)), float(command.get("start_angle", 0.0)), float(command.get("end_angle", TAU)), int(command.get("point_count", 24)), Color(arc_color_value), float(command.get("width", 1.0)), bool(command.get("antialiased", true)))
-			"wall_cable_segment":
-				var segment_start_value: Variant = command.get("start", null)
-				var segment_end_value: Variant = command.get("end", null)
-				if not (segment_start_value is Vector2) or not (segment_end_value is Vector2):
-					continue
-				var profile: Dictionary = fallback_profile
-				if command.get("profile", {}) is Dictionary:
-					profile = Dictionary(command.get("profile", {}))
-				draw_iso_cable_wall_segment(Vector2(segment_start_value), Vector2(segment_end_value), profile)
-	return not commands.is_empty()
-
 func get_wall_routing_mode(object_data: Dictionary) -> String:
 	return RouteRendererRef.normalize_wall_routing_mode(object_data)
-
-func is_floor_cable_object(object_data: Dictionary) -> bool:
-	return _get_wall_routed_object_family(object_data) == "cable" and get_cable_install_mode(object_data) == "floor"
 
 func is_wall_cable_object(object_data: Dictionary) -> bool:
 	if _get_wall_routed_object_family(object_data) != "cable":
@@ -2482,30 +1779,12 @@ func is_wall_cable_object(object_data: Dictionary) -> bool:
 		or _get_object_mount_mode(object_data) == "wall"
 	)
 
-func is_hidden_floor_cable_object(object_data: Dictionary) -> bool:
-	return _get_wall_routed_object_family(object_data) == "cable" and get_cable_install_mode(object_data) == "hidden"
-
 func get_cable_wall_side(object_data: Dictionary) -> String:
 	return normalize_wall_visual_side(object_data)
 
 func get_cable_wall_routing_mode(object_data: Dictionary) -> String:
 	return get_wall_routing_mode(object_data)
 
-
-func _get_wall_cable_face_center(cell: Vector2i, side: String) -> Vector2:
-	var center: Vector2 = grid_to_iso(cell)
-	var half_size: Vector2 = get_iso_tile_half_size()
-	match side:
-		"se":
-			return center + Vector2(half_size.x * 0.36, -half_size.y * 0.18)
-		_:
-			return center + Vector2(-half_size.x * 0.36, -half_size.y * 0.18)
-
-func _get_wall_cable_rail_height_px() -> float:
-	return maxf(iso_wall_height * WALL_CABLE_RAIL_Y_RATIO, 1.0)
-
-func _get_wall_cable_visual_axis_for_side(wall_side: String) -> Vector2:
-	return RouteRendererRef.get_wall_visual_axis_for_side(wall_side)
 
 func _get_wall_cable_rail_anchor(cell: Vector2i, side: String) -> Vector2:
 	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, side)
@@ -2531,28 +1810,8 @@ func _is_wall_cable_face_visible(cell: Vector2i, face: String) -> bool:
 	# Грань видима только если снаружи этой грани нет другой wall-cell.
 	return not _cell_has_wall_for_iso_cable(occluder_cell)
 	
-func _is_wall_cable_broken(object_data: Dictionary) -> bool:
-	return RouteRendererRef.is_broken_route(object_data)
-
-func _draw_wall_cable_broken_overlay_segment(start_edge: Vector2, end_edge: Vector2, normal: Vector2, profile: Dictionary) -> void:
-	_draw_route_commands(RouteRendererRef.build_wall_cable_commands(start_edge, end_edge, normal, profile, true), profile)
-
-func _draw_wall_cable_break_overlay(cell: Vector2i, face: String, profile: Dictionary) -> bool:
-	if not _is_wall_cable_face_visible(cell, face):
-		return false
-	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
-	return _draw_route_commands(RouteRendererRef.build_wall_break_overlay_commands(segment, profile), profile)
-
-func _draw_wall_cable_broken_end(anchor: Vector2, away_from_gap: Vector2, normal: Vector2, profile: Dictionary) -> void:
-	_draw_route_commands(RouteRendererRef.build_wall_broken_end_commands(anchor, away_from_gap, normal, profile), profile)
-
 func _get_wall_cable_face_line_segment(cell: Vector2i, face: String) -> Dictionary:
 	return RouteRendererRef.build_wall_face_segment(grid_to_iso(cell), get_iso_tile_half_size(), face, 50.0)
-
-func _draw_wall_cable_face_half_segment(start: Vector2, end: Vector2, normal: Vector2, routing_mode: String, profile: Dictionary) -> void:
-	if routing_mode.strip_edges().to_lower() == "inner":
-		return
-	_draw_route_commands(RouteRendererRef.build_wall_cable_commands(start, end, normal, profile, false), profile)
 
 func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: String, profile: Dictionary, object_data: Dictionary = {}) -> bool:
 	if not _is_wall_cable_face_visible(cell, face):
@@ -2567,7 +1826,7 @@ func _draw_wall_cable_face_segment(cell: Vector2i, face: String, routing_mode: S
 		profile,
 		RouteRendererRef.is_broken_route(object_data)
 	)
-	_draw_route_commands(commands, profile)
+	_draw_canvas_commands(commands, profile)
 	return true
 
 func _draw_wall_cable_faces_for_cell(cell: Vector2i, object_data: Dictionary, profile: Dictionary) -> bool:
@@ -2612,10 +1871,6 @@ func draw_wall_cable_visual_path(cell: Vector2i, object_data: Dictionary, _visua
 	_draw_wall_cable_faces_for_cell(cell, object_data, profile)
 	return true
 	
-func _get_cable_object_cell(object_data: Dictionary) -> Vector2i:
-	return _try_parse_cell_variant(object_data.get("position", object_data.get("cell", Vector2i(-1, -1))), Vector2i(-1, -1))
-
-
 func _get_wall_routed_object_family(object_data: Dictionary) -> String:
 	return RouteRendererRef.get_route_family(object_data)
 
@@ -2628,22 +1883,6 @@ func get_wall_routed_height_source_px(object_data: Dictionary) -> float:
 func get_wall_route_segment_points(visual_center: Vector2, object_data: Dictionary, _source_height_px: float) -> Dictionary:
 	return RouteRendererRef.build_wall_route_segment(visual_center, get_iso_tile_half_size(), normalize_wall_visual_side(object_data))
 
-func _draw_wall_routed_dashed_line(start: Vector2, end: Vector2, dash_length: float, gap_length: float, color: Color, width: float) -> void:
-	var delta: Vector2 = end - start
-	var length: float = delta.length()
-	if length <= 0.1:
-		return
-	var direction: Vector2 = delta / length
-	var cursor: float = 0.0
-	while cursor < length:
-		var dash_end: float = minf(cursor + dash_length, length)
-		draw_line(start + direction * cursor, start + direction * dash_end, color, width, true)
-		cursor += dash_length + gap_length
-
-func _get_wall_cable_center(visual_center: Vector2, object_data: Dictionary) -> Vector2:
-	var segment: Dictionary = get_wall_route_segment_points(visual_center, object_data, get_wall_routed_height_source_px(object_data))
-	return Vector2(segment.get("start", visual_center)).lerp(Vector2(segment.get("end", visual_center)), 0.5)
-
 func draw_wall_topology_cable(cell: Vector2i, object_data: Dictionary, visual_center: Vector2, profile: Dictionary) -> bool:
 	if not is_wall_cable_object(object_data):
 		return false
@@ -2652,14 +1891,11 @@ func draw_wall_topology_cable(cell: Vector2i, object_data: Dictionary, visual_ce
 	# Wall cable is now rendered per visible wall face.
 	return draw_wall_cable_visual_path(cell, object_data, visual_center, profile, {})
 	
-func draw_wall_procedural_cable(segment: Dictionary, routing_mode: String) -> bool:
-	return _draw_route_commands(RouteRendererRef.build_procedural_route_commands("cable", segment, routing_mode))
-
 func draw_wall_procedural_air_duct(segment: Dictionary, routing_mode: String) -> bool:
-	return _draw_route_commands(RouteRendererRef.build_procedural_route_commands("air_duct", segment, routing_mode))
+	return _draw_canvas_commands(RouteRendererRef.build_procedural_route_commands("air_duct", segment, routing_mode))
 
 func draw_wall_procedural_water_pipe(segment: Dictionary, routing_mode: String) -> bool:
-	return _draw_route_commands(RouteRendererRef.build_procedural_route_commands("water_pipe", segment, routing_mode))
+	return _draw_canvas_commands(RouteRendererRef.build_procedural_route_commands("water_pipe", segment, routing_mode))
 
 func is_wall_routing_utility_object(object_data: Dictionary) -> bool:
 	return WallRoutingValidationServiceRef.is_wall_routing_utility_object(object_data)
@@ -2763,29 +1999,6 @@ func draw_cooling_wall_canvas_asset_for_faces(cell: Vector2i, object_data: Dicti
 			log_wall_mounted_positioning(object_data, "cooling_wall_canvas_face_region", str(object_data.get("wall_side", object_data.get("interaction_side", ""))), face, destination_region.position + Vector2(destination_region.size.x * 0.5, destination_region.size.y), destination_region, false)
 			draw_texture_rect_region(texture, destination_region, source_region)
 
-	draw_iso_asset_alignment_overlay(asset_id, texture_rect.position + Vector2(texture_rect.size.x * 0.5, texture_rect.size.y), texture_rect)
-	return true
-
-func draw_cooling_wall_canvas_asset(cell: Vector2i, object_data: Dictionary) -> bool:
-	var asset_id: String = get_inner_wall_route_asset_id(object_data)
-	if asset_id.is_empty():
-		return false
-	var texture_path: String = get_iso_object_png_asset_path(asset_id, {"visual_id": asset_id})
-	if texture_path.is_empty():
-		return false
-	var texture: Texture2D = get_iso_object_png_texture_for_resolved_path(asset_id, texture_path)
-	if texture == null:
-		return false
-	var texture_size: Vector2 = texture.get_size()
-	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
-		return false
-	var wall_canvas_asset_key: String = get_wall_canvas_asset_key_for_cell(cell)
-	var texture_rect: Rect2 = get_iso_wall_texture_draw_rect_for_cell(cell, texture, wall_canvas_asset_key, get_wall_render_topology(cell))
-	if texture_rect.size.x <= 0.0 or texture_rect.size.y <= 0.0:
-		return false
-	texture_rect.position += Vector2(COOLING_WALL_CANVAS_COMMON_X_OFFSET, COOLING_WALL_CANVAS_COMMON_Y_OFFSET)
-	log_wall_mounted_positioning(object_data, "cooling_wall_canvas_legacy_whole", str(object_data.get("wall_side", object_data.get("interaction_side", ""))), normalize_wall_visual_side(object_data), texture_rect.position + Vector2(texture_rect.size.x * 0.5, texture_rect.size.y), texture_rect, false)
-	draw_texture_rect_region(texture, texture_rect, Rect2(Vector2.ZERO, texture_size))
 	draw_iso_asset_alignment_overlay(asset_id, texture_rect.position + Vector2(texture_rect.size.x * 0.5, texture_rect.size.y), texture_rect)
 	return true
 
@@ -3141,10 +2354,6 @@ func get_iso_asset_alignment_expected_size(asset_key: String) -> Vector2:
 func get_iso_asset_alignment_anchor_offset(anchor: String, size: Vector2) -> Vector2:
 	return IsoAssetAlignmentPolicyRef.get_anchor_offset(anchor, size)
 
-func get_iso_texture_draw_position_from_center(center: Vector2, texture: Texture2D) -> Vector2:
-	var size: Vector2 = texture.get_size()
-	return center - Vector2(size.x * 0.5, size.y * 0.75)
-
 func get_iso_texture_draw_rect_for_asset_key_with_size(asset_key: String, center: Vector2, source_size: Vector2) -> Rect2:
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
 	var anchor: String = str(rule.get("anchor", "center"))
@@ -3166,12 +2375,6 @@ func get_iso_texture_draw_rect_for_asset_key(asset_key: String, center: Vector2,
 
 	return get_iso_texture_draw_rect_for_asset_key_with_size(asset_key, center, texture.get_size())
 	
-func get_iso_texture_draw_position_for_asset_key(asset_key: String, center: Vector2, texture: Texture2D) -> Vector2:
-	return get_iso_texture_draw_rect_for_asset_key(asset_key, center, texture).position
-
-func get_iso_texture_draw_position(cell: Vector2i, texture: Texture2D) -> Vector2:
-	return get_iso_texture_draw_position_from_center(grid_to_iso(cell), texture)
-
 func should_draw_iso_asset_with_rect(asset_key: String) -> bool:
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
 	var scale_value: float = get_iso_asset_alignment_scale(asset_key)
@@ -3191,7 +2394,7 @@ func draw_iso_asset_alignment_overlay(asset_key: String, anchor_position: Vector
 	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
 	var expected_anchor_offset: Vector2 = get_iso_asset_alignment_anchor_offset(str(rule.get("anchor", "center")), expected_size)
 	var expected_rect: Rect2 = Rect2(anchor_position - expected_anchor_offset + Vector2(rule.get("offset", Vector2.ZERO)), expected_size)
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_asset_alignment_commands({
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_asset_alignment_commands({
 		"asset_key": asset_key,
 		"anchor_position": anchor_position,
 		"expected_rect": expected_rect,
@@ -3299,37 +2502,6 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallb
 	draw_iso_texture_with_alignment(texture, alignment_asset_key, center)
 	return true
 
-func can_draw_optional_visual_texture_asset(asset_id: String) -> bool:
-	var normalized_asset_id: String = asset_id.strip_edges()
-	if normalized_asset_id.is_empty():
-		return false
-	var mission_manager: Node = get_mission_manager_ref()
-	if mission_manager == null or not mission_manager.has_method("resolve_visual_texture_asset"):
-		return false
-	var resolved: Dictionary = Dictionary(mission_manager.call("resolve_visual_texture_asset", normalized_asset_id))
-	if not bool(resolved.get("ok", false)):
-		return false
-	if not bool(resolved.get("has_texture", false)):
-		return false
-	var texture_path: String = str(resolved.get("texture_path", "")).strip_edges()
-	if texture_path.is_empty():
-		return false
-	if should_skip_placeholder_object_texture_path_in_gray_test(texture_path):
-		return false
-	return _visual_asset_resource_runtime.load_optional_texture(normalized_asset_id, texture_path, false) != null
-
-func has_drawable_iso_wall_texture(material_override: Dictionary, _material_row: Dictionary, wall_profile_key: String) -> bool:
-	var wall_asset_key: String = get_production_wall_asset_key(material_override, Vector2i.ZERO, wall_profile_key)
-	if use_gray_room_visual_test_assets:
-		wall_asset_key = get_test_wall_height_asset_key(material_override, Vector2i.ZERO)
-	return get_iso_wall_texture_for_profile(wall_asset_key) != null
-
-func draw_iso_wall_texture_for_cell(cell: Vector2i, material_override: Dictionary, _material_row: Dictionary, wall_profile_key: String) -> bool:
-	var wall_asset_key: String = get_production_wall_asset_key(material_override, cell, wall_profile_key, get_iso_wall_depth_bounds())
-	if use_gray_room_visual_test_assets:
-		wall_asset_key = get_test_wall_height_asset_key(material_override, cell, get_iso_wall_depth_bounds())
-	return draw_iso_wall_asset_texture_for_cell(cell, wall_asset_key, get_wall_render_topology(cell))
-
 func get_wall_prototype_colors(cell: Vector2i) -> Dictionary:
 	var profile_key: String = get_wall_visual_profile_key_for_cell(cell)
 	var profile: Dictionary = get_wall_visual_profile(profile_key)
@@ -3395,14 +2567,8 @@ func _get_wall_material_override_for_cell(cell: Vector2i) -> Dictionary:
 			return {"ok": true, "override": chosen_override, "material": material_row}
 	return {"ok": false}
 
-func get_default_wall_visual_profile_key() -> String:
-	return WallRendererRef.get_default_visual_profile_key()
-
 func normalize_wall_visual_profile_key(profile_key: String) -> String:
 	return WallRendererRef.normalize_visual_profile_key(profile_key)
-
-func get_wall_visual_profiles() -> Dictionary:
-	return WallRendererRef.get_visual_profiles()
 
 func get_wall_visual_profile(profile_key: String) -> Dictionary:
 	return WallRendererRef.get_visual_profile(profile_key)
@@ -3447,15 +2613,6 @@ func _get_iso_world_object_metadata_for_cell(cell: Vector2i) -> Dictionary:
 		nested_data = metadata
 	return {"ok": true, "object_id": object_id, "object_type": object_type, "data": nested_data}
 
-func get_wall_object_type_for_cell(cell: Vector2i) -> String:
-	return WallRendererRef.get_object_type_for_metadata(get_wall_metadata_for_cell(cell))
-
-func get_wall_profile_from_tags(tags_variant: Variant) -> String:
-	return WallRendererRef.get_profile_from_tags(tags_variant)
-
-func map_wall_metadata_value_to_profile(raw_value: String) -> String:
-	return WallRendererRef.map_metadata_value_to_profile(raw_value)
-
 func get_mission_manager_ref() -> Node:
 	var current: Node = self
 	while current != null:
@@ -3481,20 +2638,11 @@ func _is_wall_cell(cell: Vector2i) -> bool:
 func _is_wall_in_bounds(cell: Vector2i) -> bool:
 	return WallRendererRef.is_in_bounds(_grid_manager, cell)
 
-func _get_wall_neighbor_mask(cell: Vector2i) -> Dictionary:
-	return WallRendererRef.get_neighbor_mask(_grid_manager, cell)
-
 func _is_door_like_tile(tile_type: int) -> bool:
 	return WallRendererRef.is_door_like_tile(tile_type)
 
-func _is_wall_mount_neighbor_visible(tile_type: int) -> bool:
-	return WallRendererRef.is_mount_neighbor_visible(tile_type)
-
 func _get_wall_side_delta(side: String) -> Vector2i:
 	return WallRendererRef.get_side_delta(side)
-
-func get_visible_wall_sides(cell: Vector2i) -> Array[String]:
-	return WallRendererRef.get_visible_sides(_grid_manager, cell)
 
 func get_wall_mounted_anchor_zones(cell: Vector2i) -> Array[Dictionary]:
 	return WallRendererRef.get_mounted_anchor_zones(_grid_manager, cell, iso_origin, get_iso_tile_half_size())
@@ -3693,7 +2841,7 @@ func draw_iso_wall_debug_and_mount_overlays(cell: Vector2i, arch: Dictionary, to
 				mount_zone_context["edge_color"] = arch.get("mount_band_edge_color")
 			mount_zones.append(mount_zone_context)
 		context["mount_zones"] = mount_zones
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_wall_debug_commands(context))
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_wall_debug_commands(context))
 
 func draw_iso_wall_surface_accent(
 	left_face: PackedVector2Array,
@@ -3774,9 +2922,6 @@ func _safe_variant_dictionary(value: Variant, should_duplicate: bool = false) ->
 		return dictionary.duplicate(true) if should_duplicate else dictionary
 	return {}
 
-func get_floor_atlas_cell_size() -> Vector2:
-	return FloorRendererRef.get_atlas_cell_size(iso_floor_atlas_texture)
-
 func get_floor_atlas_region(row: int, atlas_position: int) -> Rect2:
 	return FloorRendererRef.get_atlas_region(iso_floor_atlas_texture, row, atlas_position)
 
@@ -3788,9 +2933,6 @@ func get_floor_base_atlas_key(family: String) -> String:
 
 func get_floor_overlay_atlas_key(family: String, wear: String) -> String:
 	return FloorRendererRef.get_overlay_atlas_key(family, wear)
-
-func get_floor_atlas_variant_for_cell(cell: Vector2i, requested_variant: int, max_variants: int, salt: int = 0) -> int:
-	return FloorRendererRef.get_atlas_variant_for_cell(cell, requested_variant, max_variants, salt)
 
 func get_floor_atlas_seam_safe_variant(cell: Vector2i, atlas_key: String, requested_variant: int, max_variants: int, salt: int = 0) -> int:
 	return FloorRendererRef.get_atlas_seam_safe_variant(cell, atlas_key, requested_variant, max_variants, salt)
@@ -4020,43 +3162,6 @@ func draw_iso_floor_cell(cell: Vector2i, tile_type: int) -> void:
 		elif profile_key == "floor_doorway":
 			draw_line(diamond_points[0].lerp(diamond_points[2], 0.42), diamond_points[0].lerp(diamond_points[2], 0.58), seam_color, 1.4)
 
-func draw_iso_floor_prototype() -> void:
-	# Compatibility wrapper: floors now also participate in the unified visual
-	# queue, but debug callers can still invoke this pass directly.
-	if _grid_manager == null:
-		return
-
-	var map_width: int = _grid_manager.get_map_width()
-	var map_height: int = _grid_manager.get_map_height()
-	if map_width <= 0 or map_height <= 0:
-		return
-
-	var floor_entries: Array[Dictionary] = build_iso_floor_draw_entries()
-	floor_entries.sort_custom(sort_iso_draw_entries)
-	for entry in floor_entries:
-		draw_iso_draw_entry(entry)
-
-func draw_iso_wall_prototype() -> void:
-	if _grid_manager == null:
-		return
-
-	var map_width: int = _grid_manager.get_map_width()
-	var map_height: int = _grid_manager.get_map_height()
-	if map_width <= 0 or map_height <= 0:
-		return
-
-	var wall_cells: Array[Vector2i] = []
-	for y in range(map_height):
-		for x in range(map_width):
-			var cell: Vector2i = Vector2i(x, y)
-			var tile_type: int = _grid_manager.get_tile(cell)
-			if is_wall_tile(tile_type):
-				wall_cells.append(cell)
-
-	wall_cells.sort_custom(sort_cells_by_iso_depth)
-	for cell in wall_cells:
-		draw_iso_wall_block(cell)
-
 func get_iso_object_visual_profiles() -> Dictionary:
 	return ObjectPrimitiveRendererRef.get_visual_profiles()
 
@@ -4178,32 +3283,29 @@ func _build_object_primitive_context(cell: Vector2i, profile: Dictionary, visual
 		"outlines": debug_draw_iso_object_outlines,
 	}
 
-func _draw_object_primitive_commands(commands: Array[Dictionary]) -> void:
-	_draw_overlay_commands(commands)
-
 func draw_iso_object_slab(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = visual_center_override if visual_center_override != Vector2.INF else grid_to_iso(cell)
-	_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands("slab", _build_object_primitive_context(cell, profile, center)))
+	_draw_canvas_commands(ObjectPrimitiveRendererRef.build_shape_commands("slab", _build_object_primitive_context(cell, profile, center)))
 
 func draw_iso_object_pillar(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = visual_center_override if visual_center_override != Vector2.INF else grid_to_iso(cell)
-	_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands("pillar", _build_object_primitive_context(cell, profile, center)))
+	_draw_canvas_commands(ObjectPrimitiveRendererRef.build_shape_commands("pillar", _build_object_primitive_context(cell, profile, center)))
 
 func draw_iso_object_door_panel(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = visual_center_override if visual_center_override != Vector2.INF else grid_to_iso(cell)
-	_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands("door_panel", _build_object_primitive_context(cell, profile, center)))
+	_draw_canvas_commands(ObjectPrimitiveRendererRef.build_shape_commands("door_panel", _build_object_primitive_context(cell, profile, center)))
 
 func draw_iso_object_terminal_console(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = visual_center_override if visual_center_override != Vector2.INF else grid_to_iso(cell)
-	_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands("terminal_console", _build_object_primitive_context(cell, profile, center)))
+	_draw_canvas_commands(ObjectPrimitiveRendererRef.build_shape_commands("terminal_console", _build_object_primitive_context(cell, profile, center)))
 
 func draw_iso_object_small_marker(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = visual_center_override if visual_center_override != Vector2.INF else grid_to_iso(cell)
-	_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands("small_marker", _build_object_primitive_context(cell, profile, center)))
+	_draw_canvas_commands(ObjectPrimitiveRendererRef.build_shape_commands("small_marker", _build_object_primitive_context(cell, profile, center)))
 
 func draw_iso_object_line(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = visual_center_override if visual_center_override != Vector2.INF else grid_to_iso(cell)
-	_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands("line", _build_object_primitive_context(cell, profile, center)))
+	_draw_canvas_commands(ObjectPrimitiveRendererRef.build_shape_commands("line", _build_object_primitive_context(cell, profile, center)))
 
 func _get_line_color_from_id(color_id: String, fallback: Color) -> Color:
 	return CableCanvasRendererRef.resolve_line_color(color_id, fallback)
@@ -4224,7 +3326,7 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 	if install_mode == "wall" and _cell_has_wall_for_iso_cable(cell):
 		cable_center = _get_iso_cable_wall_center(visual_center)
 		if draw_wall_cable_visual_path(cell, object_data, visual_center, profile, topology):
-			_draw_route_commands(CableCanvasRendererRef.build_damage_marker_commands({"center": _get_wall_cable_rail_anchor(cell, get_cable_wall_side(object_data)), "health_state": health_state}))
+			_draw_canvas_commands(CableCanvasRendererRef.build_damage_marker_commands({"center": _get_wall_cable_rail_anchor(cell, get_cable_wall_side(object_data)), "health_state": health_state}))
 			return
 	var route_plan: Dictionary = RouteRendererRef.build_floor_topology_plan(topology)
 	var endpoints: Dictionary = {}
@@ -4241,7 +3343,7 @@ func draw_iso_cable_segment_shape(cell: Vector2i, topology: Dictionary, profile:
 			continue
 		var direction_vector := screen_direction.normalized()
 		object_link_rows.append({"direction": direction, "start": cable_center + direction_vector * minf(screen_direction.length() * 0.18, 12.0), "end": cable_center + direction_vector * minf(screen_direction.length() * 0.34, 22.0)})
-	_draw_route_commands(CableCanvasRendererRef.build_floor_cable_commands({
+	_draw_canvas_commands(CableCanvasRendererRef.build_floor_cable_commands({
 		"center": cable_center,
 		"tile_half_size": get_iso_tile_half_size(),
 		"profile": profile,
@@ -4279,13 +3381,13 @@ func draw_iso_cable_mode_polyline(points: Array[Vector2], profile: Dictionary) -
 		draw_iso_cable_mode_segment(points[index], points[index + 1], profile)
 
 func draw_iso_cable_mode_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
-	_draw_route_commands(RouteRendererRef.build_floor_mode_segment_commands(start, end, str(profile.get("install_mode", "floor"))))
+	_draw_canvas_commands(RouteRendererRef.build_floor_mode_segment_commands(start, end, str(profile.get("install_mode", "floor"))))
 
 func draw_iso_cable_hidden_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
-	_draw_route_commands(CableCanvasRendererRef.build_hidden_segment_commands({"start": start, "end": end, "profile": profile}))
+	_draw_canvas_commands(CableCanvasRendererRef.build_hidden_segment_commands({"start": start, "end": end, "profile": profile}))
 
 func draw_iso_cable_wall_segment(start: Vector2, end: Vector2, profile: Dictionary) -> void:
-	_draw_route_commands(CableCanvasRendererRef.build_wall_segment_commands({"start": start, "end": end, "profile": profile}))
+	_draw_canvas_commands(CableCanvasRendererRef.build_wall_segment_commands({"start": start, "end": end, "profile": profile}))
 
 func get_cable_bridge_network_id(object_data: Dictionary) -> String:
 	return CableCanvasRendererRef.extract_bridge_network_id(object_data)
@@ -4319,12 +3421,12 @@ func get_cell_edge_bridge_points(from_cell: Vector2i, to_cell: Vector2i) -> Dict
 	return CableCanvasRendererRef.build_bridge_points({"object_center": grid_to_iso(from_cell) + Vector2(0.0, -4.0), "cable_center": grid_to_iso(to_cell) + Vector2(0.0, -4.0)})
 
 func draw_object_cable_bridge(object_data: Dictionary, object_cell: Vector2i, cable_data: Dictionary, cable_cell: Vector2i, profile: Dictionary) -> void:
-	_draw_route_commands(CableCanvasRendererRef.build_bridge_commands({"object_center": grid_to_iso(object_cell) + Vector2(0.0, -4.0), "cable_center": grid_to_iso(cable_cell) + Vector2(0.0, -4.0), "install_mode": str(profile.get("install_mode", "floor"))}))
+	_draw_canvas_commands(CableCanvasRendererRef.build_bridge_commands({"object_center": grid_to_iso(object_cell) + Vector2(0.0, -4.0), "cable_center": grid_to_iso(cable_cell) + Vector2(0.0, -4.0), "install_mode": str(profile.get("install_mode", "floor"))}))
 	if debug_log_cable_object_bridges:
 		print("[CableObjectBridge] object_id=%s object_type=%s object_cell=%s cable_id=%s cable_cell=%s same_chain=true direction=%s" % [str(object_data.get("id", object_data.get("object_id", ""))), str(object_data.get("object_type", object_data.get("type", object_data.get("item_type", "")))), str(object_cell), str(cable_data.get("id", cable_data.get("object_id", cable_data.get("circuit_id", "")))), str(cable_cell), str(cable_cell - object_cell)])
 
 func draw_iso_cable_damage_marker(center: Vector2, health_state: String, _profile: Dictionary = {}) -> void:
-	_draw_route_commands(CableCanvasRendererRef.build_damage_marker_commands({"center": center, "health_state": health_state}))
+	_draw_canvas_commands(CableCanvasRendererRef.build_damage_marker_commands({"center": center, "health_state": health_state}))
 
 func draw_iso_cable_object_links(_cell: Vector2i, object_links: Dictionary, cable_center: Vector2, profile: Dictionary) -> void:
 	var rows: Array[Dictionary] = []
@@ -4335,20 +3437,20 @@ func draw_iso_cable_object_links(_cell: Vector2i, object_links: Dictionary, cabl
 			continue
 		var direction_vector := screen_direction.normalized()
 		rows.append({"direction": direction, "start": cable_center + direction_vector * minf(screen_direction.length() * 0.18, 12.0), "end": cable_center + direction_vector * minf(screen_direction.length() * 0.34, 22.0)})
-	_draw_route_commands(CableCanvasRendererRef.build_object_link_commands({"rows": rows, "profile": profile}))
+	_draw_canvas_commands(CableCanvasRendererRef.build_object_link_commands({"rows": rows, "profile": profile}))
 
 func _draw_iso_cable_polyline(points: Array[Vector2], profile: Dictionary) -> void:
-	_draw_route_commands(CableCanvasRendererRef.build_layered_polyline_commands(points, profile))
+	_draw_canvas_commands(CableCanvasRendererRef.build_layered_polyline_commands(points, profile))
 
 func draw_iso_cable_endpoint_cap(center: Vector2, direction: String, color: Color) -> void:
-	_draw_route_commands(CableCanvasRendererRef.build_endpoint_cap_commands({"center": center, "direction": _get_iso_cable_screen_direction(direction), "color": color}))
+	_draw_canvas_commands(CableCanvasRendererRef.build_endpoint_cap_commands({"center": center, "direction": _get_iso_cable_screen_direction(direction), "color": color}))
 
 func draw_iso_cable_elbow(center: Vector2, dir_a: String, dir_b: String, profile: Dictionary) -> void:
 	var endpoints := {dir_a: center + _get_iso_cable_screen_direction(dir_a) * 0.5, dir_b: center + _get_iso_cable_screen_direction(dir_b) * 0.5}
-	_draw_route_commands(CableCanvasRendererRef.build_floor_cable_commands({"center": center, "profile": profile, "install_mode": str(profile.get("install_mode", "floor")), "route_plan": {"shape": "elbow", "active_dirs": [dir_a, dir_b], "geometry_mode": "elbow", "has_switch": false, "valid": true}, "endpoints": endpoints, "direction_vectors": {dir_a: _get_iso_cable_screen_direction(dir_a), dir_b: _get_iso_cable_screen_direction(dir_b)}, "object_link_rows": [], "health_state": "normal"}))
+	_draw_canvas_commands(CableCanvasRendererRef.build_floor_cable_commands({"center": center, "profile": profile, "install_mode": str(profile.get("install_mode", "floor")), "route_plan": {"shape": "elbow", "active_dirs": [dir_a, dir_b], "geometry_mode": "elbow", "has_switch": false, "valid": true}, "endpoints": endpoints, "direction_vectors": {dir_a: _get_iso_cable_screen_direction(dir_a), dir_b: _get_iso_cable_screen_direction(dir_b)}, "object_link_rows": [], "health_state": "normal"}))
 
 func draw_iso_cable_invalid_marker(center: Vector2, shape: String) -> void:
-	_draw_route_commands(CableCanvasRendererRef.build_invalid_marker_commands({"center": center, "shape": shape}))
+	_draw_canvas_commands(CableCanvasRendererRef.build_invalid_marker_commands({"center": center, "shape": shape}))
 
 func get_iso_cable_branch_endpoint(cell: Vector2i, direction: String) -> Vector2:
 	return grid_to_iso(cell) + Vector2(0.0, -4.0) + _get_iso_cable_screen_direction(direction) * 0.5
@@ -4374,7 +3476,7 @@ func _get_iso_cable_screen_direction(direction: String) -> Vector2:
 
 func draw_iso_object_heat_marker(cell: Vector2i, profile: Dictionary, visual_center_override: Vector2 = Vector2.INF) -> void:
 	var center: Vector2 = visual_center_override if visual_center_override != Vector2.INF else grid_to_iso(cell)
-	_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands("heat_marker", _build_object_primitive_context(cell, profile, center)))
+	_draw_canvas_commands(ObjectPrimitiveRendererRef.build_shape_commands("heat_marker", _build_object_primitive_context(cell, profile, center)))
 
 
 func get_wall_mounted_object_profile_key(cell: Vector2i) -> String:
@@ -4403,26 +3505,6 @@ func is_terminal_like_profile(profile_key: String) -> bool:
 			return true
 	return false
 
-func is_door_like_profile(profile_key: String) -> bool:
-	match profile_key:
-		"door", "digital_door", "powered_gate":
-			return true
-	return false
-
-func get_wall_mounted_attached_depth_cell(cell: Vector2i) -> Vector2i:
-	var object_metadata: Dictionary = _get_iso_world_object_metadata_for_cell(cell)
-	var world_object_data: Dictionary = Dictionary(object_metadata.get("data", {}))
-	var attached_wall_cell: Vector2i = _try_parse_cell_variant(world_object_data.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
-	if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0:
-		return attached_wall_cell
-	var wall_metadata: Dictionary = get_wall_metadata_for_cell(cell)
-	if wall_metadata.is_empty():
-		return cell
-	attached_wall_cell = _try_parse_cell_variant(wall_metadata.get("attached_wall_cell", Vector2i(-1, -1)), Vector2i(-1, -1))
-	if attached_wall_cell.x >= 0 and attached_wall_cell.y >= 0:
-		return attached_wall_cell
-	return cell
-
 func draw_wall_mounted_object_shape(_cell: Vector2i, profile_key: String, profile: Dictionary, visual_center: Vector2) -> bool:
 	var commands: Array[Dictionary] = ObjectPrimitiveRendererRef.build_wall_mounted_commands(profile_key, {
 		"visual_center": visual_center,
@@ -4431,7 +3513,7 @@ func draw_wall_mounted_object_shape(_cell: Vector2i, profile_key: String, profil
 	})
 	if commands.is_empty():
 		return false
-	_draw_object_primitive_commands(commands)
+	_draw_canvas_commands(commands)
 	return true
 
 func get_iso_object_grounding_profile(object_data: Dictionary, fallback_cell: Vector2i = Vector2i(-1, -1)) -> Dictionary:
@@ -4481,7 +3563,7 @@ func get_iso_object_grounding_profile(object_data: Dictionary, fallback_cell: Ve
 
 
 func _draw_grounding_overlay(profile: Dictionary) -> void:
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_grounding_commands(profile))
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_grounding_commands(profile))
 
 func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictionary = {}) -> void:
 	var context: Dictionary = get_door_opening_context(cell)
@@ -4493,7 +3575,7 @@ func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictiona
 	if bool(profile.get("threshold_enabled", true)):
 		threshold_texture_succeeded = draw_iso_texture_asset(cell, "floor_door_underlay")
 	context["threshold_texture_succeeded"] = threshold_texture_succeeded
-	_draw_object_primitive_commands(DoorCanvasRendererRef.build_threshold_commands(context))
+	_draw_canvas_commands(DoorCanvasRendererRef.build_threshold_commands(context))
 	var valid_jamb_centers: Array[Vector2] = []
 	for jamb_cell in [Vector2i(context.get("left_jamb_cell", Vector2i(-1, -1))), Vector2i(context.get("right_jamb_cell", Vector2i(-1, -1)))]:
 		if jamb_cell.x < 0 or jamb_cell.y < 0:
@@ -4504,7 +3586,7 @@ func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictiona
 			continue
 		valid_jamb_centers.append(grid_to_iso(jamb_cell) + Vector2(0.0, -iso_wall_height * 0.4))
 	context["valid_jamb_centers"] = valid_jamb_centers
-	_draw_object_primitive_commands(DoorCanvasRendererRef.build_frame_commands(context))
+	_draw_canvas_commands(DoorCanvasRendererRef.build_frame_commands(context))
 	var door_insert_center: Vector2 = Vector2(context.get("door_insert_center", grid_to_iso(cell)))
 	var door_visual_data: Dictionary = object_data.duplicate(true)
 	if not door_visual_data.has("visual_family") and not door_visual_data.has("visual_asset_family"):
@@ -4516,8 +3598,8 @@ func draw_iso_door_insert(cell: Vector2i, _tile_type: int, object_data: Dictiona
 	context["debug_outlines"] = debug_draw_iso_object_outlines
 	context["tile_half_size"] = get_iso_tile_half_size()
 	context["wall_height"] = iso_wall_height
-	_draw_object_primitive_commands(DoorCanvasRendererRef.build_body_commands(context))
-	_draw_object_primitive_commands(DoorCanvasRendererRef.build_state_overlay_commands(context))
+	_draw_canvas_commands(DoorCanvasRendererRef.build_body_commands(context))
+	_draw_canvas_commands(DoorCanvasRendererRef.build_state_overlay_commands(context))
 	if show_door_opening_overlay:
 		draw_door_opening_overlay_for_context(context)
 
@@ -4529,7 +3611,7 @@ func draw_door_opening_overlay_for_context(context: Dictionary) -> void:
 	for wall_cell_variant in Array(context.get("adjacent_wall_cells", [])):
 		var wall_cell: Vector2i = Vector2i(wall_cell_variant)
 		adjacent_wall_centers.append(grid_to_iso(wall_cell) + Vector2(0.0, -iso_wall_height * 0.35))
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_door_opening_commands({
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_door_opening_commands({
 		"threshold_polygon": PackedVector2Array(context.get("threshold_polygon", PackedVector2Array())),
 		"insert_center": Vector2(context.get("door_insert_center", grid_to_iso(cell))),
 		"adjacent_wall_centers": adjacent_wall_centers,
@@ -4564,7 +3646,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		if used_door_texture_asset:
 			return
 		return
-	_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_floor_base_commands({
+	_draw_canvas_commands(ObjectPrimitiveRendererRef.build_floor_base_commands({
 		"is_wall_visual": is_wall_visual,
 		"shadow_polygon": PackedVector2Array(profile_data.get("shadow_polygon", PackedVector2Array())),
 		"footprint_polygon": PackedVector2Array(profile_data.get("footprint_polygon", PackedVector2Array())),
@@ -4625,7 +3707,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 	var used_texture_asset: bool = _execute_object_texture_attempt_plan(texture_attempt_plan, cell, visual_center, object_data)
 	if used_texture_asset:
 		if ObjectTextureDispatchPolicyRef.should_emit_success_accent({"texture_succeeded": true, "is_case_visual": is_case_visual}):
-			_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_texture_accent_commands({
+			_draw_canvas_commands(ObjectPrimitiveRendererRef.build_texture_accent_commands({
 				"visual_center": visual_center,
 				"marker_height": iso_object_marker_height,
 				"accent": overlay_accent,
@@ -4653,7 +3735,7 @@ func draw_iso_object_marker(cell: Vector2i, tile_type: int, override_object_data
 		draw_iso_cable_topology_line(cell, profile, object_data, visual_center)
 	else:
 		var primitive_shape: String = shape if shape in ["slab", "door_panel", "pillar", "terminal_console", "line", "heat_marker", "small_marker"] else "small_marker"
-		_draw_object_primitive_commands(ObjectPrimitiveRendererRef.build_shape_commands(primitive_shape, _build_object_primitive_context(cell, profile, visual_center)))
+		_draw_canvas_commands(ObjectPrimitiveRendererRef.build_shape_commands(primitive_shape, _build_object_primitive_context(cell, profile, visual_center)))
 	if show_object_grounding_overlay:
 		_draw_grounding_overlay(profile_data)
 func _execute_object_texture_attempt_plan(attempts: Array[Dictionary], cell: Vector2i, visual_center: Vector2, object_data: Dictionary) -> bool:
@@ -4746,9 +3828,6 @@ func _get_runtime_world_objects_for_iso_render(include_hidden_cables: bool = tru
 				path_segment["position"] = path_cell
 				result.append(path_segment)
 	return result
-
-func get_iso_object_sub_order(layer_name: String, profile_key: String) -> float:
-	return ObjectRendererRef.get_sub_order(layer_name, profile_key)
 
 func get_wall_mounted_render_layer(object_data: Dictionary) -> int:
 	return ObjectRendererRef.get_wall_mounted_render_layer(object_data, is_wall_routing_utility_object(object_data))
@@ -4955,7 +4034,7 @@ func draw_iso_fog_cell_overlay(cell: Vector2i) -> void:
 	var diamond_points: PackedVector2Array = get_iso_inset_diamond_points(cell, iso_floor_visual_inset)
 	if diamond_points.size() < 4:
 		return
-	_draw_overlay_commands(FogRendererRef.build_cell_overlay_commands({
+	_draw_canvas_commands(FogRendererRef.build_cell_overlay_commands({
 		"diamond_points": diamond_points,
 		"fog_color": fog_color,
 		"draw_outlines": debug_draw_iso_fog_outlines,
@@ -4977,7 +4056,7 @@ func draw_iso_fog_wall_overlay(cell: Vector2i) -> void:
 	var left_face: PackedVector2Array = PackedVector2Array([top_points[3], top_points[2], base_points[2], base_points[3]])
 	var right_face: PackedVector2Array = PackedVector2Array([top_points[2], top_points[1], base_points[1], base_points[2]])
 
-	_draw_overlay_commands(FogRendererRef.build_wall_overlay_commands({
+	_draw_canvas_commands(FogRendererRef.build_wall_overlay_commands({
 		"left_face": left_face,
 		"right_face": right_face,
 		"top_face": top_face,
@@ -4999,7 +4078,7 @@ func draw_world_overlay_markers() -> void:
 		if marker.is_empty():
 			continue
 		rows.append({"center": grid_to_iso(cell) + Vector2(0.0, -10.0), "text": marker})
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_world_marker_commands(rows))
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_world_marker_commands(rows))
 
 func get_projected_grid_direction(cell: Vector2i, grid_direction: Vector2i) -> Vector2:
 	var direction: Vector2 = grid_to_iso(cell + grid_direction) - grid_to_iso(cell)
@@ -5018,7 +4097,7 @@ func draw_fan_platform_marker() -> void:
 		return
 	var cell: Vector2i = Vector2i(marker.get("position", Vector2i(-1, -1)))
 	var direction_i: Vector2i = Vector2i(marker.get("direction", Vector2i.RIGHT))
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_fan_marker_commands({
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_fan_marker_commands({
 		"center": grid_to_iso(cell) + Vector2(0.0, -8.0),
 		"direction": get_projected_grid_direction(cell, direction_i),
 	}))
@@ -5068,7 +4147,7 @@ func draw_wall_mount_zones_overlay() -> void:
 					"center": Vector2(zone.get("mount_zone_center", grid_to_iso(wall_cell))),
 					"side": str(zone.get("wall_side", "")),
 				})
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_wall_mount_zone_commands(rows))
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_wall_mount_zone_commands(rows))
 
 
 func draw_wall_run_overlay() -> void:
@@ -5096,7 +4175,7 @@ func draw_wall_run_overlay() -> void:
 				"label_position": grid_to_iso(cell) + Vector2(-28.0, -iso_wall_height - 10.0),
 				"edges": edges,
 			})
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_wall_run_commands(rows))
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_wall_run_commands(rows))
 
 
 func draw_floor_join_overlay() -> void:
@@ -5119,7 +4198,7 @@ func draw_floor_join_overlay() -> void:
 					"end": edge_points[1],
 					"shown": should_draw_floor_edge_border(cell, side),
 				})
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_floor_join_commands(rows))
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_floor_join_commands(rows))
 
 func draw_cable_reel_drag_trail() -> void:
 	var mission_manager: Node = get_mission_manager_ref()
@@ -5176,7 +4255,7 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	_iso_light_overlay_animation_requested = false
-	_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_origin_commands(debug_draw_marker))
+	_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_origin_commands(debug_draw_marker))
 
 	# Isometric render pass order:
 	# 1) unified floor/ground/walls/objects queue (screen-Y depth sorted)
@@ -5205,5 +4284,5 @@ func _draw() -> void:
 		draw_iso_fog_overlay()
 
 	if debug_draw_iso_helper_preview:
-		_draw_overlay_commands(RuntimeDebugOverlayRendererRef.build_helper_preview_commands(get_iso_diamond_points(Vector2i.ZERO)))
+		_draw_canvas_commands(RuntimeDebugOverlayRendererRef.build_helper_preview_commands(get_iso_diamond_points(Vector2i.ZERO)))
 

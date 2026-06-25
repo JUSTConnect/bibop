@@ -113,15 +113,14 @@ scripts/bipob/bipob_status_effect_controller.gd
 
 ### RoomVisualRenderer
 
-Current issue: visual rendering plus asset catalogs and many debug flags.
+`RoomVisualRenderer` is the scene-facing isometric coordinator and Canvas executor. Deterministic floor, wall, object, door, route/cable, overlay, fog, alignment and resource-runtime responsibilities live under `scripts/visual/renderer/`. Canonical asset IDs and paths live in `scripts/visual/visual_asset_catalog.gd`.
 
-Reduction targets:
+The coordinator retains serialized scene configuration, live runtime context assembly, draw-entry composition/sorting, Canvas execution, invalidation and externally required UI/controller delegates. New deterministic visual policy must not be added to the coordinator.
+
+The complete ownership map and permanent boundaries are documented in:
 
 ```text
-scripts/visual/visual_asset_catalog.gd
-scripts/visual/iso_projection.gd
-scripts/visual/wall_run_visual_service.gd
-scripts/visual/floor_join_visual_service.gd
+docs/room_visual_renderer_component_map.md
 ```
 
 ---
