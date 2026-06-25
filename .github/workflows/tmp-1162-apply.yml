@@ -24,17 +24,24 @@ jobs:
         run: |
           exec > >(tee /tmp/issue-1162-transport-diagnostics.txt) 2>&1
           set -euo pipefail
-          wc -c .github/issue-1162-transport/part*.b64
-          sha256sum .github/issue-1162-transport/part*.b64
           test "$(sha256sum .github/issue-1162-transport/part00.b64 | cut -d' ' -f1)" = "7f27f0c142b9cb1eb39a28e06449378bdaf99b8d519355b2df5108d4064c912e"
           test "$(sha256sum .github/issue-1162-transport/part01.b64 | cut -d' ' -f1)" = "0979aa805d9a025a58efb77761169a94a88f4e1506c20a019491e7e3390d447e"
-          test "$(sha256sum .github/issue-1162-transport/part02.b64 | cut -d' ' -f1)" = "4da9481eb4bbd35245b479d35e523832952af053e69bdad060f35255b0f5535b"
-          test "$(sha256sum .github/issue-1162-transport/part03.b64 | cut -d' ' -f1)" = "bef35dc9420dbfe23b66645798f4aaac5b1149b080c5a78a6e44298340df0d9c"
-          cat .github/issue-1162-transport/part*.b64 > /tmp/issue-1162-final.b64
-          sha256sum /tmp/issue-1162-final.b64
+          test "$(sha256sum .github/issue-1162-transport/fix02-00.b64 | cut -d' ' -f1)" = "ce23e5a9e8574a5e5d0417ee9b47c4fadc8ff206484e0035c9ca2b868a62c0ea"
+          test "$(sha256sum .github/issue-1162-transport/fix02-01.b64 | cut -d' ' -f1)" = "529aa39b16fad99ab2cc1e95b41263869b4bbc420790abec791e57bf599cef6e"
+          test "$(sha256sum .github/issue-1162-transport/fix02-02.b64 | cut -d' ' -f1)" = "bc081582c04b53ec9ce4e50f4ea17f78f2c26096dca5ee13c6c88e1ffb18d9f9"
+          test "$(sha256sum .github/issue-1162-transport/fix02-03.b64 | cut -d' ' -f1)" = "1a4baa6335c0498915384a415051fbdf1b0d08a5d8357af07d071cb47286d55c"
+          test "$(sha256sum .github/issue-1162-transport/fix03-00.b64 | cut -d' ' -f1)" = "e10f6b3afce161f5830572f585a00a4f8c3dc12ebaeac933233bd270eda2cb40"
+          test "$(sha256sum .github/issue-1162-transport/fix03-01.b64 | cut -d' ' -f1)" = "00a39a1a8599b953134e7df7a839181a2494cf15d9911b728805481471eda994"
+          test "$(sha256sum .github/issue-1162-transport/fix03-02.b64 | cut -d' ' -f1)" = "7a6af70dd84a486a6c5ca47d5995fdcb3aef8b62194bac5326572914382dbba8"
+          cat \
+            .github/issue-1162-transport/part00.b64 \
+            .github/issue-1162-transport/part01.b64 \
+            .github/issue-1162-transport/fix02-*.b64 \
+            .github/issue-1162-transport/fix03-*.b64 \
+            > /tmp/issue-1162-final.b64
+          test "$(wc -c < /tmp/issue-1162-final.b64)" -eq 74280
           test "$(sha256sum /tmp/issue-1162-final.b64 | cut -d' ' -f1)" = "a87e0f0470c6385ee38cc178f9ff8c59b63b4fed8fd2637ff780e9b105e28111"
           base64 --decode /tmp/issue-1162-final.b64 > /tmp/issue-1162-final.tar.gz
-          sha256sum /tmp/issue-1162-final.tar.gz
           test "$(sha256sum /tmp/issue-1162-final.tar.gz | cut -d' ' -f1)" = "a28927aaa543b63049506591757e9b5b4c507f2471d869524fd51ccbe7f7a13e"
           git fetch origin main
           git reset --hard origin/main
