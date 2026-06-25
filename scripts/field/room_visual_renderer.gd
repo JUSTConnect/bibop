@@ -14,6 +14,7 @@ const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_cata
 const IsoProjectionServiceRef = preload("res://scripts/visual/renderer/iso_projection_service.gd")
 const IsoDrawEntryContractRef = preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")
 const IsoAssetAlignmentPolicyRef = preload("res://scripts/visual/renderer/iso_asset_alignment_policy.gd")
+const VisualAssetResourceRuntimeRef = preload("res://scripts/visual/renderer/visual_asset_resource_runtime.gd")
 const FloorRendererRef = preload("res://scripts/visual/renderer/floor_renderer.gd")
 const WallRendererRef = preload("res://scripts/visual/renderer/wall_renderer.gd")
 const ObjectRendererRef = preload("res://scripts/visual/renderer/object_renderer.gd")
@@ -143,15 +144,10 @@ const ISO_GRAY_TEST_REQUIRED_ASSET_KEYS: Array[String] = [
 ]
 
 
-var _iso_placeholder_texture_cache: Dictionary = {}
-var _iso_object_png_texture_cache: Dictionary = {}
+var _visual_asset_resource_runtime = VisualAssetResourceRuntimeRef.new()
 var _iso_light_overlay_animation_requested: bool = false
 var selected_interaction_target: Dictionary = {}
 var selected_interaction_overlay_time: float = 0.0
-var _iso_wall_asset_texture_cache: Dictionary = {}
-var _iso_wall_breach_overlay_texture_cache: Dictionary = {}
-var _iso_floor_asset_texture_cache: Dictionary = {}
-var _iso_ground_asset_texture_cache: Dictionary = {}
 var _grid_manager: GridManager = null
 var _rebuild_requested: bool = false
 var debug_rebuild_request_count: int = 0
@@ -1129,33 +1125,12 @@ func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
 	if normalized_asset_key.is_empty():
 		return null
-
 	var known_floor_asset: bool = FloorRendererRef.FLOOR_ASSET_CATALOG.has(normalized_asset_key)
 	var known_ground_asset: bool = FloorRendererRef.GROUND_ASSET_CATALOG.has(normalized_asset_key)
 	var known_test_asset: bool = normalized_asset_key == FloorRendererRef.FLOOR_TEST_ASSET_KEY
 	if not known_floor_asset and not known_ground_asset and not known_test_asset:
 		return null
-
-	if _iso_floor_asset_texture_cache.has(normalized_asset_key):
-		var cached_value: Variant = _iso_floor_asset_texture_cache.get(normalized_asset_key)
-		if cached_value is Texture2D:
-			return cached_value as Texture2D
-		return null
-
-	var texture_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
-	if texture_path.is_empty():
-		_iso_floor_asset_texture_cache[normalized_asset_key] = null
-		return null
-
-	if ResourceLoader.exists(texture_path):
-		var loaded_resource: Resource = ResourceLoader.load(texture_path)
-		if loaded_resource is Texture2D:
-			var loaded_texture: Texture2D = loaded_resource as Texture2D
-			_iso_floor_asset_texture_cache[normalized_asset_key] = loaded_texture
-			return loaded_texture
-
-	_iso_floor_asset_texture_cache[normalized_asset_key] = null
-	return null
+	return _visual_asset_resource_runtime.get_floor_texture(normalized_asset_key)
 
 func get_iso_floor_asset_placement(asset_key: String) -> Dictionary:
 	return FloorRendererRef.get_asset_placement(asset_key, get_iso_tile_size())
@@ -1168,32 +1143,9 @@ func get_iso_ground_asset_key_for_floor_height(floor_height: String) -> String:
 
 func get_iso_ground_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
-	if normalized_asset_key.is_empty():
+	if normalized_asset_key.is_empty() or not FloorRendererRef.GROUND_ASSET_CATALOG.has(normalized_asset_key):
 		return null
-
-	if not FloorRendererRef.GROUND_ASSET_CATALOG.has(normalized_asset_key):
-		return null
-
-	if _iso_ground_asset_texture_cache.has(normalized_asset_key):
-		var cached_value: Variant = _iso_ground_asset_texture_cache.get(normalized_asset_key)
-		if cached_value is Texture2D:
-			return cached_value as Texture2D
-		return null
-
-	var texture_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
-	if texture_path.is_empty():
-		_iso_ground_asset_texture_cache[normalized_asset_key] = null
-		return null
-
-	if ResourceLoader.exists(texture_path):
-		var loaded_resource: Resource = ResourceLoader.load(texture_path)
-		if loaded_resource is Texture2D:
-			var loaded_texture: Texture2D = loaded_resource as Texture2D
-			_iso_ground_asset_texture_cache[normalized_asset_key] = loaded_texture
-			return loaded_texture
-
-	_iso_ground_asset_texture_cache[normalized_asset_key] = null
-	return null
+	return _visual_asset_resource_runtime.get_ground_texture(normalized_asset_key)
 
 func get_iso_ground_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, asset_key: String) -> Rect2:
 	var placement: Dictionary = Dictionary(FloorRendererRef.GROUND_ASSET_PLACEMENT.get(asset_key, {}))
@@ -1396,40 +1348,13 @@ func get_iso_wall_asset_catalog() -> Dictionary:
 	return WallRendererRef.get_asset_catalog()
 
 func get_iso_gray_test_asset_path(asset_key: String) -> String:
-	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
-	if normalized_asset_key.is_empty():
-		return ""
-
-	var catalog_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
-	if catalog_path.find("/test/") >= 0:
-		return catalog_path
-
-	if normalized_asset_key == FloorRendererRef.FLOOR_TEST_ASSET_KEY:
-		return VisualAssetCatalogScript.ISO_TEST_ASSET_PACK_DIR + str(FloorRendererRef.FLOOR_ASSET_CATALOG.get(normalized_asset_key, ""))
-
-	if WallRendererRef.ISO_WALL_ASSET_CATALOG.has(normalized_asset_key) and normalized_asset_key.begins_with("wall_gray_"):
-		return VisualAssetCatalogScript.ISO_TEST_ASSET_PACK_DIR + str(WallRendererRef.ISO_WALL_ASSET_CATALOG.get(normalized_asset_key, ""))
-
-	return ""
+	return _visual_asset_resource_runtime.resolve_gray_test_asset_path(asset_key)
 
 func get_gray_room_visual_test_asset_validation() -> Dictionary:
-	var assets: Dictionary = {}
-	var missing: Array[String] = []
-	var invalid: Array[String] = []
-	for asset_key in ISO_GRAY_TEST_REQUIRED_ASSET_KEYS:
-		var path: String = get_iso_gray_test_asset_path(asset_key)
-		var exists: bool = not path.is_empty() and ResourceLoader.exists(path)
-		var loads_as_texture: bool = false
-		if exists:
-			var loaded_resource: Resource = ResourceLoader.load(path)
-			loads_as_texture = loaded_resource is Texture2D
-		assets[asset_key] = {"path": path, "exists": exists, "loads_as_texture": loads_as_texture}
-		if not exists:
-			missing.append(asset_key)
-		elif not loads_as_texture:
-			invalid.append(asset_key)
-	return {"ok": missing.is_empty() and invalid.is_empty(), "enabled": use_gray_room_visual_test_assets, "assets": assets, "missing": missing, "invalid": invalid, "fallback": "magenta_black_missing_asset_debug_checker"}
-
+	return _visual_asset_resource_runtime.validate_gray_test_assets(
+		ISO_GRAY_TEST_REQUIRED_ASSET_KEYS,
+		use_gray_room_visual_test_assets
+	)
 
 func normalize_wall_material_asset_base_key(profile_key: String) -> String:
 	return WallRendererRef.normalize_material_asset_base_key(profile_key)
@@ -1454,40 +1379,13 @@ func get_iso_wall_explicit_texture_for_asset_key(asset_key: String) -> Texture2D
 
 func get_iso_wall_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var normalized_key: String = normalize_wall_asset_key(asset_key)
-	var catalog: Dictionary = get_iso_wall_asset_catalog()
-
-	if catalog.has(normalized_key):
-		if _iso_wall_asset_texture_cache.has(normalized_key):
-			var cached_value: Variant = _iso_wall_asset_texture_cache.get(normalized_key)
-			if cached_value is Texture2D:
-				return cached_value as Texture2D
-			return null
-
-		var texture_path: String = VisualAssetCatalogScript.get_asset_path(normalized_key)
-		if texture_path.is_empty():
-			_iso_wall_asset_texture_cache[normalized_key] = null
-			return null
-
-		if ResourceLoader.exists(texture_path):
-			var loaded_resource: Resource = ResourceLoader.load(texture_path)
-			if loaded_resource is Texture2D:
-				var loaded_texture: Texture2D = loaded_resource as Texture2D
-				_iso_wall_asset_texture_cache[normalized_key] = loaded_texture
-				return loaded_texture
-
-		_iso_wall_asset_texture_cache[normalized_key] = null
-
-	if normalized_key.begins_with("wall_gray_"):
-		return null
-
-	var explicit_texture: Texture2D = get_iso_wall_explicit_texture_for_asset_key(normalized_key)
-	if explicit_texture != null:
-		return explicit_texture
-
-	if normalized_key != "wall_concrete_mid":
-		return get_iso_wall_texture_for_asset_key("wall_concrete_mid")
-
-	return null
+	return _visual_asset_resource_runtime.resolve_wall_texture(
+		normalized_key,
+		get_iso_wall_asset_catalog(),
+		get_iso_wall_explicit_texture_for_asset_key(normalized_key),
+		get_iso_wall_explicit_texture_for_asset_key("wall_concrete_mid"),
+		"wall_concrete_mid"
+	)
 
 func get_iso_wall_texture_for_profile(profile_key: String) -> Texture2D:
 	return get_iso_wall_texture_for_asset_key(normalize_wall_asset_key(profile_key))
@@ -1631,32 +1529,9 @@ func get_breach_overlay_asset_key(base_material: String) -> String:
 
 func get_breach_overlay_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var normalized_key: String = str(asset_key).strip_edges().to_lower()
-	if normalized_key.is_empty():
+	if normalized_key.is_empty() or not WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG.has(normalized_key):
 		return null
-
-	if not WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG.has(normalized_key):
-		return null
-
-	if _iso_wall_breach_overlay_texture_cache.has(normalized_key):
-		var cached_value: Variant = _iso_wall_breach_overlay_texture_cache.get(normalized_key)
-		if cached_value is Texture2D:
-			return cached_value as Texture2D
-		return null
-
-	var texture_path: String = VisualAssetCatalogScript.get_asset_path(normalized_key)
-	if texture_path.is_empty():
-		_iso_wall_breach_overlay_texture_cache[normalized_key] = null
-		return null
-
-	if ResourceLoader.exists(texture_path):
-		var loaded_resource: Resource = ResourceLoader.load(texture_path)
-		if loaded_resource is Texture2D:
-			var loaded_texture: Texture2D = loaded_resource as Texture2D
-			_iso_wall_breach_overlay_texture_cache[normalized_key] = loaded_texture
-			return loaded_texture
-
-	_iso_wall_breach_overlay_texture_cache[normalized_key] = null
-	return null
+	return _visual_asset_resource_runtime.get_breach_overlay_texture(normalized_key)
 
 func get_breach_overlay_transform_for_side(side: String, height_level: String = "") -> Dictionary:
 	var normalized_side: String = normalize_breach_side(side)
@@ -1862,70 +1737,25 @@ func log_iso_object_asset_resolution(object_data: Dictionary, fallback_profile_k
 	])
 
 func get_iso_object_png_asset_path(asset_key: String, descriptor: Dictionary = {}) -> String:
-	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
-	if normalized_asset_key.is_empty() and descriptor.is_empty():
-		return ""
+	return _visual_asset_resource_runtime.resolve_object_png_path(asset_key, descriptor)
 
-	var descriptor_visual_id: String = str(descriptor.get("visual_id", descriptor.get("visual_asset_id", descriptor.get("asset_id", normalized_asset_key)))).strip_edges()
-	var descriptor_path: String = str(descriptor.get("path", descriptor.get("texture_path", ""))).strip_edges()
-	var catalog_path: String = VisualAssetCatalogScript.resolve_visual_texture_path(descriptor_visual_id, descriptor_path)
-	if catalog_path.ends_with(".png") and (catalog_path.find("/objects/") >= 0 or catalog_path.find("/moovable/") >= 0 or catalog_path.find("/light/") >= 0 or catalog_path.find("/items/") >= 0 or catalog_path.find("/cooling system/") >= 0):
-		return catalog_path
-
-	return ""
-	
 func is_iso_object_png_asset_key(asset_key: String) -> bool:
-	return not get_iso_object_png_asset_path(asset_key).is_empty()
+	return _visual_asset_resource_runtime.is_object_png_asset_key(asset_key)
 
 func get_iso_object_png_texture_for_resolved_path(asset_key: String, texture_path: String) -> Texture2D:
-	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
-	var normalized_texture_path: String = texture_path.strip_edges()
-	if normalized_texture_path.is_empty():
-		return null
-	var cache_key: String = "%s|%s" % [normalized_asset_key, normalized_texture_path]
-	if _iso_object_png_texture_cache.has(cache_key):
-		var cached_value: Variant = _iso_object_png_texture_cache.get(cache_key)
-		if cached_value is Texture2D:
-			return cached_value as Texture2D
-		return null
-	if not ResourceLoader.exists(normalized_texture_path, "Texture2D"):
-		push_warning("[IsoObjectPNG] missing object PNG for visual_id=%s path=%s" % [normalized_asset_key, normalized_texture_path])
-		_iso_object_png_texture_cache[cache_key] = null
-		return null
-	var loaded_resource: Resource = ResourceLoader.load(normalized_texture_path)
-	if loaded_resource is Texture2D:
-		var loaded_texture: Texture2D = loaded_resource as Texture2D
-		_iso_object_png_texture_cache[cache_key] = loaded_texture
-		return loaded_texture
-	push_warning("[IsoObjectPNG] failed to load object PNG as Texture2D for visual_id=%s path=%s" % [normalized_asset_key, normalized_texture_path])
-	_iso_object_png_texture_cache[cache_key] = null
-	return null
+	return _visual_asset_resource_runtime.get_object_png_texture_for_resolved_path(asset_key, texture_path)
 
 func get_iso_object_png_texture_for_asset_key(asset_key: String, descriptor: Dictionary = {}) -> Texture2D:
-	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
-	var texture_path: String = get_iso_object_png_asset_path(normalized_asset_key, descriptor)
-	return get_iso_object_png_texture_for_resolved_path(normalized_asset_key, texture_path)
+	return _visual_asset_resource_runtime.get_object_png_texture(asset_key, descriptor)
 
 func get_iso_placeholder_asset_path(asset_key: String) -> String:
-	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
-	if normalized_asset_key.is_empty():
-		return ""
+	return _visual_asset_resource_runtime.resolve_placeholder_path(asset_key)
 
-	var catalog_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
-	if catalog_path.find("/placeholders/") >= 0:
-		return catalog_path
-
-	return ""
-	
 func is_placeholder_object_texture_path(texture_path: String) -> bool:
-	var normalized_path: String = texture_path.strip_edges().to_lower()
-	return normalized_path.begins_with("res://assets/visual/isometric/placeholders/iso_object_") and normalized_path.ends_with(".svg")
+	return _visual_asset_resource_runtime.is_placeholder_object_texture_path(texture_path)
 
 func is_placeholder_object_texture_asset_key(asset_key: String) -> bool:
-	if asset_key.is_empty():
-		return false
-	var placeholder_path: String = get_iso_placeholder_asset_path(asset_key)
-	return is_placeholder_object_texture_path(placeholder_path)
+	return _visual_asset_resource_runtime.is_placeholder_object_texture_asset_key(asset_key)
 
 func should_skip_placeholder_object_texture_in_gray_test(asset_key: String) -> bool:
 	if not use_gray_room_visual_test_assets:
@@ -1940,41 +1770,14 @@ func should_skip_placeholder_object_texture_path_in_gray_test(texture_path: Stri
 	return is_placeholder_object_texture_path(texture_path)
 
 func get_iso_placeholder_texture_for_asset_key(asset_key: String) -> Texture2D:
-	if not should_use_iso_placeholder_asset_preset():
-		return null
-
-	var normalized_asset_key: String = str(asset_key).strip_edges().to_lower()
-	if normalized_asset_key.is_empty():
-		return null
-
-	if should_skip_placeholder_object_texture_in_gray_test(normalized_asset_key):
-		return null
-
-	var placeholder_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
-	if placeholder_path.is_empty() or placeholder_path.find("/placeholders/") < 0:
-		return null
-
-	if _iso_placeholder_texture_cache.has(normalized_asset_key):
-		var cached_value: Variant = _iso_placeholder_texture_cache.get(normalized_asset_key)
-		if cached_value is Texture2D:
-			return cached_value as Texture2D
-		return null
-
-	var loaded_resource: Resource = ResourceLoader.load(placeholder_path)
-	if loaded_resource is Texture2D:
-		var loaded_texture: Texture2D = loaded_resource as Texture2D
-		_iso_placeholder_texture_cache[normalized_asset_key] = loaded_texture
-		return loaded_texture
-
-	_iso_placeholder_texture_cache[normalized_asset_key] = null
-	return null
+	return _visual_asset_resource_runtime.get_placeholder_texture(
+		asset_key,
+		should_use_iso_placeholder_asset_preset(),
+		should_skip_placeholder_object_texture_in_gray_test(asset_key)
+	)
 
 func clear_iso_placeholder_texture_cache() -> void:
-	_iso_placeholder_texture_cache.clear()
-	_iso_object_png_texture_cache.clear()
-	_iso_wall_asset_texture_cache.clear()
-	_iso_floor_asset_texture_cache.clear()
-	_iso_ground_asset_texture_cache.clear()
+	_visual_asset_resource_runtime.clear_all_caches()
 
 func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 	match asset_key:
@@ -2045,21 +1848,16 @@ func get_explicit_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 
 func get_iso_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var normalized_asset_key: String = asset_key.strip_edges().to_lower()
-	if normalized_asset_key.begins_with("wall_"):
-		return get_iso_wall_texture_for_asset_key(normalized_asset_key)
-	if is_iso_object_png_asset_key(normalized_asset_key):
-		return get_iso_object_png_texture_for_asset_key(normalized_asset_key)
-	var explicit_texture: Texture2D = get_explicit_iso_texture_for_asset_key(normalized_asset_key)
-	if explicit_texture != null:
-		return explicit_texture
-	if should_skip_placeholder_object_texture_in_gray_test(normalized_asset_key):
-		return null
-	var placeholder_path: String = VisualAssetCatalogScript.get_asset_path(normalized_asset_key)
-	if placeholder_path.is_empty() or placeholder_path.find("/placeholders/") < 0:
-		return null
-
-	return get_iso_placeholder_texture_for_asset_key(normalized_asset_key)
-
+	var normalized_wall_asset_key: String = normalize_wall_asset_key(normalized_asset_key) if normalized_asset_key.begins_with("wall_") else normalized_asset_key
+	return _visual_asset_resource_runtime.resolve_texture(normalized_wall_asset_key, {
+		"wall_catalog": get_iso_wall_asset_catalog(),
+		"wall_explicit_texture": get_iso_wall_explicit_texture_for_asset_key(normalized_wall_asset_key),
+		"wall_fallback_explicit_texture": get_iso_wall_explicit_texture_for_asset_key("wall_concrete_mid"),
+		"wall_fallback_asset_key": "wall_concrete_mid",
+		"explicit_texture": get_explicit_iso_texture_for_asset_key(normalized_asset_key),
+		"placeholder_enabled": should_use_iso_placeholder_asset_preset(),
+		"skip_placeholder": should_skip_placeholder_object_texture_in_gray_test(normalized_asset_key)
+	})
 func has_iso_texture_for_asset_key(asset_key: String) -> bool:
 	return get_iso_texture_for_asset_key(asset_key) != null
 
@@ -2087,96 +1885,22 @@ func get_iso_visual_layer_debug_state() -> Dictionary:
 
 func get_iso_visual_texture_debug_state() -> Dictionary:
 	var texture_keys: Array[String] = get_iso_visual_texture_debug_keys()
-	var placeholder_preset_enabled: bool = should_use_iso_placeholder_asset_preset()
-	var debug_state: Dictionary = {}
+	var explicit_textures: Dictionary = {}
 	for texture_key in texture_keys:
-		var explicit_texture: Texture2D = get_explicit_iso_texture_for_asset_key(texture_key)
-		var has_explicit_texture: bool = explicit_texture != null
-		var placeholder_path: String = get_iso_placeholder_asset_path(texture_key)
-		var placeholder_available: bool = false
-		var wall_catalog_path: String = ""
-		var wall_catalog_available: bool = false
-		var ground_catalog_path: String = ""
-		var ground_catalog_available: bool = false
-		var gray_test_placeholder_object_skipped: bool = should_skip_placeholder_object_texture_in_gray_test(texture_key)
-		if texture_key == FloorRendererRef.FLOOR_TEST_ASSET_KEY:
-			wall_catalog_path = get_iso_gray_test_asset_path(texture_key)
-			wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
-		elif texture_key.begins_with("wall_"):
-			var wall_catalog: Dictionary = get_iso_wall_asset_catalog()
-			if wall_catalog.has(texture_key):
-				wall_catalog_path = get_iso_gray_test_asset_path(texture_key) if texture_key.begins_with("wall_gray_") else WallRendererRef.ISO_WALL_ASSET_PACK_DIR + str(wall_catalog.get(texture_key, ""))
-				wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
-		elif texture_key.begins_with("ground_"):
-			if FloorRendererRef.GROUND_ASSET_CATALOG.has(texture_key):
-				ground_catalog_path = FloorRendererRef.GROUND_ASSET_PACK_DIR + str(FloorRendererRef.GROUND_ASSET_CATALOG.get(texture_key, ""))
-				ground_catalog_available = ResourceLoader.exists(ground_catalog_path)
-		elif placeholder_preset_enabled and placeholder_path != "" and not gray_test_placeholder_object_skipped:
-			placeholder_available = ResourceLoader.exists(placeholder_path)
-		var object_png_path: String = get_iso_object_png_asset_path(texture_key)
-		var object_png_available: bool = false
-		if not object_png_path.is_empty():
-			object_png_available = ResourceLoader.exists(object_png_path, "Texture2D")
-
-		var active_texture_source: String = "none"
-		if object_png_available:
-			active_texture_source = "object_png"
-		elif wall_catalog_available:
-			active_texture_source = "wall_catalog"
-		elif ground_catalog_available:
-			active_texture_source = "ground_catalog"
-		elif has_explicit_texture:
-			active_texture_source = "explicit"
-		elif gray_test_placeholder_object_skipped:
-			active_texture_source = "gray_test_placeholder_object_skipped"
-		elif placeholder_preset_enabled and placeholder_available:
-			active_texture_source = "placeholder"
-
-		debug_state[texture_key] = {
-			"has_explicit_texture": has_explicit_texture,
-			"placeholder_path": placeholder_path,
-			"placeholder_available": placeholder_available,
-			"gray_test_placeholder_object_skipped": gray_test_placeholder_object_skipped,
-			"object_png_path": object_png_path,
-			"object_png_available": object_png_available,
-			"wall_catalog_path": wall_catalog_path,
-			"wall_catalog_available": wall_catalog_available,
-			"ground_catalog_path": ground_catalog_path,
-			"ground_catalog_available": ground_catalog_available,
-			"active_texture_source": active_texture_source
-		}
-	return debug_state
+		explicit_textures[texture_key] = get_explicit_iso_texture_for_asset_key(texture_key)
+	return _visual_asset_resource_runtime.build_texture_debug_state(texture_keys, {
+		"explicit_textures": explicit_textures,
+		"placeholder_enabled": should_use_iso_placeholder_asset_preset(),
+		"gray_test_enabled": use_gray_room_visual_test_assets,
+		"floor_test_asset_key": FloorRendererRef.FLOOR_TEST_ASSET_KEY,
+		"wall_catalog": get_iso_wall_asset_catalog(),
+		"ground_catalog": FloorRendererRef.GROUND_ASSET_CATALOG
+	})
 
 func validate_iso_object_png_assets() -> Dictionary:
-	var missing_paths: Array[Dictionary] = []
-	var invalid_textures: Array[Dictionary] = []
-	var svg_conflicts: Array[Dictionary] = []
-	var assets: Dictionary = {}
-	for visual_id_variant in VisualAssetCatalogScript.get_canonical_object_visual_ids():
-		var visual_id: String = str(visual_id_variant)
-		var expected_path: String = get_iso_object_png_asset_path(visual_id)
-		var exists: bool = false
-		var loads_as_texture: bool = false
-		if not expected_path.is_empty():
-			exists = ResourceLoader.exists(expected_path)
-			loads_as_texture = ResourceLoader.exists(expected_path, "Texture2D")
-		assets[visual_id] = {"path": expected_path, "exists": exists, "loads_as_texture": loads_as_texture, "resolver": "object_png"}
-		if expected_path.is_empty() or not exists:
-			missing_paths.append({"visual_id": visual_id, "expected_path": expected_path})
-		elif not loads_as_texture:
-			invalid_textures.append({"visual_id": visual_id, "expected_path": expected_path})
-		var placeholder_path: String = get_iso_placeholder_asset_path(visual_id)
-		if not placeholder_path.is_empty() and is_placeholder_object_texture_path(placeholder_path):
-			svg_conflicts.append({"visual_id": visual_id, "png_path": expected_path, "svg_path": placeholder_path})
-	return {
-		"ok": missing_paths.is_empty() and invalid_textures.is_empty() and svg_conflicts.is_empty(),
-		"asset_count": VisualAssetCatalogScript.get_canonical_object_visual_ids().size(),
-		"assets": assets,
-		"missing_paths": missing_paths,
-		"invalid_textures": invalid_textures,
-		"svg_conflicts": svg_conflicts,
-		"fallback": "magenta_black_missing_asset_debug_checker"
-	}
+	return _visual_asset_resource_runtime.validate_object_png_assets(
+		VisualAssetCatalogScript.get_canonical_object_visual_ids()
+	)
 
 func get_iso_visual_texture_debug_keys() -> Array[String]:
 	return [
@@ -2418,8 +2142,8 @@ func get_iso_visual_debug_report() -> Dictionary:
 		"placeholder_assets_enabled": should_use_iso_placeholder_asset_preset(),
 		"procedural_wall_under_texture_enabled": false,
 		"ground_assets_enabled": floor_enabled,
-		"ground_low_loaded": ResourceLoader.exists(ground_low_path),
-		"ground_halflow_loaded": ResourceLoader.exists(ground_halflow_path),
+		"ground_low_loaded": _visual_asset_resource_runtime.resource_exists(ground_low_path),
+		"ground_halflow_loaded": _visual_asset_resource_runtime.resource_exists(ground_halflow_path),
 		"fog_enabled": fog_enabled,
 		"fog_overlay_will_draw": fog_overlay_will_draw,
 		"fog_cell_shapes_enabled": iso_fog_draw_cell_shapes,
@@ -3558,11 +3282,9 @@ func draw_optional_visual_texture_asset(asset_id: String, cell: Vector2i, _fallb
 		return false
 	if should_skip_placeholder_object_texture_path_in_gray_test(texture_path):
 		return false
-	var loaded: Resource = load(texture_path)
-	if loaded == null or not (loaded is Texture2D):
-		push_warning("[VisualAsset] failed to load texture_path for %s: %s" % [normalized_asset_id, texture_path])
+	var texture: Texture2D = _visual_asset_resource_runtime.load_optional_texture(normalized_asset_id, texture_path)
+	if texture == null:
 		return false
-	var texture: Texture2D = loaded as Texture2D
 	var center: Vector2 = grid_to_iso(cell)
 	if options.has("visual_center"):
 		center = Vector2(options.get("visual_center", center))
@@ -3594,8 +3316,7 @@ func can_draw_optional_visual_texture_asset(asset_id: String) -> bool:
 		return false
 	if should_skip_placeholder_object_texture_path_in_gray_test(texture_path):
 		return false
-	var loaded: Resource = load(texture_path)
-	return loaded != null and (loaded is Texture2D)
+	return _visual_asset_resource_runtime.load_optional_texture(normalized_asset_id, texture_path, false) != null
 
 func has_drawable_iso_wall_texture(material_override: Dictionary, _material_row: Dictionary, wall_profile_key: String) -> bool:
 	var wall_asset_key: String = get_production_wall_asset_key(material_override, Vector2i.ZERO, wall_profile_key)
