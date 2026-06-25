@@ -38,13 +38,12 @@ jobs:
             /tmp/issue-1162-finalize.log
           if-no-files-found: warn
           retention-days: 2
-      - name: Publish clean source branch
+      - name: Publish clean non-workflow source files
         if: success()
         shell: bash
         run: |
           set -euo pipefail
           expected=$(cat <<'EOF'
-          .github/workflows/renderer-component-gate.yml
           docs/ARCHITECTURE.md
           docs/room_visual_renderer_component_map.md
           scripts/field/room_visual_renderer.gd
