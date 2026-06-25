@@ -20,6 +20,7 @@ OBJECT_PRIMITIVE = ROOT / "scripts/visual/renderer/object_primitive_renderer.gd"
 OBJECT_TEXTURE_POLICY = ROOT / "scripts/visual/renderer/object_texture_dispatch_policy.gd"
 DOOR_CANVAS_RENDERER = ROOT / "scripts/visual/renderer/door_canvas_renderer.gd"
 ALIGNMENT_POLICY = ROOT / "scripts/visual/renderer/iso_asset_alignment_policy.gd"
+RESOURCE_RUNTIME = ROOT / "scripts/visual/renderer/visual_asset_resource_runtime.gd"
 errors: list[str] = []
 
 
@@ -50,13 +51,14 @@ object_primitive_renderer = read(OBJECT_PRIMITIVE)
 object_texture_policy = read(OBJECT_TEXTURE_POLICY)
 door_canvas_renderer = read(DOOR_CANVAS_RENDERER)
 alignment_policy = read(ALIGNMENT_POLICY)
+resource_runtime = read(RESOURCE_RUNTIME)
 
 renderer_lines = len(renderer.splitlines())
-ROOM_VISUAL_RENDERER_ALIGNMENT_POLICY_CAP = 5488
-if renderer_lines > ROOM_VISUAL_RENDERER_ALIGNMENT_POLICY_CAP:
+ROOM_VISUAL_RENDERER_RESOURCE_RUNTIME_CAP = 5209
+if renderer_lines > ROOM_VISUAL_RENDERER_RESOURCE_RUNTIME_CAP:
     errors.append(
-        "RoomVisualRenderer grew beyond asset alignment extraction cap: "
-        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_ALIGNMENT_POLICY_CAP}"
+        "RoomVisualRenderer grew beyond resource runtime extraction cap: "
+        f"{renderer_lines} > {ROOM_VISUAL_RENDERER_RESOURCE_RUNTIME_CAP}"
     )
 
 
@@ -171,7 +173,7 @@ for removed_helper in (
 
 for retained in (
     "draw_iso_object_png_texture_asset", "draw_optional_visual_texture_asset", "draw_iso_texture_asset",
-    "_iso_object_png_texture_cache", "load(", "draw_iso_door_insert", "draw_iso_cable_topology_line",
+    "_visual_asset_resource_runtime", "draw_iso_door_insert", "draw_iso_cable_topology_line",
     "draw_iso_cable_segment_shape", "draw_wall_procedural_cable", "draw_wall_procedural_air_duct",
     "draw_wall_procedural_water_pipe",
 ):
@@ -249,6 +251,7 @@ for token in (
     'preload("res://scripts/visual/renderer/iso_projection_service.gd")',
     'preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")',
     'preload("res://scripts/visual/renderer/iso_asset_alignment_policy.gd")',
+    'preload("res://scripts/visual/renderer/visual_asset_resource_runtime.gd")',
     'preload("res://scripts/visual/renderer/floor_renderer.gd")',
     'preload("res://scripts/visual/renderer/wall_renderer.gd")',
     'preload("res://scripts/visual/renderer/object_renderer.gd")',
@@ -761,6 +764,29 @@ for name in (
     if not function_body(renderer, name):
         errors.append(f"RoomVisualRenderer must retain {name} ownership")
 
+
+
+for token in (
+    "class_name VisualAssetResourceRuntime",
+    "func resolve_object_png_path",
+    "func resolve_wall_texture",
+    "func clear_all_caches",
+):
+    if token not in resource_runtime:
+        errors.append(f"VisualAssetResourceRuntime missing contract: {token}")
+for forbidden in ("GridManager", "MissionManager", "draw_texture", "draw_line(", "queue_redraw("):
+    if forbidden in resource_runtime:
+        errors.append(f"VisualAssetResourceRuntime contains forbidden coordinator/Canvas dependency: {forbidden}")
+for forbidden in (
+    "_iso_object_png_texture_cache",
+    "_iso_wall_asset_texture_cache",
+    "_iso_wall_breach_overlay_texture_cache",
+    "_iso_floor_asset_texture_cache",
+    "_iso_ground_asset_texture_cache",
+    "ResourceLoader",
+):
+    if forbidden in renderer:
+        errors.append(f"RoomVisualRenderer retained resource runtime implementation: {forbidden}")
 
 for token in (
     "class_name IsoAssetAlignmentPolicy", "const ALIGNMENT_RULES: Dictionary",

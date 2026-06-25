@@ -85,8 +85,8 @@ for token in (
         errors.append(f"RoomVisualRenderer missing alignment/catalog integration: {token}")
 
 for retained in (
-    "@export var iso_object_door_texture: Texture2D", "_iso_object_png_texture_cache",
-    "ResourceLoader", "draw_texture_rect", "draw_iso_asset_alignment_overlay", "show_asset_alignment_overlay",
+    "@export var iso_object_door_texture: Texture2D",
+    "draw_texture_rect", "draw_iso_asset_alignment_overlay", "show_asset_alignment_overlay",
 ):
     if retained not in renderer:
         errors.append(f"RoomVisualRenderer lost retained scene/resource/Canvas ownership: {retained}")
@@ -113,8 +113,8 @@ for token in (
         errors.append(f"Renderer Component Gate missing alignment policy check: {token}")
 
 renderer_lines = len(renderer.splitlines())
-if renderer_lines > 5488:
-    errors.append(f"RoomVisualRenderer did not shrink by at least 80 lines: {renderer_lines} > 5488")
+if renderer_lines > 5209:
+    errors.append(f"RoomVisualRenderer grew beyond current resource-runtime cap: {renderer_lines} > 5209")
 
 if errors:
     print("IsoAssetAlignmentPolicy boundary FAILED:")
