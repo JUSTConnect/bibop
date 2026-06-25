@@ -30,14 +30,45 @@ jobs:
           test "$(sha256sum .github/issue-1162-transport/fix02-01.b64 | cut -d' ' -f1)" = "529aa39b16fad99ab2cc1e95b41263869b4bbc420790abec791e57bf599cef6e"
           test "$(sha256sum .github/issue-1162-transport/fix02-02.b64 | cut -d' ' -f1)" = "bc081582c04b53ec9ce4e50f4ea17f78f2c26096dca5ee13c6c88e1ffb18d9f9"
           test "$(sha256sum .github/issue-1162-transport/fix02-03.b64 | cut -d' ' -f1)" = "1a4baa6335c0498915384a415051fbdf1b0d08a5d8357af07d071cb47286d55c"
-          test "$(sha256sum .github/issue-1162-transport/fix03-00.b64 | cut -d' ' -f1)" = "e10f6b3afce161f5830572f585a00a4f8c3dc12ebaeac933233bd270eda2cb40"
           test "$(sha256sum .github/issue-1162-transport/fix03-01.b64 | cut -d' ' -f1)" = "00a39a1a8599b953134e7df7a839181a2494cf15d9911b728805481471eda994"
           test "$(sha256sum .github/issue-1162-transport/fix03-02.b64 | cut -d' ' -f1)" = "7a6af70dd84a486a6c5ca47d5995fdcb3aef8b62194bac5326572914382dbba8"
+          python - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+
+          source = Path('.github/issue-1162-transport/fix03-00.b64').read_text(encoding='utf-8')
+          target = 'e10f6b3afce161f5830572f585a00a4f8c3dc12ebaeac933233bd270eda2cb40'
+          alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          if len(source) != 4999:
+              raise SystemExit(f'unexpected corrupted chunk length: {len(source)}')
+          repaired = None
+          for index in range(len(source) + 1):
+              prefix = source[:index]
+              suffix = source[index:]
+              for char in alphabet:
+                  candidate = prefix + char + suffix
+                  if sha256(candidate.encode('ascii')).hexdigest() == target:
+                      repaired = candidate
+                      print(f'repaired fix03-00 at index {index} with {char!r}')
+                      break
+              if repaired is not None:
+                  break
+          if repaired is None:
+              raise SystemExit('unable to repair fix03-00 by single-character insertion')
+          Path('/tmp/fix03-00.corrected.b64').write_text(repaired, encoding='ascii')
+          PY
+          test "$(wc -c < /tmp/fix03-00.corrected.b64)" -eq 5000
+          test "$(sha256sum /tmp/fix03-00.corrected.b64 | cut -d' ' -f1)" = "e10f6b3afce161f5830572f585a00a4f8c3dc12ebaeac933233bd270eda2cb40"
           cat \
             .github/issue-1162-transport/part00.b64 \
             .github/issue-1162-transport/part01.b64 \
-            .github/issue-1162-transport/fix02-*.b64 \
-            .github/issue-1162-transport/fix03-*.b64 \
+            .github/issue-1162-transport/fix02-00.b64 \
+            .github/issue-1162-transport/fix02-01.b64 \
+            .github/issue-1162-transport/fix02-02.b64 \
+            .github/issue-1162-transport/fix02-03.b64 \
+            /tmp/fix03-00.corrected.b64 \
+            .github/issue-1162-transport/fix03-01.b64 \
+            .github/issue-1162-transport/fix03-02.b64 \
             > /tmp/issue-1162-final.b64
           test "$(wc -c < /tmp/issue-1162-final.b64)" -eq 74280
           test "$(sha256sum /tmp/issue-1162-final.b64 | cut -d' ' -f1)" = "a87e0f0470c6385ee38cc178f9ff8c59b63b4fed8fd2637ff780e9b105e28111"
