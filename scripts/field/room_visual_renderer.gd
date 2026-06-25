@@ -13,6 +13,7 @@ const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_
 const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_catalog.gd")
 const IsoProjectionServiceRef = preload("res://scripts/visual/renderer/iso_projection_service.gd")
 const IsoDrawEntryContractRef = preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")
+const IsoAssetAlignmentPolicyRef = preload("res://scripts/visual/renderer/iso_asset_alignment_policy.gd")
 const FloorRendererRef = preload("res://scripts/visual/renderer/floor_renderer.gd")
 const WallRendererRef = preload("res://scripts/visual/renderer/wall_renderer.gd")
 const ObjectRendererRef = preload("res://scripts/visual/renderer/object_renderer.gd")
@@ -131,36 +132,7 @@ const WALL_CABLE_RAIL_Y_RATIO: float = 0.44
 const WALL_CABLE_RAIL_HALF_WIDTH_RATIO: float = 0.30
 
 
-# Authored cooling-canvas and outer utility layout policy stays in the
-# coordinator. RouteRenderer owns route geometry, not asset canvas regions.
-const OUTER_UTILITY_WIDTH_SCALE := 5.0
-const OUTER_UTILITY_HEIGHT_SCALE := 2.0
-const OUTER_UTILITY_VERTICAL_OFFSET_SCALE := 2.0
-const ISO_COOLING_WALL_CANVAS_FACE_REGIONS: Dictionary = {
-	"sw": Rect2(0.0, 0.0, 0.5, 1.0),
-	"se": Rect2(0.5, 0.0, 0.5, 1.0)
-}
 
-const ISO_OBJECT_CANONICAL_VISUAL_IDS: Array[String] = [
-	"power_source_01", "terminal_01", "radiator_01", "radiator_floor_01", "light_01",
-	"light_off_wall_01", "light_on_wall_01", "light_on_wall_pulsar_overlay_01",
-	"cable_reel_01", "cable_reel_02",
-	"fuse_box_in_01", "fuse_box_out_01", "fuse_box_in_wall_01", "fuse_box_out_wall_01",
-	"barrel_01", "fire_barrel_01", "normal_barrel_floor_01", "fire_barrel_floor_01",
-	"normal_crate_floor_01", "radiator_floor_01"
-]
-
-const ISO_WALL_ASSET_PACK_DIR: String       = WallRendererRef.ISO_WALL_ASSET_PACK_DIR
-const ISO_WALL_BREACH_OVERLAY_PACK_DIR: String       = WallRendererRef.ISO_WALL_BREACH_OVERLAY_PACK_DIR
-const ISO_COOLING_SYSTEM_ASSET_PACK_DIR: String = "res://assets/visual/isometric/cooling system/"
-const ISO_WALL_BREACH_OVERLAY_CATALOG: Dictionary       = WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG
-const ISO_TEST_ASSET_PACK_DIR: String = "res://assets/visual/isometric/test/"
-const ISO_WALL_ASSET_EXPECTED_SIZE: Vector2       = WallRendererRef.ISO_WALL_ASSET_EXPECTED_SIZE
-const ISO_WALL_HEIGHT_LEVELS: Array[String]       = WallRendererRef.ISO_WALL_HEIGHT_LEVELS
-const ISO_OUTER_WALL_HEIGHT_ORDER: Array[String]       = WallRendererRef.ISO_OUTER_WALL_HEIGHT_ORDER
-const ISO_GRATE_WALL_HEIGHT_LEVELS: Array[String]       = WallRendererRef.ISO_GRATE_WALL_HEIGHT_LEVELS
-const ISO_TEST_WALL_HEIGHT_ORDER: Array[String]       = WallRendererRef.ISO_TEST_WALL_HEIGHT_ORDER
-const ISO_TEST_WALL_HEIGHT_ASSET_KEYS: Dictionary       = WallRendererRef.ISO_TEST_WALL_HEIGHT_ASSET_KEYS
 const ISO_GRAY_TEST_REQUIRED_ASSET_KEYS: Array[String] = [
 	"floor_gray_test",
 	"wall_gray_tallest",
@@ -169,79 +141,7 @@ const ISO_GRAY_TEST_REQUIRED_ASSET_KEYS: Array[String] = [
 	"wall_gray_halfmid",
 	"wall_gray_low"
 ]
-const ISO_WALL_ASSET_CATALOG: Dictionary       = WallRendererRef.ISO_WALL_ASSET_CATALOG
 
-const ISO_FLOOR_ASSET_PACK_DIR: String = FloorRendererRef.FLOOR_ASSET_PACK_DIR
-const ISO_FLOOR_TEST_ASSET_KEY: String = FloorRendererRef.FLOOR_TEST_ASSET_KEY
-const ISO_FLOOR_ASSET_CATALOG: Dictionary = FloorRendererRef.FLOOR_ASSET_CATALOG
-const ISO_GROUND_ASSET_PACK_DIR: String = FloorRendererRef.GROUND_ASSET_PACK_DIR
-const ISO_GROUND_ASSET_CATALOG: Dictionary = FloorRendererRef.GROUND_ASSET_CATALOG
-const ISO_FLOOR_ASSET_TARGET_FOOTPRINT: Vector2 = FloorRendererRef.FLOOR_ASSET_TARGET_FOOTPRINT
-const ISO_FLOOR_ASSET_NORMALIZED_OVERLAP: Vector2 = FloorRendererRef.FLOOR_ASSET_NORMALIZED_OVERLAP
-const ISO_FLOOR_ASSET_PLACEMENT: Dictionary = FloorRendererRef.FLOOR_ASSET_PLACEMENT
-const ISO_GROUND_ASSET_PLACEMENT: Dictionary = FloorRendererRef.GROUND_ASSET_PLACEMENT
-
-# Wall PNGs contain intentionally large transparent margins.  These bounds are
-# measured from the checked-in wall atlas files and used only by the renderer so
-# the visible wall base, not the full transparent canvas, is anchored to the
-# active 128x71 isometric wall footprint.
-const ISO_WALL_BASELINE_VISIBLE_BOUNDS: Rect2       = WallRendererRef.ISO_WALL_BASELINE_VISIBLE_BOUNDS
-const ISO_WALL_HEIGHT_VISIBLE_BOUNDS: Dictionary       = WallRendererRef.ISO_WALL_HEIGHT_VISIBLE_BOUNDS
-const ISO_TEST_WALL_VISIBLE_BOUNDS: Dictionary       = WallRendererRef.ISO_TEST_WALL_VISIBLE_BOUNDS
-const ISO_WALL_ASSET_PLACEMENT: Dictionary       = WallRendererRef.ISO_WALL_ASSET_PLACEMENT
-
-const ISO_FLOOR_ATLAS_COLUMNS: int = FloorRendererRef.FLOOR_ATLAS_COLUMNS
-const ISO_FLOOR_ATLAS_ROWS: int = FloorRendererRef.FLOOR_ATLAS_ROWS
-const ISO_FLOOR_ATLAS_BASE_VARIANTS: int = FloorRendererRef.FLOOR_ATLAS_BASE_VARIANTS
-const ISO_FLOOR_ATLAS_HEAVY_METAL_VARIANTS: int = FloorRendererRef.FLOOR_ATLAS_HEAVY_METAL_VARIANTS
-const ISO_FLOOR_ATLAS_SOURCE_EDGE_PADDING: float = FloorRendererRef.FLOOR_ATLAS_SOURCE_EDGE_PADDING
-const ISO_FLOOR_ATLAS_SCREEN_OVERLAP: float = FloorRendererRef.FLOOR_ATLAS_SCREEN_OVERLAP
-const ISO_FLOOR_UNDERLAY_OVERLAP: float = FloorRendererRef.FLOOR_UNDERLAY_OVERLAP
-const ISO_FLOOR_ASSET_SCREEN_OVERLAP: float = FloorRendererRef.FLOOR_ASSET_SCREEN_OVERLAP
-const ISO_FLOOR_OVERLAY_INNER_INSET: float = FloorRendererRef.FLOOR_OVERLAY_INNER_INSET
-const ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS: Dictionary = FloorRendererRef.FLOOR_SEAM_SAFE_BASE_VARIANTS
-const ISO_FLOOR_ATLAS_LAYOUT: Dictionary = FloorRendererRef.FLOOR_ATLAS_LAYOUT
-
-const ISO_ASSET_ALIGNMENT_RULES: Dictionary = {
-	"floor_default": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Default 128x71 floor diamond centered in the grid cell."},
-	"floor_concrete": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Concrete floor PNG is squeezed to the active isometric floor footprint."},
-	"floor_steel": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Steel floor PNG is squeezed to the active isometric floor footprint."},
-	"floor_titan": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Titanium floor PNG is squeezed to the active isometric floor footprint."},
-	"floor_stepped": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Stepped 128x71 floor diamond centered in the grid cell."},
-	"floor_clean_lab": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Clean lab 128x71 floor diamond centered in the grid cell."},
-	"floor_dark_service": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Dark service 128x71 floor diamond centered in the grid cell."},
-	"floor_hazard": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Hazard 128x71 floor diamond centered in the grid cell."},
-	"floor_power": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Powered 128x71 floor diamond centered in the grid cell."},
-	"floor_damaged": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Damaged 128x71 floor diamond centered in the grid cell."},
-	"floor_reinforced": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Reinforced 128x71 floor diamond centered in the grid cell."},
-	"floor_diagnostic": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Diagnostic 128x71 floor diamond centered in the grid cell."},
-	"floor_door_underlay": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Door underlay remains centered under the wall opening."},
-	"ground_low": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Visual-only raised ground step 1 floor asset."},
-	"ground_halflow": {"anchor": "center", "scale": 1.0, "offset": Vector2.ZERO, "expected_size": ISO_STANDARD_TILE_SIZE, "layer_hint": "floor", "notes": "Visual-only raised ground step 2 floor asset."},
-	"wall_default": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
-	"wall_outer": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Outer wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
-	"wall_brick": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
-	"wall_concrete": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Concrete wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
-	"wall_grate": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Grate wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
-	"wall_concrete_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Concrete damaged wall visible base anchors to the blocked wall cell base on the active 128x71 footprint."},
-	"wall_brick_damaged": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Brick damaged wall visible base anchors to the blocked wall cell base on the active 128x71 footprint."},
-	"wall_steel": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Steel wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
-	"wall_energy": {"anchor": "wall_cell_base", "scale": 1.0, "offset": Vector2(0, -32), "expected_size": Vector2(128, 120), "layer_hint": "wall", "notes": "Energy wall canvas bottom-center aligns to the blocked wall cell base on the active 128x71 footprint."},
-	"object_door": {"anchor": "door_insert_center", "scale": 0.9, "offset": Vector2(0, -20), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Door art centers inside the visual wall opening."},
-	"object_terminal": {"anchor": "wall_mount_center", "scale": 0.8, "offset": Vector2(0, -18), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Terminal art centers on the wall mount band."},
-	"object_key": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Key pickup uses a small bottom-centered floor footprint."},
-	"object_component": {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Component prop uses a readable bottom-centered floor footprint."},
-	"object_socket": {"anchor": "wall_mount_center", "scale": 0.8, "offset": Vector2(0, -18), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Socket art centers on the wall mount band."},
-	"object_cable": {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Cable-like prop uses a readable bottom-centered floor footprint."},
-	"object_generic": {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Generic prop uses a readable bottom-centered floor footprint."},
-	"object_fuse": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Fuse pickup uses a small bottom-centered floor footprint."},
-	"object_repair_kit": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Repair kit pickup uses a small bottom-centered floor footprint."},
-	"object_keycard": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Keycard pickup uses a small bottom-centered floor footprint."},
-	"object_access_code": {"anchor": "bottom_center", "scale": 0.55, "offset": Vector2(0, -6), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Access-code pickup uses a small bottom-centered floor footprint."},
-	"object_cable_reel": {"anchor": "bottom_center", "scale": 0.75, "offset": Vector2(0, -8), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Cable reel prop uses a readable bottom-centered floor footprint."},
-	"object_button": {"anchor": "wall_mount_center", "scale": 0.8, "offset": Vector2(0, -18), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Button art centers on the wall mount band."},
-	"object_switch": {"anchor": "wall_mount_center", "scale": 0.8, "offset": Vector2(0, -18), "expected_size": Vector2(96, 96), "layer_hint": "object", "notes": "Switch art centers on the wall mount band."}
-}
 
 var _iso_placeholder_texture_cache: Dictionary = {}
 var _iso_object_png_texture_cache: Dictionary = {}
@@ -268,9 +168,6 @@ var selected_wall_mounted_attached_wall_cell: Vector2i = Vector2i(-1, -1)
 var selected_wall_mounted_object_id: String = ""
 var map_constructor_link_target_cell: Vector2i = Vector2i(-1, -1)
 var map_constructor_link_target_object_id: String = ""
-const WALL_SIDE_ORDER: Array[String]       = WallRendererRef.WALL_SIDE_ORDER
-const WALL_MASS_RATIO: float       = WallRendererRef.WALL_MASS_RATIO
-const WALL_MOUNT_BAND_RATIO: float       = WallRendererRef.WALL_MOUNT_BAND_RATIO
 func _enter_tree() -> void:
 	if _grid_manager == null:
 		_grid_manager = get_parent() as GridManager
@@ -1154,7 +1051,7 @@ func should_draw_floor_cell_border(cell: Vector2i) -> bool:
 	if not is_floor_like_tile(tile_type):
 		return false
 	var family: String = get_iso_floor_material_family_for_cell(cell)
-	for side in WALL_SIDE_ORDER:
+	for side in WallRendererRef.WALL_SIDE_ORDER:
 		var neighbor: Vector2i = cell + _get_wall_side_delta(side)
 		if not is_cell_in_bounds(neighbor):
 			return true
@@ -1233,9 +1130,9 @@ func get_iso_floor_texture_for_asset_key(asset_key: String) -> Texture2D:
 	if normalized_asset_key.is_empty():
 		return null
 
-	var known_floor_asset: bool = ISO_FLOOR_ASSET_CATALOG.has(normalized_asset_key)
-	var known_ground_asset: bool = ISO_GROUND_ASSET_CATALOG.has(normalized_asset_key)
-	var known_test_asset: bool = normalized_asset_key == ISO_FLOOR_TEST_ASSET_KEY
+	var known_floor_asset: bool = FloorRendererRef.FLOOR_ASSET_CATALOG.has(normalized_asset_key)
+	var known_ground_asset: bool = FloorRendererRef.GROUND_ASSET_CATALOG.has(normalized_asset_key)
+	var known_test_asset: bool = normalized_asset_key == FloorRendererRef.FLOOR_TEST_ASSET_KEY
 	if not known_floor_asset and not known_ground_asset and not known_test_asset:
 		return null
 
@@ -1274,7 +1171,7 @@ func get_iso_ground_texture_for_asset_key(asset_key: String) -> Texture2D:
 	if normalized_asset_key.is_empty():
 		return null
 
-	if not ISO_GROUND_ASSET_CATALOG.has(normalized_asset_key):
+	if not FloorRendererRef.GROUND_ASSET_CATALOG.has(normalized_asset_key):
 		return null
 
 	if _iso_ground_asset_texture_cache.has(normalized_asset_key):
@@ -1299,7 +1196,7 @@ func get_iso_ground_texture_for_asset_key(asset_key: String) -> Texture2D:
 	return null
 
 func get_iso_ground_texture_draw_rect_for_cell(cell: Vector2i, texture: Texture2D, asset_key: String) -> Rect2:
-	var placement: Dictionary = Dictionary(ISO_GROUND_ASSET_PLACEMENT.get(asset_key, {}))
+	var placement: Dictionary = Dictionary(FloorRendererRef.GROUND_ASSET_PLACEMENT.get(asset_key, {}))
 	if placement.is_empty():
 		placement = {"visible_bounds": Rect2(Vector2.ZERO, texture.get_size()), "target_base_width": get_iso_tile_size().x, "scale": 1.0, "offset": Vector2.ZERO}
 	return IsoVisualAlignmentServiceRef.get_ground_destination_rect(grid_to_iso(cell), get_iso_tile_size(), texture.get_size(), placement)
@@ -1318,7 +1215,7 @@ func draw_iso_ground_asset_texture_for_cell(cell: Vector2i, asset_key: String) -
 	return true
 
 func draw_iso_floor_asset_safe_base(cell: Vector2i, color: Color, surface_y_offset: float = 0.0) -> void:
-	var base_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
+	var base_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, FloorRendererRef.FLOOR_UNDERLAY_OVERLAP)
 	if not is_zero_approx(surface_y_offset):
 		var shifted_points: PackedVector2Array = PackedVector2Array()
 		for point in base_points:
@@ -1349,7 +1246,7 @@ func draw_iso_floor_asset_texture_for_cell(cell: Vector2i, asset_key: String, su
 	var texture: Texture2D = get_iso_floor_texture_for_asset_key(asset_key)
 	var destination_rect: Rect2 = get_iso_floor_asset_destination_rect_for_cell(cell, asset_key, surface_y_offset)
 	if texture == null:
-		if use_gray_room_visual_test_assets and asset_key == ISO_FLOOR_TEST_ASSET_KEY:
+		if use_gray_room_visual_test_assets and asset_key == FloorRendererRef.FLOOR_TEST_ASSET_KEY:
 			draw_missing_iso_asset_debug_fallback(cell, asset_key, destination_rect)
 			return true
 		return false
@@ -1370,7 +1267,7 @@ func get_ground_surface_y_offset_for_asset_key(asset_key: String) -> float:
 	var texture: Texture2D = get_iso_ground_texture_for_asset_key(asset_key)
 	if texture == null:
 		return 0.0
-	var placement: Dictionary = Dictionary(ISO_GROUND_ASSET_PLACEMENT.get(asset_key, {}))
+	var placement: Dictionary = Dictionary(FloorRendererRef.GROUND_ASSET_PLACEMENT.get(asset_key, {}))
 	return IsoVisualAlignmentServiceRef.get_ground_top_surface_y_offset(get_iso_tile_size(), texture.get_size(), placement)
 
 func get_cell_surface_y_offset_for_floor_height(floor_height_level: String) -> float:
@@ -1394,7 +1291,7 @@ func enrich_iso_object_surface_context_for_cell(object_data: Dictionary, cell: V
 	if ground_texture == null:
 		return enriched
 
-	var placement: Dictionary = Dictionary(ISO_GROUND_ASSET_PLACEMENT.get(ground_asset_key, {}))
+	var placement: Dictionary = Dictionary(FloorRendererRef.GROUND_ASSET_PLACEMENT.get(ground_asset_key, {}))
 	var offset: float = IsoVisualAlignmentServiceRef.get_ground_top_surface_y_offset(
 		get_iso_tile_size(),
 		ground_texture.get_size(),
@@ -1507,11 +1404,11 @@ func get_iso_gray_test_asset_path(asset_key: String) -> String:
 	if catalog_path.find("/test/") >= 0:
 		return catalog_path
 
-	if normalized_asset_key == ISO_FLOOR_TEST_ASSET_KEY:
-		return ISO_TEST_ASSET_PACK_DIR + str(ISO_FLOOR_ASSET_CATALOG.get(normalized_asset_key, ""))
+	if normalized_asset_key == FloorRendererRef.FLOOR_TEST_ASSET_KEY:
+		return VisualAssetCatalogScript.ISO_TEST_ASSET_PACK_DIR + str(FloorRendererRef.FLOOR_ASSET_CATALOG.get(normalized_asset_key, ""))
 
-	if ISO_WALL_ASSET_CATALOG.has(normalized_asset_key) and normalized_asset_key.begins_with("wall_gray_"):
-		return ISO_TEST_ASSET_PACK_DIR + str(ISO_WALL_ASSET_CATALOG.get(normalized_asset_key, ""))
+	if WallRendererRef.ISO_WALL_ASSET_CATALOG.has(normalized_asset_key) and normalized_asset_key.begins_with("wall_gray_"):
+		return VisualAssetCatalogScript.ISO_TEST_ASSET_PACK_DIR + str(WallRendererRef.ISO_WALL_ASSET_CATALOG.get(normalized_asset_key, ""))
 
 	return ""
 
@@ -1737,7 +1634,7 @@ func get_breach_overlay_texture_for_asset_key(asset_key: String) -> Texture2D:
 	if normalized_key.is_empty():
 		return null
 
-	if not ISO_WALL_BREACH_OVERLAY_CATALOG.has(normalized_key):
+	if not WallRendererRef.ISO_WALL_BREACH_OVERLAY_CATALOG.has(normalized_key):
 		return null
 
 	if _iso_wall_breach_overlay_texture_cache.has(normalized_key):
@@ -1787,7 +1684,7 @@ func get_normalized_breachable_wall_height(wall_data: Dictionary) -> String:
 func get_breach_overlay_destination_rect(base_texture_rect: Rect2, base_source_rect: Rect2, base_texture: Texture2D, overlay_texture: Texture2D, height_level: String) -> Rect2:
 	if base_texture == null or overlay_texture == null:
 		return Rect2()
-	var layout: Dictionary = BreachableWallServiceRef.get_texture_overlay_layout(base_texture_rect, base_source_rect, base_texture.get_size(), overlay_texture.get_size(), height_level, ISO_WALL_HEIGHT_VISIBLE_BOUNDS, ISO_WALL_BASELINE_VISIBLE_BOUNDS)
+	var layout: Dictionary = BreachableWallServiceRef.get_texture_overlay_layout(base_texture_rect, base_source_rect, base_texture.get_size(), overlay_texture.get_size(), height_level, WallRendererRef.ISO_WALL_HEIGHT_VISIBLE_BOUNDS, WallRendererRef.ISO_WALL_BASELINE_VISIBLE_BOUNDS)
 	if not bool(layout.get("ok", false)):
 		return Rect2()
 	return _apply_breach_overlay_rules_adjustment(Rect2(layout.get("rect", Rect2())), height_level)
@@ -2202,17 +2099,17 @@ func get_iso_visual_texture_debug_state() -> Dictionary:
 		var ground_catalog_path: String = ""
 		var ground_catalog_available: bool = false
 		var gray_test_placeholder_object_skipped: bool = should_skip_placeholder_object_texture_in_gray_test(texture_key)
-		if texture_key == ISO_FLOOR_TEST_ASSET_KEY:
+		if texture_key == FloorRendererRef.FLOOR_TEST_ASSET_KEY:
 			wall_catalog_path = get_iso_gray_test_asset_path(texture_key)
 			wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
 		elif texture_key.begins_with("wall_"):
 			var wall_catalog: Dictionary = get_iso_wall_asset_catalog()
 			if wall_catalog.has(texture_key):
-				wall_catalog_path = get_iso_gray_test_asset_path(texture_key) if texture_key.begins_with("wall_gray_") else ISO_WALL_ASSET_PACK_DIR + str(wall_catalog.get(texture_key, ""))
+				wall_catalog_path = get_iso_gray_test_asset_path(texture_key) if texture_key.begins_with("wall_gray_") else WallRendererRef.ISO_WALL_ASSET_PACK_DIR + str(wall_catalog.get(texture_key, ""))
 				wall_catalog_available = ResourceLoader.exists(wall_catalog_path)
 		elif texture_key.begins_with("ground_"):
-			if ISO_GROUND_ASSET_CATALOG.has(texture_key):
-				ground_catalog_path = ISO_GROUND_ASSET_PACK_DIR + str(ISO_GROUND_ASSET_CATALOG.get(texture_key, ""))
+			if FloorRendererRef.GROUND_ASSET_CATALOG.has(texture_key):
+				ground_catalog_path = FloorRendererRef.GROUND_ASSET_PACK_DIR + str(FloorRendererRef.GROUND_ASSET_CATALOG.get(texture_key, ""))
 				ground_catalog_available = ResourceLoader.exists(ground_catalog_path)
 		elif placeholder_preset_enabled and placeholder_path != "" and not gray_test_placeholder_object_skipped:
 			placeholder_available = ResourceLoader.exists(placeholder_path)
@@ -2318,20 +2215,19 @@ func get_iso_asset_alignment_diagnostics() -> Dictionary:
 		elif asset_path.find("/placeholders/") >= 0 and asset_key.begins_with("object_"):
 			known_object_asset_keys[asset_key] = true
 
-	for rule_key_variant in ISO_ASSET_ALIGNMENT_RULES.keys():
-		var rule_key: String = str(rule_key_variant)
-		var rule: Dictionary = Dictionary(ISO_ASSET_ALIGNMENT_RULES.get(rule_key, {}))
+	for rule_key in IsoAssetAlignmentPolicyRef.get_alignment_rule_ids():
+		var rule: Dictionary = IsoAssetAlignmentPolicyRef.get_alignment_rule(rule_key)
 
 		if not known_object_asset_keys.has(rule_key):
 			unused_alignment_rules.append(rule_key)
 
-		var scale_value: float = float(rule.get("scale", 1.0))
+		var scale_value: float = IsoAssetAlignmentPolicyRef.get_rule_scale(rule, 1.0)
 		if not is_equal_approx(scale_value, 1.0):
 			scale_overrides[rule_key] = scale_value
 
 	for asset_key_variant in known_object_asset_keys.keys():
 		var asset_key: String = str(asset_key_variant)
-		if not ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
+		if not IsoAssetAlignmentPolicyRef.has_alignment_rule(asset_key):
 			missing_alignment_rules.append(asset_key)
 
 	return {
@@ -2513,8 +2409,8 @@ func get_iso_visual_debug_report() -> Dictionary:
 	var fog_overlay_will_draw: bool = should_draw_iso_fog_cell_shapes()
 	var constructor_fog_suppressed: bool = should_suppress_iso_fog_for_constructor()
 	var duplicate_overlay_risk: bool = is_iso_visual_preview_active() and (floor_enabled or wall_enabled or object_enabled) and fog_overlay_will_draw
-	var ground_low_path: String = ISO_GROUND_ASSET_PACK_DIR + str(ISO_GROUND_ASSET_CATALOG.get("ground_low", ""))
-	var ground_halflow_path: String = ISO_GROUND_ASSET_PACK_DIR + str(ISO_GROUND_ASSET_CATALOG.get("ground_halflow", ""))
+	var ground_low_path: String = FloorRendererRef.GROUND_ASSET_PACK_DIR + str(FloorRendererRef.GROUND_ASSET_CATALOG.get("ground_low", ""))
+	var ground_halflow_path: String = FloorRendererRef.GROUND_ASSET_PACK_DIR + str(FloorRendererRef.GROUND_ASSET_CATALOG.get("ground_halflow", ""))
 	return {
 		"single_render_path": not (legacy_grid_should_draw and iso_active),
 		"legacy_grid_should_draw": legacy_grid_should_draw,
@@ -3109,13 +3005,7 @@ func get_cooling_wall_canvas_visible_faces(object_data: Dictionary) -> Array[Str
 	return faces
 
 func _get_cooling_wall_canvas_region(region_key: String, full_size: Vector2) -> Rect2:
-	var normalized_region: Rect2 = Rect2(0.0, 0.0, 1.0, 1.0)
-	if ISO_COOLING_WALL_CANVAS_FACE_REGIONS.has(region_key):
-		normalized_region = Rect2(ISO_COOLING_WALL_CANVAS_FACE_REGIONS.get(region_key))
-	return Rect2(
-		Vector2(full_size.x * normalized_region.position.x, full_size.y * normalized_region.position.y),
-		Vector2(full_size.x * normalized_region.size.x, full_size.y * normalized_region.size.y)
-	)
+	return IsoAssetAlignmentPolicyRef.get_cooling_wall_canvas_region(region_key, full_size)
 
 func draw_cooling_wall_canvas_asset_for_faces(cell: Vector2i, object_data: Dictionary, faces: Array[String]) -> bool:
 	var asset_id: String = get_inner_wall_route_asset_id(object_data)
@@ -3141,7 +3031,7 @@ func draw_cooling_wall_canvas_asset_for_faces(cell: Vector2i, object_data: Dicti
 		draw_texture_rect_region(texture, texture_rect, Rect2(Vector2.ZERO, texture_size))
 	else:
 		for face in faces:
-			if face not in ISO_COOLING_WALL_CANVAS_FACE_REGIONS:
+			if not IsoAssetAlignmentPolicyRef.has_cooling_wall_face_region(face):
 				continue
 			var source_region: Rect2 = _get_cooling_wall_canvas_region(face, texture_size)
 			var destination_region: Rect2 = _get_cooling_wall_canvas_region(face, texture_rect.size)
@@ -3240,15 +3130,23 @@ func draw_outer_wall_route_surface(cell: Vector2i, object_data: Dictionary, _vis
 	if not _is_wall_cable_face_visible(cell, face):
 		return true
 	var segment: Dictionary = _get_wall_cable_face_line_segment(cell, face)
-	var center: Vector2 = Vector2(segment.get("mid", grid_to_iso(cell))) + Vector2(segment.get("normal", Vector2.UP)).normalized() * OUTER_UTILITY_VERTICAL_OFFSET_SCALE
-	var width: float = 4.0 * OUTER_UTILITY_WIDTH_SCALE
 	var kind: String = str(object_data.get("routing_kind", _get_wall_routed_object_family(object_data))).strip_edges().to_lower()
+	var layout: Dictionary = IsoAssetAlignmentPolicyRef.build_outer_utility_layout({
+		"segment": segment,
+		"fallback_center": grid_to_iso(cell),
+		"kind": kind,
+		"base_width": 4.0
+	})
+	var start_point: Vector2 = Vector2(layout.get("start", Vector2.ZERO))
+	var end_point: Vector2 = Vector2(layout.get("end", Vector2.ZERO))
+	var primary_width: float = float(layout.get("primary_width", 1.0))
+	var secondary_width: float = float(layout.get("secondary_width", 1.0))
 	if kind == "water_pipe":
-		draw_line(Vector2(segment.get("start_edge", center)), Vector2(segment.get("end_edge", center)), Color(0.08, 0.11, 0.13, 0.98), width, true)
-		draw_line(Vector2(segment.get("start_edge", center)), Vector2(segment.get("end_edge", center)), Color(0.36, 0.70, 0.80, 0.98), width * 0.62, true)
+		draw_line(start_point, end_point, Color(0.08, 0.11, 0.13, 0.98), primary_width, true)
+		draw_line(start_point, end_point, Color(0.36, 0.70, 0.80, 0.98), secondary_width, true)
 	else:
-		draw_line(Vector2(segment.get("start_edge", center)), Vector2(segment.get("end_edge", center)), Color(0.08, 0.09, 0.10, 0.98), width * OUTER_UTILITY_HEIGHT_SCALE, true)
-		draw_line(Vector2(segment.get("start_edge", center)), Vector2(segment.get("end_edge", center)), Color(0.47, 0.54, 0.60, 0.98), width * 1.55, true)
+		draw_line(start_point, end_point, Color(0.08, 0.09, 0.10, 0.98), primary_width, true)
+		draw_line(start_point, end_point, Color(0.47, 0.54, 0.60, 0.98), secondary_width, true)
 	return true
 
 func draw_wall_procedural_routed_object(cell: Vector2i, object_data: Dictionary, visual_center: Vector2) -> bool:
@@ -3452,12 +3350,8 @@ func draw_visual_state_overlays_for_descriptor(object_data: Dictionary, descript
 func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 	var rule: Dictionary = {}
 
-	if ISO_ASSET_ALIGNMENT_RULES.has(asset_key):
-		var raw_rule: Variant = ISO_ASSET_ALIGNMENT_RULES.get(asset_key, {})
-		if raw_rule is Dictionary:
-			rule = Dictionary(raw_rule).duplicate(true)
-		else:
-			rule = {}
+	if IsoAssetAlignmentPolicyRef.has_alignment_rule(asset_key):
+		rule = IsoAssetAlignmentPolicyRef.get_alignment_rule(asset_key)
 	elif asset_key.begins_with("floor_"):
 		rule = {
 			"anchor": "center",
@@ -3506,33 +3400,22 @@ func get_iso_asset_alignment_rule(asset_key: String) -> Dictionary:
 			"notes": "Fallback generic alignment."
 		}
 
-	if asset_key.begins_with("floor_"):
-		rule["expected_size"] = get_iso_tile_size()
-
-	if str(rule.get("anchor", "")) == "wall_cell_base":
-		var offset: Vector2 = Vector2(rule.get("offset", Vector2.ZERO))
-		if is_equal_approx(offset.y, -ISO_CLASSIC_TILE_SIZE.y * 0.5):
-			rule["offset"] = Vector2(offset.x, -get_iso_tile_half_size().y)
-
-	return rule
+	return IsoAssetAlignmentPolicyRef.normalize_runtime_rule(
+		asset_key,
+		rule,
+		get_iso_tile_size(),
+		get_iso_tile_half_size(),
+		ISO_CLASSIC_TILE_SIZE
+	)
 
 func get_iso_asset_alignment_scale(asset_key: String) -> float:
-	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
-	var scale_value: float = float(rule.get("scale", 1.0))
-	return maxf(scale_value, 0.01)
+	return IsoAssetAlignmentPolicyRef.get_rule_scale(get_iso_asset_alignment_rule(asset_key), 1.0)
 
 func get_iso_asset_alignment_expected_size(asset_key: String) -> Vector2:
-	var rule: Dictionary = get_iso_asset_alignment_rule(asset_key)
-	return Vector2(rule.get("expected_size", Vector2(96, 96)))
+	return IsoAssetAlignmentPolicyRef.get_rule_expected_size(get_iso_asset_alignment_rule(asset_key), Vector2(96, 96))
 
 func get_iso_asset_alignment_anchor_offset(anchor: String, size: Vector2) -> Vector2:
-	match anchor:
-		"center", "wall_mount_center", "door_insert_center":
-			return Vector2(size.x * 0.5, size.y * 0.5)
-		"bottom_center", "wall_cell_base":
-			return Vector2(size.x * 0.5, size.y)
-		_:
-			return Vector2(size.x * 0.5, size.y * 0.5)
+	return IsoAssetAlignmentPolicyRef.get_anchor_offset(anchor, size)
 
 func get_iso_texture_draw_position_from_center(center: Vector2, texture: Texture2D) -> Vector2:
 	var size: Vector2 = texture.get_size()
@@ -3937,8 +3820,8 @@ func get_iso_architectural_wall_profile(topology: String, visual_material: Dicti
 		"cap_enabled": true,
 		"corner_emphasis": 1.25 if corner else 1.0,
 		"damage_overlay_strength": 0.45 if material_id.find("damaged") >= 0 else 0.0,
-		"wall_mass_ratio": WALL_MASS_RATIO,
-		"mount_band_ratio": WALL_MOUNT_BAND_RATIO,
+		"wall_mass_ratio": WallRendererRef.WALL_MASS_RATIO,
+		"mount_band_ratio": WallRendererRef.WALL_MOUNT_BAND_RATIO,
 		"mount_band_color": base_color.lightened(0.12),
 		"mount_band_edge_color": edge_color.lightened(0.12),
 		"mount_band_enabled": true,
@@ -4214,7 +4097,7 @@ func draw_floor_seamless_underlay(cell: Vector2i, fill_color: Color) -> void:
 	# Draw a tiny overlapping solid diamond below the atlas art.  This masks
 	# transparent atlas margins and sub-pixel rasterization holes while preserving
 	# the atlas details drawn above it.
-	var underlay_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, ISO_FLOOR_UNDERLAY_OVERLAP)
+	var underlay_points: PackedVector2Array = get_iso_diamond_points_with_overlap(cell, FloorRendererRef.FLOOR_UNDERLAY_OVERLAP)
 	draw_colored_polygon(underlay_points, fill_color)
 
 func draw_procedural_floor_tile(cell: Vector2i, fill_color: Color, profile: Dictionary, draw_edge_borders: bool) -> void:
@@ -4237,7 +4120,7 @@ func draw_procedural_floor_tile(cell: Vector2i, fill_color: Color, profile: Dict
 	draw_line(diamond_points[3].lerp(center_point, 0.2), diamond_points[1].lerp(center_point, 0.2), seam_color, 0.55)
 	if draw_edge_borders or debug_draw_iso_cell_outlines:
 		var outline_color: Color = _get_color_from_dict(profile, "outline", Color(0.21, 0.33, 0.39, 0.72))
-		for side in WALL_SIDE_ORDER:
+		for side in WallRendererRef.WALL_SIDE_ORDER:
 			var edge_points: Array[Vector2] = get_iso_diamond_edge_points(diamond_points, side)
 			if edge_points.size() < 2:
 				continue
@@ -4302,13 +4185,13 @@ func draw_floor_atlas_overlay_layer(cell: Vector2i, source_rect: Rect2) -> void:
 func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant: int, mirror_h: bool, mirror_v: bool) -> bool:
 	if iso_floor_atlas_texture == null:
 		return false
-	if not ISO_FLOOR_ATLAS_LAYOUT.has(atlas_key):
+	if not FloorRendererRef.FLOOR_ATLAS_LAYOUT.has(atlas_key):
 		return false
-	var layout: Dictionary = _safe_variant_dictionary(ISO_FLOOR_ATLAS_LAYOUT.get(atlas_key, {}))
+	var layout: Dictionary = _safe_variant_dictionary(FloorRendererRef.FLOOR_ATLAS_LAYOUT.get(atlas_key, {}))
 	if layout.is_empty():
 		return false
 	var row: int = int(layout.get("row", 1))
-	var variant_count: int = int(layout.get("variants", ISO_FLOOR_ATLAS_BASE_VARIANTS))
+	var variant_count: int = int(layout.get("variants", FloorRendererRef.FLOOR_ATLAS_BASE_VARIANTS))
 	var is_overlay: bool = bool(layout.get("overlay", false))
 	var variant: int = get_floor_atlas_seam_safe_variant(cell, atlas_key, requested_variant, variant_count, row * 13)
 	var source_rect: Rect2 = get_floor_atlas_region(row, variant)
@@ -4323,8 +4206,8 @@ func draw_floor_atlas_layer(cell: Vector2i, atlas_key: String, requested_variant
 	# cover fractional-pixel cracks between adjacent projected cells.
 	var safe_source_rect: Rect2 = get_floor_atlas_safe_source_rect(source_rect)
 	var destination_rect: Rect2 = get_floor_atlas_destination_rect()
-	var safe_mirror_h: bool = false if ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key) else mirror_h
-	var safe_mirror_v: bool = false if ISO_FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key) else mirror_v
+	var safe_mirror_h: bool = false if FloorRendererRef.FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key) else mirror_h
+	var safe_mirror_v: bool = false if FloorRendererRef.FLOOR_SEAM_SAFE_BASE_VARIANTS.has(atlas_key) else mirror_v
 	var visual_scale: Vector2 = Vector2(-1.0 if safe_mirror_h else 1.0, -1.0 if safe_mirror_v else 1.0)
 	draw_set_transform(center.round(), 0.0, visual_scale)
 	draw_texture_rect_region(iso_floor_atlas_texture, destination_rect, safe_source_rect, Color.WHITE, false, true)
@@ -5479,7 +5362,7 @@ func draw_wall_run_overlay() -> void:
 			var topology: Dictionary = get_wall_render_topology(cell)
 			var edges: Array[Dictionary] = []
 			var neighbors: Dictionary = Dictionary(topology.get("neighbors", {}))
-			for side in WALL_SIDE_ORDER:
+			for side in WallRendererRef.WALL_SIDE_ORDER:
 				var edge_points: Array[Vector2] = get_iso_diamond_edge_points(get_iso_wall_connected_base_points(cell, topology), side)
 				if edge_points.size() < 2:
 					continue
@@ -5506,7 +5389,7 @@ func draw_floor_join_overlay() -> void:
 			if not is_floor_like_tile(tile_type):
 				continue
 			var points: PackedVector2Array = get_iso_diamond_points(cell)
-			for side in WALL_SIDE_ORDER:
+			for side in WallRendererRef.WALL_SIDE_ORDER:
 				var edge_points: Array[Vector2] = get_iso_diamond_edge_points(points, side)
 				if edge_points.size() < 2:
 					continue

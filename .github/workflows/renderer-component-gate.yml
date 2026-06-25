@@ -22,10 +22,14 @@ jobs:
         run: python tools/check_room_visual_renderer_component_boundary.py
       - name: Check CableCanvasRenderer boundary
         run: python tools/check_cable_canvas_renderer_boundary.py
+      - name: Check IsoAssetAlignmentPolicy boundary
+        run: python tools/check_iso_asset_alignment_policy_boundary.py
       - name: Import project
         run: godot --headless --path . --import
       - name: Check projection contract
         run: godot --headless --path . --script res://tools/ci/check_renderer_projection_contract.gd
+      - name: Check IsoAssetAlignmentPolicy contract
+        run: godot --headless --path . --script res://tools/ci/check_iso_asset_alignment_policy_contract.gd
       - name: Check FloorRenderer contract
         run: godot --headless --path . --script res://tools/ci/check_floor_renderer_contract.gd
       - name: Check WallRenderer contract
