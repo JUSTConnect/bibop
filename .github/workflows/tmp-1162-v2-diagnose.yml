@@ -5,7 +5,7 @@ on:
     types: [opened, reopened, synchronize]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate-final-files:
@@ -38,3 +38,28 @@ jobs:
             /tmp/issue-1162-finalize.log
           if-no-files-found: warn
           retention-days: 2
+      - name: Publish clean source branch
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=$(cat <<'EOF'
+          .github/workflows/renderer-component-gate.yml
+          docs/ARCHITECTURE.md
+          docs/room_visual_renderer_component_map.md
+          scripts/field/room_visual_renderer.gd
+          tools/check_cable_canvas_renderer_boundary.py
+          tools/check_iso_asset_alignment_policy_boundary.py
+          tools/check_room_visual_renderer_component_boundary.py
+          tools/check_visual_asset_resource_runtime_boundary.py
+          tools/ci/check_room_visual_renderer_smoke_contract.gd
+          EOF
+          )
+          git add -- $expected
+          git clean -fdx
+          actual=$(git diff --cached --name-only | sort)
+          test "$actual" = "$(printf '%s\n' "$expected" | sort)"
+          git config user.name 'GitHub Actions'
+          git config user.email 'actions@github.com'
+          git commit -m 'BIP-Architecture-Coordinators-02F7: Finalize RoomVisualRenderer decomposition'
+          git push origin HEAD:refs/heads/codex/bip-architecture-coordinators-02f7-final-source-v2
