@@ -1,0 +1,111 @@
+name: Apply issue 1162 final cleanup
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-validate-publish:
+    if: github.event.pull_request.head.ref == 'codex/bip-architecture-coordinators-02f7-final-cleanup'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Reconstruct final source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/issue-1162-transport/part*.b64 | base64 --decode > /tmp/issue-1162-final.tar.gz
+          test "$(sha256sum /tmp/issue-1162-final.tar.gz | cut -d' ' -f1)" = "a28927aaa543b63049506591757e9b5b4c507f2471d869524fd51ccbe7f7a13e"
+          git fetch origin main
+          git reset --hard origin/main
+          git clean -fd
+          tar -xzf /tmp/issue-1162-final.tar.gz
+          rm -f MANIFEST.txt
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Validate final coordinator cleanup
+        shell: bash
+        run: |
+          exec > >(tee /tmp/issue-1162-validation.log) 2>&1
+          set -euo pipefail
+          python tools/check_room_visual_renderer_component_boundary.py
+          python tools/check_cable_canvas_renderer_boundary.py
+          python tools/check_iso_asset_alignment_policy_boundary.py
+          python tools/check_visual_asset_resource_runtime_boundary.py
+          python tools/check_gdscript_safety_patterns.py
+          godot --headless --path . --import
+          godot --headless --path . --script res://tools/ci/parse_all_gd.gd
+          godot --headless --path . --script res://tools/ci/check_room_visual_renderer_smoke_contract.gd
+          godot --headless --path . --script res://tools/ci/check_renderer_projection_contract.gd
+          godot --headless --path . --script res://tools/ci/check_iso_asset_alignment_policy_contract.gd
+          godot --headless --path . --script res://tools/ci/check_visual_asset_resource_runtime_contract.gd
+          godot --headless --path . --script res://tools/ci/check_floor_renderer_contract.gd
+          godot --headless --path . --script res://tools/ci/check_wall_renderer_contract.gd
+          godot --headless --path . --script res://tools/ci/check_object_renderer_contract.gd
+          godot --headless --path . --script res://tools/ci/check_object_primitive_renderer_contract.gd
+          godot --headless --path . --script res://tools/ci/check_object_texture_dispatch_policy_contract.gd
+          godot --headless --path . --script res://tools/ci/check_door_canvas_renderer_contract.gd
+          godot --headless --path . --script res://tools/ci/check_route_renderer_contract.gd
+          godot --headless --path . --script res://tools/ci/check_cable_canvas_renderer_contract.gd
+          godot --headless --path . --script res://tools/ci/check_overlay_renderer_contract.gd
+          godot --headless --path . --script res://tools/ci/check_map_constructor_overlay_renderer_contract.gd
+          godot --headless --path . --script res://tools/ci/check_fog_renderer_contract.gd
+          git diff --check
+          test "$(wc -l < scripts/field/room_visual_renderer.gd)" -eq 4288
+      - name: Upload validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-1162-validation-log
+          path: /tmp/issue-1162-validation.log
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Publish clean source commit
+        if: success()
+        shell: bash
+        env:
+          BRANCH: codex/bip-architecture-coordinators-02f7-final-cleanup
+        run: |
+          set -euo pipefail
+          rm -rf .godot
+          git clean -fd -- ':(glob)**/*.uid' ':(glob)**/*.import'
+          git add -A
+          expected=$(cat <<'EOF'
+          .github/workflows/renderer-component-gate.yml
+          docs/ARCHITECTURE.md
+          docs/room_visual_renderer_component_map.md
+          scripts/field/room_visual_renderer.gd
+          tools/check_cable_canvas_renderer_boundary.py
+          tools/check_iso_asset_alignment_policy_boundary.py
+          tools/check_room_visual_renderer_component_boundary.py
+          tools/check_visual_asset_resource_runtime_boundary.py
+          tools/ci/check_room_visual_renderer_smoke_contract.gd
+          EOF
+          )
+          actual=$(git diff --cached --name-only | sort)
+          if [ "$actual" != "$(printf '%s\n' "$expected" | sort)" ]; then
+            echo 'Unexpected final changed-file set:'
+            printf '%s\n' "$actual"
+            exit 1
+          fi
+          tree=$(git write-tree)
+          parent=$(git rev-parse origin/main)
+          export GIT_AUTHOR_NAME='GitHub Actions'
+          export GIT_AUTHOR_EMAIL='actions@github.com'
+          export GIT_COMMITTER_NAME='GitHub Actions'
+          export GIT_COMMITTER_EMAIL='actions@github.com'
+          commit=$(printf '%s\n' 'BIP-Architecture-Coordinators-02F7: Finalize RoomVisualRenderer decomposition' | git commit-tree "$tree" -p "$parent")
+          git push --force origin "$commit:refs/heads/$BRANCH"
+          echo "Published clean source commit $commit"
