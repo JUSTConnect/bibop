@@ -1,9 +1,6 @@
 name: Publish issue 1162 clean source
 
 on:
-  push:
-    branches:
-      - codex/bip-architecture-coordinators-02f7-final-cleanup-v2
   pull_request:
     types: [opened, reopened, synchronize]
 
@@ -12,7 +9,7 @@ permissions:
 
 jobs:
   reconstruct-validate-publish:
-    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'codex/bip-architecture-coordinators-02f7-final-cleanup-v2'
+    if: github.event.pull_request.head.ref == 'codex/bip-architecture-coordinators-02f7-final-cleanup-v2'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,43 +19,80 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - name: Reconstruct source archive
+      - name: Reconstruct verified source archive
         shell: bash
         run: |
+          exec > >(tee /tmp/issue-1162-reconstruct.log) 2>&1
           set -euo pipefail
+          git fetch origin codex/bip-architecture-coordinators-02f7-final-cleanup:refs/remotes/origin/issue1162-legacy
+          mkdir -p /tmp/issue-1162-chunks
+          for file in \
+            part00.b64 \
+            part01.b64 \
+            fix02-00.b64 \
+            fix02-01.b64 \
+            fix02-02.b64 \
+            fix02-03.b64 \
+            fix03-00.b64 \
+            fix03-01.b64 \
+            fix03-02.b64
+          do
+            git show "refs/remotes/origin/issue1162-legacy:.github/issue-1162-transport/$file" > "/tmp/issue-1162-chunks/$file"
+          done
+          test "$(sha256sum /tmp/issue-1162-chunks/part00.b64 | cut -d' ' -f1)" = "7f27f0c142b9cb1eb39a28e06449378bdaf99b8d519355b2df5108d4064c912e"
+          test "$(sha256sum /tmp/issue-1162-chunks/part01.b64 | cut -d' ' -f1)" = "0979aa805d9a025a58efb77761169a94a88f4e1506c20a019491e7e3390d447e"
+          test "$(sha256sum /tmp/issue-1162-chunks/fix02-00.b64 | cut -d' ' -f1)" = "ce23e5a9e8574a5e5d0417ee9b47c4fadc8ff206484e0035c9ca2b868a62c0ea"
+          test "$(sha256sum /tmp/issue-1162-chunks/fix02-01.b64 | cut -d' ' -f1)" = "529aa39b16fad99ab2cc1e95b41263869b4bbc420790abec791e57bf599cef6e"
+          test "$(sha256sum /tmp/issue-1162-chunks/fix02-02.b64 | cut -d' ' -f1)" = "bc081582c04b53ec9ce4e50f4ea17f78f2c26096dca5ee13c6c88e1ffb18d9f9"
+          test "$(sha256sum /tmp/issue-1162-chunks/fix02-03.b64 | cut -d' ' -f1)" = "1a4baa6335c0498915384a415051fbdf1b0d08a5d8357af07d071cb47286d55c"
+          test "$(sha256sum /tmp/issue-1162-chunks/fix03-01.b64 | cut -d' ' -f1)" = "00a39a1a8599b953134e7df7a839181a2494cf15d9911b728805481471eda994"
+          test "$(sha256sum /tmp/issue-1162-chunks/fix03-02.b64 | cut -d' ' -f1)" = "7a6af70dd84a486a6c5ca47d5995fdcb3aef8b62194bac5326572914382dbba8"
+          python - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+
+          source = Path('/tmp/issue-1162-chunks/fix03-00.b64').read_text(encoding='ascii')
+          target = 'e10f6b3afce161f5830572f585a00a4f8c3dc12ebaeac933233bd270eda2cb40'
+          alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          if len(source) != 4999:
+              raise SystemExit(f'unexpected legacy fix03-00 length: {len(source)}')
+          for index in range(len(source) + 1):
+              prefix = source[:index]
+              suffix = source[index:]
+              for char in alphabet:
+                  candidate = prefix + char + suffix
+                  if sha256(candidate.encode('ascii')).hexdigest() == target:
+                      Path('/tmp/issue-1162-chunks/fix03-00.corrected.b64').write_text(candidate, encoding='ascii')
+                      print(f'repaired fix03-00 at index {index} with {char!r}')
+                      raise SystemExit(0)
+          raise SystemExit('unable to repair legacy fix03-00')
+          PY
+          test "$(sha256sum /tmp/issue-1162-chunks/fix03-00.corrected.b64 | cut -d' ' -f1)" = "e10f6b3afce161f5830572f585a00a4f8c3dc12ebaeac933233bd270eda2cb40"
           cat \
-            .github/issue-1162-v2/part00.b64 \
-            .github/issue-1162-v2/combo01.b64 \
-            .github/issue-1162-v2/restA.b64 \
-            .github/issue-1162-v2/restB.b64 \
+            /tmp/issue-1162-chunks/part00.b64 \
+            /tmp/issue-1162-chunks/part01.b64 \
+            /tmp/issue-1162-chunks/fix02-00.b64 \
+            /tmp/issue-1162-chunks/fix02-01.b64 \
+            /tmp/issue-1162-chunks/fix02-02.b64 \
+            /tmp/issue-1162-chunks/fix02-03.b64 \
+            /tmp/issue-1162-chunks/fix03-00.corrected.b64 \
+            /tmp/issue-1162-chunks/fix03-01.b64 \
+            /tmp/issue-1162-chunks/fix03-02.b64 \
             > /tmp/issue-1162-source.b64
-          wc -c .github/issue-1162-v2/*.b64 /tmp/issue-1162-source.b64
-          sha256sum .github/issue-1162-v2/*.b64 /tmp/issue-1162-source.b64
+          test "$(wc -c < /tmp/issue-1162-source.b64)" -eq 74280
+          test "$(sha256sum /tmp/issue-1162-source.b64 | cut -d' ' -f1)" = "a87e0f0470c6385ee38cc178f9ff8c59b63b4fed8fd2637ff780e9b105e28111"
           base64 --decode /tmp/issue-1162-source.b64 > /tmp/issue-1162-source.tar.gz
+          test "$(sha256sum /tmp/issue-1162-source.tar.gz | cut -d' ' -f1)" = "a28927aaa543b63049506591757e9b5b4c507f2471d869524fd51ccbe7f7a13e"
           gzip -t /tmp/issue-1162-source.tar.gz
-          tar -tzf /tmp/issue-1162-source.tar.gz | tee /tmp/issue-1162-archive-list.txt
           rm -rf /tmp/issue-1162-extracted
           mkdir -p /tmp/issue-1162-extracted
           tar -xzf /tmp/issue-1162-source.tar.gz -C /tmp/issue-1162-extracted
-          for path in \
-            .github/workflows/renderer-component-gate.yml \
-            docs/ARCHITECTURE.md \
-            docs/room_visual_renderer_component_map.md \
-            scripts/field/room_visual_renderer.gd \
-            tools/check_cable_canvas_renderer_boundary.py \
-            tools/check_iso_asset_alignment_policy_boundary.py \
-            tools/check_room_visual_renderer_component_boundary.py \
-            tools/check_visual_asset_resource_runtime_boundary.py \
-            tools/ci/check_room_visual_renderer_smoke_contract.gd
-          do
-            test -f "/tmp/issue-1162-extracted/$path"
-          done
       - uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.6.3
           use-dotnet: false
           include-templates: false
-      - name: Apply source over current main
+      - name: Apply source and boundary correction over main
         shell: bash
         run: |
           set -euo pipefail
@@ -79,6 +113,43 @@ jobs:
             mkdir -p "$(dirname "$path")"
             cp "/tmp/issue-1162-extracted/$path" "$path"
           done
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tools/check_cable_canvas_renderer_boundary.py')
+          source = path.read_text(encoding='utf-8')
+          old = '''for name, delegate in thin_delegates.items():
+    body = function_body(renderer, name)
+    if delegate not in body or "_draw_canvas_commands" not in body:
+        errors.append(f"RoomVisualRenderer {name} must be a thin CableCanvasRenderer/canonical-executor delegate")
+    for forbidden in ("draw_line(", "draw_circle(", "draw_arc(", "draw_polyline(", "while cursor", "match color_id"):
+        if forbidden in body:
+            errors.append(f"RoomVisualRenderer {name} retained migrated cable policy: {forbidden}")
+'''
+          new = '''draw_delegates = {
+    "draw_iso_cable_hidden_segment",
+    "draw_iso_cable_wall_segment",
+    "draw_object_cable_bridge",
+    "draw_iso_cable_damage_marker",
+    "draw_iso_cable_object_links",
+    "_draw_iso_cable_polyline",
+    "draw_iso_cable_endpoint_cap",
+    "draw_iso_cable_invalid_marker",
+}
+for name, delegate in thin_delegates.items():
+    body = function_body(renderer, name)
+    if delegate not in body:
+        errors.append(f"RoomVisualRenderer {name} must delegate to CableCanvasRenderer")
+    if name in draw_delegates and "_draw_canvas_commands" not in body:
+        errors.append(f"RoomVisualRenderer {name} must execute commands through the canonical Canvas executor")
+    for forbidden in ("draw_line(", "draw_circle(", "draw_arc(", "draw_polyline(", "while cursor", "match color_id"):
+        if forbidden in body:
+            errors.append(f"RoomVisualRenderer {name} retained migrated cable policy: {forbidden}")
+'''
+          if old not in source:
+              raise SystemExit('expected cable boundary block not found')
+          path.write_text(source.replace(old, new), encoding='utf-8')
+          PY
       - name: Validate final coordinator cleanup
         shell: bash
         run: |
@@ -112,9 +183,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: issue-1162-v2-validation
+          name: issue-1162-final-validation
           path: |
-            /tmp/issue-1162-archive-list.txt
+            /tmp/issue-1162-reconstruct.log
             /tmp/issue-1162-validation.log
           if-no-files-found: warn
           retention-days: 2
@@ -146,4 +217,4 @@ jobs:
           git config user.name 'GitHub Actions'
           git config user.email 'actions@github.com'
           git commit -m 'BIP-Architecture-Coordinators-02F7: Finalize RoomVisualRenderer decomposition'
-          git push origin HEAD:refs/heads/codex/bip-architecture-coordinators-02f7-final-source
+          git push origin HEAD:refs/heads/codex/bip-architecture-coordinators-02f7-final-source-v2
