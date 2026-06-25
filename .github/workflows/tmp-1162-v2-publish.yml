@@ -1,62 +1,84 @@
-name: Publish issue 1162 clean implementation
+name: Publish issue 1162 clean source
 
 on:
-  pull_request:
-    types: [opened, reopened, synchronize]
+  push:
+    branches:
+      - codex/bip-architecture-coordinators-02f7-final-cleanup-v2
 
 permissions:
   contents: write
 
 jobs:
-  validate-and-publish:
-    if: github.event.pull_request.head.ref == 'codex/bip-architecture-coordinators-02f7-final-cleanup-v2'
+  reconstruct-validate-publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-
+          fetch-depth: 1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-
-      - name: Verify and reconstruct source archive
+      - name: Reconstruct source archive
         shell: bash
         run: |
           set -euo pipefail
-          test "$(wc -c < .github/issue-1162-v2/part00.b64)" -eq 6000
-          test "$(sha256sum .github/issue-1162-v2/part00.b64 | cut -d' ' -f1)" = "b252ea27497eaded5f9090dd3fb6c7617724367ee4bcb1ce644c4eeba3761208"
-          test "$(wc -c < .github/issue-1162-v2/combo01.b64)" -eq 12000
-          test "$(sha256sum .github/issue-1162-v2/combo01.b64 | cut -d' ' -f1)" = "4b5fedbc56646a9eb2c1989829169358aacb2c776277d679d76f0ab10bc922f3"
-          test "$(wc -c < .github/issue-1162-v2/restA.b64)" -eq 36000
-          test "$(sha256sum .github/issue-1162-v2/restA.b64 | cut -d' ' -f1)" = "404d93a14264d6066b1b9685a721278e0e9122ee1406a4925961e90d3bbb1b09"
-          test "$(wc -c < .github/issue-1162-v2/restB.b64)" -eq 44280
-          test "$(sha256sum .github/issue-1162-v2/restB.b64 | cut -d' ' -f1)" = "af5193536406c09bb95f2d9d1858dc0507149b950c9e798034c6975ee8fc1de2"
           cat \
             .github/issue-1162-v2/part00.b64 \
             .github/issue-1162-v2/combo01.b64 \
             .github/issue-1162-v2/restA.b64 \
             .github/issue-1162-v2/restB.b64 \
-            > /tmp/issue-1162-v2.b64
-          test "$(wc -c < /tmp/issue-1162-v2.b64)" -eq 98280
-          test "$(sha256sum /tmp/issue-1162-v2.b64 | cut -d' ' -f1)" = "9d976307456dd2baf9dfc0bc60c4b654f6032144390e7dea593bcccadba43e29"
-          base64 --decode /tmp/issue-1162-v2.b64 > /tmp/issue-1162-v2.tar.gz
-          test "$(wc -c < /tmp/issue-1162-v2.tar.gz)" -eq 73710
-          test "$(sha256sum /tmp/issue-1162-v2.tar.gz | cut -d' ' -f1)" = "646fda5317c56bc7d88e0a5567784717343dc58302322886fc93b64bc38e9b26"
-          tar -xzf /tmp/issue-1162-v2.tar.gz
-          rm -f MANIFEST.txt
-
+            > /tmp/issue-1162-source.b64
+          wc -c .github/issue-1162-v2/*.b64 /tmp/issue-1162-source.b64
+          sha256sum .github/issue-1162-v2/*.b64 /tmp/issue-1162-source.b64
+          base64 --decode /tmp/issue-1162-source.b64 > /tmp/issue-1162-source.tar.gz
+          gzip -t /tmp/issue-1162-source.tar.gz
+          tar -tzf /tmp/issue-1162-source.tar.gz | tee /tmp/issue-1162-archive-list.txt
+          rm -rf /tmp/issue-1162-extracted
+          mkdir -p /tmp/issue-1162-extracted
+          tar -xzf /tmp/issue-1162-source.tar.gz -C /tmp/issue-1162-extracted
+          for path in \
+            .github/workflows/renderer-component-gate.yml \
+            docs/ARCHITECTURE.md \
+            docs/room_visual_renderer_component_map.md \
+            scripts/field/room_visual_renderer.gd \
+            tools/check_cable_canvas_renderer_boundary.py \
+            tools/check_iso_asset_alignment_policy_boundary.py \
+            tools/check_room_visual_renderer_component_boundary.py \
+            tools/check_visual_asset_resource_runtime_boundary.py \
+            tools/ci/check_room_visual_renderer_smoke_contract.gd
+          do
+            test -f "/tmp/issue-1162-extracted/$path"
+          done
       - uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.6.3
           use-dotnet: false
           include-templates: false
-
+      - name: Apply source over current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+          git clean -fdx
+          for path in \
+            .github/workflows/renderer-component-gate.yml \
+            docs/ARCHITECTURE.md \
+            docs/room_visual_renderer_component_map.md \
+            scripts/field/room_visual_renderer.gd \
+            tools/check_cable_canvas_renderer_boundary.py \
+            tools/check_iso_asset_alignment_policy_boundary.py \
+            tools/check_room_visual_renderer_component_boundary.py \
+            tools/check_visual_asset_resource_runtime_boundary.py \
+            tools/ci/check_room_visual_renderer_smoke_contract.gd
+          do
+            mkdir -p "$(dirname "$path")"
+            cp "/tmp/issue-1162-extracted/$path" "$path"
+          done
       - name: Validate final coordinator cleanup
         shell: bash
         run: |
-          exec > >(tee /tmp/issue-1162-v2-validation.log) 2>&1
+          exec > >(tee /tmp/issue-1162-validation.log) 2>&1
           set -euo pipefail
           python tools/check_room_visual_renderer_component_boundary.py
           python tools/check_cable_canvas_renderer_boundary.py
@@ -82,25 +104,21 @@ jobs:
           godot --headless --path . --script res://tools/ci/check_fog_renderer_contract.gd
           git diff --check
           test "$(wc -l < scripts/field/room_visual_renderer.gd)" -eq 4288
-
-      - name: Upload validation log
+      - name: Upload validation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: issue-1162-v2-validation-log
-          path: /tmp/issue-1162-v2-validation.log
+          name: issue-1162-v2-validation
+          path: |
+            /tmp/issue-1162-archive-list.txt
+            /tmp/issue-1162-validation.log
           if-no-files-found: warn
-          retention-days: 1
-
-      - name: Publish clean source commit
+          retention-days: 2
+      - name: Publish clean source branch
         if: success()
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf .godot .github/issue-1162-v2
-          rm -f .github/workflows/tmp-1162-v2-publish.yml
-          git clean -fd -- ':(glob)**/*.uid' ':(glob)**/*.import'
-          git add -A
           expected=$(cat <<'EOF'
           .github/workflows/renderer-component-gate.yml
           docs/ARCHITECTURE.md
@@ -113,13 +131,15 @@ jobs:
           tools/ci/check_room_visual_renderer_smoke_contract.gd
           EOF
           )
+          git add -- $expected
+          git clean -fdx
           actual=$(git diff --cached --name-only | sort)
           if [ "$actual" != "$(printf '%s\n' "$expected" | sort)" ]; then
-            echo 'Unexpected final changed-file set:'
+            echo 'Unexpected staged file set:'
             printf '%s\n' "$actual"
             exit 1
           fi
           git config user.name 'GitHub Actions'
           git config user.email 'actions@github.com'
           git commit -m 'BIP-Architecture-Coordinators-02F7: Finalize RoomVisualRenderer decomposition'
-          git push origin HEAD:codex/bip-architecture-coordinators-02f7-final-cleanup-v2
+          git push origin HEAD:refs/heads/codex/bip-architecture-coordinators-02f7-final-source
