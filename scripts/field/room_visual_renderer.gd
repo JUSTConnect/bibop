@@ -1227,6 +1227,12 @@ func normalize_wall_material_asset_base_key(profile_key: String) -> String:
 func normalize_wall_asset_key(profile_key: String) -> String:
 	return WallRendererRef.normalize_asset_key(profile_key)
 
+func normalize_wall_height_level(height_level: String) -> String:
+	return WallRendererRef.normalize_height_level(height_level)
+
+func get_wall_asset_key_for_material_and_height(material_asset_key: String, height_level: String) -> String:
+	return WallRendererRef.get_asset_key_for_material_and_height(material_asset_key, height_level)
+
 func get_iso_wall_explicit_texture_for_asset_key(asset_key: String) -> Texture2D:
 	var base_key: String = normalize_wall_material_asset_base_key(asset_key)
 	match base_key:
