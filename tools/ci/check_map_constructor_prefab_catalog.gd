@@ -83,6 +83,7 @@ func _initialize() -> void:
 		var id := str(row.get("id", ""))
 		ids.append(id)
 		_assert(not bool(row.get("presentation_missing", false)), "visible prefab missing presentation: %s" % id)
+		_assert(bool(row.get("entity_contract_valid", false)), "visible prefab invalid entity contract: %s" % id)
 		_assert(str(row.get("display_name", "")) == str(EXPECTED_LABELS.get(id, "")), "display label mismatch for %s" % id)
 		_assert(str(row.get("label", "")) == str(row.get("display_name", "")), "compat label mismatch for %s" % id)
 		_assert(str(row.get("category", "")) == str(EXPECTED_CATEGORIES.get(id, "")), "category mismatch for %s" % id)

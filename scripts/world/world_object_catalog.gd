@@ -2,6 +2,7 @@ extends RefCounted
 class_name WorldObjectCatalog
 
 const WorldObjectDataRef = preload("res://scripts/world/world_object_data.gd")
+const EntityDefinitionContractRef = preload("res://scripts/world/entity_definition_contract.gd")
 
 const DOOR_TYPE_MECHANICAL := "mechanical"
 const DOOR_TYPE_DIGITAL := "digital"
@@ -723,6 +724,77 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 
 const LEGACY_DOOR_IDS: Array[String] = ["steel_door", "reinforced_steel_door", "titanium_door", "energy_door", "grid_door", "mechanical_door", "digital_door", "powered_gate", "mechanical_steel_door", "mechanical_reinforced_steel_door", "mechanical_titanium_door", "mechanical_energy_door", "digital_steel_door", "digital_reinforced_steel_door", "digital_titanium_door", "digital_energy_door", "powered_steel_door", "powered_reinforced_steel_door", "powered_titanium_door", "powered_energy_door"]
 const LEGACY_FLOOR_IDS: Array[String] = ["steel_floor", "concrete_floor", "grate_floor", "permission_floor", "water_floor", "oil_floor", "dirty_floor", "debris_floor"]
+
+
+const ENTITY_CONTRACT_TYPE_BY_PREFAB: Dictionary = {
+	"power_source":"object", "power_socket":"object", "fuse_box":"object", "power_switcher":"object", "light_switcher":"object", "platform":"object", "station":"object", "turret":"object", "terminal":"object", "door":"object", "firewall":"object", "case":"object",
+	"power_cable_reel":"item", "digital_item":"item", "access_item":"item", "physical_item":"item", "module_item":"item",
+	"light":"light", "power_cable":"cable", "crate":"movable", "barrel":"movable", "debris":"movable",
+	"radiator":"cooling_system", "external_water_pipe":"cooling_system", "external_air_duct":"cooling_system", "metal_cooling_block":"cooling_system"
+}
+const ENTITY_CONTRACT_EXCLUSIONS: Dictionary = {"wall":"structural_surface", "floor":"structural_surface", "enemy":"actor", "bipob":"actor"}
+
+static func _entity_contract_for(canonical_id: String, definition: Dictionary) -> Dictionary:
+	if definition.has("entity_contract") and definition["entity_contract"] is Dictionary:
+		return Dictionary(definition["entity_contract"]).duplicate(true)
+	if ENTITY_CONTRACT_EXCLUSIONS.has(canonical_id):
+		return {"scope": EntityDefinitionContractRef.SCOPE_EXCLUDED, "exclusion_reason": str(ENTITY_CONTRACT_EXCLUSIONS[canonical_id])}
+	if not ENTITY_CONTRACT_TYPE_BY_PREFAB.has(canonical_id):
+		return {}
+	var entity_type: String = str(ENTITY_CONTRACT_TYPE_BY_PREFAB[canonical_id])
+	var caps: Dictionary = {}
+	for key in EntityDefinitionContractRef.CAPABILITY_KEYS:
+		caps[key] = false
+	caps["state"] = true
+	caps["test_override"] = true
+	caps["health"] = entity_type in ["object", "movable", "cooling_system"]
+	caps["power"] = bool(definition.get("can_have_power_network", false)) or bool(definition.get("is_powered", false)) or str(definition.get("power_mode", "")) != ""
+	caps["control"] = bool(definition.get("can_have_links", false)) or str(definition.get("control_mode", "")) != ""
+	caps["access"] = canonical_id in ["door", "access_item", "terminal"]
+	caps["bindings"] = bool(definition.get("can_have_links", false)) or canonical_id in ["door", "terminal", "firewall"]
+	caps["mount"] = str(definition.get("mount", "")) != "" or Array(definition.get("placement_surfaces", [])).has("wall")
+	caps["side"] = str(definition.get("placement_mode", "")) == "wall_mounted" or bool(definition.get("is_wall_mounted", false)) or canonical_id in ["door", "terminal"]
+	caps["routing"] = entity_type == "cable" or canonical_id in ["external_water_pipe", "external_air_duct"]
+	var presentation := "standard_%s" % entity_type
+	if entity_type == "cooling_system":
+		presentation = "standard_cooling"
+	return {
+		"scope": EntityDefinitionContractRef.SCOPE_ENTITY,
+		"entity_type": entity_type,
+		"entity_subtype": canonical_id,
+		"status_profile": "cooling_passive" if entity_type == "cooling_system" else "%s_standard" % entity_type,
+		"property_profile": "definition_schema" if bool(definition.get("configurable", false)) else "fixed",
+		"interaction_profile": "standard_object" if entity_type == "object" else entity_type.replace("cooling_system", "cooling"),
+		"notification_profile": "standard_action" if bool(definition.get("interactable", true)) else "none",
+		"power_profile": "configurable" if caps["power"] else "none",
+		"control_profile": "configurable" if caps["control"] else "none",
+		"access_profile": "standard" if caps["access"] else "none",
+		"binding_profile": "standard" if caps["bindings"] else "none",
+		"runtime_presentation_profile": presentation,
+		"editor_presentation_profile": presentation,
+		"validation_fixture": "default",
+		"capabilities": caps
+	}
+
+static func get_entity_definition_contract(prefab_id: String) -> Dictionary:
+	var canonical_id: String = canonical_prefab_id(prefab_id)
+	var definition: Dictionary = _get_constructor_prefab_definition(canonical_id)
+	return _entity_contract_for(canonical_id, definition)
+
+static func validate_entity_definition_contract(prefab_id: String) -> Dictionary:
+	var canonical_id: String = canonical_prefab_id(prefab_id)
+	var definition: Dictionary = _get_constructor_prefab_definition(canonical_id)
+	if definition.is_empty():
+		return EntityDefinitionContractRef.validate_definition(canonical_id, {})
+	definition["entity_contract"] = _entity_contract_for(canonical_id, definition)
+	return EntityDefinitionContractRef.validate_definition(canonical_id, definition)
+
+static func get_entity_definition_contract_for_object(object_data: Dictionary) -> Dictionary:
+	var prefab_id: String = _normalized_contract_token(object_data.get("map_constructor_prefab_id", object_data.get("archetype_id", object_data.get("object_type", ""))))
+	return get_entity_definition_contract(prefab_id)
+
+static func is_entity_definition_palette_eligible(prefab_id: String) -> bool:
+	return EntityDefinitionContractRef.is_palette_eligible(validate_entity_definition_contract(prefab_id))
 
 static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
@@ -1621,6 +1693,12 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 		data["blocks_movement"] = true
 		data["blocks_vision"] = _safe_bool_like(data.get("blocks_vision", false), false)
 		data["can_interact"] = true
+	var contract_report: Dictionary = validate_entity_definition_contract(_normalized_contract_token(data.get("map_constructor_prefab_id", data.get("archetype_id", data.get("object_type", "")))))
+	if bool(contract_report.get("valid", false)):
+		data["entity_contract_id"] = str(contract_report.get("definition_id", ""))
+		data["entity_contract_scope"] = str(contract_report.get("scope", ""))
+		data["entity_type"] = str(contract_report.get("entity_type", ""))
+		data["entity_subtype"] = str(contract_report.get("entity_subtype", ""))
 	if normalized_object_type in ["terminal", "fuse_box", "power_switcher", "light_switcher", "light_switch", "case", "door"] or str(data.get("object_group", "")) in ["terminal", "door"]:
 		data["facing_side"] = resolve_facing_side_from_object_data(object_data)
 	return data
@@ -2184,6 +2262,9 @@ static func normalize_archetype_object(object_data: Dictionary) -> Dictionary:
 static func create_archetype_object(archetype_id: String, id_override: String = "", overrides: Dictionary = {}) -> Dictionary:
 	var definition: Dictionary = get_archetype_definition(archetype_id)
 	if definition.is_empty():
+		return {}
+	var contract_report: Dictionary = validate_entity_definition_contract(archetype_id)
+	if not bool(contract_report.get("valid", false)):
 		return {}
 	var runtime_type: String = str(definition.get("object_type", archetype_id))
 	var data: Dictionary = _create_library_object(runtime_type, id_override) if runtime_type == archetype_id else create_world_object(runtime_type, id_override)

@@ -127,6 +127,14 @@ func validate_constructor_palette_contract() -> Array[String]:
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
+		var entity_contract_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(prefab_id)
+		if not bool(entity_contract_report.get("valid", false)):
+			warnings.append("constructor_palette_invalid_entity_contract_%s" % prefab_id)
+		if not bool(row.get("entity_contract_valid", false)):
+			warnings.append("constructor_palette_row_invalid_entity_contract_%s" % prefab_id)
+		for contract_error_variant in Array(entity_contract_report.get("errors", [])):
+			if contract_error_variant is Dictionary and _safe_string(Dictionary(contract_error_variant).get("code", "")).is_empty():
+				warnings.append("constructor_palette_entity_contract_unstable_error_code_%s" % prefab_id)
 		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_PLATFORM_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_BIPOB_ALIAS_CONFIGS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
 		if archetype_id == "floor" or prefab_id == "floor":

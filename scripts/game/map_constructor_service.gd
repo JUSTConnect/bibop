@@ -79,6 +79,9 @@ func _trace_wall_mounted_placement(event_name: String, payload: Dictionary) -> v
 func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_wall_side: String = "", rotation_degrees: int = 0, placement_mode_override: String = "") -> Dictionary:
 	if not manager._is_task_test_constructor_context():
 		return {"ok": false, "message": "Operation is available only in TASK TEST constructor mode."}
+	var contract_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(prefab_id)
+	if not bool(contract_report.get("valid", false)):
+		return {"ok": false, "reason": "incomplete_entity_contract", "message": "Entity definition is incomplete.", "prefab_id": prefab_id, "contract_errors": Array(contract_report.get("errors", [])), "object_id": "", "warnings": []}
 	var check: Dictionary = manager.can_place_map_constructor_prefab(prefab_id, cell, preferred_wall_side, placement_mode_override)
 	if not bool(check.get("ok", false)):
 		return check
@@ -144,7 +147,7 @@ func place_map_constructor_prefab(prefab_id: String, cell: Vector2i, preferred_w
 	manager._map_constructor_runtime_object_seq += 1
 	var object_data: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, object_id)
 	if object_data.is_empty():
-		object_data = {"id": object_id, "object_type": canonical_prefab_id, "display_name": prefab_id.capitalize(), "state": "active"}
+		return {"ok": false, "reason": "incomplete_entity_contract", "message": "Entity definition is incomplete.", "prefab_id": prefab_id, "contract_errors": Array(WorldObjectCatalogRef.validate_entity_definition_contract(prefab_id).get("errors", [])), "object_id": "", "warnings": []}
 	object_data["position"] = cell
 	object_data["created_by_map_constructor"] = true
 	object_data["map_constructor_prefab_id"] = prefab_id
