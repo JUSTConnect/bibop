@@ -3,19 +3,8 @@ extends SceneTree
 const Catalog = preload("res://scripts/game/map_constructor_prefab_catalog.gd")
 const WorldObjectCatalog = preload("res://scripts/world/world_object_catalog.gd")
 const Contract = preload("res://scripts/world/entity_definition_contract.gd")
-const MapConstructorService = preload("res://scripts/game/map_constructor_service.gd")
 const MissionManager = preload("res://scripts/game/mission_manager.gd")
 const GridManager = preload("res://scripts/field/grid_manager.gd")
-
-class FakeInvalidPlacementManager:
-	extends Node
-	var grid_manager: Variant = null
-	func _is_map_constructor_wall_cell(_cell: Vector2i) -> bool:
-		return false
-	func _is_task_test_constructor_context() -> bool:
-		return true
-	func can_place_map_constructor_prefab(_prefab_id: String, _cell: Vector2i, _preferred_wall_side: String = "", _placement_mode_override: String = "") -> Dictionary:
-		return {"ok": true, "placement_mode": "object"}
 
 var failures: Array[String] = []
 
@@ -91,12 +80,9 @@ func _initialize() -> void:
 	_assert(not WorldObjectCatalog.create_archetype_object("external_wall", "external_wall_contract_check").is_empty(), "external_wall creation failed")
 	var legacy := WorldObjectCatalog.create_world_object("mechanical_door", "legacy_alias_check")
 	_assert(not legacy.is_empty(), "legacy alias loading failed")
-	var fake_manager := FakeInvalidPlacementManager.new()
-	var placement_service := MapConstructorService.new(fake_manager)
-	var invalid_result := placement_service.place_map_constructor_prefab("missing_contract_prefab", Vector2i.ZERO)
-	_assert(str(invalid_result.get("reason", "")) == "incomplete_entity_contract", "direct placement did not reject incomplete definition")
-	fake_manager.queue_free()
 	var constructor_manager := _make_constructor_manager()
+	var invalid_result: Dictionary = constructor_manager.place_map_constructor_prefab("missing_contract_prefab", Vector2i.ZERO)
+	_assert(str(invalid_result.get("reason", "")) == "incomplete_entity_contract", "direct placement did not reject incomplete definition")
 	var valid_cell := Vector2i(2, 2)
 	constructor_manager.grid_manager.set_tile(valid_cell, GridManager.TILE_FLOOR)
 	var valid_result: Dictionary = constructor_manager.place_map_constructor_prefab("case", valid_cell)
