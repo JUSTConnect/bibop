@@ -87,6 +87,7 @@ func _initialize() -> void:
 	constructor_manager.grid_manager.set_tile(valid_cell, GridManager.TILE_FLOOR)
 	var valid_result: Dictionary = constructor_manager.place_map_constructor_prefab("case", valid_cell)
 	_assert(bool(valid_result.get("ok", false)), "valid prefab placement failed: %s" % str(valid_result))
+	constructor_manager.grid_manager.queue_free()
 	constructor_manager.queue_free()
 	if failures.is_empty():
 		print("ENTITY_CONTRACT_GATE: OK")
