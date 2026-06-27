@@ -156,6 +156,15 @@ func validate_constructor_palette_contract() -> Array[String]:
 		var object_data: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, "validation_%s" % prefab_id)
 		if object_data.is_empty():
 			warnings.append("constructor_palette_prefab_creates_empty_object_%s" % prefab_id)
+	for diagnostic_variant in MapConstructorPrefabCatalogRef.get_entity_contract_diagnostics():
+		if not diagnostic_variant is Dictionary:
+			warnings.append("constructor_palette_entity_contract_diagnostic_invalid")
+			continue
+		var diagnostic: Dictionary = Dictionary(diagnostic_variant)
+		var diagnostic_prefab_id: String = _safe_string(diagnostic.get("prefab_id", "")).strip_edges()
+		for diagnostic_error_variant in Array(diagnostic.get("errors", [])):
+			if not diagnostic_error_variant is Dictionary or _safe_string(Dictionary(diagnostic_error_variant).get("code", "")).is_empty():
+				warnings.append("constructor_palette_entity_contract_diagnostic_unstable_error_code_%s" % diagnostic_prefab_id)
 	var required_archetype_warning_ids: Dictionary = {
 		"door":"constructor_palette_requires_exactly_one_door",
 		"floor":"constructor_palette_requires_exactly_one_floor",
