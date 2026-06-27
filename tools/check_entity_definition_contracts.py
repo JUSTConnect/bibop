@@ -17,6 +17,7 @@ checks = [
 ('MapConstructorPrefabCatalog has no gameplay registries', 'CAPABILITY_KEYS' not in prefab and 'PROFILE_REGISTRIES' not in prefab and 'ENTITY_TYPES' not in prefab),
 ('direct placement fallback removed', 'display_name": prefab_id.capitalize(), "state": "active"' not in service and 'incomplete_entity_contract' in service),
 ('WorldObjectCatalog exposes accessors', all(tok in world for tok in ['get_entity_definition_contract(', 'validate_entity_definition_contract(', 'get_entity_definition_contract_for_object(', 'is_entity_definition_palette_eligible('])),
+('create_archetype_object validates contract', 'static func create_archetype_object' in world and 'validate_entity_definition_contract(archetype_id)' in world),
 ('workflow runs Python gate', 'python tools/check_entity_definition_contracts.py' in workflow),
 ('workflow runs Godot gate', 'check_entity_definition_contracts.gd' in workflow),
 ]

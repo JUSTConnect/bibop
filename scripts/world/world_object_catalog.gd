@@ -2212,6 +2212,9 @@ static func create_archetype_object(archetype_id: String, id_override: String = 
 	var definition: Dictionary = get_archetype_definition(archetype_id)
 	if definition.is_empty():
 		return {}
+	var contract_report: Dictionary = validate_entity_definition_contract(archetype_id)
+	if not bool(contract_report.get("valid", false)):
+		return {}
 	var runtime_type: String = str(definition.get("object_type", archetype_id))
 	var data: Dictionary = _create_library_object(runtime_type, id_override) if runtime_type == archetype_id else create_world_object(runtime_type, id_override)
 	if data.is_empty():
