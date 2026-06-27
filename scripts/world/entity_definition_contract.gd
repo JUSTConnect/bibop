@@ -72,8 +72,9 @@ static func validate_definition(definition_id: String, definition: Dictionary) -
 			errors.append(_error("entity_contract.profile_unknown", field, "Entity definition references unknown profile %s." % str(contract[field])))
 	if not contract.has("validation_fixture") or str(contract.get("validation_fixture", "")).strip_edges().is_empty():
 		errors.append(_error("entity_contract.validation_fixture_missing", "validation_fixture", "Entity definition is missing validation_fixture."))
-	if bool(definition.get("configurable", false)) and not _has_non_empty_schema(definition):
-		errors.append(_error("entity_contract.property_schema_missing", "property_schema", "Configurable entity definition is missing property_schema."))
+	var property_profile := str(contract.get("property_profile", "")).strip_edges()
+	if (bool(definition.get("configurable", false)) or property_profile == "definition_schema") and not _has_non_empty_schema(definition):
+		errors.append(_error("entity_contract.property_schema_missing", "property_schema", "Entity definition is missing required property_schema."))
 	report["valid"] = errors.is_empty()
 	report["palette_eligible"] = is_palette_eligible(report)
 	return report
