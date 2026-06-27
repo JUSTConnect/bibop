@@ -13,6 +13,7 @@ checks = [
 ('contract owns capability/profile registries', 'CAPABILITY_KEYS' in text and 'PROFILE_REGISTRIES' in text),
 ('WorldObjectCatalog has no inferred contract inventory', 'ENTITY_CONTRACT_TYPE_BY_PREFAB' not in world and 'ENTITY_CONTRACT_EXCLUSIONS' not in world and '_entity_contract_for' not in world),
 ('WorldObjectCatalog uses explicit entity_contract fields', '"entity_contract"' in world and 'definition["entity_contract"] =' not in world),
+('legacy alias dictionaries do not copy contracts', world.split('const ARCHETYPE_REGISTRY', 1)[0].count('entity_contract') == 0),
 ('MissionManager does not own entity contracts', 'ENTITY_TYPES' not in mission and 'CAPABILITY_KEYS' not in mission and 'PROFILE_REGISTRIES' not in mission),
 ('MapConstructorPrefabCatalog has no gameplay registries', 'CAPABILITY_KEYS' not in prefab and 'PROFILE_REGISTRIES' not in prefab and 'ENTITY_TYPES' not in prefab),
 ('direct placement fallback removed', 'display_name": prefab_id.capitalize(), "state": "active"' not in service and 'incomplete_entity_contract' in service),
