@@ -4,6 +4,8 @@ const Catalog = preload("res://scripts/game/map_constructor_prefab_catalog.gd")
 const WorldObjectCatalog = preload("res://scripts/world/world_object_catalog.gd")
 const Contract = preload("res://scripts/world/entity_definition_contract.gd")
 const MapConstructorService = preload("res://scripts/game/map_constructor_service.gd")
+const MissionManager = preload("res://scripts/game/mission_manager.gd")
+const GridManager = preload("res://scripts/field/grid_manager.gd")
 
 class FakeInvalidPlacementManager:
 	extends Node
@@ -26,6 +28,15 @@ func _has_error(report: Dictionary, code: String) -> bool:
 		if error is Dictionary and str(Dictionary(error).get("code", "")) == code:
 			return true
 	return false
+
+func _make_constructor_manager() -> Node:
+	var manager: Node = MissionManager.new()
+	var grid_manager: Node = GridManager.new()
+	root.add_child(grid_manager)
+	root.add_child(manager)
+	manager.grid_manager = grid_manager
+	manager.setup_task_test_sandbox_world()
+	return manager
 
 func _initialize() -> void:
 	var rows := Catalog.get_catalog_entries()
@@ -80,6 +91,12 @@ func _initialize() -> void:
 	var invalid_result := placement_service.place_map_constructor_prefab("missing_contract_prefab", Vector2i.ZERO)
 	_assert(str(invalid_result.get("reason", "")) == "incomplete_entity_contract", "direct placement did not reject incomplete definition")
 	fake_manager.queue_free()
+	var constructor_manager := _make_constructor_manager()
+	var valid_cell := Vector2i(2, 2)
+	constructor_manager.grid_manager.set_tile(valid_cell, GridManager.TILE_FLOOR)
+	var valid_result: Dictionary = constructor_manager.place_map_constructor_prefab("case", valid_cell)
+	_assert(bool(valid_result.get("ok", false)), "valid prefab placement failed: %s" % str(valid_result))
+	constructor_manager.queue_free()
 	if failures.is_empty():
 		print("ENTITY_CONTRACT_GATE: OK")
 		quit(0)
