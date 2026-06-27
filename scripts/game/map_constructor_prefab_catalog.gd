@@ -184,7 +184,12 @@ static func normalize_presentation_row(row: Dictionary) -> Dictionary:
 		return {}
 	var placement_contract: Dictionary = WorldObjectCatalogRef.get_constructor_placement_contract(prefab_id)
 	if placement_contract.is_empty():
-		return {"id": prefab_id, "prefab_id": prefab_id, "requested_prefab_id": prefab_id, "placement_contract_valid": false, "validation_reason": "missing_placement_contract", "canonical_prefab_id": prefab_id, "supports_floor": false, "supports_wall": false, "floor_only": false, "wall_only": false, "requires_floor": false, "requires_wall": false, "requires_floor_anchor_when_wall_mounted": false, "requires_floor_anchor": false}
+		var missing_entity_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(prefab_id)
+		var missing_error_codes: Array[String] = []
+		for missing_error_variant in Array(missing_entity_report.get("errors", [])):
+			if missing_error_variant is Dictionary:
+				missing_error_codes.append(str(Dictionary(missing_error_variant).get("code", "")))
+		return {"id": prefab_id, "prefab_id": prefab_id, "requested_prefab_id": prefab_id, "placement_contract_valid": false, "validation_reason": "missing_placement_contract", "canonical_prefab_id": prefab_id, "supports_floor": false, "supports_wall": false, "floor_only": false, "wall_only": false, "requires_floor": false, "requires_wall": false, "requires_floor_anchor_when_wall_mounted": false, "requires_floor_anchor": false, "entity_contract_valid": bool(missing_entity_report.get("valid", false)), "entity_contract_scope": str(missing_entity_report.get("scope", "")), "entity_type": str(missing_entity_report.get("entity_type", "")), "entity_subtype": str(missing_entity_report.get("entity_subtype", "")), "entity_capabilities": Dictionary(missing_entity_report.get("capabilities", {})).duplicate(true), "entity_contract_error_codes": missing_error_codes}
 	var canonical_prefab_id: String = str(placement_contract.get("canonical_prefab_id", prefab_id))
 	var entity_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(canonical_prefab_id)
 	normalized["entity_contract_valid"] = bool(entity_report.get("valid", false))

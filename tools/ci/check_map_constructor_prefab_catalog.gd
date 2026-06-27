@@ -147,6 +147,8 @@ func _initialize() -> void:
 		_assert(str(alias_meta.get("default_placement_surface", "")) == str(alias_contract.get("default_placement_surface", "")), "alias placement contract not alias-aware: %s" % hidden_alias)
 	var unknown := Catalog.normalize_presentation_row({"id":"unknown_prefab", "display_name":"Unknown", "supports_floor":true, "placement_mode":"object"})
 	_assert(not bool(unknown.get("placement_contract_valid", true)), "unknown contract should fail closed")
+	_assert(not bool(unknown.get("entity_contract_valid", true)), "unknown entity contract should fail closed")
+	_assert(Array(unknown.get("entity_contract_error_codes", [])).has("entity_contract.missing"), "unknown entity contract missing stable error code")
 	_assert(not bool(unknown.get("supports_floor", true)), "unknown emitted fallback floor support")
 	var override_row := Catalog.normalize_presentation_row({"id":"door", "supports_wall":not bool(WorldObjectCatalog.get_constructor_placement_contract("door").get("supports_wall", false))})
 	_assert(bool(override_row.get("supports_wall", false)) == bool(WorldObjectCatalog.get_constructor_placement_contract("door").get("supports_wall", false)), "presentation overrode gameplay contract")
