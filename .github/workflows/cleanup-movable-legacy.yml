@@ -1,4 +1,4 @@
-name: Cleanup Movable Legacy
+name: Retire Movable Cleanup
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  cleanup-movable-legacy:
+  retire:
     if: github.event.pull_request.number == 1198
     runs-on: ubuntu-latest
     steps:
@@ -15,53 +15,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
-      - name: Remove legacy movable flags and consumers
+      - name: Remove retired workflow
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          catalog_path = Path('scripts/world/world_object_catalog.gd')
-          catalog = catalog_path.read_text()
-          heavy_profile = '"movement_requirement":{"profile_id":"noncrate_heavy_drag","required_actor_types":["engineer","heavy"],"required_manipulator":"heavy_claw","required_manipulator_level":1,"required_power_class":"engineer","movement_mode":"drag"}'
-          catalog = re.sub(r'"movable"\s*:\s*true\s*,\s*"heavy_claw_movable"\s*:\s*true', heavy_profile, catalog)
-          catalog = re.sub(r'"heavy_claw_movable"\s*:\s*true\s*,\s*"movable"\s*:\s*true', heavy_profile, catalog)
-          catalog = re.sub(r',?\s*"movable"\s*:\s*false', '', catalog)
-          catalog = re.sub(r',?\s*"heavy_claw_movable"\s*:\s*false', '', catalog)
-          catalog = re.sub(r',?\s*"heavy_claw_mode"\s*:\s*"[^"]*"', '', catalog)
-          catalog_path.write_text(catalog)
-
-          for filename in ['scripts/world/object_status_layer.gd', 'scripts/world/object_status_layer_runtime.gd']:
-              path = Path(filename)
-              text = path.read_text()
-              class_marker = 'class_name ObjectStatusLayerService\n' if filename.endswith('object_status_layer.gd') else 'class_name ObjectStatusLayerRuntimeService\n'
-              preload = 'const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")\n'
-              if preload not in text:
-                  text = text.replace(class_marker, class_marker + '\n' + preload, 1)
-              old = 'if bool(object_data.get("movable", false)) or bool(object_data.get("heavy_claw_movable", false)):'
-              if old not in text:
-                  raise SystemExit(f'movable status marker missing in {filename}')
-              text = text.replace(old, 'if WorldObjectCatalogRef.is_world_object_movable(object_data):', 1)
-              path.write_text(text)
-
-          scan_path = Path('scripts/world/scan_system.gd')
-          scan = scan_path.read_text()
-          old_scan = '''\telif object_data.get("object_group", "") == "physical_object":
-          \t\tif level >= 2:
-          \t\t\tout["details"].append("Weight: %s" % object_data.get("weight_class", "normal"))
-          '''
-          new_scan = '''\telif object_data.get("object_group", "") == "physical_object":
-          \t\tif level >= 2 and WorldObjectCatalogRef.is_crate_object(object_data):
-          \t\t\tout["details"].append("Weight: %s" % object_data.get("weight_class", "normal"))
-          '''
-          if scan.count(old_scan) != 1:
-              raise SystemExit('scan weight marker missing')
-          scan_path.write_text(scan.replace(old_scan, new_scan, 1))
-          PY
-      - name: Commit cleanup
-        run: |
+          rm -f .github/workflows/cleanup-movable-legacy.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add scripts/world
-          git commit -m "Remove legacy movable flags and readers"
+          git add -u .github/workflows/cleanup-movable-legacy.yml
+          git commit -m "Remove retired movable cleanup workflow"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
