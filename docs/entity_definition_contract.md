@@ -1,17 +1,35 @@
-# Entity definition contract
+# Entity Definition Contract
 
-WorldObjectCatalog owns canonical gameplay/domain entity definitions. That includes `ARCHETYPE_REGISTRY`, authoring-reachable `OBJECT_LIBRARY` fallback definitions, property schemas, placement contracts, and legacy alias resolution.
+`WorldObjectCatalog` owns canonical world-object definitions. `EntityDefinitionContract.validate_definition(definition_id, definition)` is the single public entry point for completeness and semantic validation.
 
-`EntityDefinitionContract` owns only the contract vocabulary and completeness validator: scopes, supported top-level entity types, capability keys, profile ID registries, validation fixtures, stable error codes, and palette eligibility. The validator is stateless and does not depend on scenes, MissionManager, Map Constructor UI, or renderer classes.
+`EntityDefinitionContract` owns validation behavior and contract vocabulary. `scripts/world/entity_contract_fixtures.gd` is its private data module for profile descriptors and independent fixture records. It is not a second public validator or gameplay registry. `MapConstructorPrefabCatalog` remains presentation-only and must not define capabilities, profiles, entity types, field families, or semantic rules.
 
-`MapConstructorPrefabCatalog` remains presentation-only. It consumes canonical reports from WorldObjectCatalog and may expose derived metadata such as `entity_contract_valid`, scope, type/subtype, capabilities, and error codes. It must not define gameplay capabilities, profile registries, entity type tables, or contract rules.
+## Profiles and fixtures
 
-`MapConstructorService` enforces authoring eligibility during placement. Incomplete code-level definitions fail closed with `incomplete_entity_contract` and contract errors instead of receiving a generic fallback object.
+Profiles are descriptor records under `PROFILE_REGISTRIES`. Use `has_profile`, `get_profile_descriptor`, and `get_profile_ids` instead of indexing the registry as a string list.
 
-`MapConstructorValidationService` may consume contract reports and diagnostics for authoring/CI warnings, but the primary contract rules remain in `EntityDefinitionContract`.
+Every registered profile ID has an independent machine-readable fixture. Each fixture contains a minimal valid sample, invalid mutations, expected stable diagnostic codes, and allowed stored, editable, and computed field families. `validate_fixture_registry()` verifies fixture structure, profile identity, expected codes, and full profile coverage. The generic `default` fixture exists only for definition compatibility and does not count as profile coverage.
 
-Legacy runtime definitions and saved-map compatibility remain temporarily supported. Historic non-authoring `OBJECT_LIBRARY` data may still load through the legacy path; this contract is not a save/TASK TEST readiness gate for map instances with missing links or invalid configured values.
+## Field semantics
 
-Future authoring entities must add a complete explicit `entity_contract` to their canonical definition before they can appear in the Map Constructor palette or be placed directly. Unsupported profiles should be declared as `none`, and definitions using `property_profile = "definition_schema"` must provide a non-empty canonical `property_schema`.
+Known fields are listed exactly in `FIELD_SEMANTICS`; families are never inferred from substrings. Every field declares its family, capability owner where applicable, storage role (`stored`, `computed`, or `legacy`), and editability.
 
-This gate is metadata-only. It does not migrate runtime status evaluation, power behavior, access behavior, bindings, notifications, inspector/UI behavior, renderer behavior, family migrations, legacy aliases, or legacy raw fields.
+Computed fields cannot be authored in `property_schema` or stored as canonical truth. Legacy fields require an exact migration exception even when their former capability is enabled. Legacy and computed fields are never editable.
+
+Physical topology records such as cable endpoints, socket IDs, runtime reel ends, connection state, and path cells are classified separately from logical bindings. Their presence does not enable or imply the generic `bindings` capability.
+
+## Legacy exceptions
+
+Temporary contradictions use exact `legacy_semantic_exceptions` entries with `field`, `reason`, and `migration_issue`. Wildcards, duplicate entries, unknown fields, unknown issue IDs, and exceptions for absent or non-contradictory fields are rejected. Valid exceptions create visible warnings and never authorize editable fields.
+
+Four existing authoring-reachable fallback records (`power_cable`, `power_socket`, `turret`, and `debris`) use a closed compatibility allowlist inside `EntityDefinitionContract`. This bridge only describes audited historic fields and approved migration issues. New definitions cannot enter it implicitly and must declare their own exact inline exceptions.
+
+## Diagnostic contract
+
+Every error and warning contains `code`, `severity`, `field`, `message_key`, `message`, `fallback`, `fix_hint`, and structured `details`. Consumers must branch on codes and details, never parse fallback text. Diagnostic traversal order is deterministic.
+
+Validation reports preserve `valid`, `palette_eligible`, `definition_id`, `scope`, `entity_type`, `entity_subtype`, `capabilities`, `contract`, `errors`, and `warnings`. Reports also include `semantic_valid`, `resolved_profiles`, `applied_fixture_ids`, `validation_fixture`, `legacy_exceptions`, and `field_semantics`.
+
+`palette_eligible` is true only when errors are empty. Allowed migration warnings remain visible but do not remove a prefab from the palette.
+
+Future authoring entities must provide a complete explicit `entity_contract` before they can enter the Map Constructor palette or be placed directly. Unsupported profiles must be declared as `none`. Definitions using `property_profile = "definition_schema"` must provide a non-empty canonical `property_schema`.

@@ -32,6 +32,8 @@ func _make_constructor_manager():
 
 func _run() -> void:
 	await process_frame
+	var fixture_errors: Array = Contract.validate_fixture_registry()
+	_assert(fixture_errors.is_empty(), "fixture registry invalid: %s" % str(fixture_errors))
 	var rows := Catalog.get_catalog_entries()
 	var ids: Array[String] = []
 	var types: Dictionary = {}
@@ -48,12 +50,8 @@ func _run() -> void:
 				_assert(Dictionary(report.get("capabilities", {})).get(key) is bool, "non-bool capability %s for %s" % [key, id])
 			var contract := Dictionary(report.get("contract", {}))
 			for field in Contract.REQUIRED_PROFILE_FIELDS:
-				_assert(Array(Contract.PROFILE_REGISTRIES[field]).has(str(contract.get(field, ""))), "unknown profile %s for %s" % [field, id])
-			var capability_by_profile := {"power_profile":"power", "control_profile":"control", "access_profile":"access", "binding_profile":"bindings"}
-			for profile_field in capability_by_profile.keys():
-				var capability_name := str(capability_by_profile[profile_field])
-				if str(contract.get(profile_field, "")) == "none":
-					_assert(not bool(Dictionary(report.get("capabilities", {})).get(capability_name, false)), "%s has %s capability but %s=none" % [id, capability_name, profile_field])
+				_assert(Contract.has_profile(field, str(contract.get(field, ""))), "unknown profile %s for %s" % [field, id])
+
 			if bool(WorldObjectCatalog.get_constructor_prefab_definition(id).get("configurable", false)):
 				_assert(not WorldObjectCatalog.get_constructor_prefab_property_schema(id).is_empty(), "configurable missing schema: %s" % id)
 	for entity_type in Contract.ENTITY_TYPES:
@@ -81,8 +79,9 @@ func _run() -> void:
 	var synthetic_catalog_row := Catalog.normalize_presentation_row({"id":"missing_contract_prefab"})
 	_assert(not bool(synthetic_catalog_row.get("entity_contract_valid", true)), "synthetic incomplete row should be invalid")
 	_assert(Array(synthetic_catalog_row.get("entity_contract_error_codes", [])).has("entity_contract.missing"), "synthetic incomplete row missing diagnostic code")
-	_assert(Catalog.get_entity_contract_diagnostics().is_empty(), "current diagnostics should be empty")
-	_assert(ids == Catalog.PREFAB_ORDER, "visible palette ids changed")
+	var current_diagnostics: Array[Dictionary] = Catalog.get_entity_contract_diagnostics()
+	_assert(current_diagnostics.is_empty(), "current diagnostics should be empty: %s" % str(current_diagnostics))
+	_assert(ids == Catalog.PREFAB_ORDER, "visible palette ids changed: actual=%s expected=%s" % [str(ids), str(Catalog.PREFAB_ORDER)])
 	_assert(bool(WorldObjectCatalog.validate_entity_definition_contract("external_wall").get("valid", false)), "external_wall exclusion invalid")
 	_assert(not WorldObjectCatalog.create_archetype_object("external_wall", "external_wall_contract_check").is_empty(), "external_wall creation failed")
 	_assert(not WorldObjectCatalog.create_world_object("light_switch", "utility_alias_contract_check").is_empty(), "utility alias loading failed")
