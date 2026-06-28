@@ -6,6 +6,9 @@ const Contract = preload("res://scripts/world/entity_definition_contract.gd")
 
 var failures: Array[String] = []
 
+func _init() -> void:
+	call_deferred("_run")
+
 func _assert(ok: bool, message: String) -> void:
 	if not ok:
 		failures.append(message)
@@ -35,7 +38,8 @@ func _mutated_door_report(profile_field: String, profile_value: String, capabili
 	definition["entity_contract"] = contract
 	return Contract.validate_definition("door", definition)
 
-func _initialize() -> void:
+func _run() -> void:
+	await process_frame
 	_assert(_has_error(_mutated_door_report("power_profile", "none", "power", true), "entity_contract.power_capability_profile_mismatch"), "enabled power with none profile was accepted")
 	_assert(_has_error(_mutated_door_report("power_profile", "configurable", "power", false), "entity_contract.power_capability_profile_mismatch"), "disabled power with active profile was accepted")
 	_assert(_has_error(_mutated_door_report("status_profile", "none", "state", true), "entity_contract.state_status_profile_mismatch"), "state with none status profile was accepted")
@@ -55,9 +59,11 @@ func _initialize() -> void:
 	Catalog.get_catalog_entries()
 	_assert(Catalog.get_entity_contract_diagnostics().is_empty(), "production catalog diagnostics should be empty")
 
+	await process_frame
 	if failures.is_empty():
 		print("ENTITY_CONTRACT_CONSISTENCY_GATE: OK")
 		quit(0)
+		return
 	for failure in failures:
 		printerr("ENTITY_CONTRACT_CONSISTENCY_GATE: FAIL: %s" % failure)
 	quit(1)
