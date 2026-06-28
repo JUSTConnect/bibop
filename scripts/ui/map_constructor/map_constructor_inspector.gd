@@ -5,6 +5,8 @@ const MapConstructorPlatformControlsRef = preload("res://scripts/ui/map_construc
 const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
 const MapConstructorTerminalStoredDataControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_terminal_stored_data_controls.gd")
 const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cooling_routing_contour_service.gd")
+const PassiveRouteServiceRef = preload("res://scripts/game/cooling/passive_route_service.gd")
+const PassiveRouteInspectorRef = preload("res://scripts/ui/map_constructor/map_constructor_passive_route_inspector_service.gd")
 
 
 static func _is_simple_movable_object(data: Dictionary) -> bool:
@@ -261,39 +263,29 @@ static func _add_read_only_text_row(ui: Variant, section: VBoxContainer, label: 
 
 
 static func _render_cooling_system_controls(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
-	MapConstructorPropertyControls.add_enum_updates_property(
-		ui,
-		parent,
-		"Route mode",
-		entity_kind,
-		entity_id,
-		_normalize_wall_routing_mode_value(data),
-		[
-			{"label": "Inner", "value": "inner", "updates": {"route_mode": "inner", "wall_routing_mode": "inner"}},
-			{"label": "Outer", "value": "outer", "updates": {"route_mode": "outer", "wall_routing_mode": "outer"}}
-		]
-	)
-	if _normalize_wall_routing_mode_value(data) == "inner":
-		MapConstructorPropertyControls.add_enum_property(ui, parent, "Wall side 1", entity_kind, entity_id, "wall_side_1", _normalize_cooling_wall_side(data, "wall_side_1", "NW"), [{"label":"NE", "value":"NE"}, {"label":"NW", "value":"NW"}, {"label":"SE", "value":"SE"}, {"label":"SW", "value":"SW"}])
-		MapConstructorPropertyControls.add_enum_property(ui, parent, "Wall side 2", entity_kind, entity_id, "wall_side_2", _normalize_cooling_wall_side(data, "wall_side_2", "SE"), [{"label":"NE", "value":"NE"}, {"label":"NW", "value":"NW"}, {"label":"SE", "value":"SE"}, {"label":"SW", "value":"SW"}])
-		if _normalize_cooling_wall_side(data, "wall_side_1", "NW") == _normalize_cooling_wall_side(data, "wall_side_2", "SE"):
-			_add_cable_note(ui, parent, "Inner routing sides must be different.", true)
-	MapConstructorPropertyControls.add_enum_property(ui, parent, "Contour mode", entity_kind, entity_id, "cooling_contour_mode", _normalize_cooling_contour_mode(data), [{"label":"Auto", "value":"auto"}, {"label":"Manual", "value":"manual"}])
-	if _normalize_cooling_contour_mode(data) == "manual":
-		MapConstructorPropertyControls.add_object_ref_array_property(ui, parent, "Contour members", entity_kind, entity_id, "cooling_contour_member_ids", data.get("cooling_contour_member_ids", []))
-		# "Manual contour id" is legacy-only; UI edits manual contour membership with checkboxes.
-	var objects_by_id: Dictionary = _get_cooling_objects_by_id(ui, entity_id, data)
-	var contours: Dictionary = CoolingRoutingContourServiceRef.build_contours(objects_by_id)
-	var contour_id: String = CoolingRoutingContourServiceRef.get_object_contour_id(Dictionary(objects_by_id.get(entity_id, data)), entity_id, contours)
-	var routing_kind: String = _normalize_cooling_routing_kind(data)
-	_add_read_only_text_row(ui, parent, "Routing kind", _format_cooling_routing_kind(routing_kind))
-	_add_read_only_text_row(ui, parent, "Computed contour id", contour_id if not contour_id.is_empty() else "none")
-	var contour_data: Dictionary = Dictionary(Dictionary(contours.get(routing_kind, {})).get(contour_id, {})) if not contour_id.is_empty() else {}
-	var members: Array = Array(contour_data.get("members", []))
-	_add_read_only_text_row(ui, parent, "Contour members", ", ".join(members) if not members.is_empty() else "0")
-	var warnings_by_id: Dictionary = CoolingRoutingContourServiceRef.collect_contour_warnings(objects_by_id)
-	var warnings: Array = Array(warnings_by_id.get(entity_id, []))
-	_add_read_only_text_row(ui, parent, "Contour warnings", "\n".join(warnings) if not warnings.is_empty() else "none")
+	var canonical: Dictionary = PassiveRouteServiceRef.canonicalize_segment(data)
+	var pair: Array[String] = PassiveRouteInspectorRef.get_route_pair(canonical)
+	MapConstructorPropertyControls.add_enum_updates_property(ui, parent, "Mount side", entity_kind, entity_id, PassiveRouteServiceRef.get_mount_side(canonical), [
+		{"label":"Inner", "value":"inner", "updates":{"mount_side":"inner"}},
+		{"label":"Outer", "value":"outer", "updates":{"mount_side":"outer"}}
+	])
+	MapConstructorPropertyControls.add_enum_updates_property(ui, parent, "Route port 1", entity_kind, entity_id, pair[0].to_lower(), PassiveRouteInspectorRef.get_port_options(pair[1], true))
+	MapConstructorPropertyControls.add_enum_updates_property(ui, parent, "Route port 2", entity_kind, entity_id, pair[1].to_lower(), PassiveRouteInspectorRef.get_port_options(pair[0], false))
+	var mission_objects: Variant = []
+	if ui.mission_manager_runtime != null:
+		mission_objects = ui.mission_manager_runtime.get("mission_world_objects")
+	var objects_by_id: Dictionary = PassiveRouteInspectorRef.build_objects_by_id(mission_objects, entity_id, canonical)
+	var preview: Dictionary = PassiveRouteServiceRef.preview_segment(entity_id, canonical, objects_by_id)
+	_add_read_only_text_row(ui, parent, "Routing kind", PassiveRouteInspectorRef.format_kind(str(preview.get("routing_kind", ""))))
+	_add_read_only_text_row(ui, parent, "Normalized pair", " ↔ ".join(Array(preview.get("normalized_route_pair", []))))
+	_add_read_only_text_row(ui, parent, "Shape", str(preview.get("route_shape", "none")))
+	var component_id: String = str(preview.get("component_id", ""))
+	_add_read_only_text_row(ui, parent, "Computed component", component_id if not component_id.is_empty() else "none")
+	var neighbors: Array = Array(preview.get("compatible_neighbors", []))
+	_add_read_only_text_row(ui, parent, "Compatible neighbors", ", ".join(neighbors) if not neighbors.is_empty() else "none")
+	var issue_lines: Array[String] = PassiveRouteInspectorRef.format_issue_lines(Array(preview.get("issues", [])))
+	_add_read_only_text_row(ui, parent, "Route issues", "
+".join(issue_lines) if not issue_lines.is_empty() else "none")
 
 static func _is_wall_cable_constructor_object(data: Dictionary) -> bool:
 	var tokens: Array[String] = [
