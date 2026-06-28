@@ -1,30 +1,38 @@
-name: Diagnose Movable Mission
+name: Apply Crate Catalog Helper
 
 on:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
-  diagnose:
+  apply-helper:
     if: github.event.pull_request.number == 1198
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: chickensoft-games/setup-godot@v2
         with:
-          version: 4.6.3
-          use-dotnet: false
-          include-templates: false
-      - run: godot --headless --path . --import
-      - name: Capture integration output
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Add canonical crate helper
         run: |
-          set +e
-          timeout 60s godot --headless --path . --script res://tools/ci/check_movable_mission_manager.gd > /tmp/movable-mission.log 2>&1
-          echo "$?" > /tmp/movable-mission.exit
-          exit 0
-      - uses: actions/upload-artifact@v4
-        with:
-          name: movable-mission-diagnostics
-          path: |
-            /tmp/movable-mission.log
-            /tmp/movable-mission.exit
-          if-no-files-found: error
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/world/world_object_catalog.gd')
+          text = path.read_text()
+          marker = 'static func is_world_object_movable(object_data: Dictionary) -> bool:\n'
+          helper = 'static func is_crate_object(object_data: Dictionary) -> bool:\n\treturn MovableActionServiceRef.is_crate(object_data)\n\n'
+          if helper not in text:
+              if text.count(marker) != 1:
+                  raise SystemExit('movable helper marker missing')
+              text = text.replace(marker, helper + marker, 1)
+          path.write_text(text)
+          PY
+      - name: Commit helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/world/world_object_catalog.gd
+          git commit -m "Add canonical crate catalog helper"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
