@@ -1,0 +1,195 @@
+name: Apply Passive Route Integration
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-passive-route-integration:
+    if: github.event.pull_request.number == 1199
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Patch inspector renderer and validation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(path: Path, old: str, new: str, label: str) -> None:
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one marker, found {count}')
+              path.write_text(text.replace(old, new, 1))
+
+          inspector_path = Path('scripts/ui/map_constructor/map_constructor_inspector.gd')
+          inspector = inspector_path.read_text()
+          preload_marker = 'const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cooling_routing_contour_service.gd")\n'
+          if 'PassiveRouteServiceRef' not in inspector:
+              inspector = inspector.replace(preload_marker, preload_marker + 'const PassiveRouteServiceRef = preload("res://scripts/game/cooling/passive_route_service.gd")\n', 1)
+
+          start = inspector.find('static func _is_cooling_routing_object(')
+          end = inspector.find('\nstatic func _is_bipob_constructor_object(', start)
+          if start < 0 or end < 0:
+              raise SystemExit('cooling helper block missing')
+          helpers = '''static func _is_cooling_routing_object(data: Dictionary) -> bool:
+          \treturn PassiveRouteServiceRef.is_passive_route(data)
+
+
+          static func _normalize_cooling_routing_kind(data: Dictionary) -> String:
+          \treturn PassiveRouteServiceRef.get_routing_kind(data)
+
+
+          static func _format_cooling_routing_kind(kind: String) -> String:
+          \tif kind == PassiveRouteServiceRef.KIND_AIR_DUCT:
+          \t\treturn "air duct"
+          \tif kind == PassiveRouteServiceRef.KIND_WATER_PIPE:
+          \t\treturn "water pipe"
+          \treturn "unknown"
+
+
+          static func _get_passive_route_pair(data: Dictionary) -> Array[String]:
+          \tvar sides: Array[String] = PassiveRouteServiceRef.normalize_route_pair(PassiveRouteServiceRef.get_route_sides(data))
+          \tif sides.size() != 2:
+          \t\treturn [PassiveRouteServiceRef.SIDE_NW, PassiveRouteServiceRef.SIDE_SE]
+          \treturn sides
+
+
+          static func _route_side_options(other_side: String, first_port: bool) -> Array[Dictionary]:
+          \tvar options: Array[Dictionary] = []
+          \tfor side in PassiveRouteServiceRef.ROUTE_SIDES:
+          \t\tvar updates: Dictionary = {"route_sides": [side, other_side] if first_port else [other_side, side]}
+          \t\toptions.append({
+          \t\t\t"label": side,
+          \t\t\t"value": side.to_lower(),
+          \t\t\t"updates": updates,
+          \t\t\t"disabled": side == other_side,
+          \t\t\t"disabled_reason": "Route ports must use different sides."
+          \t\t})
+          \treturn options
+          '''
+          inspector = inspector[:start] + helpers + inspector[end:]
+
+          get_objects_start = inspector.find('static func _get_cooling_objects_by_id(')
+          get_objects_end = inspector.find('\nstatic func _add_read_only_text_row(', get_objects_start)
+          if get_objects_start < 0 or get_objects_end < 0:
+              raise SystemExit('cooling objects helper missing')
+          get_objects = '''static func _get_cooling_objects_by_id(ui: Variant, selected_entity_id: String, selected_data: Dictionary) -> Dictionary:
+          \tvar objects_by_id: Dictionary = {}
+          \tif ui.mission_manager_runtime != null:
+          \t\tvar mission_objects: Variant = ui.mission_manager_runtime.get("mission_world_objects")
+          \t\tif mission_objects is Array:
+          \t\t\tfor object_variant in Array(mission_objects):
+          \t\t\t\tvar object_data: Dictionary = ui._safe_ui_dictionary(object_variant)
+          \t\t\t\tvar object_id: String = ui._safe_ui_string(object_data.get("id", object_data.get("object_id", ""))).strip_edges()
+          \t\t\t\tif object_id.is_empty() or not PassiveRouteServiceRef.is_passive_route(object_data):
+          \t\t\t\t\tcontinue
+          \t\t\t\tobjects_by_id[object_id] = PassiveRouteServiceRef.canonicalize_segment(object_data)
+          \tobjects_by_id[selected_entity_id] = PassiveRouteServiceRef.canonicalize_segment(selected_data)
+          \treturn objects_by_id
+          '''
+          inspector = inspector[:get_objects_start] + get_objects + inspector[get_objects_end:]
+
+          render_start = inspector.find('static func _render_cooling_system_controls(')
+          render_end = inspector.find('\nstatic func _is_wall_cable_constructor_object(', render_start)
+          if render_start < 0 or render_end < 0:
+              raise SystemExit('cooling render block missing')
+          render = '''static func _render_cooling_system_controls(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+          \tvar canonical: Dictionary = PassiveRouteServiceRef.canonicalize_segment(data)
+          \tvar mount_side: String = PassiveRouteServiceRef.get_mount_side(canonical)
+          \tvar route_pair: Array[String] = _get_passive_route_pair(canonical)
+          \tMapConstructorPropertyControls.add_enum_updates_property(
+          \t\tui, parent, "Mount side", entity_kind, entity_id, mount_side,
+          \t\t[
+          \t\t\t{"label":"Inner", "value":"inner", "updates":{"mount_side":"inner"}},
+          \t\t\t{"label":"Outer", "value":"outer", "updates":{"mount_side":"outer"}}
+          \t\t]
+          \t)
+          \tMapConstructorPropertyControls.add_enum_updates_property(ui, parent, "Route port 1", entity_kind, entity_id, route_pair[0].to_lower(), _route_side_options(route_pair[1], true))
+          \tMapConstructorPropertyControls.add_enum_updates_property(ui, parent, "Route port 2", entity_kind, entity_id, route_pair[1].to_lower(), _route_side_options(route_pair[0], false))
+          \tvar objects_by_id: Dictionary = _get_cooling_objects_by_id(ui, entity_id, canonical)
+          \tvar preview: Dictionary = PassiveRouteServiceRef.preview_segment(entity_id, canonical, objects_by_id)
+          \t_add_read_only_text_row(ui, parent, "Routing kind", _format_cooling_routing_kind(str(preview.get("routing_kind", ""))))
+          \t_add_read_only_text_row(ui, parent, "Normalized route pair", " ↔ ".join(Array(preview.get("normalized_route_pair", []))))
+          \t_add_read_only_text_row(ui, parent, "Shape", str(preview.get("route_shape", "none")))
+          \t_add_read_only_text_row(ui, parent, "Computed component", str(preview.get("component_id", "none")) if not str(preview.get("component_id", "")).is_empty() else "none")
+          \tvar neighbors: Array = Array(preview.get("compatible_neighbors", []))
+          \t_add_read_only_text_row(ui, parent, "Compatible neighbors", ", ".join(neighbors) if not neighbors.is_empty() else "none")
+          \tvar issue_lines: Array[String] = []
+          \tfor issue_value in Array(preview.get("issues", [])):
+          \t\tvar issue: Dictionary = Dictionary(issue_value)
+          \t\tvar line: String = str(issue.get("code", "unknown_issue"))
+          \t\tif not str(issue.get("side", "")).is_empty():
+          \t\t\tline += " [%s]" % str(issue.get("side", ""))
+          \t\tif not str(issue.get("neighbor_id", "")).is_empty():
+          \t\t\tline += " -> %s" % str(issue.get("neighbor_id", ""))
+          \t\tissue_lines.append(line)
+          \t_add_read_only_text_row(ui, parent, "Route issues", "\n".join(issue_lines) if not issue_lines.is_empty() else "none")
+          '''
+          inspector = inspector[:render_start] + render + inspector[render_end:]
+          inspector_path.write_text(inspector)
+
+          renderer_path = Path('scripts/field/room_visual_renderer.gd')
+          renderer = renderer_path.read_text()
+          renderer_preload = 'const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")\n'
+          if 'PassiveRouteServiceRef' not in renderer:
+              renderer = renderer.replace(renderer_preload, renderer_preload + 'const PassiveRouteServiceRef = preload("res://scripts/game/cooling/passive_route_service.gd")\n', 1)
+          side_pattern = r'func _get_wall_routing_sides\(object_data: Dictionary\) -> Array\[String\]:\n.*?\n\treturn sides\n'
+          side_replacement = '''func _get_wall_routing_sides(object_data: Dictionary) -> Array[String]:
+          \treturn PassiveRouteServiceRef.normalize_route_pair(PassiveRouteServiceRef.get_route_sides(object_data))
+          '''
+          renderer, count = re.subn(side_pattern, side_replacement, renderer, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'renderer route sides replaced {count}')
+          face_pattern = r'func _get_wall_routing_face_offset_sign\(object_data: Dictionary\) -> float:\n.*?\n\treturn -1\.0\n'
+          face_replacement = '''func _get_wall_routing_face_offset_sign(object_data: Dictionary) -> float:
+          \treturn 1.0 if PassiveRouteServiceRef.get_mount_side(object_data) == PassiveRouteServiceRef.MOUNT_INNER else -1.0
+          '''
+          renderer, count = re.subn(face_pattern, face_replacement, renderer, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'renderer mount side replaced {count}')
+          renderer_path.write_text(renderer)
+
+          validation_path = Path('scripts/game/map_constructor_validation_service.gd')
+          validation = validation_path.read_text()
+          old = '''\tvar contour_warnings: Dictionary = CoolingRoutingContourServiceRef.collect_contour_warnings(contour_objects_by_id)
+          \tfor contour_object_id in contour_warnings.keys():
+          \t\tvar contour_object_data: Dictionary = Dictionary(contour_objects_by_id.get(contour_object_id, {}))
+          \t\tvar contour_cell: Vector2i = manager._deserialize_cell_variant(contour_object_data.get("position", Vector2i(-1, -1)))
+          \t\tvar warning_index: int = 0
+          \t\tfor contour_warning in Array(contour_warnings[contour_object_id]):
+          \t\t\tissues.append(_make_map_constructor_issue("cooling_contour_%s_%d" % [str(contour_object_id), warning_index], "warning", str(contour_warning), contour_cell, source_name, "world_object", str(contour_object_id), "Adjust Cooling System contour settings or matching ports."))
+          \t\t\twarning_index += 1
+          '''
+          new = '''\tvar route_issues: Dictionary = CoolingRoutingContourServiceRef.collect_route_issues(contour_objects_by_id)
+          \tfor route_object_id_value in route_issues.keys():
+          \t\tvar route_object_id: String = str(route_object_id_value)
+          \t\tvar route_object_data: Dictionary = Dictionary(contour_objects_by_id.get(route_object_id, {}))
+          \t\tvar route_cell: Vector2i = manager._deserialize_cell_variant(route_object_data.get("position", Vector2i(-1, -1)))
+          \t\tvar issue_index: int = 0
+          \t\tfor route_issue_value in Array(route_issues[route_object_id_value]):
+          \t\t\tvar route_issue: Dictionary = Dictionary(route_issue_value)
+          \t\t\tvar issue_code: String = str(route_issue.get("code", "passive_route_invalid"))
+          \t\t\tvar issue_message: String = issue_code
+          \t\t\tif not str(route_issue.get("side", "")).is_empty():
+          \t\t\t\tissue_message += " on %s" % str(route_issue.get("side", ""))
+          \t\t\tissues.append(_make_map_constructor_issue("passive_route_%s_%s_%d" % [route_object_id, issue_code, issue_index], "warning", issue_message, route_cell, source_name, "world_object", route_object_id, "Adjust mount side or route ports to match a physical neighbor."))
+          \t\t\tissue_index += 1
+          '''
+          if validation.count(old) != 1:
+              raise SystemExit(f'validation contour block found {validation.count(old)} times')
+          validation_path.write_text(validation.replace(old, new, 1))
+          PY
+      - name: Commit integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/ui/map_constructor/map_constructor_inspector.gd scripts/field/room_visual_renderer.gd scripts/game/map_constructor_validation_service.gd
+          git commit -m "Integrate passive route preview and diagnostics"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
