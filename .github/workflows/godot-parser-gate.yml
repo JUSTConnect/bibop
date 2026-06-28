@@ -55,8 +55,12 @@ jobs:
           godot --headless --path . --script res://tools/ci/check_runtime_readiness_service.gd
           godot --headless --path . --script res://tools/ci/check_event_driven_runtime_hud.gd
           godot --headless --path . --script res://tools/ci/check_screen_router.gd
-          godot --headless --path . --script res://tools/ci/check_entity_definition_contracts.gd
-          godot --headless --path . --script res://tools/ci/check_entity_contract_consistency.gd
+
+      - name: Entity definition contract gate
+        run: godot --headless --path . --script res://tools/ci/check_entity_definition_contracts.gd
+
+      - name: Entity contract consistency gate
+        run: godot --headless --path . --script res://tools/ci/check_entity_contract_consistency.gd
 
       - name: World state store behavior gate
         run: |
@@ -64,10 +68,7 @@ jobs:
           godot --headless --path . --script res://tools/ci/check_grid_manager_renderer_contract.gd
 
       - name: Constructor placement behavior gate
-        run: |
-          godot --headless --path . --script res://tools/ci/check_constructor_placement_contracts.gd
+        run: godot --headless --path . --script res://tools/ci/check_constructor_placement_contracts.gd
 
       - name: Map Constructor prefab catalog gate
-        run: |
-          timeout 120s godot --headless --path . \
-            --script res://tools/ci/check_map_constructor_prefab_catalog.gd
+        run: timeout 120s godot --headless --path . --script res://tools/ci/check_map_constructor_prefab_catalog.gd
