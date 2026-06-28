@@ -113,14 +113,8 @@ for name, delegate in {
     if delegate not in function_body(floor_renderer, name):
         errors.append(f"FloorRenderer {name} must delegate to focused owner")
 
-for name, delegate in {
-    "normalize_wall_material_asset_base_key": "WallRendererRef.normalize_material_asset_base_key",
-    "normalize_wall_height_level": "WallRendererRef.normalize_height_level",
-    "get_wall_asset_key_for_material_and_height": "WallRendererRef.get_asset_key_for_material_and_height",
-}.items():
-    if delegate not in function_body(renderer, name):
-        errors.append(f"RoomVisualRenderer {name} must delegate to WallRenderer")
-
+# Wall material and height normalization belong to WallRenderer. Do not require
+# removed compatibility wrappers to return to RoomVisualRenderer.
 for name, delegate in {
     "normalize_material_asset_base_key": "VisualAssetCatalogRef.resolve_wall_material_base_asset_key",
     "normalize_height_level": "WallHeightCatalogRef.normalize_wall_height",
