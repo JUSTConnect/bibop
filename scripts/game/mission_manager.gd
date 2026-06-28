@@ -66,10 +66,27 @@ var grid_manager: Node = null
 var platform_last_tick_action_index: int = -1
 
 func replace_world_state_snapshot(objects: Array[Dictionary]) -> Dictionary:
-	var bounds_check := _validate_world_state_store_snapshot_bounds(objects)
+	var bounds_check: Dictionary = _validate_world_state_store_snapshot_bounds(objects)
 	if not bool(bounds_check.get("ok", false)):
 		return bounds_check
-	return world_state_store.replace_snapshot(objects)
+	return world_state_store.replace_serialized_snapshot({"format_version": 0, "objects": objects})
+
+func replace_world_state_serialized_snapshot(snapshot: Dictionary) -> Dictionary:
+	var raw_entities: Variant = snapshot.get("entities", snapshot.get("objects", []))
+	if not (raw_entities is Array):
+		return {"ok": false, "success": false, "code": "missing", "reason_code": "missing", "details": {"field": "entities"}}
+	var entities: Array[Dictionary] = []
+	for entity_value in Array(raw_entities):
+		if not (entity_value is Dictionary):
+			return {"ok": false, "success": false, "code": "missing", "reason_code": "missing", "details": {"field": "entities", "reason": "entity_not_dictionary"}}
+		entities.append(Dictionary(entity_value))
+	var bounds_check: Dictionary = _validate_world_state_store_snapshot_bounds(entities)
+	if not bool(bounds_check.get("ok", false)):
+		return bounds_check
+	return world_state_store.replace_serialized_snapshot(snapshot)
+
+func get_world_state_serializable_snapshot() -> Dictionary:
+	return world_state_store.get_serializable_snapshot()
 
 func _upsert_world_state_object(object_data: Dictionary) -> Dictionary:
 	var bounds_check := _validate_world_state_store_object_bounds(object_data)
