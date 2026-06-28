@@ -67,6 +67,7 @@ jobs:
         run: |
           godot --headless --path . --script res://tools/ci/check_world_state_store.gd
           godot --headless --path . --script res://tools/ci/check_binding_store.gd
+          godot --headless --path . --script res://tools/ci/check_binding_store_mission_manager.gd
           godot --headless --path . --script res://tools/ci/check_grid_manager_renderer_contract.gd
 
       - name: Constructor placement behavior gate
