@@ -74,7 +74,7 @@ func _initialize() -> void:
 	_assert(_has_error(Contract.validate_definition("wall", {"entity_contract":{"scope":"excluded"}}), "entity_contract.exclusion_reason_missing"), "excluded reason code absent")
 	_assert(WorldObjectCatalog.get_entity_definition_contract("light_switch") == WorldObjectCatalog.get_entity_definition_contract("power_switcher"), "alias contract mismatch")
 	_assert(not Contract.is_palette_eligible(Contract.validate_definition("bad", {})), "incomplete palette eligible")
-	var synthetic_catalog_row := Catalog.normalize_presentation_row("missing_contract_prefab", {})
+	var synthetic_catalog_row := Catalog.normalize_presentation_row({"id":"missing_contract_prefab"})
 	_assert(not bool(synthetic_catalog_row.get("entity_contract_valid", true)), "synthetic incomplete row should be invalid")
 	_assert(Array(synthetic_catalog_row.get("entity_contract_error_codes", [])).has("entity_contract.missing"), "synthetic incomplete row missing diagnostic code")
 	_assert(Catalog.get_entity_contract_diagnostics().is_empty(), "current diagnostics should be empty")
