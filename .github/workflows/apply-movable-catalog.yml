@@ -1,0 +1,193 @@
+name: Apply Movable Catalog
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-movable-catalog:
+    if: github.event.pull_request.number == 1198
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Normalize movable authoring contracts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('scripts/world/world_object_catalog.gd')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one marker, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              'const EntityDefinitionContractRef = preload("res://scripts/world/entity_definition_contract.gd")\n',
+              'const EntityDefinitionContractRef = preload("res://scripts/world/entity_definition_contract.gd")\nconst MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")\n',
+              'movable preload'
+          )
+
+          replace_once(
+              '''\t"normal_crate": {"crate_type":"normal", "variant":"normal", "weight_class":"normal", "required_bipob_power_class":"scout"},
+          \t"heavy_crate": {"crate_type":"heavy", "variant":"heavy", "weight_class":"heavy", "required_bipob_power_class":"engineer", "heavy_claw_movable":true, "heavy_claw_mode":"push", "magnetic":true, "material_tags":["metal"]},
+          \t"steel_box": {"crate_type":"heavy", "variant":"heavy", "weight_class":"heavy", "required_bipob_power_class":"engineer", "heavy_claw_movable":true, "heavy_claw_mode":"push", "magnetic":true, "material_tags":["metal"]},
+          ''',
+              '''\t"normal_crate": {"weight_class":"normal", "variant":"normal"},
+          \t"heavy_crate": {"weight_class":"heavy", "variant":"heavy", "magnetic":true, "material_tags":["metal"]},
+          \t"steel_box": {"weight_class":"heavy", "variant":"heavy", "magnetic":true, "material_tags":["metal"]},
+          ''',
+              'crate aliases'
+          )
+
+          replace_once(
+              '''\t"disabled_bipop_scout": {"object_type":"bipob", "bipob_type":"scout", "bipob_status":"disabled", "bipob_alignment":"friendly", "weight_class":"normal", "required_bipob_power_class":"scout"},
+          \t"disabled_bipop_engineer": {"object_type":"bipob", "bipob_type":"engineer", "bipob_status":"disabled", "bipob_alignment":"friendly", "weight_class":"heavy", "required_bipob_power_class":"engineer"},
+          \t"disabled_bipop_juggernaut": {"object_type":"bipob", "bipob_type":"heavy", "bipob_status":"disabled", "bipob_alignment":"friendly", "weight_class":"heavy", "required_bipob_power_class":"heavy"},
+          ''',
+              '''\t"disabled_bipop_scout": {"object_type":"bipob", "bipob_type":"scout", "bipob_status":"disabled", "bipob_alignment":"friendly", "movement_requirement":{"profile_id":"disabled_bipop_scout", "required_actor_types":["scout", "engineer", "heavy"], "required_manipulator":"manipulator_arm", "required_manipulator_level":1, "required_power_class":"scout", "movement_mode":"push"}},
+          \t"disabled_bipop_engineer": {"object_type":"bipob", "bipob_type":"engineer", "bipob_status":"disabled", "bipob_alignment":"friendly", "movement_requirement":{"profile_id":"disabled_bipop_engineer", "required_actor_types":["engineer", "heavy"], "required_manipulator":"heavy_claw", "required_manipulator_level":1, "required_power_class":"engineer", "movement_mode":"drag"}},
+          \t"disabled_bipop_juggernaut": {"object_type":"bipob", "bipob_type":"heavy", "bipob_status":"disabled", "bipob_alignment":"friendly", "movement_requirement":{"profile_id":"disabled_bipop_heavy", "required_actor_types":["heavy"], "required_manipulator":"heavy_claw", "required_manipulator_level":1, "required_power_class":"heavy", "movement_mode":"drag"}},
+          ''',
+              'disabled Bipob aliases'
+          )
+
+          replace_once(
+              '''\t\t"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Barrel", "configurable":true, "weight_class":"normal", "required_bipob_power_class":"scout", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true,
+          ''',
+              '''\t\t"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Barrel", "configurable":true, "movement_requirement":{"profile_id":"barrel_push", "required_actor_types":["scout", "engineer", "heavy"], "required_manipulator":"manipulator_arm", "required_manipulator_level":1, "required_power_class":"scout", "movement_mode":"push"}, "blocks_movement":true,
+          ''',
+              'barrel contract'
+          )
+
+          replace_once(
+              '''\t\t"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{crate_type_label} Crate", "configurable":true, "blocks_movement":true, "blocks_vision":false, "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "crate_type":"normal", "variant":"normal", "weight_class":"normal", "required_bipob_power_class":"scout",
+          \t\t"property_schema":[
+          \t\t\t{"field":"crate_type", "type":"enum", "values":["normal", "heavy"], "default":"normal", "labels":{"normal":"Normal crate", "heavy":"Heavy crate"}}
+          \t\t]
+          ''',
+              '''\t\t"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{weight_class_label} Crate", "configurable":true, "blocks_movement":true, "blocks_vision":false, "variant":"normal", "weight_class":"normal",
+          \t\t"property_schema":[
+          \t\t\t{"field":"weight_class", "type":"enum", "values":["normal", "heavy"], "default":"normal", "labels":{"normal":"Normal crate", "heavy":"Heavy crate"}}
+          \t\t]
+          ''',
+              'crate authoring contract'
+          )
+
+          replace_once(
+              '''\t\t"entity_contract":{"scope":"entity", "entity_type":"movable", "entity_subtype":"steel_box", "status_profile":"movable_standard", "property_profile":"definition_schema", "interaction_profile":"movable", "notification_profile":"standard_action", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_movable", "editor_presentation_profile":"standard_movable", "validation_fixture":"default", "capabilities":{"state":true, "power":false, "health":true, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":false, "routing":false, "test_override":true}},
+          \t\t"archetype_id":"steel_box", "object_group":"physical_object", "object_type":"steel_box", "palette_label":"Steel Box", "show_in_palette":false,
+          \t\t"placement_mode":"object", "display_name_template":"Steel Box", "configurable":true, "weight_class":"heavy", "required_bipob_power_class":"engineer", "movable":true, "heavy_claw_movable":true, "heavy_claw_mode":"push", "blocks_movement":true, "magnetic":true, "material_tags":["metal"],
+          \t\t"property_schema":[
+          \t\t\t{"field":"movable", "type":"bool", "default":true},
+          \t\t\t{"field":"heavy_claw_movable", "type":"bool", "default":true}
+          \t\t]
+          ''',
+              '''\t\t"entity_contract":{"scope":"entity", "entity_type":"movable", "entity_subtype":"crate", "status_profile":"movable_standard", "property_profile":"fixed", "interaction_profile":"movable", "notification_profile":"standard_action", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_movable", "editor_presentation_profile":"excluded", "validation_fixture":"default", "capabilities":{"state":true, "power":false, "health":true, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":false, "routing":false, "test_override":true}},
+          \t\t"archetype_id":"crate", "object_group":"physical_object", "object_type":"crate", "legacy_object_type":"steel_box", "palette_label":"Steel Box", "show_in_palette":false,
+          \t\t"placement_mode":"object", "display_name_template":"Steel Box", "configurable":false, "weight_class":"heavy", "variant":"heavy", "blocks_movement":true, "magnetic":true, "material_tags":["metal"]
+          ''',
+              'steel box legacy crate'
+          )
+
+          pattern = r'static func normalize_crate_contract\(object_data: Dictionary\) -> Dictionary:\n.*?\n\treturn data\n'
+          replacement = '''static func normalize_crate_contract(object_data: Dictionary) -> Dictionary:
+          \tvar data: Dictionary = object_data.duplicate(true)
+          \tvar source_id: String = _normalized_contract_token(data.get("map_constructor_prefab_id", data.get("legacy_object_type", data.get("object_type", ""))))
+          \tvar raw_weight: Variant = data.get("weight_class", data.get("crate_type", data.get("variant", "")))
+          \tif str(raw_weight).strip_edges().is_empty() and source_id in ["steel_box", "heavy_crate"]:
+          \t\traw_weight = "heavy"
+          \tvar weight_class: String = MovableActionServiceRef.normalize_crate_weight(raw_weight)
+          \tif weight_class.is_empty():
+          \t\tweight_class = MovableActionServiceRef.WEIGHT_NORMAL
+          \tdata["archetype_id"] = "crate"
+          \tdata["object_group"] = "physical_object"
+          \tdata["object_type"] = "crate"
+          \tdata["weight_class"] = weight_class
+          \tdata["variant"] = weight_class
+          \tdata.erase("crate_type")
+          \tdata = MovableActionServiceRef.normalize_movable_contract(data)
+          \tif weight_class == MovableActionServiceRef.WEIGHT_HEAVY:
+          \t\tdata["magnetic"] = bool(data.get("magnetic", true))
+          \t\tif not data.has("material_tags"):
+          \t\t\tdata["material_tags"] = ["metal"]
+          \treturn data
+          '''
+          text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'normalize_crate_contract replaced {count}')
+
+          replace_once(
+              '''\tif _normalized_contract_token(data.get("object_type", "")) == "crate" or _normalized_contract_token(data.get("archetype_id", "")) == "crate" or source_id in ["crate", "normal_crate", "heavy_crate", "steel_box"]:
+          \t\tdata = normalize_crate_contract(data)
+          \treturn data
+          ''',
+              '''\tif _normalized_contract_token(data.get("object_type", "")) == "crate" or _normalized_contract_token(data.get("archetype_id", "")) == "crate" or source_id in ["crate", "normal_crate", "heavy_crate", "steel_box"]:
+          \t\tdata = normalize_crate_contract(data)
+          \telif MovableActionServiceRef.is_movable_entity(data) or bool(data.get("movable", false)) or bool(data.get("heavy_claw_movable", false)):
+          \t\tdata = MovableActionServiceRef.normalize_movable_contract(data)
+          \treturn data
+          ''',
+              'movable normalization hook'
+          )
+
+          pattern = r'static func is_heavy_claw_movable_object\(object_data: Dictionary\) -> bool:\n.*?\n\treturn weight_class in \["normal", "heavy", "block"\] or normalized_object_type in \["box"\]\n'
+          replacement = '''static func is_world_object_movable(object_data: Dictionary) -> bool:
+          \treturn MovableActionServiceRef.is_movable_entity(object_data) or MovableActionServiceRef.is_crate(object_data)
+
+          static func get_world_object_movement_requirement(object_data: Dictionary) -> Dictionary:
+          \treturn MovableActionServiceRef.get_movement_requirement(object_data)
+
+          static func is_heavy_claw_movable_object(object_data: Dictionary) -> bool:
+          \tvar requirement: Dictionary = MovableActionServiceRef.get_movement_requirement(object_data)
+          \treturn str(requirement.get("required_manipulator", "")) == MovableActionServiceRef.MANIPULATOR_HEAVY_CLAW
+          '''
+          text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'legacy movable helper replaced {count}')
+
+          replace_once(
+              '''static func can_world_object_be_moved_by_heavy_claw(object_data: Dictionary) -> bool:
+          \tif object_data.is_empty():
+          \t\treturn false
+          \tif not is_heavy_claw_movable_object(object_data):
+          \t\treturn false
+          \tif str(object_data.get("object_type", "")).strip_edges().to_lower() == "case":
+          \t\treturn false
+          \treturn true
+          ''',
+              '''static func can_world_object_be_moved_by_heavy_claw(object_data: Dictionary) -> bool:
+          \treturn is_heavy_claw_movable_object(object_data)
+          ''',
+              'heavy claw compatibility wrapper'
+          )
+
+          old_runtime = '''\t"normal_crate": {"group":"physical_object","name":"Normal Crate","weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"heavy_crate": {"group":"physical_object","name":"Heavy Crate","placeable_in_constructor":false,"weight_class":"heavy","required_bipob_power_class":"engineer","durability":14,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"movable_platform_block": {"group":"physical_object","name":"Movable Platform Block","weight_class":"block","required_bipob_power_class":"juggernaut","durability":20,"blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"disabled_bipop_scout": {"group":"physical_object","name":"Disabled Bipop Scout","weight_class":"normal","required_bipob_power_class":"scout","durability":10},"disabled_bipop_engineer": {"group":"physical_object","name":"Disabled Bipop Engineer","weight_class":"heavy","required_bipob_power_class":"engineer","durability":15},"disabled_bipop_juggernaut": {"group":"physical_object","name":"Disabled Bipop Juggernaut","weight_class":"block","required_bipob_power_class":"juggernaut","durability":25},"legacy_barrel_library": {"group":"physical_object","name":"Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":8,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true},"explosive_barrel": {"group":"physical_object","name":"Explosive Barrel","placeable_in_constructor":false,"weight_class":"normal","required_bipob_power_class":"scout","durability":6,"movable":true,"heavy_claw_movable":true,"heavy_claw_mode":"push","blocks_movement":true,"on_destroy":"explode"},"debris": {
+          '''
+          new_runtime = '''\t"normal_crate": {"group":"physical_object","object_type":"crate","name":"Normal Crate","weight_class":"normal","durability":8,"blocks_movement":true},"heavy_crate": {"group":"physical_object","object_type":"crate","name":"Heavy Crate","placeable_in_constructor":false,"weight_class":"heavy","durability":14,"blocks_movement":true,"magnetic":true,"material_tags":["metal"]},"movable_platform_block": {"group":"physical_object","name":"Movable Platform Block","durability":20,"blocks_movement":true,"magnetic":true,"material_tags":["metal"],"movement_requirement":{"profile_id":"platform_block_drag","required_actor_types":["heavy"],"required_manipulator":"heavy_claw","required_manipulator_level":1,"required_power_class":"heavy","movement_mode":"drag"}},"disabled_bipop_scout": {"group":"physical_object","name":"Disabled Bipop Scout","durability":10,"movement_requirement":{"profile_id":"disabled_scout_push","required_actor_types":["scout","engineer","heavy"],"required_manipulator":"manipulator_arm","required_manipulator_level":1,"required_power_class":"scout","movement_mode":"push"}},"disabled_bipop_engineer": {"group":"physical_object","name":"Disabled Bipop Engineer","durability":15,"movement_requirement":{"profile_id":"disabled_engineer_drag","required_actor_types":["engineer","heavy"],"required_manipulator":"heavy_claw","required_manipulator_level":1,"required_power_class":"engineer","movement_mode":"drag"}},"disabled_bipop_juggernaut": {"group":"physical_object","name":"Disabled Bipop Juggernaut","durability":25,"movement_requirement":{"profile_id":"disabled_heavy_drag","required_actor_types":["heavy"],"required_manipulator":"heavy_claw","required_manipulator_level":1,"required_power_class":"heavy","movement_mode":"drag"}},"legacy_barrel_library": {"group":"physical_object","name":"Barrel","placeable_in_constructor":false,"durability":8,"blocks_movement":true,"movement_requirement":{"profile_id":"barrel_push","required_actor_types":["scout","engineer","heavy"],"required_manipulator":"manipulator_arm","required_manipulator_level":1,"required_power_class":"scout","movement_mode":"push"}},"explosive_barrel": {"group":"physical_object","name":"Explosive Barrel","placeable_in_constructor":false,"durability":6,"blocks_movement":true,"on_destroy":"explode","movement_requirement":{"profile_id":"explosive_barrel_push","required_actor_types":["scout","engineer","heavy"],"required_manipulator":"manipulator_arm","required_manipulator_level":1,"required_power_class":"scout","movement_mode":"push"}},"debris": {
+          '''
+          replace_once(old_runtime, new_runtime, 'runtime movable definitions')
+          replace_once(
+              '\t\t"group":"physical_object","placement_surfaces":["floor"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":false,"name":"Debris","weight_class":"normal","required_bipob_power_class":"scout","durability":1,"blocks_movement":false,"terrain_tag":"debris","movement_debuff":-1},\n',
+              '\t\t"group":"physical_object","placement_surfaces":["floor"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":false,"name":"Debris","durability":1,"blocks_movement":false,"terrain_tag":"debris","movement_debuff":-1,"movement_requirement":{"profile_id":"debris_push","required_actor_types":["scout","engineer","heavy"],"required_manipulator":"manipulator_arm","required_manipulator_level":1,"required_power_class":"scout","movement_mode":"push"}},\n',
+              'debris profile'
+          )
+
+          path.write_text(text)
+          PY
+      - name: Commit catalog migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/world/world_object_catalog.gd
+          git commit -m "Normalize movable and crate authoring contracts"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
