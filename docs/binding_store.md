@@ -54,7 +54,7 @@ role
 details
 ```
 
-Stable codes distinguish missing endpoints, wrong type, inactive endpoints, capacity, duplicate relation or ID, cycle, unsupported role, invalid version, and forbidden physical relations. UI and gameplay code must not parse fallback text.
+Stable codes distinguish missing endpoints, wrong type, inactive endpoints, capacity, duplicate relation or ID, cycle, unsupported role, invalid version, forbidden physical relations, and deletion that requires explicit binding cleanup. UI and gameplay code must not parse fallback text.
 
 Direct CRUD rejects semantically invalid relations. Loading a broken authoring snapshot preserves records with missing, wrong, inactive, over-capacity, or cyclic endpoints and exposes diagnostics. Structurally invalid, duplicate, unsupported, physical, or version-invalid records fail the atomic load.
 
@@ -81,6 +81,17 @@ World snapshots use separate versioned collections:
 ```
 
 Bindings serialize in stable ID order. Legacy logical link fields are converted once to binding records and stripped from canonical serialized entities. Re-running migration is idempotent.
+
+## MissionManager integration
+
+`MissionManager.replace_world_state_snapshot(objects)` is the compatibility entry point for old object-only snapshots. It explicitly loads them as format version `0`, so legacy logical fields are migrated before canonical state is committed.
+
+Canonical callers use:
+
+- `replace_world_state_serialized_snapshot(snapshot)` for versioned `entities` and `bindings` collections;
+- `get_world_state_serializable_snapshot()` for canonical save output.
+
+Both load paths validate entity bounds before delegating to `WorldStateStore`. The old wrapper must never call `WorldStateStore.replace_snapshot(objects)` directly because that would bypass legacy relation migration and could lose links during the next canonical save.
 
 ## Physical topology exclusion
 
