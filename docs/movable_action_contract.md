@@ -45,3 +45,7 @@ Legacy fields such as `movable`, `heavy_claw_movable`, `heavy_claw_mode`, and `r
 Movement is scoped to the affected object. It does not globally recalculate power or cooling. A failed action does not change object position, actor state, or unrelated systems.
 
 Stable reasons include missing/inactive objects, incompatible actor, missing or occupied manipulator, missing Heavy Claw, insufficient power class, unsupported action, target relation errors, and blocked, occupied, out-of-bounds, or incompatible destinations.
+
+## Regression coverage
+
+CI verifies normal and heavy crates, canonical actor aliases, one-actor enforcement, independent Heavy Claw and regular-manipulator occupancy, destination rejection without mutation, direct MissionManager movement, shared preview/execution codes, and absence of unrelated power or cooling changes.
