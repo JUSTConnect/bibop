@@ -1,18 +1,30 @@
-name: Export WorldStateStore Source
+name: Apply BindingStore Sources
 
 on:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
-  export-world-state-store:
+  apply-binding-store-sources:
     if: github.event.pull_request.number == 1195
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/upload-artifact@v4
         with:
-          name: binding-store-sources
-          path: |
-            scripts/world/world_state_store.gd
-            scripts/world/world_binding_store_contract.gd
-          if-no-files-found: error
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Restore source payloads
+        run: |
+          base64 -d .github/binding-store-payload/world_state_store.gd.gz.b64 | gzip -d > scripts/world/world_state_store.gd
+          base64 -d .github/binding-store-payload/world_binding_store_contract.gd.gz.b64 | gzip -d > scripts/world/world_binding_store_contract.gd
+      - name: Commit sources and remove temporary payload
+        run: |
+          rm -rf .github/binding-store-payload
+          rm -f .github/workflows/export-world-state-store.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/world/world_state_store.gd scripts/world/world_binding_store_contract.gd .github
+          git commit -m "Implement canonical BindingStore ownership"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
