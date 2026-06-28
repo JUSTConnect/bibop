@@ -35,6 +35,7 @@ required_codes = [
     "unsupported_role",
     "physical_relation_forbidden",
     "invalid_format_version",
+    "binding_cleanup_required",
 ]
 required_methods = [
     "func create_binding(",
@@ -84,9 +85,13 @@ checks = [
     ("physical topology is excluded", all(f'"{token}"' in contract for token in physical_exclusions)),
     ("no proximity inference", "distance_to" not in contract and "nearest" not in contract.lower()),
     ("no parallel MissionManager binding store", "_bindings_by_id" not in mission and "ROLE_REGISTRY" not in mission),
+    ("MissionManager legacy wrapper migrates", 'replace_serialized_snapshot({"format_version": 0, "objects": objects})' in mission),
+    ("MissionManager exposes canonical snapshot wrappers", "func replace_world_state_serialized_snapshot(" in mission and "func get_world_state_serializable_snapshot(" in mission),
+    ("MissionManager does not bypass binding migration", "return world_state_store.replace_snapshot(objects)" not in mission),
     ("no parallel Map Constructor binding store", "_bindings_by_id" not in prefab and "ROLE_REGISTRY" not in prefab),
     ("static gate wired", "python tools/check_binding_store.py" in workflow),
-    ("Godot gate wired", "check_binding_store.gd" in workflow),
+    ("Godot behavior gate wired", "check_binding_store.gd" in workflow),
+    ("MissionManager integration gate wired", "check_binding_store_mission_manager.gd" in workflow),
 ]
 
 failed = [name for name, ok in checks if not ok]
