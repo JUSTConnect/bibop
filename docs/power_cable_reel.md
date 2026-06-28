@@ -67,3 +67,20 @@ Autonomous power loss/restoration returns an empty `notification_event`. UI aggr
 ## BindingStore exclusion
 
 No `runtime_power_feed` binding is created. Reel endpoints, socket connection, and path are physical topology owned by the reel entity. `BindingStore` continues to hold logical relations only.
+
+The BindingStore contract still lists `runtime_power_feed` among forbidden physical roles. That marker exists so malformed authoring data is rejected with `physical_relation_forbidden`; it is not a supported logical binding role.
+
+## Regression coverage
+
+The CI suite checks:
+
+- valid socket-to-target connection with either reel end used as the socket end;
+- preview rejection without world mutation;
+- contiguous, blocked, repeated, and too-long path validation;
+- endpoint occupancy and incompatible targets;
+- source inheritance and fixed `main` circuit;
+- scoped socket power loss and automatic restoration;
+- broken, repaired, and explicitly reconnected states;
+- preservation of `intent_state`, `operational_state`, endpoints, and path;
+- MissionManager commit flow through `WorldStateStore`;
+- absence of runtime reel records in `BindingStore`.
