@@ -1,6 +1,8 @@
 extends RefCounted
 class_name RouteRenderer
 
+const PassiveRouteServiceRef = preload("res://scripts/game/cooling/passive_route_service.gd")
+
 const FAMILY_CABLE := "cable"
 const FAMILY_AIR_DUCT := "air_duct"
 const FAMILY_WATER_PIPE := "water_pipe"
@@ -28,6 +30,8 @@ static func normalize_install_mode(object_data: Dictionary) -> String:
 	return "floor"
 
 static func normalize_wall_routing_mode(object_data: Dictionary) -> String:
+	if PassiveRouteServiceRef.is_passive_route(object_data):
+		return PassiveRouteServiceRef.get_mount_side(object_data)
 	var candidates: Array[String] = [
 		str(object_data.get("route_mode", "")),
 		str(object_data.get("wall_routing_mode", "")),

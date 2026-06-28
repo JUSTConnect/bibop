@@ -22,6 +22,7 @@ const ObjectPrimitiveRendererRef = preload("res://scripts/visual/renderer/object
 const ObjectTextureDispatchPolicyRef = preload("res://scripts/visual/renderer/object_texture_dispatch_policy.gd")
 const DoorCanvasRendererRef = preload("res://scripts/visual/renderer/door_canvas_renderer.gd")
 const RouteRendererRef = preload("res://scripts/visual/renderer/route_renderer.gd")
+const PassiveRouteServiceRef = preload("res://scripts/game/cooling/passive_route_service.gd")
 const CableCanvasRendererRef = preload("res://scripts/visual/renderer/cable_canvas_renderer.gd")
 const OverlayRendererRef = preload("res://scripts/visual/renderer/overlay_renderer.gd")
 const MapConstructorOverlayRendererRef = preload("res://scripts/visual/renderer/map_constructor_overlay_renderer.gd")
@@ -1761,6 +1762,8 @@ func normalize_wall_visual_side(object_data: Dictionary) -> String:
 	return "sw"
 
 func get_wall_routing_mode(object_data: Dictionary) -> String:
+	if PassiveRouteServiceRef.is_passive_route(object_data):
+		return PassiveRouteServiceRef.get_mount_side(object_data)
 	return RouteRendererRef.normalize_wall_routing_mode(object_data)
 
 func is_wall_cable_object(object_data: Dictionary) -> bool:
@@ -1915,8 +1918,8 @@ func draw_wall_routing_utility(cell: Vector2i, object_data: Dictionary, visual_c
 		var faces: Array[String] = get_cooling_wall_canvas_visible_faces(object_data)
 		return draw_cooling_wall_canvas_asset_for_faces(cell, object_data, faces)
 	if get_wall_routing_mode(object_data) == "inner":
-		for side_key in ["wall_side_1", "wall_side_2"]:
-			draw_inner_wall_route_port(cell, object_data, str(object_data.get(side_key, "")), visual_center)
+		for route_side in PassiveRouteServiceRef.get_route_sides(object_data):
+			draw_inner_wall_route_port(cell, object_data, route_side, visual_center)
 		return true
 	return draw_outer_wall_route_surface(cell, object_data, visual_center)
 
@@ -1949,8 +1952,8 @@ func get_cooling_wall_canvas_visible_faces(object_data: Dictionary) -> Array[Str
 	var faces: Array[String] = []
 
 	if get_wall_routing_mode(object_data) == "inner":
-		for side_key in ["wall_side_1", "wall_side_2"]:
-			var face: String = _wall_route_side_to_visible_face(str(object_data.get(side_key, "")))
+		for route_side in PassiveRouteServiceRef.get_route_sides(object_data):
+			var face: String = _wall_route_side_to_visible_face(route_side)
 			if not face.is_empty() and face not in faces:
 				faces.append(face)
 	else:
