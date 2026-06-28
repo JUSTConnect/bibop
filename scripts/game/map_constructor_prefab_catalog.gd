@@ -88,6 +88,7 @@ const CATEGORY_BY_PREFAB: Dictionary = {
 # MissionManager owns runtime orchestration, filtering, validation, geometry, occupancy, and mission state.
 
 static var _presentation_catalog_cache: Dictionary = {}
+static var _entity_contract_diagnostics_cache: Array[Dictionary] = []
 
 static func _build_presentation_catalog() -> Dictionary:
 	var metadata: Dictionary = {
@@ -183,8 +184,24 @@ static func normalize_presentation_row(row: Dictionary) -> Dictionary:
 		return {}
 	var placement_contract: Dictionary = WorldObjectCatalogRef.get_constructor_placement_contract(prefab_id)
 	if placement_contract.is_empty():
-		return {"id": prefab_id, "prefab_id": prefab_id, "requested_prefab_id": prefab_id, "placement_contract_valid": false, "validation_reason": "missing_placement_contract", "canonical_prefab_id": prefab_id, "supports_floor": false, "supports_wall": false, "floor_only": false, "wall_only": false, "requires_floor": false, "requires_wall": false, "requires_floor_anchor_when_wall_mounted": false, "requires_floor_anchor": false}
+		var missing_entity_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(prefab_id)
+		var missing_error_codes: Array[String] = []
+		for missing_error_variant in Array(missing_entity_report.get("errors", [])):
+			if missing_error_variant is Dictionary:
+				missing_error_codes.append(str(Dictionary(missing_error_variant).get("code", "")))
+		return {"id": prefab_id, "prefab_id": prefab_id, "requested_prefab_id": prefab_id, "placement_contract_valid": false, "validation_reason": "missing_placement_contract", "canonical_prefab_id": prefab_id, "supports_floor": false, "supports_wall": false, "floor_only": false, "wall_only": false, "requires_floor": false, "requires_wall": false, "requires_floor_anchor_when_wall_mounted": false, "requires_floor_anchor": false, "entity_contract_valid": bool(missing_entity_report.get("valid", false)), "entity_contract_scope": str(missing_entity_report.get("scope", "")), "entity_type": str(missing_entity_report.get("entity_type", "")), "entity_subtype": str(missing_entity_report.get("entity_subtype", "")), "entity_capabilities": Dictionary(missing_entity_report.get("capabilities", {})).duplicate(true), "entity_contract_error_codes": missing_error_codes}
 	var canonical_prefab_id: String = str(placement_contract.get("canonical_prefab_id", prefab_id))
+	var entity_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(canonical_prefab_id)
+	normalized["entity_contract_valid"] = bool(entity_report.get("valid", false))
+	normalized["entity_contract_scope"] = str(entity_report.get("scope", ""))
+	normalized["entity_type"] = str(entity_report.get("entity_type", ""))
+	normalized["entity_subtype"] = str(entity_report.get("entity_subtype", ""))
+	normalized["entity_capabilities"] = Dictionary(entity_report.get("capabilities", {})).duplicate(true)
+	var error_codes: Array[String] = []
+	for error_variant in Array(entity_report.get("errors", [])):
+		if error_variant is Dictionary:
+			error_codes.append(str(Dictionary(error_variant).get("code", "")))
+	normalized["entity_contract_error_codes"] = error_codes
 	normalized["placement_contract_valid"] = true
 	normalized["canonical_prefab_id"] = canonical_prefab_id
 	normalized["requested_prefab_id"] = prefab_id
@@ -215,16 +232,33 @@ static func normalize_presentation_row(row: Dictionary) -> Dictionary:
 	normalized["label"] = str(normalized.get("display_name", normalized.get("label", prefab_id.capitalize())))
 	return normalized
 
-static func get_catalog_entries() -> Array[Dictionary]:
+static func get_catalog_entries(prefab_order: Array[String] = []) -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
+	_entity_contract_diagnostics_cache = []
 	var seen_prefab_ids: Dictionary = {}
-	for prefab_id in PREFAB_ORDER:
+	var requested_prefab_order: Array[String] = PREFAB_ORDER.duplicate() if prefab_order.is_empty() else prefab_order.duplicate()
+	for prefab_id in requested_prefab_order:
 		if seen_prefab_ids.has(prefab_id):
 			continue
 		var presentation: Dictionary = get_prefab_presentation(prefab_id)
 		var catalog_row: Dictionary = normalize_presentation_row(presentation)
 		if catalog_row.is_empty() or not bool(catalog_row.get("placement_contract_valid", false)):
-			catalog_row = {"id": prefab_id, "prefab_id": prefab_id, "requested_prefab_id": prefab_id, "canonical_prefab_id": WorldObjectCatalogRef.canonical_prefab_id(prefab_id), "placement_contract_valid": false, "validation_reason": str(presentation.get("validation_reason", "missing_presentation")), "presentation_missing": true}
+			var missing_canonical_id: String = str(catalog_row.get("canonical_prefab_id", WorldObjectCatalogRef.canonical_prefab_id(prefab_id)))
+			var missing_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(missing_canonical_id)
+			var missing_errors: Array = Array(missing_report.get("errors", [])).duplicate(true)
+			missing_errors.append({"code":"placement_contract.missing", "field":"placement_contract", "message":"Entity definition is missing a canonical constructor placement contract."})
+			_entity_contract_diagnostics_cache.append({"prefab_id": prefab_id, "canonical_prefab_id": missing_canonical_id, "errors": missing_errors})
+			continue
+		if not bool(catalog_row.get("entity_contract_valid", false)):
+			var canonical_prefab_id: String = str(catalog_row.get("canonical_prefab_id", WorldObjectCatalogRef.canonical_prefab_id(prefab_id)))
+			var diag_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(canonical_prefab_id)
+			_entity_contract_diagnostics_cache.append({"prefab_id": prefab_id, "canonical_prefab_id": canonical_prefab_id, "errors": Array(diag_report.get("errors", [])).duplicate(true)})
+			continue
 		entries.append(catalog_row)
 		seen_prefab_ids[prefab_id] = true
 	return entries
+
+static func get_entity_contract_diagnostics() -> Array[Dictionary]:
+	if _entity_contract_diagnostics_cache.is_empty():
+		get_catalog_entries()
+	return _entity_contract_diagnostics_cache.duplicate(true)

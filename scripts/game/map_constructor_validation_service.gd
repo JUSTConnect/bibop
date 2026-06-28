@@ -127,6 +127,14 @@ func validate_constructor_palette_contract() -> Array[String]:
 		if prefab_id.is_empty():
 			warnings.append("constructor_palette_row_missing_prefab_id")
 			continue
+		var entity_contract_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(prefab_id)
+		if not bool(entity_contract_report.get("valid", false)):
+			warnings.append("constructor_palette_invalid_entity_contract_%s" % prefab_id)
+		if not bool(row.get("entity_contract_valid", false)):
+			warnings.append("constructor_palette_row_invalid_entity_contract_%s" % prefab_id)
+		for contract_error_variant in Array(entity_contract_report.get("errors", [])):
+			if contract_error_variant is Dictionary and _safe_string(Dictionary(contract_error_variant).get("code", "")).is_empty():
+				warnings.append("constructor_palette_entity_contract_unstable_error_code_%s" % prefab_id)
 		if WorldObjectCatalogRef.LEGACY_DOOR_IDS.has(prefab_id) or WorldObjectCatalogRef.is_constructor_door_preset(prefab_id) or WorldObjectCatalogRef.LEGACY_WALL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_PLATFORM_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_TERMINAL_ALIAS_CONFIGS.has(prefab_id) or WorldObjectCatalogRef.LEGACY_BIPOB_ALIAS_CONFIGS.has(prefab_id):
 			warnings.append("constructor_palette_exposes_legacy_alias_%s" % prefab_id)
 		if archetype_id == "floor" or prefab_id == "floor":
@@ -148,6 +156,15 @@ func validate_constructor_palette_contract() -> Array[String]:
 		var object_data: Dictionary = WorldObjectCatalogRef.create_world_object(prefab_id, "validation_%s" % prefab_id)
 		if object_data.is_empty():
 			warnings.append("constructor_palette_prefab_creates_empty_object_%s" % prefab_id)
+	for diagnostic_variant in MapConstructorPrefabCatalogRef.get_entity_contract_diagnostics():
+		if not diagnostic_variant is Dictionary:
+			warnings.append("constructor_palette_entity_contract_diagnostic_invalid")
+			continue
+		var diagnostic: Dictionary = Dictionary(diagnostic_variant)
+		var diagnostic_prefab_id: String = _safe_string(diagnostic.get("prefab_id", "")).strip_edges()
+		for diagnostic_error_variant in Array(diagnostic.get("errors", [])):
+			if not diagnostic_error_variant is Dictionary or _safe_string(Dictionary(diagnostic_error_variant).get("code", "")).is_empty():
+				warnings.append("constructor_palette_entity_contract_diagnostic_unstable_error_code_%s" % diagnostic_prefab_id)
 	var required_archetype_warning_ids: Dictionary = {
 		"door":"constructor_palette_requires_exactly_one_door",
 		"floor":"constructor_palette_requires_exactly_one_floor",
