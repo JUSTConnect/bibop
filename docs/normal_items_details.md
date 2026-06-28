@@ -26,7 +26,9 @@ Currency persists outside inventory in a versioned `details_currency` snapshot c
 
 Migration recognizes legacy `parts`, `parts_small`, `parts_medium`, and `parts_large` entries in world pickups, inventory, box storage, `item_amounts`, center storage, and resource records.
 
-World entries become Details pickups and retain their amount. Stored amounts are credited once to the central balance, removed from old slots, and protected by a stable migration reward ID. Existing `parts_*` visual/drop aliases remain compatible but no longer create inventory items.
+Migration runs before normal item routing. World entries first become Details pickups and retain their amount; stored entries are then credited once to the central balance and removed from old slots. A stable migration reward ID makes repeated migration idempotent.
+
+Existing `parts_*` visual/drop aliases remain compatible but no longer create inventory items.
 
 ## Runtime rules
 
