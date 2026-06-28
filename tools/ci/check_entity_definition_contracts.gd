@@ -32,6 +32,8 @@ func _make_constructor_manager():
 
 func _run() -> void:
 	await process_frame
+	var fixture_errors: Array = Contract.validate_fixture_registry()
+	_assert(fixture_errors.is_empty(), "fixture registry invalid: %s" % str(fixture_errors))
 	var rows := Catalog.get_catalog_entries()
 	var ids: Array[String] = []
 	var types: Dictionary = {}
@@ -48,12 +50,8 @@ func _run() -> void:
 				_assert(Dictionary(report.get("capabilities", {})).get(key) is bool, "non-bool capability %s for %s" % [key, id])
 			var contract := Dictionary(report.get("contract", {}))
 			for field in Contract.REQUIRED_PROFILE_FIELDS:
-				_assert(Array(Contract.PROFILE_REGISTRIES[field]).has(str(contract.get(field, ""))), "unknown profile %s for %s" % [field, id])
-			var capability_by_profile := {"power_profile":"power", "control_profile":"control", "access_profile":"access", "binding_profile":"bindings"}
-			for profile_field in capability_by_profile.keys():
-				var capability_name := str(capability_by_profile[profile_field])
-				if str(contract.get(profile_field, "")) == "none":
-					_assert(not bool(Dictionary(report.get("capabilities", {})).get(capability_name, false)), "%s has %s capability but %s=none" % [id, capability_name, profile_field])
+				_assert(Contract.has_profile(field, str(contract.get(field, ""))), "unknown profile %s for %s" % [field, id])
+
 			if bool(WorldObjectCatalog.get_constructor_prefab_definition(id).get("configurable", false)):
 				_assert(not WorldObjectCatalog.get_constructor_prefab_property_schema(id).is_empty(), "configurable missing schema: %s" % id)
 	for entity_type in Contract.ENTITY_TYPES:
