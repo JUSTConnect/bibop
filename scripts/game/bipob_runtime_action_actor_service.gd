@@ -1,6 +1,8 @@
 extends RefCounted
 class_name BipobRuntimeActionActorService
 
+const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")
+
 
 static func _runtime_inventory_value_id(controller: Variant, value: Variant) -> String:
 	if controller != null and controller.has_method("_runtime_inventory_value_id"):
@@ -209,10 +211,16 @@ static func build_runtime_action_actor(controller: Variant, target_object: Dicti
 	var manipulator_occupied: bool = not manipulator_hold_id.is_empty()
 	
 	var held_item: Dictionary = _get_visible_held_item(controller, inventory_state)
+	var raw_power_class: String = str(controller.get_bipob_power_class())
+	var actor_type: String = MovableActionServiceRef.normalize_actor_type(raw_power_class)
 	
 	return {
+		"actor_type": actor_type,
+		"actor_count": 1,
 		"manipulator_level": controller.get_installed_manipulator_arm_level(),
+		"manipulator_active": controller.get_installed_manipulator_arm_level() > 0,
 		"heavy_claw_level": controller.get_installed_heavy_claw_level(),
+		"heavy_claw_active": controller.has_heavy_claw_capability(),
 		"connector_level": maxi(controller.get_installed_connector_level("wired"), controller.get_installed_connector_level("optical")),
 		"wired_connector_level": controller.get_installed_connector_level("wired"),
 		"optical_connector_level": controller.get_installed_connector_level("optical"),
@@ -220,7 +228,7 @@ static func build_runtime_action_actor(controller: Variant, target_object: Dicti
 		"high_bandwidth_connector_level": controller.get_installed_connector_level("high_bandwidth"),
 		"processor_level": controller.get_installed_processor_level(),
 		"firewall_module_v1": controller.has_module_id("firewall_module_v1"),
-		"power_class": controller.get_bipob_power_class(),
+		"power_class": MovableActionServiceRef.normalize_power_class(raw_power_class),
 		"manipulator_occupied": manipulator_occupied,
 		"pocket_full": not has_free_pocket_slot,
 		"has_free_manipulator_slot": has_free_manipulator_slot,
