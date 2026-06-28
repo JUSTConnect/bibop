@@ -141,7 +141,7 @@ func _run() -> void:
 	var blocked_preview: Dictionary = ReelService.preview_action(objects, "reel_a", ReelService.ACTION_SET_PATH, {"path_cells": repath}, [Vector2i(3, 0)])
 	_assert(str(blocked_preview.get("code", "")) == ReelService.CODE_PATH_BLOCKED, "blocked path code missing")
 	_assert(objects == before_failed_preview, "blocked preview mutated world")
-	var too_long_preview: Dictionary = ReelService.preview_action(objects, "reel_a", ReelService.ACTION_SET_PATH, {"path_cells": [Vector2i(4, 0), Vector2i(4, 1), Vector2i(3, 1), Vector2i(2, 1), Vector2i(2, 0), Vector2i(1, 0), Vector2i(0, 0), Vector2i(-1, 0), Vector2i(-2, 0)]})
+	var too_long_preview: Dictionary = ReelService.preview_action(objects, "reel_a", ReelService.ACTION_SET_PATH, {"path_cells": [Vector2i(4, 0), Vector2i(4, 1), Vector2i(3, 1), Vector2i(2, 1), Vector2i(2, 0), Vector2i(1, 0), Vector2i(0, 0), Vector2i(-1, 0), Vector2i(-2, 0), Vector2i(-3, 0)]})
 	_assert(str(too_long_preview.get("code", "")) == ReelService.CODE_PATH_TOO_LONG, "too-long path code missing")
 
 	var damage_result: Dictionary = _apply(objects, "reel_a", ReelService.ACTION_DAMAGE)
