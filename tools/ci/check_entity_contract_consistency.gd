@@ -30,6 +30,23 @@ func _has_warning(report: Dictionary, code: String, field_name: String = "") -> 
 			return true
 	return false
 
+func _diagnostic_shape_valid(diagnostic: Dictionary, severity: String) -> bool:
+	if str(diagnostic.get("severity", "")) != severity:
+		return false
+	for field_name in ["code", "field", "message_key", "message", "fallback", "fix_hint"]:
+		if str(diagnostic.get(field_name, "")).strip_edges().is_empty():
+			return false
+	return diagnostic.get("details", {}) is Dictionary
+
+func _report_diagnostics_have_shape(report: Dictionary) -> bool:
+	for value in Array(report.get("errors", [])):
+		if not (value is Dictionary) or not _diagnostic_shape_valid(Dictionary(value), "error"):
+			return false
+	for value in Array(report.get("warnings", [])):
+		if not (value is Dictionary) or not _diagnostic_shape_valid(Dictionary(value), "warning"):
+			return false
+	return true
+
 func _diagnostic_has(diagnostics: Array[Dictionary], prefab_id: String, code: String) -> bool:
 	for diagnostic in diagnostics:
 		if str(diagnostic.get("prefab_id", "")) != prefab_id:
@@ -106,12 +123,40 @@ func _run() -> void:
 	_assert(_has_error(Contract.validate_definition("door", _with_contract(_door_definition(), unknown_contract)), "entity_contract.profile_unknown"), "unknown profile was accepted")
 	_assert(Contract.validate_fixture_registry().is_empty(), "profile fixture registry invalid: %s" % str(Contract.validate_fixture_registry()))
 
+	var fixture_count: int = 0
+	for profile_field_value in Contract.PROFILE_REGISTRIES.keys():
+		var profile_field: String = str(profile_field_value)
+		for profile_id_value in Contract.get_profile_ids(profile_field):
+			var profile_id: String = str(profile_id_value)
+			var descriptor: Dictionary = Contract.get_profile_descriptor(profile_field, profile_id)
+			for fixture_id_value in Array(descriptor.get("fixture_ids", [])):
+				fixture_count += 1
+				var fixture: Dictionary = Contract.resolve_validation_fixture(str(fixture_id_value))
+				_assert(not fixture.is_empty(), "fixture did not resolve: %s" % str(fixture_id_value))
+				_assert(str(fixture.get("profile_field", "")) == profile_field, "fixture profile field mismatch: %s" % str(fixture_id_value))
+				_assert(str(fixture.get("profile_id", "")) == profile_id, "fixture profile id mismatch: %s" % str(fixture_id_value))
+				_assert(fixture.get("valid_sample", {}) is Dictionary, "fixture valid sample missing: %s" % str(fixture_id_value))
+				_assert(fixture.get("invalid_mutations", []) is Array and not Array(fixture.get("invalid_mutations", [])).is_empty(), "fixture mutations missing: %s" % str(fixture_id_value))
+				var allowed_fields: Variant = fixture.get("allowed_fields", {})
+				_assert(allowed_fields is Dictionary, "fixture allowed fields missing: %s" % str(fixture_id_value))
+				if allowed_fields is Dictionary:
+					for field_class in ["stored", "editable", "computed"]:
+						_assert(Dictionary(allowed_fields).get(field_class, []) is Array, "fixture field class missing: %s/%s" % [str(fixture_id_value), field_class])
+	_assert(fixture_count > 1, "default remained the only fixture")
+
 	var invalid_exception: Dictionary = _door_definition()
 	invalid_exception["legacy_semantic_exceptions"] = [{"field":"durability"}]
 	_assert(_has_error(Contract.validate_definition("door", invalid_exception), "entity_contract.legacy_exception_invalid"), "invalid legacy exception was accepted")
 	var absent_exception: Dictionary = _door_definition()
 	absent_exception["legacy_semantic_exceptions"] = [{"field":"durability", "reason":"Absent", "migration_issue":1190}]
 	_assert(_has_error(Contract.validate_definition("door", absent_exception), "entity_contract.legacy_exception_invalid"), "exception for absent field was accepted")
+	var unknown_issue_definition: Dictionary = _door_definition()
+	unknown_issue_definition["durability"] = 1
+	unknown_issue_definition["legacy_semantic_exceptions"] = [{"field":"durability", "reason":"Unknown migration", "migration_issue":9999}]
+	_assert(_has_error(Contract.validate_definition("synthetic_unknown_issue", unknown_issue_definition), "entity_contract.legacy_exception_invalid"), "unknown migration issue was accepted")
+	var enabled_legacy_definition: Dictionary = _door_definition()
+	enabled_legacy_definition["durability"] = 1
+	_assert(_has_error(Contract.validate_definition("synthetic_enabled_legacy", enabled_legacy_definition), "entity_contract.legacy_exception_invalid"), "legacy field with enabled capability was accepted without exception")
 	var legacy_definition: Dictionary = _door_definition()
 	legacy_definition["durability"] = 1
 	legacy_definition["legacy_semantic_exceptions"] = [{"field":"durability", "reason":"Legacy", "migration_issue":1190}]
@@ -123,6 +168,14 @@ func _run() -> void:
 	legacy_definition["entity_contract"] = legacy_contract
 	var legacy_report: Dictionary = Contract.validate_definition("legacy", legacy_definition)
 	_assert(_has_warning(legacy_report, "entity_contract.legacy_semantic_exception", "durability"), "valid legacy exception did not warn")
+	_assert(_report_diagnostics_have_shape(legacy_report), "legacy warning has incomplete diagnostic shape")
+
+	var computed_report: Dictionary = _raw_field_report("resolved_source_id", "source", "power", true)
+	_assert(_report_diagnostics_have_shape(computed_report), "semantic error has incomplete diagnostic shape")
+	var socket_report: Dictionary = WorldObjectCatalog.validate_entity_definition_contract("power_socket")
+	_assert(bool(socket_report.get("valid", false)), "power socket contract invalid: %s" % str(socket_report.get("errors", [])))
+	_assert(_has_warning(socket_report, "entity_contract.legacy_semantic_exception", "connected_device_ids"), "power socket endpoint compatibility warning missing")
+	_assert(_report_diagnostics_have_shape(socket_report), "power socket warnings have incomplete diagnostic shape")
 
 	_assert(not Contract.resolve_validation_fixture("default").is_empty(), "default validation fixture did not resolve")
 	_assert(not Contract.resolve_validation_fixture("status_object_standard").is_empty(), "profile validation fixture did not resolve")
