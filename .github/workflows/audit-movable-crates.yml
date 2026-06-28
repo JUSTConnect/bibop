@@ -1,0 +1,33 @@
+name: Audit Movable Crates
+
+on:
+  pull_request:
+
+jobs:
+  audit-movable-crates:
+    if: github.event.pull_request.number == 1198
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect movement paths
+        run: |
+          {
+            echo '## movement declarations'
+            grep -RIn --exclude-dir=.git -E '^func .*move|^func .*push|^func .*pull|^func .*heavy|preview_.*move|can_.*move|movement_requirement|weight_class' scripts tools || true
+            echo '## actor and manipulator tokens'
+            grep -RIn --exclude-dir=.git -E 'heavy_claw|Heavy Claw|juggernaut|Juggernaut|engineer|scout|actor_type|bipob_type|manipulator' scripts tools || true
+            echo '## movable and crate definitions'
+            grep -RIn --exclude-dir=.git -E '"movable"|movable:|heavy_claw_movable|crate|weight_class|immovable|blocked' scripts/world scripts/game tools || true
+            echo '## relevant MissionManager context'
+            for line in $(grep -nE '^func .*move|^func .*push|^func .*pull|^func .*heavy' scripts/game/mission_manager.gd | cut -d: -f1); do
+              start=$((line-12)); if [ "$start" -lt 1 ]; then start=1; fi
+              end=$((line+100))
+              echo "--- mission_manager.gd:${start}-${end} ---"
+              sed -n "${start},${end}p" scripts/game/mission_manager.gd
+            done
+          } > /tmp/movable-crates-audit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: movable-crates-audit
+          path: /tmp/movable-crates-audit.txt
+          if-no-files-found: error
