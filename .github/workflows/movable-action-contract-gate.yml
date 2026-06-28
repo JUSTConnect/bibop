@@ -13,6 +13,33 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Static architecture gate
+        run: |
+          git diff --check
+          grep -q 'class_name MovableActionService' scripts/game/movable/movable_action_service.gd
+          grep -q 'required_actor_types' scripts/game/movable/movable_action_service.gd
+          grep -q 'required_manipulator' scripts/game/movable/movable_action_service.gd
+          grep -q 'actor_count_invalid' scripts/game/movable/movable_action_service.gd
+          grep -q 'juggernaut' scripts/game/movable/movable_action_service.gd
+          grep -q '"field":"weight_class"' scripts/world/world_object_catalog.gd
+          ! grep -q '"field":"crate_type"' scripts/world/world_object_catalog.gd
+          ! grep -q '"required_bipob_power_class":' scripts/world/world_object_catalog.gd
+          ! grep -q '"heavy_claw_movable":' scripts/world/world_object_catalog.gd
+          ! grep -q '"heavy_claw_mode":' scripts/world/world_object_catalog.gd
+          ! grep -q '"movable":true' scripts/world/world_object_catalog.gd
+          ! grep -q '"movable":false' scripts/world/world_object_catalog.gd
+          grep -q 'MovableActionServiceRef.preview_action' scripts/world/interaction_system.gd
+          grep -q 'move_world_object_with_requirements' scripts/game/bipob_heavy_claw_execution_service.gd
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('scripts/game/mission_manager.gd').read_text()
+          start = text.index('func move_world_object_with_requirements(')
+          end = text.index('func move_world_object_by_heavy_claw(', start)
+          block = text[start:end]
+          assert 'recalculate_power_network' not in block
+          assert 'refresh_world_cooling_received' not in block
+          PY
+
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -25,3 +52,6 @@ jobs:
 
       - name: Movable action behavior gate
         run: godot --headless --path . --script res://tools/ci/check_movable_action_service.gd
+
+      - name: MissionManager integration gate
+        run: godot --headless --path . --script res://tools/ci/check_movable_mission_manager.gd
