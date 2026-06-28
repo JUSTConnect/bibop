@@ -15,17 +15,48 @@ const SCOPE_ENTITY := "entity"
 const SCOPE_EXCLUDED := "excluded"
 
 const FIELD_SEMANTICS: Dictionary = {
-	"state":{"family":"state", "storage":"stored", "capability":"state"}, "allowed_states":{"family":"state", "storage":"stored", "capability":"state"}, "status":{"family":"state", "storage":"stored", "capability":"state"}, "allowed_statuses":{"family":"state", "storage":"stored", "capability":"state"}, "intent_state":{"family":"state", "storage":"stored", "capability":"state"}, "operational_state":{"family":"state", "storage":"stored", "capability":"state"}, "effective_state":{"family":"state", "storage":"computed", "capability":"state"}, "is_operational":{"family":"state", "storage":"computed", "capability":"state"}, "blocking_reason":{"family":"state", "storage":"computed", "capability":"state"},
-	"health":{"family":"health", "storage":"stored", "capability":"health"}, "current_health":{"family":"health", "storage":"stored", "capability":"health"}, "max_health":{"family":"health", "storage":"stored", "capability":"health"}, "durability":{"family":"health", "storage":"legacy", "capability":"health"}, "health_state":{"family":"health", "storage":"stored", "capability":"health"}, "damaged":{"family":"health", "storage":"legacy", "capability":"health"}, "broken":{"family":"health", "storage":"legacy", "capability":"health"},
+	"state":{"family":"state", "storage":"stored", "capability":"state"}, "allowed_states":{"family":"state", "storage":"stored", "capability":"state"}, "status":{"family":"state", "storage":"stored", "capability":"state"}, "allowed_statuses":{"family":"state", "storage":"stored", "capability":"state"}, "intent_state":{"family":"state", "storage":"stored", "capability":"state"}, "operational_state":{"family":"state", "storage":"stored", "capability":"state"}, "effective_state":{"family":"state", "storage":"computed", "capability":"state", "editable":false}, "is_operational":{"family":"state", "storage":"computed", "capability":"state", "editable":false}, "blocking_reason":{"family":"state", "storage":"computed", "capability":"state", "editable":false},
+	"health":{"family":"health", "storage":"stored", "capability":"health"}, "current_health":{"family":"health", "storage":"stored", "capability":"health"}, "max_health":{"family":"health", "storage":"stored", "capability":"health"}, "durability":{"family":"health", "storage":"legacy", "capability":"health", "editable":false}, "health_state":{"family":"health", "storage":"stored", "capability":"health"}, "damaged":{"family":"health", "storage":"legacy", "capability":"health", "editable":false}, "broken":{"family":"health", "storage":"legacy", "capability":"health", "editable":false},
 	"overheat":{"family":"thermal", "storage":"stored", "capability":"overheat"}, "current_overheat":{"family":"thermal", "storage":"stored", "capability":"overheat"}, "max_overheat":{"family":"thermal", "storage":"stored", "capability":"overheat"}, "thermal_state":{"family":"thermal", "storage":"stored", "capability":"overheat"}, "overheated":{"family":"thermal", "storage":"stored", "capability":"overheat"},
 	"energy":{"family":"energy", "storage":"stored", "capability":"energy"}, "current_energy":{"family":"energy", "storage":"stored", "capability":"energy"}, "max_energy":{"family":"energy", "storage":"stored", "capability":"energy"}, "energy_capacity":{"family":"energy", "storage":"stored", "capability":"energy"},
-	"power_type":{"family":"power", "storage":"stored", "capability":"power"}, "power_mode":{"family":"power", "storage":"stored", "capability":"power"}, "is_powered":{"family":"power", "storage":"stored", "capability":"power"}, "power_state":{"family":"power", "storage":"legacy", "computed":true, "capability":"power"}, "power_source_id":{"family":"power", "storage":"legacy", "capability":"power"}, "physical_connection_source_id":{"family":"power", "storage":"legacy", "computed":true, "capability":"power"}, "preferred_source_id":{"family":"power", "storage":"stored", "capability":"power"}, "resolved_source_id":{"family":"power", "storage":"computed", "capability":"power"}, "resolved_circuit_id":{"family":"power", "storage":"computed", "capability":"power"}, "main_power_net":{"family":"power", "storage":"legacy", "capability":"power"}, "power_network_id":{"family":"power", "storage":"legacy", "capability":"power"}, "power_required":{"family":"power", "storage":"legacy", "capability":"power"}, "power_received":{"family":"power", "storage":"legacy", "capability":"power"},
-	"control_type":{"family":"control", "storage":"stored", "capability":"control"}, "control_mode":{"family":"control", "storage":"stored", "capability":"control"}, "control_loss_behavior":{"family":"control", "storage":"stored", "capability":"control"}, "controlled_target_type":{"family":"control", "storage":"stored", "capability":"control"}, "control_terminal_id":{"family":"control", "storage":"legacy", "capability":"control"}, "requires_external_control":{"family":"control", "storage":"legacy", "capability":"control"},
+	"power_type":{"family":"power", "storage":"stored", "capability":"power"}, "power_mode":{"family":"power", "storage":"stored", "capability":"power"}, "is_powered":{"family":"power", "storage":"stored", "capability":"power"}, "power_state":{"family":"power", "storage":"legacy", "computed":true, "capability":"power", "editable":false}, "power_source_id":{"family":"power", "storage":"legacy", "capability":"power", "editable":false}, "physical_connection_source_id":{"family":"power", "storage":"legacy", "computed":true, "capability":"power", "editable":false}, "preferred_source_id":{"family":"power", "storage":"stored", "capability":"power"}, "resolved_source_id":{"family":"power", "storage":"computed", "capability":"power", "editable":false}, "resolved_circuit_id":{"family":"power", "storage":"computed", "capability":"power", "editable":false}, "main_power_net":{"family":"power", "storage":"legacy", "capability":"power", "editable":false}, "power_network_id":{"family":"power", "storage":"legacy", "capability":"power", "editable":false}, "power_required":{"family":"power", "storage":"legacy", "capability":"power", "editable":false}, "power_received":{"family":"power", "storage":"legacy", "capability":"power", "editable":false},
+	"control_type":{"family":"control", "storage":"stored", "capability":"control"}, "control_mode":{"family":"control", "storage":"stored", "capability":"control"}, "control_loss_behavior":{"family":"control", "storage":"stored", "capability":"control"}, "controlled_target_type":{"family":"control", "storage":"stored", "capability":"control"}, "control_terminal_id":{"family":"control", "storage":"legacy", "capability":"control", "editable":false}, "requires_external_control":{"family":"control", "storage":"legacy", "capability":"control", "editable":false},
 	"access_type":{"family":"access", "storage":"stored", "capability":"access"}, "required_key_id":{"family":"access", "storage":"stored", "capability":"access"}, "required_terminal_id":{"family":"access", "storage":"stored", "capability":"access"}, "required_access_code_id":{"family":"access", "storage":"stored", "capability":"access"}, "required_digital_key_id":{"family":"access", "storage":"stored", "capability":"access"},
-	"linked_terminal_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_terminal_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_door_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_object_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_cooling_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_platform_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_power_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_lighting_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "chain_input_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "chain_output_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "connected_device_ids":{"family":"bindings", "storage":"legacy", "capability":"bindings", "legacy_presence_aliases":["connected_endpoint_count", "socket_connected_endpoint_count"]},
+	"linked_terminal_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_terminal_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_door_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_object_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_cooling_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_platform_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_power_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_lighting_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "chain_input_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "chain_output_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "connected_device_ids":{"family":"bindings", "storage":"legacy", "capability":"bindings", "editable":false, "legacy_presence_aliases":["connected_endpoint_count", "socket_connected_endpoint_count"]},
 	"mount":{"family":"mount", "storage":"stored", "capability":"mount"}, "install_mode":{"family":"mount", "storage":"stored", "capability":"mount"}, "is_wall_mounted":{"family":"mount", "storage":"stored", "capability":"mount"}, "facing_side":{"family":"side", "storage":"stored", "capability":"side"}, "wall_side_1":{"family":"side", "storage":"stored", "capability":"side"}, "wall_side_2":{"family":"side", "storage":"stored", "capability":"side"},
-	"route_mode":{"family":"routing", "storage":"stored", "capability":"routing"}, "wall_routing_mode":{"family":"routing", "storage":"stored", "capability":"routing"}, "cooling_contour_id":{"family":"routing", "storage":"stored", "capability":"routing"}, "cooling_contour_mode":{"family":"routing", "storage":"stored", "capability":"routing"}, "cooling_contour_member_ids":{"family":"routing", "storage":"stored", "capability":"routing"}, "connection_id":{"family":"routing", "storage":"stored", "capability":"routing"}, "source_object_id":{"family":"routing", "storage":"stored", "capability":"routing"}, "sink_object_id":{"family":"routing", "storage":"stored", "capability":"routing"}, "socket_id":{"family":"routing", "storage":"stored", "capability":"routing"}, "endpoint_a_id":{"family":"routing", "storage":"stored", "capability":"routing"}, "endpoint_b_id":{"family":"routing", "storage":"stored", "capability":"routing"}, "end_1":{"family":"routing", "storage":"stored", "capability":"routing"}, "end_2":{"family":"routing", "storage":"stored", "capability":"routing"}, "path_cells":{"family":"routing", "storage":"stored", "capability":"routing"}, "connection_state":{"family":"routing", "storage":"stored", "capability":"routing"},
-	"editor_readiness":{"family":"test_override", "storage":"computed", "capability":"test_override"}, "editor_issues":{"family":"test_override", "storage":"computed", "capability":"test_override"}
+	"route_mode":{"family":"routing", "storage":"stored", "capability":"routing"}, "wall_routing_mode":{"family":"routing", "storage":"stored", "capability":"routing"}, "cooling_contour_id":{"family":"routing", "storage":"stored", "capability":"routing"}, "cooling_contour_mode":{"family":"routing", "storage":"stored", "capability":"routing"}, "cooling_contour_member_ids":{"family":"routing", "storage":"stored", "capability":"routing"},
+	"connection_id":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false}, "source_object_id":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false}, "sink_object_id":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false}, "socket_id":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false}, "endpoint_a_id":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false}, "endpoint_b_id":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false}, "end_1":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false}, "end_2":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false}, "path_cells":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false}, "connection_state":{"family":"physical_topology", "storage":"stored", "capability":"", "editable":false},
+	"editor_readiness":{"family":"test_override", "storage":"computed", "capability":"test_override", "editable":false}, "editor_issues":{"family":"test_override", "storage":"computed", "capability":"test_override", "editable":false}
+}
+
+# Closed compatibility list for authoring-reachable OBJECT_LIBRARY fallbacks.
+# New definitions must declare their own exact legacy_semantic_exceptions.
+const LEGACY_LIBRARY_EXCEPTIONS: Dictionary = {
+	"power_cable":[
+		{"field":"power_required", "reason":"Legacy stationary cable field pending #1181.", "migration_issue":1181},
+		{"field":"power_received", "reason":"Legacy stationary cable field pending #1181.", "migration_issue":1181},
+		{"field":"power_network_id", "reason":"Legacy stationary cable field pending #1181.", "migration_issue":1181},
+		{"field":"damaged", "reason":"Legacy stationary cable health flag pending #1181.", "migration_issue":1181},
+		{"field":"broken", "reason":"Legacy stationary cable health flag pending #1181.", "migration_issue":1181}
+	],
+	"power_socket":[
+		{"field":"durability", "reason":"Legacy socket health field pending #1181.", "migration_issue":1181},
+		{"field":"power_state", "reason":"Legacy socket computed field pending #1181.", "migration_issue":1181},
+		{"field":"power_required", "reason":"Legacy socket power field pending #1181.", "migration_issue":1181},
+		{"field":"power_received", "reason":"Legacy socket power field pending #1181.", "migration_issue":1181},
+		{"field":"power_network_id", "reason":"Legacy socket power field pending #1181.", "migration_issue":1181},
+		{"field":"power_source_id", "reason":"Legacy socket source field pending #1181.", "migration_issue":1181},
+		{"field":"physical_connection_source_id", "reason":"Legacy socket computed source field pending #1181.", "migration_issue":1181},
+		{"field":"damaged", "reason":"Legacy socket health flag pending #1181.", "migration_issue":1181},
+		{"field":"broken", "reason":"Legacy socket health flag pending #1181.", "migration_issue":1181}
+	],
+	"turret":[
+		{"field":"durability", "reason":"Legacy turret health field pending #1192.", "migration_issue":1192},
+		{"field":"power_network_id", "reason":"Legacy turret power field pending #1192.", "migration_issue":1192}
+	],
+	"debris":[
+		{"field":"durability", "reason":"Legacy movable health field pending #1190.", "migration_issue":1190}
+	]
 }
 
 static func has_profile(profile_field: String, profile_id: String) -> bool:
@@ -106,14 +137,16 @@ static func _validate_profiles(definition_id: String, contract: Dictionary, enti
 	if str(contract.get("status_profile", "")) == "none" and bool(capabilities.get("state", false)):
 		errors.append(_error("entity_contract.profile_capability_required", "status_profile", "State capability requires a non-none status profile.", {"definition_id":definition_id, "profile_field":"status_profile", "profile_id":"none", "capability":"state"}))
 
-static func _exception_map(definition: Dictionary, errors: Array, definition_id: String) -> Dictionary:
+static func _exception_map(definition_id: String, definition: Dictionary, errors: Array) -> Dictionary:
 	var result: Dictionary = {}
+	var entries: Array = Array(LEGACY_LIBRARY_EXCEPTIONS.get(definition_id, [])).duplicate(true)
 	var raw: Variant = definition.get("legacy_semantic_exceptions", [])
 	if not (raw is Array):
 		errors.append(_error("entity_contract.legacy_exception_invalid", "legacy_semantic_exceptions", "Legacy exceptions must be an array.", {"definition_id":definition_id}))
 		return result
+	entries.append_array(Array(raw))
 	var allowed_issues: Array = TEMPORARY_LEGACY_MIGRATION_ISSUES.values()
-	for value in Array(raw):
+	for value in entries:
 		if not (value is Dictionary):
 			errors.append(_error("entity_contract.legacy_exception_invalid", "legacy_semantic_exceptions", "Legacy exception must be a dictionary.", {"definition_id":definition_id}))
 			continue
@@ -124,7 +157,7 @@ static func _exception_map(definition: Dictionary, errors: Array, definition_id:
 		if field_name.is_empty() or field_name.find("*") >= 0 or reason.is_empty() or not FIELD_SEMANTICS.has(field_name) or not allowed_issues.has(issue) or result.has(field_name):
 			errors.append(_error("entity_contract.legacy_exception_invalid", "legacy_semantic_exceptions", "Legacy exception is invalid.", {"definition_id":definition_id, "field_name":field_name, "migration_issue":issue}))
 			continue
-		result[field_name] = {"reason":reason, "migration_issue":issue}
+		result[field_name] = {"reason":reason, "migration_issue":issue, "source":"legacy_library" if LEGACY_LIBRARY_EXCEPTIONS.has(definition_id) and Array(LEGACY_LIBRARY_EXCEPTIONS[definition_id]).has(value) else "definition"}
 	return result
 
 static func _presence_field(definition: Dictionary, field_name: String) -> String:
@@ -142,7 +175,7 @@ static func _details(definition_id: String, entity_type: String, field_name: Str
 
 static func _validate_fields(definition_id: String, definition: Dictionary, entity_type: String, capabilities: Dictionary, errors: Array, warnings: Array) -> Dictionary:
 	var exposed: Dictionary = {}
-	var exceptions: Dictionary = _exception_map(definition, errors, definition_id)
+	var exceptions: Dictionary = _exception_map(definition_id, definition, errors)
 	var consumed: Dictionary = {}
 	for field_name in _property_fields(definition, errors, definition_id):
 		if not FIELD_SEMANTICS.has(field_name):
@@ -154,7 +187,7 @@ static func _validate_fields(definition_id: String, definition: Dictionary, enti
 		var details: Dictionary = _details(definition_id, entity_type, field_name, semantics)
 		if storage == "computed" or bool(semantics.get("computed", false)):
 			errors.append(_error("entity_contract.computed_field_editable", field_name, "Computed field cannot be editable.", details))
-		elif storage == "legacy" or not bool(capabilities.get(capability, false)):
+		elif not bool(semantics.get("editable", true)) or storage == "legacy" or (not capability.is_empty() and not bool(capabilities.get(capability, false))):
 			errors.append(_error("entity_contract.property_schema_field_forbidden", field_name, "Field is not editable under this contract.", details))
 	var fields: Array = FIELD_SEMANTICS.keys()
 	fields.sort()
@@ -173,9 +206,10 @@ static func _validate_fields(definition_id: String, definition: Dictionary, enti
 			if exceptions.has(field_name):
 				var exception: Dictionary = Dictionary(exceptions[field_name])
 				details["migration_issue"] = int(exception.get("migration_issue", 0))
+				details["exception_source"] = str(exception.get("source", "definition"))
 				warnings.append(_warning("entity_contract.legacy_semantic_exception", field_name, "Legacy field is temporarily allowed.", details))
 				consumed[field_name] = true
-			elif not bool(capabilities.get(capability, false)):
+			elif not capability.is_empty() and not bool(capabilities.get(capability, false)):
 				errors.append(_error("entity_contract.capability_field_forbidden", field_name, "Field requires a disabled capability.", details))
 			else:
 				errors.append(_error("entity_contract.legacy_exception_invalid", field_name, "Legacy field requires an explicit migration exception.", details))
@@ -183,6 +217,7 @@ static func _validate_fields(definition_id: String, definition: Dictionary, enti
 			if exceptions.has(field_name):
 				var exception: Dictionary = Dictionary(exceptions[field_name])
 				details["migration_issue"] = int(exception.get("migration_issue", 0))
+				details["exception_source"] = str(exception.get("source", "definition"))
 				warnings.append(_warning("entity_contract.legacy_semantic_exception", field_name, "Legacy contradiction is temporarily allowed.", details))
 				consumed[field_name] = true
 			else:
@@ -196,11 +231,12 @@ static func _validate_fields(definition_id: String, definition: Dictionary, enti
 		var presence: String = _presence_field(definition, field_name)
 		var semantics: Dictionary = Dictionary(FIELD_SEMANTICS.get(field_name, {}))
 		var capability: String = str(semantics.get("capability", ""))
-		if not presence.is_empty() and (str(semantics.get("storage", "")) == "legacy" or not bool(capabilities.get(capability, false))):
+		if not presence.is_empty() and (str(semantics.get("storage", "")) == "legacy" or (not capability.is_empty() and not bool(capabilities.get(capability, false)))):
 			var exception: Dictionary = Dictionary(exceptions[field_name])
 			var details: Dictionary = _details(definition_id, entity_type, field_name, semantics)
 			details["migration_issue"] = int(exception.get("migration_issue", 0))
 			details["legacy_presence_field"] = presence
+			details["exception_source"] = str(exception.get("source", "definition"))
 			warnings.append(_warning("entity_contract.legacy_semantic_exception", field_name, "Legacy field is temporarily allowed.", details))
 			consumed[field_name] = true
 		else:
@@ -269,8 +305,10 @@ static func validate_definition(definition_id: String, definition: Dictionary) -
 	if (bool(definition.get("configurable", false)) or property_profile == "definition_schema") and (not (schema is Array) or Array(schema).is_empty()):
 		errors.append(_error("entity_contract.property_schema_missing", "property_schema", "Property schema is required."))
 	report["field_semantics"] = _validate_fields(definition_id, definition, entity_type, capabilities, errors, warnings)
+	var report_exceptions: Array = Array(LEGACY_LIBRARY_EXCEPTIONS.get(definition_id, [])).duplicate(true)
 	if definition.get("legacy_semantic_exceptions", []) is Array:
-		report["legacy_exceptions"] = Array(definition.get("legacy_semantic_exceptions", [])).duplicate(true)
+		report_exceptions.append_array(Array(definition.get("legacy_semantic_exceptions", [])).duplicate(true))
+	report["legacy_exceptions"] = report_exceptions
 	report["valid"] = errors.is_empty()
 	report["semantic_valid"] = report["valid"]
 	report["palette_eligible"] = is_palette_eligible(report)
@@ -297,7 +335,11 @@ static func validate_fixture_registry() -> Array:
 		for profile_id_value in get_profile_ids(profile_field):
 			var profile_id: String = str(profile_id_value)
 			var descriptor: Dictionary = get_profile_descriptor(profile_field, profile_id)
-			for fixture_value in Array(descriptor.get("fixture_ids", [])):
+			var fixture_ids: Array = Array(descriptor.get("fixture_ids", []))
+			if fixture_ids.is_empty():
+				errors.append(_error("entity_contract.profile_fixture_missing", profile_field, "Profile fixture is missing.", {"profile_field":profile_field, "profile_id":profile_id}))
+				continue
+			for fixture_value in fixture_ids:
 				var fixture_id: String = str(fixture_value)
 				var fixture: Dictionary = resolve_validation_fixture(fixture_id)
 				if fixture.is_empty() or not _fixture_shape_valid(fixture):
