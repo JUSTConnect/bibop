@@ -12,7 +12,6 @@ const ERROR_CODES: Array[String] = [
 	"entity_contract.fixture_invalid", "entity_contract.legacy_exception_invalid", "entity_contract.profile_unknown"
 ]
 
-
 const TEMPORARY_LEGACY_MIGRATION_ISSUES: Dictionary = {
 	"stationary_power_cables": 1181,
 	"doors_terminals_access": 1182,
@@ -32,13 +31,13 @@ const FIELD_SEMANTICS: Dictionary = {
 	"power_type":{"family":"power", "storage":"stored", "capability":"power"}, "power_mode":{"family":"power", "storage":"stored", "capability":"power"}, "is_powered":{"family":"power", "storage":"stored", "capability":"power"}, "power_state":{"family":"power", "storage":"legacy", "computed":true, "capability":"power"}, "power_source_id":{"family":"power", "storage":"stored", "capability":"power"}, "physical_connection_source_id":{"family":"power", "storage":"legacy", "computed":true, "capability":"power"}, "preferred_source_id":{"family":"power", "storage":"stored", "capability":"power"}, "resolved_source_id":{"family":"power", "storage":"computed", "capability":"power"}, "resolved_circuit_id":{"family":"power", "storage":"computed", "capability":"power"}, "main_power_net":{"family":"power", "storage":"stored", "capability":"power"},
 	"control_type":{"family":"control", "storage":"stored", "capability":"control"}, "control_mode":{"family":"control", "storage":"stored", "capability":"control"}, "control_loss_behavior":{"family":"control", "storage":"stored", "capability":"control"}, "controlled_target_type":{"family":"control", "storage":"stored", "capability":"control"},
 	"access_type":{"family":"access", "storage":"stored", "capability":"access"}, "required_key_id":{"family":"access", "storage":"stored", "capability":"access"}, "required_terminal_id":{"family":"access", "storage":"stored", "capability":"access"}, "required_access_code_id":{"family":"access", "storage":"stored", "capability":"access"}, "required_digital_key_id":{"family":"access", "storage":"stored", "capability":"access"},
-	"linked_terminal_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_object_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "connected_device_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"},
+	"linked_terminal_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_object_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "connected_device_ids":{"family":"bindings", "storage":"legacy", "capability":"bindings", "legacy_presence_aliases":["connected_endpoint_count", "socket_connected_endpoint_count"]},
 	"mount":{"family":"mount", "storage":"stored", "capability":"mount"}, "install_mode":{"family":"mount", "storage":"stored", "capability":"mount"}, "is_wall_mounted":{"family":"mount", "storage":"stored", "capability":"mount"}, "facing_side":{"family":"side", "storage":"stored", "capability":"side"}, "wall_side_1":{"family":"side", "storage":"stored", "capability":"side"}, "wall_side_2":{"family":"side", "storage":"stored", "capability":"side"}, "route_mode":{"family":"routing", "storage":"stored", "capability":"routing"}, "wall_routing_mode":{"family":"routing", "storage":"stored", "capability":"routing"}, "cooling_contour_id":{"family":"routing", "storage":"legacy", "capability":"routing"}, "cooling_contour_mode":{"family":"routing", "storage":"legacy", "capability":"routing"}, "cooling_contour_member_ids":{"family":"routing", "storage":"legacy", "capability":"routing"},
 	"editor_readiness":{"family":"test_override", "storage":"computed", "capability":"test_override"}, "editor_issues":{"family":"test_override", "storage":"computed", "capability":"test_override"}
 }
 
 const PROFILE_REGISTRIES: Dictionary = {
-	"status_profile":{"none":{"allowed_entity_types":[], "fixture_ids":["status_none"]}, "object_standard":{"allowed_entity_types":["object"], "required_capabilities":["state"], "fixture_ids":["status_object_standard"]}, "item_standard":{"allowed_entity_types":["item"], "required_capabilities":["state"], "fixture_ids":["status_item_standard"]}, "light_standard":{"allowed_entity_types":["light"], "required_capabilities":["state"], "fixture_ids":["status_light_standard"]}, "cable_standard":{"allowed_entity_types":["cable"], "required_capabilities":["state"], "fixture_ids":["status_cable_standard"]}, "movable_standard":{"allowed_entity_types":["movable"], "required_capabilities":["state", "health"], "fixture_ids":["status_movable_standard"]}, "cooling_active":{"allowed_entity_types":["cooling_system"], "required_capabilities":["state"], "fixture_ids":["status_cooling_active"]}, "cooling_passive":{"allowed_entity_types":["cooling_system"], "forbidden_capabilities":["state", "power", "control", "health", "access"], "fixture_ids":["status_cooling_passive"]}},
+	"status_profile":{"none":{"allowed_entity_types":[], "forbidden_capabilities":["state"], "fixture_ids":["status_none"]}, "object_standard":{"allowed_entity_types":["object"], "required_capabilities":["state"], "fixture_ids":["status_object_standard"]}, "item_standard":{"allowed_entity_types":["item"], "required_capabilities":["state"], "fixture_ids":["status_item_standard"]}, "light_standard":{"allowed_entity_types":["light"], "required_capabilities":["state"], "fixture_ids":["status_light_standard"]}, "cable_standard":{"allowed_entity_types":["cable"], "required_capabilities":["state"], "fixture_ids":["status_cable_standard"]}, "movable_standard":{"allowed_entity_types":["movable"], "required_capabilities":["state", "health"], "fixture_ids":["status_movable_standard"]}, "cooling_active":{"allowed_entity_types":["cooling_system"], "required_capabilities":["state"], "fixture_ids":["status_cooling_active"]}, "cooling_passive":{"allowed_entity_types":["cooling_system"], "forbidden_capabilities":["state", "power", "control", "health", "access"], "fixture_ids":["status_cooling_passive"]}},
 	"property_profile":{"fixed":{"fixture_ids":["property_fixed"]}, "definition_schema":{"fixture_ids":["property_definition_schema"]}},
 	"interaction_profile":{"none":{"fixture_ids":["interaction_none"]}, "standard_object":{"allowed_entity_types":["object"], "fixture_ids":["interaction_standard_object"]}, "item":{"allowed_entity_types":["item"], "fixture_ids":["interaction_item"]}, "light":{"allowed_entity_types":["light"], "fixture_ids":["interaction_light"]}, "cable":{"allowed_entity_types":["cable"], "fixture_ids":["interaction_cable"]}, "movable":{"allowed_entity_types":["movable"], "fixture_ids":["interaction_movable"]}, "cooling":{"allowed_entity_types":["cooling_system"], "fixture_ids":["interaction_cooling"]}},
 	"notification_profile":{"none":{"fixture_ids":["notification_none"]}, "standard_action":{"required_capabilities":["state"], "fixture_ids":["notification_standard_action"]}},
@@ -138,6 +137,21 @@ static func _validate_profiles(definition_id: String, contract: Dictionary, enti
 			if bool(capabilities.get(str(capability), false)):
 				errors.append(_error("entity_contract.profile_capability_forbidden", field, "Profile %s forbids capability %s." % [profile_id, str(capability)], {"definition_id":definition_id, "entity_type":entity_type, "profile_field":field, "profile_id":profile_id, "capability":str(capability)}))
 
+static func _allowed_migration_issues() -> Array:
+	return TEMPORARY_LEGACY_MIGRATION_ISSUES.values()
+
+static func _legacy_presence_field(definition: Dictionary, field_name: String) -> String:
+	if definition.has(field_name):
+		return field_name
+	if not FIELD_SEMANTICS.has(field_name):
+		return ""
+	var semantics: Dictionary = Dictionary(FIELD_SEMANTICS[field_name])
+	for alias_value in Array(semantics.get("legacy_presence_aliases", [])):
+		var alias_name: String = str(alias_value).strip_edges()
+		if not alias_name.is_empty() and definition.has(alias_name):
+			return alias_name
+	return ""
+
 static func _exception_map(definition: Dictionary, errors: Array, definition_id: String) -> Dictionary:
 	var result: Dictionary = {}
 	var raw: Variant = definition.get("legacy_semantic_exceptions", [])
@@ -146,6 +160,7 @@ static func _exception_map(definition: Dictionary, errors: Array, definition_id:
 	if not (raw is Array):
 		errors.append(_error("entity_contract.legacy_exception_invalid", "legacy_semantic_exceptions", "Legacy semantic exceptions must be an array.", {"definition_id":definition_id}))
 		return result
+	var allowed_issues: Array = _allowed_migration_issues()
 	for entry in Array(raw):
 		if not (entry is Dictionary):
 			errors.append(_error("entity_contract.legacy_exception_invalid", "legacy_semantic_exceptions", "Legacy semantic exception must be a dictionary.", {"definition_id":definition_id}))
@@ -155,7 +170,7 @@ static func _exception_map(definition: Dictionary, errors: Array, definition_id:
 		var reason: String = str(item.get("reason", "")).strip_edges()
 		var issue_value: Variant = item.get("migration_issue", 0)
 		var issue: int = int(issue_value) if (issue_value is int or issue_value is float) else 0
-		if field_name.is_empty() or field_name.find("*") >= 0 or reason.is_empty() or issue <= 0 or result.has(field_name):
+		if field_name.is_empty() or field_name.find("*") >= 0 or reason.is_empty() or not FIELD_SEMANTICS.has(field_name) or not allowed_issues.has(issue) or result.has(field_name):
 			errors.append(_error("entity_contract.legacy_exception_invalid", "legacy_semantic_exceptions", "Legacy semantic exception is invalid.", {"definition_id":definition_id, "field_name":field_name, "migration_issue":issue}))
 			continue
 		result[field_name] = {"reason":reason, "migration_issue":issue}
@@ -198,8 +213,21 @@ static func _validate_fields(definition_id: String, definition: Dictionary, enti
 			else:
 				errors.append(_error("entity_contract.capability_field_forbidden", str(field_name), "Field %s requires disabled capability %s." % [str(field_name), capability], details))
 	for field_name in exceptions.keys():
-		if not consumed_exceptions.has(field_name):
-			errors.append(_error("entity_contract.legacy_exception_invalid", str(field_name), "Legacy exception does not match a contradictory present field.", {"definition_id":definition_id, "field_name":str(field_name), "migration_issue":int(Dictionary(exceptions[field_name]).get("migration_issue", 0))}))
+		if consumed_exceptions.has(field_name):
+			continue
+		var field_key: String = str(field_name)
+		var presence_field: String = _legacy_presence_field(definition, field_key)
+		var semantics: Dictionary = Dictionary(FIELD_SEMANTICS.get(field_key, {}))
+		var capability: String = str(semantics.get("capability", ""))
+		if not presence_field.is_empty() and not bool(capabilities.get(capability, false)):
+			var exception: Dictionary = Dictionary(exceptions[field_name])
+			var details: Dictionary = _field_detail(definition_id, entity_type, field_key, semantics, capability)
+			details["migration_issue"] = int(exception.get("migration_issue", 0))
+			details["legacy_presence_field"] = presence_field
+			warnings.append(_error("entity_contract.legacy_semantic_exception", field_key, "Legacy field %s is temporarily allowed by migration exception." % field_key, details))
+			consumed_exceptions[field_name] = true
+		else:
+			errors.append(_error("entity_contract.legacy_exception_invalid", field_key, "Legacy exception does not match a contradictory present field.", {"definition_id":definition_id, "field_name":field_key, "migration_issue":int(Dictionary(exceptions[field_name]).get("migration_issue", 0))}))
 	return field_semantics
 
 static func validate_definition(definition_id: String, definition: Dictionary) -> Dictionary:
