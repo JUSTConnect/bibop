@@ -22,7 +22,7 @@ jobs:
 
           path = Path('scripts/world/world_object_catalog.gd')
           lines = path.read_text().splitlines()
-          matches = [index for index, line in enumerate(lines) if line.startswith('\t"power_cable_reel": {')]
+          matches = [index for index, line in enumerate(lines) if line.lstrip().startswith('"power_cable_reel": {')]
           if len(matches) != 1:
               raise SystemExit(f'expected one reel definition, found {len(matches)}')
           index = matches[0]
