@@ -1,0 +1,18 @@
+name: Audit Passive Routes
+
+on:
+  pull_request:
+
+jobs:
+  audit:
+    if: github.event.pull_request.number == 1199
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect route references
+        run: |
+          grep -RIn --exclude-dir=.git -E 'external_air_duct|external_water_pipe|wall_side_1|wall_side_2|cooling_contour|route_mode|adjacency|component_id' scripts tools docs > /tmp/routes.txt || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: passive-route-audit
+          path: /tmp/routes.txt
