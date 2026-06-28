@@ -15,7 +15,8 @@ const RESULT_CODES: Array[String] = [
 	"cycle",
 	"unsupported_role",
 	"physical_relation_forbidden",
-	"invalid_format_version"
+	"invalid_format_version",
+	"binding_cleanup_required"
 ]
 
 const ROLE_CONTROL_TERMINAL := "control_terminal"
@@ -48,7 +49,6 @@ const ROLE_REGISTRY: Dictionary = {
 	},
 	ROLE_PREFERRED_POWER_SOURCE: {
 		"source_capability": "power",
-		"target_groups": ["power"],
 		"target_types": ["power_source", "power_source_class_1", "power_source_class_2", "power_source_class_3"],
 		"target_roles": ["power_source"],
 		"max_per_source": 1,
@@ -56,7 +56,7 @@ const ROLE_REGISTRY: Dictionary = {
 	},
 	ROLE_LIGHT_CONTROLLER: {
 		"source_capability": "control",
-		"source_groups": ["terminal", "power"],
+		"source_groups": ["terminal"],
 		"source_types": ["terminal", "information_terminal", "light_switcher", "power_switcher", "light_switch"],
 		"target_entity_types": ["light"],
 		"target_groups": ["lighting", "light"],
@@ -66,7 +66,7 @@ const ROLE_REGISTRY: Dictionary = {
 	},
 	ROLE_PLATFORM_CONTROLLER: {
 		"source_capability": "control",
-		"source_groups": ["terminal", "power"],
+		"source_groups": ["terminal"],
 		"source_types": ["terminal", "information_terminal", "platform_controller", "power_switcher"],
 		"target_groups": ["platform"],
 		"target_types": ["platform", "rotating_platform", "lifting_platform"],
@@ -220,12 +220,12 @@ static func build_state(records: Array[Dictionary], entities_by_id: Dictionary, 
 	var sorted_records: Array[Dictionary] = []
 	for record in records:
 		sorted_records.append(canonicalize_record(record))
-	sorted_records.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("id", "")) < str(b.get("id", "")))
+	sorted_records.sort_custom(_record_id_less)
 	for binding in sorted_records:
 		var validation: Dictionary = validate_record(binding, entities_by_id, bindings_by_id, "", preserve_semantic_invalid)
 		var code: String = str(validation.get("code", "missing"))
 		var preservable: bool = bool(Dictionary(validation.get("details", {})).get("preservable", false))
-		if code in ["source_missing", "target_missing"] and preserve_semantic_invalid:
+		if preserve_semantic_invalid and code in ["source_missing", "target_missing", "wrong_type", "inactive", "capacity_exceeded", "cycle"]:
 			preservable = true
 		if code != VALID_CODE and not preservable:
 			return {
@@ -250,6 +250,9 @@ static func build_state(records: Array[Dictionary], entities_by_id: Dictionary, 
 		"indexes": indexes,
 		"diagnostics": diagnostics
 	}
+
+static func _record_id_less(left: Dictionary, right: Dictionary) -> bool:
+	return str(left.get("id", "")) < str(right.get("id", ""))
 
 static func rebuild_indexes(bindings_by_id: Dictionary) -> Dictionary:
 	var by_source: Dictionary = {}
@@ -454,9 +457,14 @@ static func _relation_key(binding: Dictionary) -> String:
 
 static func _id_token(value: String) -> String:
 	var result: String = ""
-	for character in value.to_lower():
-		if character.is_valid_identifier() or character.is_valid_int():
+	for index in range(value.length()):
+		var character: String = value.substr(index, 1).to_lower()
+		if character == "_" or character.is_valid_identifier() or character.is_valid_int():
 			result += character
 		else:
 			result += "_"
-	return result.strip_edges().strip_edges("_")
+	while result.begins_with("_"):
+		result = result.trim_prefix("_")
+	while result.ends_with("_"):
+		result = result.trim_suffix("_")
+	return result
