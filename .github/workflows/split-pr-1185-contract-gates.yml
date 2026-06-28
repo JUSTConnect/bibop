@@ -1,40 +1,10 @@
-name: Split PR 1185 contract gates
+name: Obsolete PR 1185 helper
 
 on:
-  push:
-    branches:
-      - codex/add-declarative-entity-definitions-and-completeness-gate
-    paths:
-      - .github/workflows/split-pr-1185-contract-gates.yml
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
-  patch:
+  noop:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: codex/add-declarative-entity-definitions-and-completeness-gate
-          fetch-depth: 0
-      - name: Split contract commands into named steps
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('.github/workflows/godot-parser-gate.yml')
-          s = p.read_text()
-          old = '''          godot --headless --path . --script res://tools/ci/check_screen_router.gd\n          godot --headless --path . --script res://tools/ci/check_entity_definition_contracts.gd\n          godot --headless --path . --script res://tools/ci/check_entity_contract_consistency.gd\n\n      - name: World state store behavior gate\n'''
-          new = '''          godot --headless --path . --script res://tools/ci/check_screen_router.gd\n\n      - name: Entity definition contract gate\n        run: |\n          godot --headless --path . --script res://tools/ci/check_entity_definition_contracts.gd\n\n      - name: Entity contract consistency gate\n        run: |\n          godot --headless --path . --script res://tools/ci/check_entity_contract_consistency.gd\n\n      - name: World state store behavior gate\n'''
-          if s.count(old) != 1:
-              raise SystemExit(f'expected one command block, found {s.count(old)}')
-          p.write_text(s.replace(old, new, 1))
-          PY
-      - name: Push split and remove this workflow
-        run: |
-          git config user.name "Bipob Assistant"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/split-pr-1185-contract-gates.yml
-          git add .github/workflows/godot-parser-gate.yml
-          git commit -m "Split entity contract CI diagnostics"
-          git push origin HEAD:codex/add-declarative-entity-definitions-and-completeness-gate
+      - run: echo "Obsolete temporary workflow; safe to delete."
