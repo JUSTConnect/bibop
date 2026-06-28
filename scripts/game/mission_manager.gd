@@ -120,6 +120,41 @@ func _validate_world_state_store_object_bounds(object_data: Dictionary) -> Dicti
 func _commit_runtime_world_snapshot(mutated_objects: Array[Dictionary], action: String) -> Dictionary:
 	return world_state_store.apply_non_structural_snapshot(mutated_objects, action)
 
+func preview_power_cable_reel_action(reel_id: String, action: String, parameters: Dictionary = {}, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	return BipobCableRuntimeServiceRef.preview_power_cable_reel_action(objects, reel_id, action, parameters, blocked_cells)
+
+func apply_power_cable_reel_action(reel_id: String, action: String, parameters: Dictionary = {}, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	var action_result: Dictionary = BipobCableRuntimeServiceRef.apply_power_cable_reel_action(objects, reel_id, action, parameters, blocked_cells)
+	if not bool(action_result.get("success", false)):
+		return action_result
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "power_cable_reel_%s" % action.strip_edges().to_lower())
+	if not bool(commit_result.get("ok", false)):
+		return commit_result
+	action_result["commit"] = commit_result
+	return action_result
+
+func recalculate_power_cable_reel(reel_id: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	var result: Dictionary = BipobCableRuntimeServiceRef.recalculate_power_cable_reel(objects, reel_id, blocked_cells)
+	if str(result.get("code", "")) == "reel_missing":
+		return result
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "power_cable_reel_recalculated")
+	if not bool(commit_result.get("ok", false)):
+		return commit_result
+	result["commit"] = commit_result
+	return result
+
+func recalculate_power_cable_reels_for_socket(socket_id: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	var result: Dictionary = BipobCableRuntimeServiceRef.recalculate_power_cable_reels_for_socket(objects, socket_id, blocked_cells)
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "power_cable_reels_socket_recalculated")
+	if not bool(commit_result.get("ok", false)):
+		return commit_result
+	result["commit"] = commit_result
+	return result
+
 func recalculate_power_network(network_id: String) -> Dictionary:
 	var objects: Array[Dictionary] = world_state_store.get_all_objects()
 	PowerSystemRef.recalculate_network(objects, network_id)
