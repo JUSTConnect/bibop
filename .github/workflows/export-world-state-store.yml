@@ -11,6 +11,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/upload-artifact@v4
         with:
-          name: world-state-store-source
-          path: scripts/world/world_state_store.gd
+          name: binding-store-sources
+          path: |
+            scripts/world/world_state_store.gd
+            scripts/world/world_binding_store_contract.gd
           if-no-files-found: error
