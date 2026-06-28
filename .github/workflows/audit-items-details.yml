@@ -1,0 +1,26 @@
+name: Audit Items and Details
+
+on:
+  pull_request:
+
+jobs:
+  audit-items-details:
+    if: github.event.pull_request.number == 1197
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect inventory and reward paths
+        run: |
+          {
+            echo '## amount and item_amounts'
+            grep -RIn --exclude-dir=.git -E 'item_amounts|"amount"|\.get\("amount"|parts_small|parts_medium|parts_large' scripts tools docs || true
+            echo '## inventory methods'
+            grep -RIn --exclude-dir=.git -E 'func .*inventory|runtime_inventory_state|world_item_runtime|consumed_item_ids|pocket_items|box_storage' scripts/game scripts/bipob || true
+            echo '## reward and currency candidates'
+            grep -RIn --exclude-dir=.git -E 'reward_id|reward|currency|details_balance|parts' scripts/game scripts/world scripts/bipob || true
+          } > /tmp/items-details-audit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: items-details-audit
+          path: /tmp/items-details-audit.txt
+          if-no-files-found: error
