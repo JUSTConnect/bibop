@@ -232,21 +232,27 @@ static func normalize_presentation_row(row: Dictionary) -> Dictionary:
 	normalized["label"] = str(normalized.get("display_name", normalized.get("label", prefab_id.capitalize())))
 	return normalized
 
-static func get_catalog_entries() -> Array[Dictionary]:
+static func get_catalog_entries(prefab_order: Array[String] = []) -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
 	_entity_contract_diagnostics_cache = []
 	var seen_prefab_ids: Dictionary = {}
-	for prefab_id in PREFAB_ORDER:
+	var requested_prefab_order: Array[String] = PREFAB_ORDER.duplicate() if prefab_order.is_empty() else prefab_order.duplicate()
+	for prefab_id in requested_prefab_order:
 		if seen_prefab_ids.has(prefab_id):
 			continue
 		var presentation: Dictionary = get_prefab_presentation(prefab_id)
 		var catalog_row: Dictionary = normalize_presentation_row(presentation)
 		if catalog_row.is_empty() or not bool(catalog_row.get("placement_contract_valid", false)):
-			_entity_contract_diagnostics_cache.append({"prefab_id": prefab_id, "canonical_prefab_id": WorldObjectCatalogRef.canonical_prefab_id(prefab_id), "errors": [{"code":"entity_contract.missing", "field":"entity_contract", "message":"Missing placement or entity contract."}]})
+			var missing_canonical_id: String = str(catalog_row.get("canonical_prefab_id", WorldObjectCatalogRef.canonical_prefab_id(prefab_id)))
+			var missing_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(missing_canonical_id)
+			var missing_errors: Array = Array(missing_report.get("errors", [])).duplicate(true)
+			missing_errors.append({"code":"placement_contract.missing", "field":"placement_contract", "message":"Entity definition is missing a canonical constructor placement contract."})
+			_entity_contract_diagnostics_cache.append({"prefab_id": prefab_id, "canonical_prefab_id": missing_canonical_id, "errors": missing_errors})
 			continue
 		if not bool(catalog_row.get("entity_contract_valid", false)):
-			var diag_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(prefab_id)
-			_entity_contract_diagnostics_cache.append({"prefab_id": prefab_id, "canonical_prefab_id": WorldObjectCatalogRef.canonical_prefab_id(prefab_id), "errors": Array(diag_report.get("errors", []))})
+			var canonical_prefab_id: String = str(catalog_row.get("canonical_prefab_id", WorldObjectCatalogRef.canonical_prefab_id(prefab_id)))
+			var diag_report: Dictionary = WorldObjectCatalogRef.validate_entity_definition_contract(canonical_prefab_id)
+			_entity_contract_diagnostics_cache.append({"prefab_id": prefab_id, "canonical_prefab_id": canonical_prefab_id, "errors": Array(diag_report.get("errors", [])).duplicate(true)})
 			continue
 		entries.append(catalog_row)
 		seen_prefab_ids[prefab_id] = true
