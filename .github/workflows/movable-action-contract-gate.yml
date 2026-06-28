@@ -1,0 +1,27 @@
+name: Movable Action Contract Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  movable-action-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+
+      - name: Godot import smoke
+        run: godot --headless --path . --import
+
+      - name: Movable action behavior gate
+        run: godot --headless --path . --script res://tools/ci/check_movable_action_service.gd
