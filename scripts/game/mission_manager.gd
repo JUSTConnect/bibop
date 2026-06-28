@@ -6984,15 +6984,19 @@ func move_world_object_with_requirements(object_id: String, target_cell: Vector2
 	if not bool(preview.get("success", false)):
 		return preview
 	var object_data: Dictionary = get_world_object_by_id(object_id)
+	var from_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var target_surface: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(target_cell, mission_world_objects)
-	object_data = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
-	_move_world_state_object(object_id, target_cell, object_data)
+	var structural_patch: Dictionary = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
+	structural_patch.erase("position")
+	var move_commit: Dictionary = _move_world_state_object(object_id, target_cell, structural_patch)
+	if not bool(move_commit.get("ok", false)):
+		return move_commit
 	var result: Dictionary = preview.duplicate(true)
 	result["success"] = true
 	result["ok"] = true
 	result["code"] = MovableActionServiceRef.CODE_VALID
 	result["reason_code"] = MovableActionServiceRef.CODE_VALID
-	result["from"] = Dictionary(preview.get("details", {})).get("from_cell", object_data.get("position", Vector2i(-1, -1)))
+	result["from"] = from_cell
 	result["to"] = target_cell
 	result["message"] = "Moved %s." % str(object_data.get("display_name", object_data.get("name", "Object")))
 	result["affected_ids"] = [object_id]
