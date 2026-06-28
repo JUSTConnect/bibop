@@ -93,7 +93,7 @@ func receive(amount: int, reward_id: String, source: String = "") -> Dictionary:
 	return _result(true, CODE_RECEIVED, amount, normalized_reward_id, source, {
 		"balance_before": balance_before,
 		"balance_after": _balance
-	}, _notification("details_received", normalized_reward_id, amount))
+	}, _build_notification_event("details_received", normalized_reward_id, amount))
 
 func preview_spend(amount: int, transaction_id: String = "", source: String = "") -> Dictionary:
 	var normalized_transaction_id: String = transaction_id.strip_edges()
@@ -123,7 +123,7 @@ func spend(amount: int, transaction_id: String = "", source: String = "") -> Dic
 	return _result(true, CODE_SPENT, amount, normalized_transaction_id, source, {
 		"balance_before": balance_before,
 		"balance_after": _balance
-	}, _notification("details_spent", normalized_transaction_id, amount))
+	}, _build_notification_event("details_spent", normalized_transaction_id, amount))
 
 func migrate_legacy_parts(inventory_state: Dictionary, center_storage: Dictionary = {}, migration_id: String = "legacy_parts_v1") -> Dictionary:
 	var next_inventory: Dictionary = inventory_state.duplicate(true)
@@ -276,7 +276,7 @@ func _result(success: bool, code: String, amount: int, operation_id: String, sou
 		"notification_event": notification_event.duplicate(true)
 	}
 
-static func _notification(event_type: String, operation_id: String, amount: int) -> Dictionary:
+static func _build_notification_event(event_type: String, operation_id: String, amount: int) -> Dictionary:
 	return {
 		"event_id": operation_id if not operation_id.is_empty() else "%s:%d" % [event_type, amount],
 		"event_type": event_type,

@@ -38,7 +38,8 @@ func _run() -> void:
 		"amount":12,
 		"can_pickup":true
 	}
-	_assert(bool(manager.world_state_store.replace_snapshot([pickup]).get("ok", false)), "Details world failed to load")
+	var pickup_objects: Array[Dictionary] = [pickup]
+	_assert(bool(manager.world_state_store.replace_snapshot(pickup_objects).get("ok", false)), "Details world failed to load")
 	var pickup_result: Dictionary = manager.pickup_world_item("details_pickup_test")
 	_assert(bool(pickup_result.get("success", false)), "Details pickup failed")
 	_assert(manager.get_details_balance() == 12, "Details pickup did not increase central balance")
