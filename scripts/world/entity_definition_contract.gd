@@ -241,10 +241,12 @@ static func validate_definition(definition_id: String, definition: Dictionary) -
 	report["capabilities"] = capabilities.duplicate(true)
 	var applied_fixture_ids: Array = report["applied_fixture_ids"]
 	_validate_profiles(definition_id, contract, entity_type, capabilities, errors, applied_fixture_ids)
+	var resolved_profiles: Dictionary = {}
 	for profile_field in REQUIRED_PROFILE_FIELDS:
 		var profile_id: String = str(contract.get(profile_field, "")).strip_edges()
 		if has_profile(profile_field, profile_id):
-			Dictionary(report["resolved_profiles"])[profile_field] = get_profile_descriptor(profile_field, profile_id)
+			resolved_profiles[profile_field] = get_profile_descriptor(profile_field, profile_id)
+	report["resolved_profiles"] = resolved_profiles
 	var fixture_id: String = str(contract.get("validation_fixture", "")).strip_edges()
 	if fixture_id.is_empty():
 		errors.append(_error("entity_contract.validation_fixture_missing", "validation_fixture", "Entity definition is missing validation_fixture."))
