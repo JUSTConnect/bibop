@@ -1,0 +1,75 @@
+name: Apply Reel MissionManager
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-reel-mission-manager:
+    if: github.event.pull_request.number == 1196
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Add scoped reel wrappers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/game/mission_manager.gd')
+          text = path.read_text()
+          marker = '''func _commit_runtime_world_snapshot(mutated_objects: Array[Dictionary], action: String) -> Dictionary:
+          \treturn world_state_store.apply_non_structural_snapshot(mutated_objects, action)
+          '''
+          replacement = marker + '''
+          func preview_power_cable_reel_action(reel_id: String, action: String, parameters: Dictionary = {}, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+          \tvar objects: Array[Dictionary] = world_state_store.get_all_objects()
+          \treturn BipobCableRuntimeServiceRef.preview_power_cable_reel_action(objects, reel_id, action, parameters, blocked_cells)
+
+          func apply_power_cable_reel_action(reel_id: String, action: String, parameters: Dictionary = {}, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+          \tvar objects: Array[Dictionary] = world_state_store.get_all_objects()
+          \tvar action_result: Dictionary = BipobCableRuntimeServiceRef.apply_power_cable_reel_action(objects, reel_id, action, parameters, blocked_cells)
+          \tif not bool(action_result.get("success", false)):
+          \t\treturn action_result
+          \tvar commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "power_cable_reel_%s" % action.strip_edges().to_lower())
+          \tif not bool(commit_result.get("ok", false)):
+          \t\treturn commit_result
+          \taction_result["commit"] = commit_result
+          \treturn action_result
+
+          func recalculate_power_cable_reel(reel_id: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+          \tvar objects: Array[Dictionary] = world_state_store.get_all_objects()
+          \tvar result: Dictionary = BipobCableRuntimeServiceRef.recalculate_power_cable_reel(objects, reel_id, blocked_cells)
+          \tif str(result.get("code", "")) == "reel_missing":
+          \t\treturn result
+          \tvar commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "power_cable_reel_recalculated")
+          \tif not bool(commit_result.get("ok", false)):
+          \t\treturn commit_result
+          \tresult["commit"] = commit_result
+          \treturn result
+
+          func recalculate_power_cable_reels_for_socket(socket_id: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+          \tvar objects: Array[Dictionary] = world_state_store.get_all_objects()
+          \tvar result: Dictionary = BipobCableRuntimeServiceRef.recalculate_power_cable_reels_for_socket(objects, socket_id, blocked_cells)
+          \tvar commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "power_cable_reels_socket_recalculated")
+          \tif not bool(commit_result.get("ok", false)):
+          \t\treturn commit_result
+          \tresult["commit"] = commit_result
+          \treturn result
+          '''
+          if text.count(marker) != 1:
+              raise SystemExit(f'expected one runtime commit marker, found {text.count(marker)}')
+          path.write_text(text.replace(marker, replacement, 1))
+          PY
+      - name: Commit and remove workflow
+        run: |
+          rm -f .github/workflows/apply-reel-mission-manager.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/game/mission_manager.gd .github/workflows/apply-reel-mission-manager.yml
+          git commit -m "Add scoped power cable reel runtime actions"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
