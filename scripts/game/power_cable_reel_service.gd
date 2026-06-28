@@ -165,9 +165,17 @@ static func apply_action_to_world(objects: Array[Dictionary], reel_id: String, a
 		return _result(false, CODE_REEL_MISSING, {"id": reel_id}, {"preview": false})
 	objects[reel_index] = Dictionary(preview.get("next_reel", {})).duplicate(true)
 	var recalculation: Dictionary = recalculate_world(objects, reel_id, blocked_cells)
+	var resolution_success: bool = bool(recalculation.get("success", false))
+	var resolution_code: String = str(recalculation.get("code", ""))
 	recalculation["preview"] = false
 	recalculation["action"] = action.strip_edges().to_lower()
 	recalculation["action_code"] = str(preview.get("code", ""))
+	recalculation["resolution_success"] = resolution_success
+	recalculation["resolution_code"] = resolution_code
+	recalculation["success"] = true
+	recalculation["ok"] = true
+	recalculation["code"] = str(preview.get("code", CODE_VALID))
+	recalculation["reason_code"] = str(preview.get("reason_code", recalculation.get("code", CODE_VALID)))
 	return recalculation
 
 static func resolve_connection(reel: Dictionary, object_by_id: Dictionary, blocked_cells: Array[Vector2i] = [], ignore_reconnect_required: bool = false) -> Dictionary:
