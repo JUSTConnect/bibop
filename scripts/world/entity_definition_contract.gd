@@ -12,12 +12,24 @@ const ERROR_CODES: Array[String] = [
 	"entity_contract.fixture_invalid", "entity_contract.legacy_exception_invalid", "entity_contract.profile_unknown"
 ]
 
+
+const TEMPORARY_LEGACY_MIGRATION_ISSUES: Dictionary = {
+	"stationary_power_cables": 1181,
+	"doors_terminals_access": 1182,
+	"machines_cooling_box": 1183,
+	"runtime_cable_reel": 1188,
+	"items_details": 1189,
+	"movable_crates": 1190,
+	"passive_ducts_pipes": 1191,
+	"final_versioned_migration": 1192
+}
+
 const FIELD_SEMANTICS: Dictionary = {
 	"state":{"family":"state", "storage":"stored", "capability":"state"}, "allowed_states":{"family":"state", "storage":"stored", "capability":"state"}, "intent_state":{"family":"state", "storage":"stored", "capability":"state"}, "operational_state":{"family":"state", "storage":"stored", "capability":"state"}, "effective_state":{"family":"state", "storage":"computed", "capability":"state"}, "is_operational":{"family":"state", "storage":"computed", "capability":"state"}, "blocking_reason":{"family":"state", "storage":"computed", "capability":"state"},
 	"health":{"family":"health", "storage":"stored", "capability":"health"}, "current_health":{"family":"health", "storage":"stored", "capability":"health"}, "max_health":{"family":"health", "storage":"stored", "capability":"health"}, "durability":{"family":"health", "storage":"legacy", "capability":"health"}, "health_state":{"family":"health", "storage":"stored", "capability":"health"},
 	"overheat":{"family":"thermal", "storage":"stored", "capability":"overheat"}, "current_overheat":{"family":"thermal", "storage":"stored", "capability":"overheat"}, "max_overheat":{"family":"thermal", "storage":"stored", "capability":"overheat"}, "thermal_state":{"family":"thermal", "storage":"stored", "capability":"overheat"}, "overheated":{"family":"thermal", "storage":"stored", "capability":"overheat"},
 	"energy":{"family":"energy", "storage":"stored", "capability":"energy"}, "current_energy":{"family":"energy", "storage":"stored", "capability":"energy"}, "max_energy":{"family":"energy", "storage":"stored", "capability":"energy"}, "energy_capacity":{"family":"energy", "storage":"stored", "capability":"energy"},
-	"power_type":{"family":"power", "storage":"stored", "capability":"power"}, "power_mode":{"family":"power", "storage":"stored", "capability":"power"}, "is_powered":{"family":"power", "storage":"stored", "capability":"power"}, "power_state":{"family":"power", "storage":"computed", "capability":"power"}, "power_source_id":{"family":"power", "storage":"stored", "capability":"power"}, "physical_connection_source_id":{"family":"power", "storage":"computed", "capability":"power"}, "preferred_source_id":{"family":"power", "storage":"stored", "capability":"power"}, "resolved_source_id":{"family":"power", "storage":"computed", "capability":"power"}, "resolved_circuit_id":{"family":"power", "storage":"computed", "capability":"power"}, "main_power_net":{"family":"power", "storage":"stored", "capability":"power"},
+	"power_type":{"family":"power", "storage":"stored", "capability":"power"}, "power_mode":{"family":"power", "storage":"stored", "capability":"power"}, "is_powered":{"family":"power", "storage":"stored", "capability":"power"}, "power_state":{"family":"power", "storage":"legacy", "computed":true, "capability":"power"}, "power_source_id":{"family":"power", "storage":"stored", "capability":"power"}, "physical_connection_source_id":{"family":"power", "storage":"legacy", "computed":true, "capability":"power"}, "preferred_source_id":{"family":"power", "storage":"stored", "capability":"power"}, "resolved_source_id":{"family":"power", "storage":"computed", "capability":"power"}, "resolved_circuit_id":{"family":"power", "storage":"computed", "capability":"power"}, "main_power_net":{"family":"power", "storage":"stored", "capability":"power"},
 	"control_type":{"family":"control", "storage":"stored", "capability":"control"}, "control_mode":{"family":"control", "storage":"stored", "capability":"control"}, "control_loss_behavior":{"family":"control", "storage":"stored", "capability":"control"}, "controlled_target_type":{"family":"control", "storage":"stored", "capability":"control"},
 	"access_type":{"family":"access", "storage":"stored", "capability":"access"}, "required_key_id":{"family":"access", "storage":"stored", "capability":"access"}, "required_terminal_id":{"family":"access", "storage":"stored", "capability":"access"}, "required_access_code_id":{"family":"access", "storage":"stored", "capability":"access"}, "required_digital_key_id":{"family":"access", "storage":"stored", "capability":"access"},
 	"linked_terminal_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_door_id":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "target_light_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "linked_object_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"}, "connected_device_ids":{"family":"bindings", "storage":"stored", "capability":"bindings"},
@@ -161,14 +173,12 @@ static func _validate_fields(definition_id: String, definition: Dictionary, enti
 		field_semantics[field_name] = semantics.duplicate(true)
 		var capability: String = str(semantics.get("capability", ""))
 		var details: Dictionary = _field_detail(definition_id, entity_type, field_name, semantics, capability)
-		if str(semantics.get("storage", "")) == "computed":
+		if bool(semantics.get("computed", false)) or str(semantics.get("storage", "")) == "computed":
 			errors.append(_error("entity_contract.computed_field_editable", field_name, "Computed field %s cannot be editable." % field_name, details))
 		elif not bool(capabilities.get(capability, false)):
 			errors.append(_error("entity_contract.property_schema_field_forbidden", field_name, "Property field %s requires disabled capability %s." % [field_name, capability], details))
 	for field_name in FIELD_SEMANTICS.keys():
 		if not definition.has(field_name):
-			continue
-		if not (definition_id.begins_with("synthetic") or definition_id == "legacy" or exceptions.has(field_name)):
 			continue
 		var semantics: Dictionary = Dictionary(FIELD_SEMANTICS[field_name])
 		field_semantics[str(field_name)] = semantics.duplicate(true)
@@ -176,10 +186,7 @@ static func _validate_fields(definition_id: String, definition: Dictionary, enti
 		var details: Dictionary = _field_detail(definition_id, entity_type, str(field_name), semantics, capability)
 		if str(semantics.get("storage", "")) == "computed":
 			if exceptions.has(field_name):
-				var computed_exception: Dictionary = Dictionary(exceptions[field_name])
-				details["migration_issue"] = int(computed_exception.get("migration_issue", 0))
-				warnings.append(_error("entity_contract.legacy_semantic_exception", str(field_name), "Legacy computed field %s is temporarily allowed by migration exception." % str(field_name), details))
-				consumed_exceptions[field_name] = true
+				errors.append(_error("entity_contract.legacy_exception_invalid", str(field_name), "Legacy exception cannot authorize computed canonical field.", details))
 			else:
 				errors.append(_error("entity_contract.computed_field_stored", str(field_name), "Computed field %s cannot be stored as canonical truth." % str(field_name), details))
 		elif not bool(capabilities.get(capability, false)):
