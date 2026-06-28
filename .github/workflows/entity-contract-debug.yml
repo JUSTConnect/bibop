@@ -24,15 +24,15 @@ jobs:
           use-dotnet: false
           include-templates: false
       - run: godot --headless --path . --import
-      - name: Capture entity definition contract diagnostics
+      - name: Capture entity contract consistency diagnostics
         run: |
           set +e
-          godot --headless --path . --script res://tools/ci/check_entity_definition_contracts.gd > tools/ci/entity-contract-debug-output.txt 2>&1
+          godot --headless --path . --script res://tools/ci/check_entity_contract_consistency.gd > tools/ci/entity-contract-debug-output.txt 2>&1
           echo "exit_code=$?" >> tools/ci/entity-contract-debug-output.txt
       - name: Commit diagnostic output
         run: |
           git config user.name "Bipob Assistant"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add tools/ci/entity-contract-debug-output.txt
-          git commit -m "chore: capture entity contract diagnostic output"
+          git commit -m "chore: capture consistency gate diagnostic output"
           git push origin HEAD:codex/add-declarative-entity-definitions-and-completeness-gate
