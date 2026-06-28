@@ -1,0 +1,37 @@
+name: Diagnose Items Details
+
+on:
+  pull_request:
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.number == 1197
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - run: godot --headless --path . --import
+      - name: Capture isolated results
+        run: |
+          mkdir -p /tmp/diag
+          set +e
+          timeout 45s godot --headless --path . --script res://tools/ci/check_world_state_store.gd > /tmp/diag/world.log 2>&1
+          echo $? > /tmp/diag/world.exit
+          timeout 45s godot --headless --path . --script res://tools/ci/check_binding_store.gd > /tmp/diag/binding.log 2>&1
+          echo $? > /tmp/diag/binding.exit
+          timeout 45s godot --headless --path . --script res://tools/ci/check_power_cable_reel.gd > /tmp/diag/reel.log 2>&1
+          echo $? > /tmp/diag/reel.exit
+          timeout 45s godot --headless --path . --script res://tools/ci/check_normal_items_details.gd > /tmp/diag/items.log 2>&1
+          echo $? > /tmp/diag/items.exit
+          timeout 45s godot --headless --path . --script res://tools/ci/check_normal_items_details_mission_manager.gd > /tmp/diag/mission.log 2>&1
+          echo $? > /tmp/diag/mission.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: items-details-diagnostics
+          path: /tmp/diag
+          if-no-files-found: error
