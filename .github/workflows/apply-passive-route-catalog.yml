@@ -1,0 +1,104 @@
+name: Apply Passive Route Catalog
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-passive-route-catalog:
+    if: github.event.pull_request.number == 1199
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Normalize passive route contracts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('scripts/world/world_object_catalog.gd')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one marker, found {count}')
+              text = text.replace(old, new, 1)
+
+          preload_marker = 'const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")\n'
+          if preload_marker not in text:
+              raise SystemExit('catalog preload marker missing')
+          if 'PassiveRouteServiceRef' not in text:
+              text = text.replace(preload_marker, preload_marker + 'const PassiveRouteServiceRef = preload("res://scripts/game/cooling/passive_route_service.gd")\n', 1)
+
+          schema_pattern = r'const COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA: Array\[Dictionary\] = \[\n.*?\n\]'
+          schema_replacement = '''const COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA: Array[Dictionary] = [
+          \t{"field":"mount_side", "type":"enum", "values":["inner", "outer"], "default":"inner", "labels":{"inner":"Inner", "outer":"Outer"}, "tab":"Cooling System"},
+          \t{"field":"route_sides", "type":"enum_array", "values":["NE", "SE", "SW", "NW"], "default":["NW", "SE"], "min_items":2, "max_items":2, "tab":"Cooling System"}
+          ]'''
+          text, count = re.subn(schema_pattern, schema_replacement, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'route schema replaced {count}')
+
+          archetype_pattern = r'\t"external_air_duct": \{\n.*?\n\t\},\n\t"external_water_pipe": \{\n.*?\n\t\},'
+          archetype_replacement = '''\t"external_air_duct": {
+          \t\t"entity_contract":{"scope":"entity", "entity_type":"cooling_system", "entity_subtype":"external_air_duct", "status_profile":"cooling_passive", "property_profile":"definition_schema", "interaction_profile":"cooling", "notification_profile":"none", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_cooling", "editor_presentation_profile":"standard_cooling", "validation_fixture":"default", "capabilities":{"state":false, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":true, "routing":true, "test_override":false}},
+          \t\t"archetype_id":"external_air_duct", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"external_air_duct", "palette_label":"External Air Duct", "display_name_template":"External Air Duct", "name":"External Air Duct", "cooling_device_type":"air_duct", "carries_airflow":true, "passive_cooling":true, "generic_airflow_role":"airflow_path_cell", "airflow_roles":["airflow_path_cell"], "material":"metal", "blocks_movement":false, "blocks_vision":false, "placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
+          \t\t"passive_route":true, "mount_side":"inner", "route_sides":["NW", "SE"], "route_shape":"straight", "routing_kind":"air_duct", "cooling_system_type":"air_duct", "cooling_system_tab":true, "routing_label":"Air Duct",
+          \t\t"visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA
+          \t},
+          \t"external_water_pipe": {
+          \t\t"entity_contract":{"scope":"entity", "entity_type":"cooling_system", "entity_subtype":"external_water_pipe", "status_profile":"cooling_passive", "property_profile":"definition_schema", "interaction_profile":"cooling", "notification_profile":"none", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_cooling", "editor_presentation_profile":"standard_cooling", "validation_fixture":"default", "capabilities":{"state":false, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":true, "routing":true, "test_override":false}},
+          \t\t"archetype_id":"external_water_pipe", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"external_water_pipe", "palette_label":"External Water Pipe", "display_name_template":"External Water Pipe", "name":"External Water Pipe", "cooling_device_type":"water_pipe", "cooling_output":2, "passive_cooling":true, "material":"metal", "blocks_movement":false, "blocks_vision":false, "placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
+          \t\t"passive_route":true, "mount_side":"inner", "route_sides":["NW", "SE"], "route_shape":"straight", "routing_kind":"water_pipe", "cooling_system_type":"water_pipe", "cooling_system_tab":true, "routing_label":"Water Pipe",
+          \t\t"visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA
+          \t},'''
+          text, count = re.subn(archetype_pattern, archetype_replacement, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'passive archetypes replaced {count}')
+
+          library_index = text.find('const OBJECT_LIBRARY := {')
+          if library_index < 0:
+              raise SystemExit('OBJECT_LIBRARY marker missing')
+          prefix = text[:library_index]
+          library = text[library_index:]
+          runtime_pattern = r'\t"external_water_pipe": \{[^\n]*\},\n\t"external_air_duct": \{[^\n]*\},'
+          runtime_replacement = '''\t"external_water_pipe": {"group":"cooling", "object_group":"cooling", "object_type":"external_water_pipe", "archetype_id":"external_water_pipe", "name":"External Water Pipe", "cooling_device_type":"water_pipe", "cooling_output":2, "passive_cooling":true, "placement_mode":"wall_mounted", "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "passive_route":true, "mount_side":"inner", "route_sides":["NW", "SE"], "route_shape":"straight", "routing_kind":"water_pipe", "cooling_system_type":"water_pipe", "visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA},
+          \t"external_air_duct": {"group":"cooling", "object_group":"cooling", "object_type":"external_air_duct", "archetype_id":"external_air_duct", "name":"External Air Duct", "cooling_device_type":"air_duct", "carries_airflow":true, "passive_cooling":true, "generic_airflow_role":"airflow_path_cell", "airflow_roles":["airflow_path_cell"], "placement_mode":"wall_mounted", "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "passive_route":true, "mount_side":"inner", "route_sides":["NW", "SE"], "route_shape":"straight", "routing_kind":"air_duct", "cooling_system_type":"air_duct", "visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA},'''
+          library, count = re.subn(runtime_pattern, runtime_replacement, library, count=1)
+          if count != 1:
+              raise SystemExit(f'passive runtime definitions replaced {count}')
+          text = prefix + library
+
+          func_marker = 'static func normalize_world_object_contract('
+          start = text.find(func_marker)
+          if start < 0:
+              raise SystemExit('normalize_world_object_contract missing')
+          end = text.find('\nstatic func ', start + len(func_marker))
+          if end < 0:
+              raise SystemExit('normalize_world_object_contract boundary missing')
+          block = text[start:end]
+          return_marker = '\treturn data'
+          return_index = block.rfind(return_marker)
+          if return_index < 0:
+              raise SystemExit('normalize_world_object_contract return missing')
+          hook = '\tif PassiveRouteServiceRef.is_passive_route(data):\n\t\tdata = PassiveRouteServiceRef.canonicalize_segment(data)\n'
+          if hook not in block:
+              block = block[:return_index] + hook + block[return_index:]
+          text = text[:start] + block + text[end:]
+
+          path.write_text(text)
+          PY
+      - name: Commit catalog migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/world/world_object_catalog.gd
+          git commit -m "Migrate passive route catalog contracts"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
