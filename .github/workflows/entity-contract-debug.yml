@@ -1,0 +1,18 @@
+name: Entity Contract Diagnostic
+
+on:
+  pull_request:
+
+jobs:
+  entity-contract-diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - run: godot --headless --path . --import
+      - name: Run entity definition contract diagnostics
+        run: godot --headless --path . --script res://tools/ci/check_entity_definition_contracts.gd
