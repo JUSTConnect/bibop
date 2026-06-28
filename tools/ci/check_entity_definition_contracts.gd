@@ -8,6 +8,9 @@ const GridManager = preload("res://scripts/field/grid_manager.gd")
 
 var failures: Array[String] = []
 
+func _init() -> void:
+	call_deferred("_run")
+
 func _assert(ok: bool, msg: String) -> void:
 	if not ok:
 		failures.append(msg)
@@ -18,16 +21,17 @@ func _has_error(report: Dictionary, code: String) -> bool:
 			return true
 	return false
 
-func _make_constructor_manager() -> Node:
-	var manager: Node = MissionManager.new()
-	var grid_manager: Node = GridManager.new()
+func _make_constructor_manager():
+	var manager = MissionManager.new()
+	var grid_manager = GridManager.new()
 	root.add_child(grid_manager)
 	root.add_child(manager)
 	manager.grid_manager = grid_manager
 	manager.setup_task_test_sandbox_world()
 	return manager
 
-func _initialize() -> void:
+func _run() -> void:
+	await process_frame
 	var rows := Catalog.get_catalog_entries()
 	var ids: Array[String] = []
 	var types: Dictionary = {}
@@ -36,7 +40,7 @@ func _initialize() -> void:
 		ids.append(id)
 		_assert(bool(row.get("entity_contract_valid", false)), "visible row invalid: %s" % id)
 		var report := WorldObjectCatalog.validate_entity_definition_contract(id)
-		_assert(bool(report.get("valid", false)), "contract invalid: %s" % id)
+		_assert(bool(report.get("valid", false)), "contract invalid: %s %s" % [id, str(report.get("errors", []))])
 		if str(report.get("scope", "")) == Contract.SCOPE_ENTITY:
 			types[str(report.get("entity_type", ""))] = true
 			for key in Contract.CAPABILITY_KEYS:
@@ -56,7 +60,7 @@ func _initialize() -> void:
 		_assert(types.has(entity_type), "entity type not represented: %s" % entity_type)
 	for archetype_id in WorldObjectCatalog.ARCHETYPE_REGISTRY.keys():
 		var archetype_report := WorldObjectCatalog.validate_entity_definition_contract(str(archetype_id))
-		_assert(bool(archetype_report.get("valid", false)), "managed archetype contract invalid: %s" % str(archetype_id))
+		_assert(bool(archetype_report.get("valid", false)), "managed archetype contract invalid: %s %s" % [str(archetype_id), str(archetype_report.get("errors", []))])
 	var pipe_contract := WorldObjectCatalog.get_entity_definition_contract("external_air_duct")
 	var pipe_caps := Dictionary(pipe_contract.get("capabilities", {}))
 	_assert(bool(pipe_caps.get("side", false)) and bool(pipe_caps.get("routing", false)) and bool(pipe_caps.get("test_override", false)), "air duct missing passive route capabilities")
@@ -84,7 +88,8 @@ func _initialize() -> void:
 	_assert(not WorldObjectCatalog.create_world_object("light_switch", "utility_alias_contract_check").is_empty(), "utility alias loading failed")
 	var legacy := WorldObjectCatalog.create_world_object("mechanical_door", "legacy_alias_check")
 	_assert(not legacy.is_empty(), "legacy alias loading failed")
-	var constructor_manager := _make_constructor_manager()
+	var constructor_manager = _make_constructor_manager()
+	await process_frame
 	var invalid_result: Dictionary = constructor_manager.place_map_constructor_prefab("missing_contract_prefab", Vector2i.ZERO)
 	_assert(str(invalid_result.get("reason", "")) == "incomplete_entity_contract", "direct placement did not reject incomplete definition")
 	var stepped_result: Dictionary = constructor_manager.place_map_constructor_prefab("stepped_floor", Vector2i(1, 1))
@@ -95,9 +100,12 @@ func _initialize() -> void:
 	_assert(bool(valid_result.get("ok", false)), "valid prefab placement failed: %s" % str(valid_result))
 	constructor_manager.grid_manager.queue_free()
 	constructor_manager.queue_free()
+	await process_frame
+	await process_frame
 	if failures.is_empty():
 		print("ENTITY_CONTRACT_GATE: OK")
 		quit(0)
+		return
 	for failure in failures:
 		printerr("ENTITY_CONTRACT_GATE: FAIL: %s" % failure)
 	quit(1)
