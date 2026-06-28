@@ -2403,6 +2403,9 @@ static func set_world_object_cooling_received(object_data: Dictionary, cooling_v
 	return update_world_object_heat_state(object_data)
 
 
+static func is_crate_object(object_data: Dictionary) -> bool:
+	return MovableActionServiceRef.is_crate(object_data)
+
 static func is_world_object_movable(object_data: Dictionary) -> bool:
 	return MovableActionServiceRef.is_movable_entity(object_data) or MovableActionServiceRef.is_crate(object_data)
 
