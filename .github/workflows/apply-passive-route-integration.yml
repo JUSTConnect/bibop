@@ -1,4 +1,4 @@
-name: Apply Passive Route Inspector
+name: Apply Passive Route Renderer
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  apply-passive-route-inspector:
+  apply-passive-route-renderer:
     if: github.event.pull_request.number == 1199
     runs-on: ubuntu-latest
     steps:
@@ -15,52 +15,38 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
-      - name: Patch Map Constructor inspector
+      - name: Patch room visual renderer
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path('scripts/ui/map_constructor/map_constructor_inspector.gd')
+          path = Path('scripts/field/room_visual_renderer.gd')
           text = path.read_text()
-          marker = 'const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cooling_routing_contour_service.gd")\n'
-          additions = marker + 'const PassiveRouteServiceRef = preload("res://scripts/game/cooling/passive_route_service.gd")\nconst PassiveRouteInspectorRef = preload("res://scripts/ui/map_constructor/map_constructor_passive_route_inspector_service.gd")\n'
-          if 'PassiveRouteInspectorRef' not in text:
-              if text.count(marker) != 1:
-                  raise SystemExit('inspector preload marker missing')
-              text = text.replace(marker, additions, 1)
+          preload = 'const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")\n'
+          if 'PassiveRouteServiceRef' not in text:
+              if text.count(preload) != 1:
+                  raise SystemExit('renderer catalog preload marker missing')
+              text = text.replace(preload, preload + 'const PassiveRouteServiceRef = preload("res://scripts/game/cooling/passive_route_service.gd")\n', 1)
 
-          start = text.index('static func _render_cooling_system_controls(')
-          end = text.index('\nstatic func _is_wall_cable_constructor_object(', start)
-          block = '''static func _render_cooling_system_controls(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
-          \tvar canonical: Dictionary = PassiveRouteServiceRef.canonicalize_segment(data)
-          \tvar pair: Array[String] = PassiveRouteInspectorRef.get_route_pair(canonical)
-          \tMapConstructorPropertyControls.add_enum_updates_property(ui, parent, "Mount side", entity_kind, entity_id, PassiveRouteServiceRef.get_mount_side(canonical), [
-          \t\t{"label":"Inner", "value":"inner", "updates":{"mount_side":"inner"}},
-          \t\t{"label":"Outer", "value":"outer", "updates":{"mount_side":"outer"}}
-          \t])
-          \tMapConstructorPropertyControls.add_enum_updates_property(ui, parent, "Route port 1", entity_kind, entity_id, pair[0].to_lower(), PassiveRouteInspectorRef.get_port_options(pair[1], true))
-          \tMapConstructorPropertyControls.add_enum_updates_property(ui, parent, "Route port 2", entity_kind, entity_id, pair[1].to_lower(), PassiveRouteInspectorRef.get_port_options(pair[0], false))
-          \tvar mission_objects: Variant = []
-          \tif ui.mission_manager_runtime != null:
-          \t\tmission_objects = ui.mission_manager_runtime.get("mission_world_objects")
-          \tvar objects_by_id: Dictionary = PassiveRouteInspectorRef.build_objects_by_id(mission_objects, entity_id, canonical)
-          \tvar preview: Dictionary = PassiveRouteServiceRef.preview_segment(entity_id, canonical, objects_by_id)
-          \t_add_read_only_text_row(ui, parent, "Routing kind", PassiveRouteInspectorRef.format_kind(str(preview.get("routing_kind", ""))))
-          \t_add_read_only_text_row(ui, parent, "Normalized pair", " ↔ ".join(Array(preview.get("normalized_route_pair", []))))
-          \t_add_read_only_text_row(ui, parent, "Shape", str(preview.get("route_shape", "none")))
-          \tvar component_id: String = str(preview.get("component_id", ""))
-          \t_add_read_only_text_row(ui, parent, "Computed component", component_id if not component_id.is_empty() else "none")
-          \tvar neighbors: Array = Array(preview.get("compatible_neighbors", []))
-          \t_add_read_only_text_row(ui, parent, "Compatible neighbors", ", ".join(neighbors) if not neighbors.is_empty() else "none")
-          \tvar issue_lines: Array[String] = PassiveRouteInspectorRef.format_issue_lines(Array(preview.get("issues", [])))
-          \t_add_read_only_text_row(ui, parent, "Route issues", "\n".join(issue_lines) if not issue_lines.is_empty() else "none")
+          sides_start = text.index('func _get_wall_routing_sides(')
+          sides_end = text.index('\nfunc _get_wall_routing_face_offset_sign(', sides_start)
+          sides_block = '''func _get_wall_routing_sides(object_data: Dictionary) -> Array[String]:
+          \treturn PassiveRouteServiceRef.normalize_route_pair(PassiveRouteServiceRef.get_route_sides(object_data))
           '''
-          path.write_text(text[:start] + block + text[end:])
+          text = text[:sides_start] + sides_block + text[sides_end:]
+
+          face_start = text.index('func _get_wall_routing_face_offset_sign(')
+          face_end = text.index('\nfunc _get_wall_routing_anchor_world(', face_start)
+          face_block = '''func _get_wall_routing_face_offset_sign(object_data: Dictionary) -> float:
+          \treturn 1.0 if PassiveRouteServiceRef.get_mount_side(object_data) == PassiveRouteServiceRef.MOUNT_INNER else -1.0
+          '''
+          text = text[:face_start] + face_block + text[face_end:]
+          path.write_text(text)
           PY
-      - name: Commit inspector integration
+      - name: Commit renderer integration
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add scripts/ui/map_constructor/map_constructor_inspector.gd
-          git commit -m "Use canonical passive route inspector controls"
+          git add scripts/field/room_visual_renderer.gd
+          git commit -m "Render canonical passive route geometry"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
