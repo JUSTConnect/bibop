@@ -1122,20 +1122,27 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				if not has_power_metadata:
 					issues.append(_make_map_constructor_issue("powered_gate_missing_power_metadata_%s" % door_object_id, "warning", "Powered gate has no power metadata for visual state diagnostics.", door_object_cell, source_name, "world_object", door_object_id, "Add optional power metadata if this gate should show powered/unpowered state."))
 
-	var contour_objects_by_id: Dictionary = {}
-	for contour_object_variant in manager.mission_world_objects:
-		var contour_object: Dictionary = manager._safe_dictionary(contour_object_variant)
-		var contour_object_id: String = _safe_string(contour_object.get("id", "")).strip_edges()
-		if not contour_object_id.is_empty():
-			contour_objects_by_id[contour_object_id] = contour_object
-	var contour_warnings: Dictionary = CoolingRoutingContourServiceRef.collect_contour_warnings(contour_objects_by_id)
-	for contour_object_id in contour_warnings.keys():
-		var contour_object_data: Dictionary = Dictionary(contour_objects_by_id.get(contour_object_id, {}))
-		var contour_cell: Vector2i = manager._deserialize_cell_variant(contour_object_data.get("position", Vector2i(-1, -1)))
-		var warning_index: int = 0
-		for contour_warning in Array(contour_warnings[contour_object_id]):
-			issues.append(_make_map_constructor_issue("cooling_contour_%s_%d" % [str(contour_object_id), warning_index], "warning", str(contour_warning), contour_cell, source_name, "world_object", str(contour_object_id), "Adjust Cooling System contour settings or matching ports."))
-			warning_index += 1
+	var route_objects_by_id: Dictionary = {}
+	for route_object_variant in manager.mission_world_objects:
+		var route_object: Dictionary = manager._safe_dictionary(route_object_variant)
+		var route_object_id: String = _safe_string(route_object.get("id", "")).strip_edges()
+		if not route_object_id.is_empty():
+			route_objects_by_id[route_object_id] = route_object
+	var route_issues: Dictionary = CoolingRoutingContourServiceRef.collect_route_issues(route_objects_by_id)
+	for route_object_id_value in route_issues.keys():
+		var route_object_id: String = str(route_object_id_value)
+		var route_object_data: Dictionary = Dictionary(route_objects_by_id.get(route_object_id, {}))
+		var route_cell: Vector2i = manager._deserialize_cell_variant(route_object_data.get("position", Vector2i(-1, -1)))
+		var issue_index: int = 0
+		for route_issue_value in Array(route_issues[route_object_id_value]):
+			var route_issue: Dictionary = Dictionary(route_issue_value)
+			var issue_code: String = str(route_issue.get("code", "passive_route_invalid"))
+			var issue_message: String = issue_code
+			var route_side: String = str(route_issue.get("side", ""))
+			if not route_side.is_empty():
+				issue_message += " on %s" % route_side
+			issues.append(_make_map_constructor_issue("passive_route_%s_%s_%d" % [route_object_id, issue_code, issue_index], "warning", issue_message, route_cell, source_name, "world_object", route_object_id, "Adjust mount side or route ports to match a physical neighbor."))
+			issue_index += 1
 	_get_power_link_validation_rules().append_key_door_link_issues(source_name, issues)
 	return issues
 
