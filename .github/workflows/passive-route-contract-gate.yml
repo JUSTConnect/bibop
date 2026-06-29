@@ -13,6 +13,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Static architecture gate
+        run: |
+          git diff --check
+          python tools/check_cooling_routing_contours.py
+
       - name: Set up Godot
         uses: chickensoft-games/setup-godot@v2
         with:
@@ -25,3 +30,6 @@ jobs:
 
       - name: Passive route behavior gate
         run: godot --headless --path . --script res://tools/ci/check_passive_route_service.gd
+
+      - name: Passive route integration gate
+        run: godot --headless --path . --script res://tools/ci/check_passive_route_integration.gd
