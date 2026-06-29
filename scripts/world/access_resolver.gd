@@ -17,6 +17,7 @@ const GROUP_OPERATORS: Array[String] = [OP_ALL_OF, OP_ANY_OF]
 
 const CODE_GRANTED := "access.granted"
 const CODE_NOT_REQUIRED := "access.not_required"
+const CODE_NO_CHANGE := "access.no_change"
 const CODE_BINDING_MISSING := "access.binding_missing"
 const CODE_SOURCE_MISSING := "access.source_missing"
 const CODE_TARGET_MISSING := "access.target_missing"
@@ -59,7 +60,7 @@ static func resolve(target: Dictionary, context: Dictionary, bindings: Array[Dic
 	if access_type not in ACCESS_TYPES:
 		return _result(false, CODE_INVALID_STRUCTURE, target_id, access_type, {}, [{"code":CODE_INVALID_STRUCTURE, "field":"access_type", "value":access_type}])
 	if access_type == ACCESS_NONE:
-		return _result(true, CODE_NOT_REQUIRED, target_id, access_type, _branch(true, CODE_NOT_REQUIRED, access_type), [], _success_patch(target, profile))
+		return _result(true, CODE_NO_CHANGE, target_id, access_type, _branch(true, CODE_NOT_REQUIRED, access_type), [])
 	var diagnostics: Array[Dictionary] = []
 	var evaluated: Dictionary
 	if access_type == ACCESS_MULTI_FACTOR:
@@ -70,8 +71,14 @@ static func resolve(target: Dictionary, context: Dictionary, bindings: Array[Dic
 	else:
 		evaluated = _evaluate_factor({"access_type":access_type, "factor_id":str(profile.get("factor_id", ""))}, target, context, bindings, entities_by_id)
 	var granted: bool = bool(evaluated.get("granted", false))
-	var code: String = CODE_GRANTED if granted else str(evaluated.get("reason_code", CODE_GROUP_FAILED))
-	return _result(granted, code, target_id, access_type, evaluated, diagnostics, _success_patch(target, profile) if granted else {})
+	if not granted:
+		return _result(false, str(evaluated.get("reason_code", CODE_GROUP_FAILED)), target_id, access_type, evaluated, diagnostics)
+	var target_patch: Dictionary = _effective_patch(target, _success_patch(target, profile))
+	if target_patch.is_empty():
+		var no_change_evaluated: Dictionary = evaluated.duplicate(true)
+		no_change_evaluated["consumption_plan"] = []
+		return _result(true, CODE_NO_CHANGE, target_id, access_type, no_change_evaluated, diagnostics)
+	return _result(true, CODE_GRANTED, target_id, access_type, evaluated, diagnostics, target_patch)
 
 static func validate_profile(target: Dictionary) -> Dictionary:
 	var profile: Dictionary = _profile_for(target)
@@ -259,13 +266,20 @@ static func _success_patch(target: Dictionary, profile: Dictionary) -> Dictionar
 	var explicit_patch: Variant = profile.get("success_patch", target.get("access_success_patch", {}))
 	if explicit_patch is Dictionary and not Dictionary(explicit_patch).is_empty():
 		return Dictionary(explicit_patch).duplicate(true)
-	var patch: Dictionary = {"access_granted":true}
+	var patch: Dictionary = {}
 	var object_group: String = str(target.get("object_group", "")).strip_edges().to_lower()
 	var object_type: String = str(target.get("object_type", "")).strip_edges().to_lower()
 	if object_group == "door" or object_type == "door" or object_type.contains("door") or object_type.contains("gate"):
 		patch["is_locked"] = false
 		patch["locked"] = false
 	return patch
+
+static func _effective_patch(target: Dictionary, candidate_patch: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for key in candidate_patch.keys():
+		if var_to_str(target.get(key, null)) != var_to_str(candidate_patch[key]):
+			result[key] = candidate_patch[key]
+	return result
 
 static func _validate_node(node: Dictionary, profile: Dictionary, stack: Array[String], diagnostics: Array[Dictionary]) -> void:
 	var group_ref: String = str(node.get("group_ref", "")).strip_edges()
