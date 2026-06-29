@@ -1,0 +1,48 @@
+name: Cleanup Canonical Runtime Temp
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.event.pull_request.number == 1203
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/finalize-canonical-runtime
+          fetch-depth: 0
+      - name: Apply final code classifier and remove temp files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/game/task_test_acceptance_validation_service.gd')
+          text = path.read_text()
+          old = 'if str(issue.get("message", "")).begins_with("Route crosses another route at ") and str(issue.get("severity", "")) == "error":'
+          if old in text:
+              new = 'var issue_code: String = str(issue.get("code", issue.get("reason_code", ""))).strip_edges().to_lower()\n\t\tvar is_route_crossing_issue: bool = issue_code.contains("route") and (issue_code.contains("cross") or issue_code.contains("overlap"))\n\t\tif is_route_crossing_issue and str(issue.get("severity", "")) == "error":'
+              text = text.replace(old, new, 1)
+              path.write_text(text)
+          PY
+          rm -f .github/workflows/audit-canonical-runtime.yml
+          rm -f .github/workflows/canonical-runtime-ownership-gate.yml
+          rm -f .github/workflows/patch-task-validation-code.yml
+          rm -f .github/workflows/diagnose-canonical-runtime-final.yml
+          rm -f .github/workflows/diagnose-canonical-ownership.yml
+          rm -f .github/workflows/retarget-canonical-cleanup.yml
+          rm -f .github/workflows/cleanup-canonical-runtime-temp.yml
+          rm -f tools/check_canonical_runtime_ownership.py
+      - name: Commit final cleanup
+        run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No cleanup changes'
+            exit 0
+          fi
+          git commit -m 'Remove canonical runtime temporary infrastructure'
+          git push
