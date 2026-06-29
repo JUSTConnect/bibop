@@ -63,6 +63,8 @@ static func _read_forced_values(source: Dictionary, capabilities: Dictionary, co
 	var contract_capabilities: Dictionary = Dictionary(contract.get("capabilities", {}))
 	if not bool(contract_capabilities.get("test_override", false)):
 		return {}
+	if not bool(context.get("supports_test_override", source.get("supports_test_override", false))):
+		return {}
 	var mode: String = str(context.get("mode", context.get("context", ""))).strip_edges().to_lower().replace(" ", "_")
 	if not (mode in ["map_constructor", "task_test", "task_test_context"]):
 		return {}
@@ -116,7 +118,9 @@ static func _blocked(state: String, code: String, reason: String) -> Dictionary:
 
 static func _external_blocker(source: Dictionary, context: Dictionary, capabilities: Dictionary, adapter: Dictionary) -> String:
 	var blocker: String = str(context.get("external_blocker", source.get("external_blocker", adapter.get("external_blocker", "")))).strip_edges().to_lower()
-	if not blocker.is_empty():
+	if not blocker.is_empty() and blocker != "power.unpowered":
+		return blocker
+	if bool(capabilities.get("power", false)) and blocker == "power.unpowered":
 		return blocker
 	if bool(capabilities.get("power", false)) and (source.get("is_powered", true) == false or str(source.get("power_state", "")).to_lower() == "unpowered" or str(source.get("object_power_state", "")).to_lower() == "unpowered"):
 		return "power.unpowered"
@@ -127,6 +131,9 @@ static func _legacy_status_adapter(source: Dictionary, contract: Dictionary, con
 	var subtype: String = _entity_subtype(source, contract, context)
 	var legacy_state: String = _normalized_legacy_state(source)
 	if legacy_state.is_empty():
+		return result
+	if subtype == "power_cable" and legacy_state in ["connected", "disconnected", "broken", "invalid_path"]:
+		result["operational_state"] = legacy_state
 		return result
 	if legacy_state in ["broken", "destroyed"]:
 		result["health_state"] = "broken"
@@ -148,8 +155,6 @@ static func _legacy_status_adapter(source: Dictionary, contract: Dictionary, con
 	elif subtype in ["item", "digital_item", "access_item", "physical_item", "module_item", "power_cable_reel", "fuse", "repair_kit", "reinforcement"] and legacy_state in ["available", "collected", "disabled"]:
 		result["operational_state"] = legacy_state
 	elif subtype == "fuse_box" and legacy_state in ["installed", "empty"]:
-		result["operational_state"] = legacy_state
-	elif subtype == "power_cable" and legacy_state in ["connected", "disconnected", "invalid_path"]:
 		result["operational_state"] = legacy_state
 	return result
 
@@ -208,12 +213,13 @@ static func _operational_restriction_code(operational_state: String, contract: D
 	if explicit_states.has(operational_state):
 		return "operational.%s" % operational_state
 	var subtype: String = str(context.get("entity_subtype", contract.get("entity_subtype", ""))).strip_edges().to_lower()
+	var status_profile: String = str(context.get("status_profile", contract.get("status_profile", ""))).strip_edges().to_lower()
 	if subtype == "door" and operational_state in ["locked", "jammed"]:
 		return "operational.%s" % operational_state
-	if subtype == "item" and operational_state == "disabled":
+	if status_profile == "item_standard" and operational_state == "disabled":
 		return "operational.disabled"
-	if subtype == "power_cable" and operational_state == "invalid_path":
-		return "operational.invalid_path"
+	if subtype == "power_cable" and operational_state in ["broken", "invalid_path"]:
+		return "operational.%s" % operational_state
 	return ""
 
 static func _entity_subtype(source: Dictionary, contract: Dictionary, context: Dictionary) -> String:
