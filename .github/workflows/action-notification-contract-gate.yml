@@ -1,0 +1,35 @@
+name: Action Notification Contract Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  action-notification-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+
+      - name: Import project
+        run: godot --headless --path . --import
+
+      - name: Action result and aggregation behavior
+        run: timeout 60s godot --headless --path . --script res://tools/ci/check_action_result_contract.gd
+
+      - name: Notification event publisher behavior
+        run: timeout 60s godot --headless --path . --script res://tools/ci/check_action_notification_layer.gd
+
+      - name: Existing event-driven HUD regression
+        run: timeout 60s godot --headless --path . --script res://tools/ci/check_event_driven_runtime_hud.gd
