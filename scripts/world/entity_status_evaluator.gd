@@ -16,9 +16,10 @@ static func evaluate(object_data: Dictionary, context: Dictionary = {}) -> Dicti
 	var source: Dictionary = object_data.duplicate(true)
 	var contract: Dictionary = _contract_for(source, context)
 	var capabilities: Dictionary = Dictionary(contract.get("capabilities", {}))
+	var axes: Dictionary = _allowed_axes(contract, context)
 	var adapter: Dictionary = _legacy_status_adapter(source, contract, context)
-	var real_values: Dictionary = _read_real_values(source, capabilities, adapter)
-	var forced_values: Dictionary = _read_forced_values(source, capabilities, context, contract)
+	var real_values: Dictionary = _read_real_values(source, capabilities, adapter, axes)
+	var forced_values: Dictionary = _read_forced_values(source, capabilities, context, contract, axes)
 	var effective_values: Dictionary = real_values.duplicate(true)
 	for key in forced_values.keys():
 		effective_values[key] = forced_values[key]
@@ -44,22 +45,51 @@ static func serializable_source(object_data: Dictionary) -> Dictionary:
 static func _contract_for(source: Dictionary, context: Dictionary) -> Dictionary:
 	if context.get("entity_contract", {}) is Dictionary and not Dictionary(context.get("entity_contract", {})).is_empty():
 		return Dictionary(context.get("entity_contract", {})).duplicate(true)
-	if source.get("entity_contract", {}) is Dictionary and not Dictionary(source.get("entity_contract", {})).is_empty():
-		return Dictionary(source.get("entity_contract", {})).duplicate(true)
 	return WorldObjectCatalogRef.get_entity_definition_contract_for_object(source)
 
-static func _read_real_values(source: Dictionary, capabilities: Dictionary, adapter: Dictionary) -> Dictionary:
+static func _allowed_axes(contract: Dictionary, context: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	if context.has("allowed_status_axes") and context.get("allowed_status_axes", []) is Array:
+		for axis in Array(context.get("allowed_status_axes", [])):
+			result[str(axis)] = true
+		return result
+	var capabilities: Dictionary = Dictionary(contract.get("capabilities", {}))
+	var status_profile: String = str(context.get("status_profile", contract.get("status_profile", ""))).strip_edges().to_lower()
+	match status_profile:
+		"object_standard":
+			result["intent"] = true
+			result["operational"] = true
+			if bool(capabilities.get("health", false)):
+				result["health"] = true
+		"item_standard", "cable_standard":
+			result["operational"] = true
+		"light_standard":
+			result["intent"] = true
+			result["operational"] = true
+		"thermal_test", "object_thermal":
+			result["intent"] = true
+			result["operational"] = true
+			if bool(capabilities.get("health", false)):
+				result["health"] = true
+			if bool(capabilities.get("overheat", false)):
+				result["thermal"] = true
+		_:
+			pass
+	return result
+
+static func _read_real_values(source: Dictionary, capabilities: Dictionary, adapter: Dictionary, axes: Dictionary) -> Dictionary:
 	var values: Dictionary = {}
-	if bool(capabilities.get("state", false)):
+	if bool(axes.get("intent", false)):
 		values["intent_state"] = _intent(source, adapter)
+	if bool(axes.get("operational", false)):
 		values["operational_state"] = _operational(source, adapter)
-	if bool(capabilities.get("health", false)):
+	if bool(axes.get("health", false)) and bool(capabilities.get("health", false)):
 		values["health_state"] = _health(source, adapter)
-	if bool(capabilities.get("overheat", false)):
+	if bool(axes.get("thermal", false)) and bool(capabilities.get("overheat", false)):
 		values["thermal_state"] = _thermal(source, adapter)
 	return values
 
-static func _read_forced_values(source: Dictionary, capabilities: Dictionary, context: Dictionary, contract: Dictionary) -> Dictionary:
+static func _read_forced_values(source: Dictionary, capabilities: Dictionary, context: Dictionary, contract: Dictionary, axes: Dictionary) -> Dictionary:
 	var contract_capabilities: Dictionary = Dictionary(contract.get("capabilities", {}))
 	if not bool(contract_capabilities.get("test_override", false)):
 		return {}
@@ -72,7 +102,7 @@ static func _read_forced_values(source: Dictionary, capabilities: Dictionary, co
 	if not (raw is Dictionary):
 		return {}
 	var result: Dictionary = {}
-	var allowed: Dictionary = _read_real_values(source, capabilities, _legacy_status_adapter(source, contract, context))
+	var allowed: Dictionary = _read_real_values(source, capabilities, _legacy_status_adapter(source, contract, context), axes)
 	for key in Dictionary(raw).keys():
 		if allowed.has(key):
 			result[key] = _normalize_axis(str(key), Dictionary(raw)[key])
@@ -80,12 +110,13 @@ static func _read_forced_values(source: Dictionary, capabilities: Dictionary, co
 
 static func _build_sections(values: Dictionary, real_values: Dictionary, forced_values: Dictionary, capabilities: Dictionary) -> Dictionary:
 	var sections: Dictionary = {}
-	if bool(capabilities.get("state", false)):
+	if real_values.has("intent_state"):
 		sections["intent"] = {"value":values.get("intent_state", "on"), "real_value":real_values.get("intent_state", "on")}
+	if real_values.has("operational_state"):
 		sections["operational"] = {"value":values.get("operational_state", DEFAULT_OPERATIONAL_STATE), "real_value":real_values.get("operational_state", DEFAULT_OPERATIONAL_STATE)}
-	if bool(capabilities.get("health", false)):
+	if real_values.has("health_state"):
 		sections["health"] = {"value":values.get("health_state", "healthy"), "real_value":real_values.get("health_state", "healthy")}
-	if bool(capabilities.get("overheat", false)):
+	if real_values.has("thermal_state"):
 		sections["thermal"] = {"value":values.get("thermal_state", "normal"), "real_value":real_values.get("thermal_state", "normal")}
 	for key in forced_values.keys():
 		var section_name: String = key.trim_suffix("_state")
@@ -218,7 +249,9 @@ static func _operational_restriction_code(operational_state: String, contract: D
 		return "operational.%s" % operational_state
 	if status_profile == "item_standard" and operational_state == "disabled":
 		return "operational.disabled"
-	if subtype == "power_cable" and operational_state in ["broken", "invalid_path"]:
+	if subtype == "fuse_box" and operational_state == "empty":
+		return "operational.empty"
+	if subtype == "power_cable" and operational_state in ["broken", "invalid_path", "disconnected"]:
 		return "operational.%s" % operational_state
 	return ""
 

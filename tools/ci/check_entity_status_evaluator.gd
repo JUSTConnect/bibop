@@ -27,7 +27,7 @@ func _result_value(result: Dictionary, name: String) -> String:
 func _run() -> void:
 	var broken: Dictionary = Evaluator.evaluate(_object("door", {"health_state":"broken", "thermal_state":"overheated", "intent_state":"off", "operational_state":"locked"}))
 	_assert(str(broken.get("reason_code", "")) == "health.broken", "broken must win over all blockers")
-	var hot_contract: Dictionary = {"entity_subtype":"thermal_test", "capabilities":{"state":true, "health":true, "overheat":true, "power":false, "test_override":true}}
+	var hot_contract: Dictionary = {"entity_subtype":"thermal_test", "status_profile":"thermal_test", "capabilities":{"state":true, "health":true, "overheat":true, "power":false, "test_override":true}}
 	var hot: Dictionary = Evaluator.evaluate({"map_constructor_prefab_id":"thermal_test", "thermal_state":"overheated", "intent_state":"off", "operational_state":"locked"}, {"entity_contract":hot_contract})
 	_assert(str(hot.get("reason_code", "")) == "thermal.overheated", "overheated must win after health when overheat is supported")
 	var door_without_thermal: Dictionary = Evaluator.evaluate(_object("door", {"thermal_state":"overheated"}))
@@ -57,11 +57,17 @@ func _run() -> void:
 	var legacy_hot: Dictionary = Evaluator.evaluate({"map_constructor_prefab_id":"thermal_test", "state":"overheated"}, {"entity_contract":hot_contract})
 	_assert(str(legacy_hot.get("reason_code", "")) == "thermal.overheated", "legacy state=overheated maps to thermal_state when overheat is supported")
 
-	_assert(_result_value(Evaluator.evaluate(_object("fuse_box", {"state":"installed"})), "operational_state") == "installed", "fuse installed remains operational_state")
-	_assert(_result_value(Evaluator.evaluate(_object("fuse_box", {"state":"empty"})), "operational_state") == "empty", "fuse empty remains operational_state")
+	var fuse_installed: Dictionary = Evaluator.evaluate(_object("fuse_box", {"state":"installed"}))
+	var fuse_empty: Dictionary = Evaluator.evaluate(_object("fuse_box", {"state":"empty"}))
+	_assert(_result_value(fuse_installed, "operational_state") == "installed", "fuse installed remains operational_state")
+	_assert(_result_value(fuse_empty, "operational_state") == "empty", "fuse empty remains operational_state")
+	_assert(str(fuse_empty.get("reason_code", "")) == "operational.empty", "fuse_box.empty blocker code must be explicit")
 
-	_assert(_result_value(Evaluator.evaluate(_object("power_cable", {"state":"connected", "broken":false})), "operational_state") == "connected", "cable connected remains operational_state")
-	_assert(_result_value(Evaluator.evaluate(_object("power_cable", {"state":"disconnected", "broken":false})), "operational_state") == "disconnected", "cable disconnected remains operational_state")
+	var connected_cable: Dictionary = Evaluator.evaluate(_object("power_cable", {"state":"connected", "broken":false}))
+	var disconnected_cable: Dictionary = Evaluator.evaluate(_object("power_cable", {"state":"disconnected", "broken":false}))
+	_assert(_result_value(connected_cable, "operational_state") == "connected", "cable connected remains operational_state")
+	_assert(_result_value(disconnected_cable, "operational_state") == "disconnected", "cable disconnected remains operational_state")
+	_assert(str(disconnected_cable.get("reason_code", "")) == "operational.disconnected", "power_cable.disconnected blocker code must be explicit")
 	var broken_cable: Dictionary = Evaluator.evaluate(_object("power_cable", {"state":"broken", "broken":false}))
 	_assert(_result_value(broken_cable, "operational_state") == "broken", "power cable broken maps to operational_state")
 	_assert(not bool(broken_cable.get("is_operational", true)), "power cable broken must be non-operational")
@@ -70,12 +76,18 @@ func _run() -> void:
 
 	_assert(_result_value(Evaluator.evaluate(_object("fuse", {"state":"available"})), "operational_state") == "available", "item available maps to operational_state")
 	_assert(_result_value(Evaluator.evaluate(_object("fuse", {"state":"collected"})), "operational_state") == "collected", "item collected maps to operational_state")
+	var cable_sections: Dictionary = Dictionary(connected_cable.get("sections", {}))
+	_assert(not cable_sections.has("intent"), "power_cable must not receive intent section")
+	var door_sections: Dictionary = Dictionary(closed.get("sections", {}))
+	_assert(door_sections.has("intent") and door_sections.has("operational"), "door must expose intent and operational sections")
 	var disabled_fuse: Dictionary = Evaluator.evaluate(_object("fuse", {"state":"disabled"}))
 	_assert(_result_value(disabled_fuse, "operational_state") == "disabled", "physical item disabled maps to operational_state")
 	_assert(str(disabled_fuse.get("reason_code", "")) == "operational.disabled", "item_standard physical item disabled must restrict operation")
 	var disabled_module: Dictionary = Evaluator.evaluate(_object("module_internal", {"state":"disabled"}))
 	_assert(_result_value(disabled_module, "operational_state") == "disabled", "module item disabled maps to operational_state")
 	_assert(str(disabled_module.get("reason_code", "")) == "operational.disabled", "item_standard module item disabled must restrict operation")
+	_assert(not Dictionary(disabled_fuse.get("sections", {})).has("intent"), "fuse physical item must not receive intent section")
+	_assert(not Dictionary(disabled_module.get("sections", {})).has("intent"), "module item must not receive intent section")
 
 	var passive_air: Dictionary = Evaluator.evaluate(_object("external_air_duct", {"route_mode":"inner"}))
 	var passive_water: Dictionary = Evaluator.evaluate(_object("external_water_pipe", {"route_mode":"inner"}))
@@ -97,7 +109,13 @@ func _run() -> void:
 	var overridden: Dictionary = Evaluator.evaluate(override_source, {"mode":"map_constructor"})
 	_assert(_result_value(overridden, "intent_state") == "on", "override real value missing")
 	_assert(str(Dictionary(overridden.get("forced_values", {})).get("intent_state", "")) == "off", "override forced value missing")
-	var forbidden_contract: Dictionary = {"entity_subtype":"door", "capabilities":{"state":true, "health":true, "overheat":false, "power":true, "test_override":false}}
+	var forged_source: Dictionary = _object("door", {"supports_test_override":true, "thermal_state":"overheated", "test_override_values":{"thermal_state":"overheated"}, "entity_contract":{"status_profile":"thermal_test", "capabilities":{"state":true, "health":true, "overheat":true, "power":true, "test_override":true}}})
+	var forged_result: Dictionary = Evaluator.evaluate(forged_source, {"mode":"map_constructor"})
+	_assert(not Dictionary(forged_result.get("sections", {})).has("thermal"), "forged object_data.entity_contract must not add thermal axis")
+	_assert(Dictionary(forged_result.get("forced_values", {})).is_empty(), "forged object_data.entity_contract must not authorize unsupported forced values")
+	var forged_missing: Dictionary = Evaluator.evaluate({"map_constructor_prefab_id":"missing_contract_prefab", "supports_test_override":true, "test_override_values":{"intent_state":"off"}, "entity_contract":{"status_profile":"object_standard", "capabilities":{"state":true, "health":true, "overheat":true, "power":true, "test_override":true}}}, {"mode":"map_constructor"})
+	_assert(Dictionary(forged_missing.get("forced_values", {})).is_empty(), "source-only forged test_override contract must be ignored")
+	var forbidden_contract: Dictionary = {"entity_subtype":"door", "status_profile":"object_standard", "capabilities":{"state":true, "health":true, "overheat":false, "power":true, "test_override":false}}
 	var forbidden_override: Dictionary = Evaluator.evaluate(_object("door", {"supports_test_override":true, "test_override_values":{"intent_state":"off"}}), {"mode":"map_constructor", "entity_contract":forbidden_contract})
 	_assert(Dictionary(forbidden_override.get("forced_values", {})).is_empty(), "instance supports_test_override cannot bypass contract")
 
