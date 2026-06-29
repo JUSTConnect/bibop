@@ -3,6 +3,8 @@ extends SceneTree
 const StoreRef = preload("res://scripts/world/world_state_store.gd")
 const ContractRef = preload("res://scripts/world/world_binding_store_contract.gd")
 const MigrationServiceRef = preload("res://scripts/world/versioned_snapshot_migration_service.gd")
+const StatusEvaluatorRef = preload("res://scripts/world/entity_status_evaluator.gd")
+const CatalogRef = preload("res://scripts/world/world_object_catalog.gd")
 
 var failures: Array[String] = []
 
@@ -73,8 +75,33 @@ func _base_entities() -> Array[Dictionary]:
 		_entity("duct_a", Vector2i(12, 0), "cooling", "air_duct", "cooling_system", ["mount", "side", "routing"])
 	]
 
+func _catalog_object(prefab_id: String, overrides: Dictionary = {}) -> Dictionary:
+	var data: Dictionary = CatalogRef.create_world_object(prefab_id, "%s_binding_status_test" % prefab_id)
+	for key in overrides.keys():
+		data[key] = overrides[key]
+	return data
+
+func _run_entity_status_smoke() -> void:
+	for definitions_variant in [CatalogRef.ARCHETYPE_REGISTRY, CatalogRef.OBJECT_LIBRARY]:
+		var definitions: Dictionary = Dictionary(definitions_variant)
+		for definition_variant in definitions.values():
+			var definition: Dictionary = Dictionary(definition_variant)
+			var contract: Dictionary = Dictionary(definition.get("entity_contract", {}))
+			if str(contract.get("scope", "")) == "entity":
+				_assert(StatusEvaluatorRef.is_known_status_profile(str(contract.get("status_profile", ""))), "unknown catalog status profile")
+	var door: Dictionary = _catalog_object("door", {"intent_state":"on", "health_state":"healthy", "operational_state":"closed", "is_powered":false})
+	var before: Dictionary = door.duplicate(true)
+	var door_status: Dictionary = StatusEvaluatorRef.evaluate(door)
+	_assert(str(door_status.get("reason_code", "")) == "power.unpowered", "power blocker ownership regressed")
+	_assert(door == before, "status evaluation mutated source data")
+	var crate_sections: Dictionary = Dictionary(StatusEvaluatorRef.evaluate(_catalog_object("crate")).get("sections", {}))
+	_assert(crate_sections.has("health") and crate_sections.has("operational") and not crate_sections.has("intent"), "movable status profile regressed")
+	var passive_sections: Dictionary = Dictionary(StatusEvaluatorRef.evaluate(_catalog_object("external_air_duct")).get("sections", {}))
+	_assert(passive_sections.is_empty(), "passive route received authored status axes")
+
 func _run() -> void:
 	await process_frame
+	_run_entity_status_smoke()
 	var store = StoreRef.new()
 	var replaced: Dictionary = store.replace_snapshot(_base_entities())
 	_assert(bool(replaced.get("ok", false)), "base snapshot rejected: %s" % str(replaced))
