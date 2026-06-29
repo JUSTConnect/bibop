@@ -1,0 +1,38 @@
+name: Audit Canonical Runtime
+
+on:
+  pull_request:
+
+jobs:
+  audit-canonical-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect legacy runtime patterns
+        run: |
+          mkdir -p /tmp/canonical-runtime-audit
+          {
+            echo '## WorldStateStore legacy load paths'
+            grep -nE 'format_version|objects|legacy_candidates|legacy_bindings_migrated|strip_legacy' scripts/world/world_state_store.gd || true
+            echo '## Embedded logical link fields outside migration'
+            grep -RIn --exclude-dir=.git -E 'control_terminal_id|required_key_id|required_keycard_id|preferred_source_id|controlled_target_ids|linked_object_ids|linked_cooling_ids|linked_power_ids|linked_lighting_ids' scripts | grep -v versioned_snapshot_migration_service.gd || true
+            echo '## Physical BindingStore duplication'
+            grep -RIn --exclude-dir=.git -E 'runtime_power_feed|power_cable_connection|cable_endpoint_binding|route_adjacency' scripts tools || true
+            echo '## Text inference and result parsing'
+            grep -RIn --exclude-dir=.git -E 'message.*contains|contains\(.*message|begins_with\(.*message|ends_with\(.*message|parse.*message|text.*reason|reason.*text' scripts/game scripts/ui scripts/bipob tools || true
+            echo '## Raw subtype/status inference in UI and MissionManager'
+            grep -RIn --exclude-dir=.git -E 'object_type.*==|archetype_id.*==|entity_subtype.*==|state.*==|status.*==' scripts/ui/game_ui.gd scripts/game/mission_manager.gd scripts/game/bipob_action_view_model_service.gd || true
+            echo '## Proximity discovery'
+            grep -RIn --exclude-dir=.git -E 'nearest|distance_to|distance_squared_to|closest|find_.*near|nearby' scripts/game scripts/world scripts/bipob tools || true
+            echo '## Generic fallback profiles and fixtures'
+            grep -RIn --exclude-dir=.git -E 'generic.*profile|fallback.*profile|default.*fixture|generic_object|fallback_object|incomplete_entity_contract' scripts/world scripts/game tools || true
+            echo '## Renderer gameplay truth'
+            grep -RIn --exclude-dir=.git -E 'RoomVisualRenderer|room_visual_renderer|RouteRenderer|ObjectRenderer' scripts/game scripts/world scripts/bipob | grep -E 'passable|walkable|topology|connect|binding|power|cooling|route' || true
+            echo '## Legacy writes'
+            grep -RIn --exclude-dir=.git -E '\["(objects|runtime_inventory_state|item_amounts|cooling_contour_id|cooling_contour_member_ids|end_1_state|end_2_state|power_source_id|main_power_net|heavy_claw_movable|required_bipob_power_class)"\][[:space:]]*=' scripts tools || true
+          } > /tmp/canonical-runtime-audit/audit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canonical-runtime-audit
+          path: /tmp/canonical-runtime-audit/audit.txt
+          if-no-files-found: error
