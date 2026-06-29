@@ -1,0 +1,31 @@
+name: Patch Passive Route Fixture
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Patch typed arrays
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/ci/check_passive_route_integration.gd')
+          text = path.read_text()
+          text = text.replace('\tfake_world.mission_world_objects = [west, east]\n', '\tvar connected_routes: Array[Dictionary] = [west, east]\n\tfake_world.mission_world_objects = connected_routes\n')
+          text = text.replace('\tfake_world.mission_world_objects = [disconnected]\n', '\tvar disconnected_routes: Array[Dictionary] = [disconnected]\n\tfake_world.mission_world_objects = disconnected_routes\n')
+          path.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/ci/check_passive_route_integration.gd
+          git commit -m "Fix passive route typed fixtures"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
