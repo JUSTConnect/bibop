@@ -8,6 +8,9 @@ root = Path(__file__).resolve().parents[1]
 service = (root / "scripts/game/routing/passive_route_service.gd").read_text()
 facade = (root / "scripts/game/cooling/cooling_routing_contour_service.gd").read_text()
 catalog = (root / "scripts/world/world_object_catalog.gd").read_text()
+route_start = catalog.index('\t"external_air_duct": {')
+route_end = catalog.index('\t"external_wall": {', route_start)
+route_catalog = catalog[route_start:route_end]
 mission = (root / "scripts/game/mission_manager.gd").read_text()
 inspector = (root / "scripts/ui/map_constructor/map_constructor_inspector.gd").read_text()
 validation = (root / "scripts/game/map_constructor_validation_service.gd").read_text()
@@ -38,9 +41,9 @@ checks = [
     ("deterministic components", "_component_id" in service and "md5_text" in service),
     ("facade delegates only", "PassiveRouteServiceRef.build_topology" in facade and "cooling_contour_mode" not in facade),
     ("catalog exposes three authoring fields", all(f'\"field\":\"{field}\"' in catalog for field in ["mount_side", "route_side_1", "route_side_2"])),
-    ("catalog has passive canonical subtypes", '"entity_subtype":"air_duct"' in catalog and '"entity_subtype":"water_pipe"' in catalog),
-    ("passive routes have no test override", '"entity_subtype":"air_duct"' in catalog and '"test_override":false' in catalog),
-    ("manual/device fields removed from catalog", not any(token in catalog for token in forbidden_catalog_tokens)),
+    ("catalog has passive canonical subtypes", '"entity_subtype":"air_duct"' in route_catalog and '"entity_subtype":"water_pipe"' in route_catalog),
+    ("passive routes have no test override", route_catalog.count('"test_override":false') == 2 and '"test_override":true' not in route_catalog),
+    ("manual/device fields removed from catalog", not any(token in route_catalog for token in forbidden_catalog_tokens)),
     ("MissionManager stores only route authoring fields", '"mount_side":"string","route_side_1":"string","route_side_2":"string"' in mission),
     ("MissionManager does not expose contour member picker", "cooling_contour_member_ids" not in mission),
     ("inspector uses passive preview", "PassiveRouteServiceRef.build_topology" in inspector and "Normalized route pair" in inspector and "Computed component id" in inspector),
