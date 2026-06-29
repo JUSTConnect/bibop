@@ -4,12 +4,14 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 wss_path = root / "scripts/world/world_state_store.gd"
 contract_path = root / "scripts/world/world_binding_store_contract.gd"
+migration_path = root / "scripts/world/versioned_snapshot_migration_service.gd"
 workflow_path = root / ".github/workflows/godot-parser-gate.yml"
 mission_path = root / "scripts/game/mission_manager.gd"
 prefab_path = root / "scripts/game/map_constructor_prefab_catalog.gd"
 
 wss = wss_path.read_text() if wss_path.exists() else ""
 contract = contract_path.read_text() if contract_path.exists() else ""
+migration = migration_path.read_text() if migration_path.exists() else ""
 workflow = workflow_path.read_text() if workflow_path.exists() else ""
 mission = mission_path.read_text() if mission_path.exists() else ""
 prefab = prefab_path.read_text() if prefab_path.exists() else ""
@@ -48,7 +50,6 @@ required_methods = [
     "func validate_binding(",
     "func get_binding_status(",
     "func get_binding_diagnostics(",
-    "func migrate_legacy_bindings(",
     "func replace_serialized_snapshot(",
     "func get_serializable_snapshot(",
 ]
@@ -80,14 +81,16 @@ checks = [
     ("CRUD and query API declared", all(token in wss for token in required_methods)),
     ("deterministic reverse indexes rebuilt", "static func rebuild_indexes" in contract and "ids.sort()" in contract),
     ("bindings serialize separately", '"entities"' in wss and '"bindings"' in wss and "WORLD_SNAPSHOT_FORMAT_VERSION" in wss),
-    ("legacy migration strips logical fields", "legacy_candidates" in contract and "strip_legacy_logical_links" in contract and "migrate_legacy_bindings" in wss),
+    ("store accepts only current canonical format", 'snapshot.get("format_version", -1)' in wss and 'snapshot.get("objects"' not in wss),
+    ("store has no legacy binding migration", "migrate_legacy_bindings" not in wss and "legacy_candidates" not in wss),
+    ("versioned loader owns legacy migration", "legacy_candidates" in contract and "strip_legacy_logical_links" in contract and "BindingStoreContractRef.legacy_candidates" in migration),
     ("deletion policy explicit", all(token in wss for token in ["BINDING_POLICY_PRESERVE", "BINDING_POLICY_REMOVE_RELATED", "BINDING_POLICY_REJECT_IF_BOUND"])),
     ("physical topology is excluded", all(f'"{token}"' in contract for token in physical_exclusions)),
-    ("no proximity inference", "distance_to" not in contract and "nearest" not in contract.lower()),
+    ("no proximity inference", "distance_to" not in contract and "nearest" not in contract.lower() and "distance_to" not in migration and "nearest" not in migration.lower()),
     ("no parallel MissionManager binding store", "_bindings_by_id" not in mission and "ROLE_REGISTRY" not in mission),
-    ("MissionManager legacy wrapper migrates", "replace_world_state_serialized_snapshot" in mission and "VersionedSnapshotMigrationServiceRef" in mission),
+    ("MissionManager versioned wrapper migrates", "replace_world_state_serialized_snapshot" in mission and "VersionedSnapshotMigrationServiceRef" in mission),
     ("MissionManager exposes canonical snapshot wrappers", "func replace_world_state_serialized_snapshot(" in mission and "func get_world_state_serializable_snapshot(" in mission),
-    ("MissionManager does not bypass binding migration", "return world_state_store.replace_snapshot(objects)" not in mission),
+    ("MissionManager does not bypass migration", "return world_state_store.replace_snapshot(objects)" not in mission),
     ("no parallel Map Constructor binding store", "_bindings_by_id" not in prefab and "ROLE_REGISTRY" not in prefab),
     ("static gate wired", "python tools/check_binding_store.py" in workflow),
     ("Godot behavior gate wired", "check_binding_store.gd" in workflow),
