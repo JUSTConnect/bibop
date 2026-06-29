@@ -8020,8 +8020,7 @@ func _apply_completed_reel_power_bridge(cable_reel: Dictionary) -> Dictionary:
 	var source_network_id: String = _get_power_network_id(source_target)
 	if not source_network_id.is_empty():
 		sink_target["power_network_id"] = source_network_id
-	sink_target["power_source_id"] = str(source_target.get("power_source_id", source_target.get("id", ""))).strip_edges()
-	sink_target["physical_connection_source_id"] = str(source_target.get("id", "")).strip_edges()
+	sink_target["resolved_source_id"] = str(source_target.get("resolved_source_id", source_target.get("id", ""))).strip_edges()
 	sink_target["is_powered"] = true
 	sink_target["power_unavailable_reason"] = ""
 	if _is_terminal_object(sink_target):
@@ -8130,12 +8129,7 @@ func connect_cable_reel_to_target(cable_reel_id: String, target_id: String, end_
 	cable_reel["end_%d_cable_length" % end_index] = int(can_connect.get("length", 0))
 	cable_reel["cable_endpoint_a_id"] = str(cable_reel.get("id", "")).strip_edges()
 	cable_reel["cable_max_length"] = int(can_connect.get("max_length", 0))
-	target["cable_power_connected"] = true
-	target["external_power_reel_id"] = normalized_reel_id
-	target["external_power_end_index"] = end_index
-	target["connected_reel_id"] = normalized_reel_id
-	target["connected_reel_end_index"] = end_index
-	target["plugged_cable_end"] = {"reel_id": normalized_reel_id, "end_index": end_index, "target_id": normalized_target_id}
+	target["runtime_cable_connection"] = {"connected": true, "reel_id": normalized_reel_id, "end_index": end_index, "target_id": normalized_target_id}
 	_normalize_power_cable_reel_state(cable_reel)
 	var report := _apply_graph_power_after_world_object_power_change(cable_reel, "cable_connected")
 	var bridge_report: Dictionary = _apply_completed_reel_power_bridge(cable_reel)

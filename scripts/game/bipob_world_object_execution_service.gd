@@ -103,12 +103,7 @@ static func _execute_runtime_plug_in(controller: Variant, world_object: Dictiona
 		var persisted: Dictionary = Dictionary(controller.mission_manager.call("get_world_object_by_id", target_id))
 		if not persisted.is_empty():
 			updated = persisted
-	updated["cable_power_connected"] = true
-	updated["external_power_reel_id"] = reel_id
-	updated["external_power_end_index"] = end_index
-	updated["connected_reel_id"] = reel_id
-	updated["connected_reel_end_index"] = end_index
-	updated["plugged_cable_end"] = {"reel_id": reel_id, "end_index": end_index, "target_id": target_id}
+	updated["runtime_cable_connection"] = {"connected": true, "reel_id": reel_id, "end_index": end_index, "target_id": target_id}
 	if controller.mission_manager.has_method("clear_manipulator"):
 		controller.mission_manager.call("clear_manipulator")
 	var result: Dictionary = _build_result(true, "%s (%s): Cable plugged in. | Action: plug_in" % [updated.get("display_name", "Object"), updated.get("state", "unknown")], updated, target_position, connect_report, "ok")

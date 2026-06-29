@@ -272,7 +272,7 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 		if network_id.is_empty() or str(obj.get("power_network_id", "")) == network_id or str(obj.get("power_source_id", "")) == network_id:
 			if not _is_power_source_object(obj):
 				_apply_powered_state(obj, false)
-				obj["physical_connection_source_id"] = ""
+				obj["resolved_source_id"] = ""
 		WorldObjectCatalogRef.update_world_object_heat_state(obj)
 	# main_power_net is the explicit virtual-network exception. Every other
 	# source-owned network must earn physical provenance through traversal.
@@ -318,8 +318,7 @@ static func recalculate_network(objects: Array[Dictionary], network_id: String) 
 				continue
 			if not _can_traverse(current_obj):
 				continue
-			current_obj["power_source_id"] = source_id
-			current_obj["physical_connection_source_id"] = source_id
+			current_obj["resolved_source_id"] = source_id
 			_apply_powered_state(current_obj, true)
 			var current_type: String = _normalize_type(current_obj.get("object_type", ""))
 			var next_cells: Array[Vector2i] = []
