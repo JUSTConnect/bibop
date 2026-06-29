@@ -44,6 +44,7 @@ jobs:
           python tools/check_binding_store.py
           python tools/check_runtime_readiness_service.py
           python tools/check_event_driven_runtime_hud.py
+          python tools/check_canonical_runtime_ownership.py
 
       - name: Godot import smoke
         run: |
@@ -62,6 +63,9 @@ jobs:
 
       - name: Entity contract consistency gate
         run: godot --headless --path . --script res://tools/ci/check_entity_contract_consistency.gd
+
+      - name: Entity status evaluator gate
+        run: godot --headless --path . --script res://tools/ci/check_entity_status_evaluator.gd
 
       - name: World state store behavior gate
         run: |
