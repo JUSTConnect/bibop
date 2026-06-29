@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import runpy
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
@@ -8,6 +9,7 @@ migration_path = root / "scripts/world/versioned_snapshot_migration_service.gd"
 workflow_path = root / ".github/workflows/godot-parser-gate.yml"
 mission_path = root / "scripts/game/mission_manager.gd"
 prefab_path = root / "scripts/game/map_constructor_prefab_catalog.gd"
+ownership_guard_path = root / "tools/check_canonical_runtime_ownership.py"
 
 wss = wss_path.read_text() if wss_path.exists() else ""
 contract = contract_path.read_text() if contract_path.exists() else ""
@@ -100,5 +102,16 @@ checks = [
 failed = [name for name, ok in checks if not ok]
 for name, ok in checks:
     print(("OK: " if ok else "FAIL: ") + name)
+
+if not ownership_guard_path.exists():
+    print("FAIL: canonical runtime ownership guard is missing")
+    failed.append("canonical runtime ownership guard is missing")
+else:
+    try:
+        runpy.run_path(str(ownership_guard_path), run_name="__main__")
+    except SystemExit as error:
+        if error.code not in (None, 0):
+            failed.append("canonical runtime ownership guard failed")
+
 if failed:
     raise SystemExit(1)
