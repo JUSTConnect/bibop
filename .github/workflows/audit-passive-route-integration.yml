@@ -1,0 +1,51 @@
+name: Audit Passive Route Integration
+
+on:
+  pull_request:
+
+jobs:
+  audit-passive-route-integration:
+    if: github.event.pull_request.number == 1200
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture exact integration contexts
+        run: |
+          mkdir -p /tmp/passive-route-integration
+          {
+            echo '## catalog function declarations'
+            grep -nE '^static func (normalize_world_object_contract|normalize_.*contract|get_archetype_property_schema)' scripts/world/world_object_catalog.gd || true
+            for line in $(grep -nE '^static func (normalize_world_object_contract|normalize_.*contract)' scripts/world/world_object_catalog.gd | cut -d: -f1); do
+              start=$((line-8)); [ "$start" -lt 1 ] && start=1
+              end=$((line+150))
+              echo "--- catalog:${start}-${end} ---"
+              sed -n "${start},${end}p" scripts/world/world_object_catalog.gd
+            done
+            echo '## inspector cooling functions'
+            grep -nE '^static func (_render_cooling_system_controls|_get_cooling_objects_by_id|_is_cooling_routing_object|_normalize_cooling)' scripts/ui/map_constructor/map_constructor_inspector.gd || true
+            for line in $(grep -nE '^static func (_render_cooling_system_controls|_get_cooling_objects_by_id|_is_cooling_routing_object)' scripts/ui/map_constructor/map_constructor_inspector.gd | cut -d: -f1); do
+              start=$((line-10)); [ "$start" -lt 1 ] && start=1
+              end=$((line+110))
+              echo "--- inspector:${start}-${end} ---"
+              sed -n "${start},${end}p" scripts/ui/map_constructor/map_constructor_inspector.gd
+            done
+            echo '## renderer route consumers'
+            grep -nE '^func (draw_wall_routing_utility|get_cooling_wall_canvas_visible_faces|draw_inner_wall_route_port|draw_outer_wall_route_surface)' scripts/field/room_visual_renderer.gd || true
+            for line in $(grep -nE '^func (draw_wall_routing_utility|get_cooling_wall_canvas_visible_faces)' scripts/field/room_visual_renderer.gd | cut -d: -f1); do
+              start=$((line-8)); [ "$start" -lt 1 ] && start=1
+              end=$((line+90))
+              echo "--- renderer:${start}-${end} ---"
+              sed -n "${start},${end}p" scripts/field/room_visual_renderer.gd
+            done
+            echo '## validation issue block'
+            grep -nE 'contour_objects_by_id|collect_contour' scripts/game/map_constructor_validation_service.gd || true
+            echo '## airflow path block'
+            grep -nE '^static func (_cell_has_path_role|_has_airflow_role)' scripts/game/bipob_airflow_runtime_service.gd || true
+            echo '## entity contract fields'
+            sed -n '1,55p' scripts/world/entity_definition_contract.gd
+          } > /tmp/passive-route-integration/context.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: passive-route-integration-context
+          path: /tmp/passive-route-integration/context.txt
+          if-no-files-found: error
