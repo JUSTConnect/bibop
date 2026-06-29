@@ -110,6 +110,7 @@ func replace_world_state_serialized_snapshot(snapshot: Dictionary) -> Dictionary
 	if center_storage is Dictionary:
 		migrated_center_storage_state = Dictionary(center_storage).duplicate(true)
 	var result: Dictionary = world_result.duplicate(true)
+	result["success"] = bool(world_result.get("ok", false))
 	result["migration"] = migration.duplicate(true)
 	result["migration_issues"] = Array(migration.get("issues", [])).duplicate(true)
 	result["source_format_version"] = int(migration.get("source_format_version", 0))
