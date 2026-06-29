@@ -89,27 +89,31 @@ const RESULT_CODES: Array[String] = [
 	CODE_ACTION_INVALID
 ]
 
+static func migrate_legacy_reel(source: Dictionary) -> Dictionary:
+	var migrated: Dictionary = source.duplicate(true)
+	if not migrated.get(END_1, {}) is Dictionary or Dictionary(migrated.get(END_1, {})).is_empty():
+		migrated[END_1] = {"state":str(migrated.get("end_1_state", END_ON_REEL)), "target_id":str(migrated.get("end_1_target_id", ""))}
+	if not migrated.get(END_2, {}) is Dictionary or Dictionary(migrated.get(END_2, {})).is_empty():
+		migrated[END_2] = {"state":str(migrated.get("end_2_state", END_ON_REEL)), "target_id":str(migrated.get("end_2_target_id", ""))}
+	if not migrated.has("path_cells") and migrated.has("cable_path_cells"):
+		migrated["path_cells"] = Array(migrated.get("cable_path_cells", [])).duplicate(true)
+	return canonicalize_reel(migrated)
+
 static func canonicalize_reel(reel: Dictionary) -> Dictionary:
 	var result: Dictionary = reel.duplicate(true)
 	result["format_version"] = FORMAT_VERSION
 	result["runtime_power_profile"] = "power_cable_reel"
-	result[END_1] = _canonical_endpoint(
-		result.get(END_1, {}),
-		result.get("end_1_state", END_ON_REEL),
-		result.get("end_1_target_id", "")
-	)
-	result[END_2] = _canonical_endpoint(
-		result.get(END_2, {}),
-		result.get("end_2_state", END_ON_REEL),
-		result.get("end_2_target_id", "")
-	)
-	var raw_path: Variant = result.get("path_cells", result.get("cable_path_cells", []))
-	result["path_cells"] = _to_cells(raw_path)
+	result[END_1] = _canonical_endpoint(result.get(END_1, {}))
+	result[END_2] = _canonical_endpoint(result.get(END_2, {}))
+	result["path_cells"] = _to_cells(result.get("path_cells", []))
 	result["connection_state"] = str(result.get("connection_state", CONNECTION_DISCONNECTED)).strip_edges().to_lower()
 	if str(result.get("connection_state", "")) not in [CONNECTION_DISCONNECTED, CONNECTION_PARTIAL, CONNECTION_COMPLETE, CONNECTION_INVALID, CONNECTION_BROKEN]:
 		result["connection_state"] = CONNECTION_INVALID
 	result["reconnect_required"] = bool(result.get("reconnect_required", false))
-	_sync_legacy_aliases(result)
+	for legacy_field in ["end_1_state", "end_1_target_id", "end_2_state", "end_2_target_id", "cable_path_cells", "connected_side_1", "connected_side_2", "connected", "disconnected"]:
+		result.erase(legacy_field)
+	result["cable_length"] = maxi(0, Array(result.get("path_cells", [])).size() - 1)
+	result["is_connected"] = _both_ends_connected(result)
 	return result
 
 static func make_default_reel(reel_id: String, max_length: int = 0) -> Dictionary:
@@ -230,7 +234,6 @@ static func recalculate_world(objects: Array[Dictionary], reel_id: String, block
 	var reel: Dictionary = canonicalize_reel(Dictionary(object_by_id[reel_id]))
 	var resolution: Dictionary = resolve_connection(reel, object_by_id, blocked_cells)
 	reel["connection_state"] = str(resolution.get("connection_state", CONNECTION_INVALID))
-	_sync_legacy_aliases(reel)
 	var reel_index: int = _find_object_index(objects, reel_id)
 	if reel_index >= 0:
 		objects[reel_index] = reel
@@ -382,7 +385,6 @@ static func _preview_mutation(reel: Dictionary, action: String, parameters: Dict
 		if str(reconnect_resolution.get("connection_state", "")) != CONNECTION_COMPLETE:
 			return _result(false, str(reconnect_resolution.get("code", CODE_PATH_INVALID)), reel, Dictionary(reconnect_resolution.get("details", {})))
 		next_reel["reconnect_required"] = false
-	_sync_legacy_aliases(next_reel)
 	return {
 		"ok": true,
 		"success": true,
@@ -541,32 +543,17 @@ static func _result(success: bool, code: String, reel: Dictionary, details: Dict
 		"notification_event": {}
 	}
 
-static func _canonical_endpoint(value: Variant, legacy_state: Variant, legacy_target_id: Variant) -> Dictionary:
+static func _canonical_endpoint(value: Variant) -> Dictionary:
 	var endpoint: Dictionary = {}
 	if value is Dictionary:
 		endpoint = Dictionary(value).duplicate(true)
-	var state: String = str(endpoint.get("state", legacy_state)).strip_edges().to_lower()
+	var state: String = str(endpoint.get("state", END_ON_REEL)).strip_edges().to_lower()
 	if state not in END_STATES:
 		state = END_ON_REEL
-	var target_id: String = str(endpoint.get("target_id", legacy_target_id)).strip_edges()
+	var target_id: String = str(endpoint.get("target_id", "")).strip_edges()
 	if state != END_CONNECTED:
 		target_id = ""
-	return {"state": state, "target_id": target_id}
-
-static func _sync_legacy_aliases(reel: Dictionary) -> void:
-	var end_1: Dictionary = Dictionary(reel.get(END_1, {}))
-	var end_2: Dictionary = Dictionary(reel.get(END_2, {}))
-	reel["end_1_state"] = str(end_1.get("state", END_ON_REEL))
-	reel["end_1_target_id"] = str(end_1.get("target_id", ""))
-	reel["end_2_state"] = str(end_2.get("state", END_ON_REEL))
-	reel["end_2_target_id"] = str(end_2.get("target_id", ""))
-	reel["cable_path_cells"] = Array(reel.get("path_cells", [])).duplicate()
-	reel["cable_length"] = maxi(0, Array(reel.get("path_cells", [])).size() - 1)
-	reel["connected_side_1"] = str(end_1.get("state", "")) == END_CONNECTED
-	reel["connected_side_2"] = str(end_2.get("state", "")) == END_CONNECTED
-	reel["is_connected"] = _both_ends_connected(reel)
-	reel["connected"] = bool(reel.get("is_connected", false))
-	reel["disconnected"] = not bool(reel.get("is_connected", false))
+	return {"state":state, "target_id":target_id}
 
 static func _find_endpoint_occupant(objects: Array[Dictionary], target_id: String, excluding_reel_id: String, excluding_end: String) -> Dictionary:
 	for object_data in objects:

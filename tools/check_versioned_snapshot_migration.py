@@ -47,7 +47,7 @@ checks = [
     ("logical bindings migrate before field cleanup", "BindingStoreContractRef.legacy_candidates" in service and "strip_legacy_logical_links" in service),
     ("physical bindings excluded", "PHYSICAL_RELATION_ROLES" in service and "CODE_BINDING_PHYSICAL_REMOVED" in service),
     ("Details migration centralized", "DetailsCurrencyServiceRef.migrate_world_pickups" in service and "migrate_legacy_parts" in service),
-    ("reel migration centralized", "PowerCableReelServiceRef.canonicalize_reel" in service),
+    ("reel migration centralized", "PowerCableReelServiceRef.migrate_legacy_reel" in service),
     ("movable migration centralized", "MovableActionServiceRef.normalize_movable_contract" in service),
     ("passive route migration centralized", "PassiveRouteServiceRef.normalize_segment" in service),
     ("no proximity inference", "nearest" not in service.lower() and "distance_to" not in service),
