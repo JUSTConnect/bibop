@@ -1,0 +1,38 @@
+name: Fix Versioned Binding Source
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-binding-source:
+    if: github.event.pull_request.number == 1202
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Preserve raw legacy links for BindingStore migration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/world/versioned_snapshot_migration_service.gd')
+          text = path.read_text()
+          old = '\tvar binding_result: Dictionary = _migrate_bindings(snapshot, canonical_entities, entities_by_id, issues)\n'
+          new = '\tvar binding_result: Dictionary = _migrate_bindings(snapshot, raw_entities, entities_by_id, issues)\n'
+          if text.count(old) != 1:
+              raise SystemExit('binding migration call marker missing')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit fix and remove debug workflow
+        run: |
+          rm -f .github/workflows/versioned-migration-debug.yml
+          rm -f .github/workflows/fix-versioned-binding-source.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/world/versioned_snapshot_migration_service.gd .github/workflows/versioned-migration-debug.yml .github/workflows/fix-versioned-binding-source.yml
+          git commit -m "Build legacy bindings before entity cleanup"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
