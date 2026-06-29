@@ -118,7 +118,7 @@ static func _step_v1_to_v2(source: Dictionary, issues: Array[Dictionary]) -> Dic
 	if _has_fatal(issues):
 		return {"success":false, "snapshot":snapshot}
 
-	var binding_result: Dictionary = _migrate_bindings(snapshot, canonical_entities, entities_by_id, issues)
+	var binding_result: Dictionary = _migrate_bindings(snapshot, raw_entities, entities_by_id, issues)
 	if not bool(binding_result.get("success", false)):
 		return {"success":false, "snapshot":snapshot}
 	var stripped_entities: Array[Dictionary] = []
