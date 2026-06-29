@@ -62,6 +62,9 @@ jobs:
       - name: Entity contract consistency gate
         run: godot --headless --path . --script res://tools/ci/check_entity_contract_consistency.gd
 
+      - name: Entity status evaluator gate
+        run: godot --headless --path . --script res://tools/ci/check_entity_status_evaluator.gd
+
       - name: World state store behavior gate
         run: |
           godot --headless --path . --script res://tools/ci/check_world_state_store.gd
