@@ -1,0 +1,32 @@
+name: Canonical Runtime Ownership V2 Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  canonical-runtime-ownership-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Static ownership gate
+        run: |
+          git diff --check
+          python tools/check_canonical_runtime_ownership_v2.py
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+
+      - name: Godot import smoke
+        run: godot --headless --path . --import
+
+      - name: Canonical ownership behavior gate
+        run: timeout 120s godot --headless --path . --script res://tools/ci/check_canonical_runtime_ownership.gd
