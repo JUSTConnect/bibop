@@ -1,0 +1,41 @@
+name: Wire Versioned Migration Gates
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  wire-gates:
+    if: github.event.pull_request.number == 1202
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Patch permanent workflow
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/versioned-migration-contract-gate.yml')
+          text = path.read_text()
+          checkout = '      - name: Set up Godot\n'
+          static = '      - name: Static architecture gate\n        run: |\n          git diff --check\n          python tools/check_versioned_snapshot_migration.py\n\n'
+          if 'check_versioned_snapshot_migration.py' not in text:
+              text = text.replace(checkout, static + checkout, 1)
+          behavior = '      - name: Versioned migration behavior gate\n        run: timeout 120s godot --headless --path . --script res://tools/ci/check_versioned_snapshot_migration.gd\n'
+          extra = '\n      - name: MissionManager migration integration gate\n        run: timeout 120s godot --headless --path . --script res://tools/ci/check_versioned_snapshot_migration_mission_manager.gd\n\n      - name: Map Constructor preset migration gate\n        run: timeout 120s godot --headless --path . --script res://tools/ci/check_versioned_map_constructor_preset.gd\n'
+          if 'check_versioned_snapshot_migration_mission_manager.gd' not in text:
+              text = text.replace(behavior, behavior + extra, 1)
+          path.write_text(text)
+          PY
+      - name: Commit permanent gate
+        run: |
+          rm -f .github/workflows/wire-versioned-migration-gates.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/versioned-migration-contract-gate.yml .github/workflows/wire-versioned-migration-gates.yml
+          git commit -m "Run full versioned migration contract suite"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
