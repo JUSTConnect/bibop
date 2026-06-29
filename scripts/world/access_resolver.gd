@@ -9,14 +9,7 @@ const ACCESS_DIGITAL_KEY := "digital_key"
 const ACCESS_CODE := "access_code"
 const ACCESS_TERMINAL := "terminal"
 const ACCESS_MULTI_FACTOR := "multi_factor"
-const ACCESS_TYPES: Array[String] = [
-	ACCESS_NONE,
-	ACCESS_KEY_CARD,
-	ACCESS_DIGITAL_KEY,
-	ACCESS_CODE,
-	ACCESS_TERMINAL,
-	ACCESS_MULTI_FACTOR
-]
+const ACCESS_TYPES: Array[String] = [ACCESS_NONE, ACCESS_KEY_CARD, ACCESS_DIGITAL_KEY, ACCESS_CODE, ACCESS_TERMINAL, ACCESS_MULTI_FACTOR]
 
 const OP_ALL_OF := "all_of"
 const OP_ANY_OF := "any_of"
@@ -60,38 +53,29 @@ static func normalize_access_type(value: Variant) -> String:
 static func resolve(target: Dictionary, context: Dictionary, bindings: Array[Dictionary], entities_by_id: Dictionary) -> Dictionary:
 	var target_id: String = str(target.get("id", "")).strip_edges()
 	if target_id.is_empty() or not entities_by_id.has(target_id):
-		return _result(false, CODE_TARGET_MISSING, target_id, ACCESS_NONE, [], [], [], [], {}, [{"code":CODE_TARGET_MISSING}])
+		return _result(false, CODE_TARGET_MISSING, target_id, ACCESS_NONE, {}, [{"code":CODE_TARGET_MISSING}])
 	var profile: Dictionary = _profile_for(target)
-	var access_type: String = normalize_access_type(profile.get("access_type", target.get("access_type", target.get("lock_type", ACCESS_NONE))))
+	var access_type: String = normalize_access_type(profile.get("access_type", ACCESS_NONE))
 	if access_type not in ACCESS_TYPES:
-		return _result(false, CODE_INVALID_STRUCTURE, target_id, access_type, [], [], [], [], {}, [{"code":CODE_INVALID_STRUCTURE, "field":"access_type", "value":access_type}])
+		return _result(false, CODE_INVALID_STRUCTURE, target_id, access_type, {}, [{"code":CODE_INVALID_STRUCTURE, "field":"access_type", "value":access_type}])
 	if access_type == ACCESS_NONE:
-		return _result(true, CODE_NOT_REQUIRED, target_id, access_type, [], [], [], [], _success_patch(target, profile), [])
+		return _result(true, CODE_NOT_REQUIRED, target_id, access_type, _branch(true, CODE_NOT_REQUIRED, access_type), [], _success_patch(target, profile))
 	var diagnostics: Array[Dictionary] = []
 	var evaluated: Dictionary
 	if access_type == ACCESS_MULTI_FACTOR:
 		var root: Variant = profile.get("root", profile.get("requirement", null))
 		if not root is Dictionary:
-			return _result(false, CODE_PROFILE_MISSING, target_id, access_type, [], [], [], [], {}, [{"code":CODE_PROFILE_MISSING, "field":"root"}])
+			return _result(false, CODE_PROFILE_MISSING, target_id, access_type, {}, [{"code":CODE_PROFILE_MISSING, "field":"root"}])
 		evaluated = _evaluate_node(Dictionary(root), target, context, bindings, entities_by_id, profile, [], diagnostics)
 	else:
 		evaluated = _evaluate_factor({"access_type":access_type, "factor_id":str(profile.get("factor_id", ""))}, target, context, bindings, entities_by_id)
 	var granted: bool = bool(evaluated.get("granted", false))
 	var code: String = CODE_GRANTED if granted else str(evaluated.get("reason_code", CODE_GROUP_FAILED))
-	var matched_binding_ids: Array[String] = _unique_strings(evaluated.get("matched_binding_ids", []))
-	var matched_source_ids: Array[String] = _unique_strings(evaluated.get("matched_source_ids", []))
-	var consumption_plan: Array[Dictionary] = _deduplicate_consumption_plan(Array(evaluated.get("consumption_plan", [])))
-	var branches: Array[Dictionary] = []
-	if evaluated.has("branch_results"):
-		for branch in Array(evaluated.get("branch_results", [])):
-			if branch is Dictionary:
-				branches.append(Dictionary(branch).duplicate(true))
-	var target_patch: Dictionary = _success_patch(target, profile) if granted else {}
-	return _result(granted, code, target_id, access_type, branches, matched_binding_ids, matched_source_ids, consumption_plan, target_patch, diagnostics, Dictionary(evaluated.get("details", {})))
+	return _result(granted, code, target_id, access_type, evaluated, diagnostics, _success_patch(target, profile) if granted else {})
 
 static func validate_profile(target: Dictionary) -> Dictionary:
 	var profile: Dictionary = _profile_for(target)
-	var access_type: String = normalize_access_type(profile.get("access_type", target.get("access_type", target.get("lock_type", ACCESS_NONE))))
+	var access_type: String = normalize_access_type(profile.get("access_type", ACCESS_NONE))
 	var diagnostics: Array[Dictionary] = []
 	if access_type not in ACCESS_TYPES:
 		diagnostics.append({"code":CODE_INVALID_STRUCTURE, "field":"access_type", "value":access_type})
@@ -101,14 +85,8 @@ static func validate_profile(target: Dictionary) -> Dictionary:
 			diagnostics.append({"code":CODE_PROFILE_MISSING, "field":"root"})
 		else:
 			_validate_node(Dictionary(root), profile, [], diagnostics)
-	return {
-		"ok":diagnostics.is_empty(),
-		"success":diagnostics.is_empty(),
-		"code":"access.profile_valid" if diagnostics.is_empty() else str(diagnostics[0].get("code", CODE_INVALID_STRUCTURE)),
-		"reason_code":"access.profile_valid" if diagnostics.is_empty() else str(diagnostics[0].get("code", CODE_INVALID_STRUCTURE)),
-		"access_type":access_type,
-		"diagnostics":diagnostics
-	}
+	var code: String = "access.profile_valid" if diagnostics.is_empty() else str(diagnostics[0].get("code", CODE_INVALID_STRUCTURE))
+	return {"ok":diagnostics.is_empty(), "success":diagnostics.is_empty(), "code":code, "reason_code":code, "access_type":access_type, "diagnostics":diagnostics}
 
 static func apply_consumption_plan(inventory_state: Dictionary, consumption_plan: Array[Dictionary]) -> Dictionary:
 	var next_inventory: Dictionary = inventory_state.duplicate(true)
@@ -120,9 +98,8 @@ static func apply_consumption_plan(inventory_state: Dictionary, consumption_plan
 		if item_id.is_empty():
 			continue
 		for field_name in ["pocket_items", "box_storage", "digital_buffer", "digital_storage", "collected_key_ids"]:
-			var values: Array = Array(next_inventory.get(field_name, [])).duplicate(true)
 			var filtered: Array = []
-			for value in values:
+			for value in Array(next_inventory.get(field_name, [])):
 				if _item_id(value) != item_id:
 					filtered.append(value)
 			next_inventory[field_name] = filtered
@@ -138,14 +115,7 @@ static func apply_consumption_plan(inventory_state: Dictionary, consumption_plan
 		if not previous_consumed.has(item_id):
 			previous_consumed.append(item_id)
 	next_inventory["consumed_item_ids"] = previous_consumed
-	return {
-		"ok":true,
-		"success":true,
-		"code":"access.consumption_applied",
-		"reason_code":"access.consumption_applied",
-		"inventory":next_inventory,
-		"consumed_item_ids":consumed_ids
-	}
+	return {"ok":true, "success":true, "code":"access.consumption_applied", "reason_code":"access.consumption_applied", "inventory":next_inventory, "consumed_item_ids":consumed_ids}
 
 static func _evaluate_node(node: Dictionary, target: Dictionary, context: Dictionary, bindings: Array[Dictionary], entities_by_id: Dictionary, profile: Dictionary, stack: Array[String], diagnostics: Array[Dictionary]) -> Dictionary:
 	var group_ref: String = str(node.get("group_ref", "")).strip_edges()
@@ -167,39 +137,47 @@ static func _evaluate_node(node: Dictionary, target: Dictionary, context: Dictio
 		return _evaluate_node(referenced, target, context, bindings, entities_by_id, profile, next_stack, diagnostics)
 	var operator: String = str(node.get("operator", node.get("type", ""))).strip_edges().to_lower().replace(" ", "_").replace("-", "_")
 	if operator in GROUP_OPERATORS:
-		var group_id: String = str(node.get("group_id", node.get("id", ""))).strip_edges()
-		var children_value: Variant = node.get("children", node.get("requirements", []))
-		if not children_value is Array or Array(children_value).is_empty():
-			diagnostics.append({"code":CODE_INVALID_STRUCTURE, "group_id":group_id, "reason":"children_missing"})
-			return _branch(false, CODE_INVALID_STRUCTURE, ACCESS_MULTI_FACTOR, group_id)
-		var child_results: Array[Dictionary] = []
-		var all_binding_ids: Array[String] = []
-		var all_source_ids: Array[String] = []
-		var plan: Array[Dictionary] = []
-		var granted_count: int = 0
-		var first_blocker: String = ""
-		for child_value in Array(children_value):
-			if not child_value is Dictionary:
-				var invalid_child: Dictionary = _branch(false, CODE_INVALID_STRUCTURE, ACCESS_MULTI_FACTOR, "")
-				child_results.append(invalid_child)
-				if first_blocker.is_empty():
-					first_blocker = CODE_INVALID_STRUCTURE
-				continue
-			var child_result: Dictionary = _evaluate_node(Dictionary(child_value), target, context, bindings, entities_by_id, profile, stack, diagnostics)
-			child_results.append(child_result)
-			if bool(child_result.get("granted", false)):
-				granted_count += 1
-			elif first_blocker.is_empty():
-				first_blocker = str(child_result.get("reason_code", CODE_GROUP_FAILED))
-			all_binding_ids.append_array(_unique_strings(child_result.get("matched_binding_ids", [])))
-			all_source_ids.append_array(_unique_strings(child_result.get("matched_source_ids", [])))
-			for plan_entry in Array(child_result.get("consumption_plan", [])):
-				if plan_entry is Dictionary:
-					plan.append(Dictionary(plan_entry).duplicate(true))
-		var group_granted: bool = granted_count == child_results.size() if operator == OP_ALL_OF else granted_count > 0
-		var reason: String = CODE_GRANTED if group_granted else first_blocker if not first_blocker.is_empty() else CODE_GROUP_FAILED
-		return _branch(group_granted, reason, ACCESS_MULTI_FACTOR, group_id, child_results, _unique_strings(all_binding_ids), _unique_strings(all_source_ids), _deduplicate_consumption_plan(plan), {"operator":operator, "granted_count":granted_count, "branch_count":child_results.size()})
+		return _evaluate_group(operator, node, target, context, bindings, entities_by_id, profile, stack, diagnostics)
 	return _evaluate_factor(node, target, context, bindings, entities_by_id)
+
+static func _evaluate_group(operator: String, node: Dictionary, target: Dictionary, context: Dictionary, bindings: Array[Dictionary], entities_by_id: Dictionary, profile: Dictionary, stack: Array[String], diagnostics: Array[Dictionary]) -> Dictionary:
+	var group_id: String = str(node.get("group_id", node.get("id", ""))).strip_edges()
+	var children_value: Variant = node.get("children", node.get("requirements", []))
+	if not children_value is Array or Array(children_value).is_empty():
+		diagnostics.append({"code":CODE_INVALID_STRUCTURE, "group_id":group_id, "reason":"children_missing"})
+		return _branch(false, CODE_INVALID_STRUCTURE, ACCESS_MULTI_FACTOR, group_id)
+	var child_results: Array[Dictionary] = []
+	var first_blocker: String = ""
+	var first_success: Dictionary = {}
+	var all_granted: bool = true
+	for child_value in Array(children_value):
+		var child_result: Dictionary
+		if child_value is Dictionary:
+			child_result = _evaluate_node(Dictionary(child_value), target, context, bindings, entities_by_id, profile, stack, diagnostics)
+		else:
+			child_result = _branch(false, CODE_INVALID_STRUCTURE, ACCESS_MULTI_FACTOR)
+			diagnostics.append({"code":CODE_INVALID_STRUCTURE, "group_id":group_id, "reason":"child_not_dictionary"})
+		child_results.append(child_result)
+		if bool(child_result.get("granted", false)):
+			if first_success.is_empty():
+				first_success = child_result
+		else:
+			all_granted = false
+			if first_blocker.is_empty():
+				first_blocker = str(child_result.get("reason_code", CODE_GROUP_FAILED))
+	var group_granted: bool = all_granted if operator == OP_ALL_OF else not first_success.is_empty()
+	if not group_granted:
+		return _branch(false, first_blocker if not first_blocker.is_empty() else CODE_GROUP_FAILED, ACCESS_MULTI_FACTOR, group_id, child_results, [], [], [], {"operator":operator, "branch_count":child_results.size()})
+	if operator == OP_ANY_OF:
+		return _branch(true, CODE_GRANTED, ACCESS_MULTI_FACTOR, group_id, child_results, _strings(first_success.get("matched_binding_ids", [])), _strings(first_success.get("matched_source_ids", [])), _plans(first_success.get("consumption_plan", [])), {"operator":operator, "selected_factor_id":str(first_success.get("factor_id", "")), "branch_count":child_results.size()})
+	var binding_ids: Array[String] = []
+	var source_ids: Array[String] = []
+	var plan: Array[Dictionary] = []
+	for child_result in child_results:
+		binding_ids.append_array(_strings(child_result.get("matched_binding_ids", [])))
+		source_ids.append_array(_strings(child_result.get("matched_source_ids", [])))
+		plan.append_array(_plans(child_result.get("consumption_plan", [])))
+	return _branch(true, CODE_GRANTED, ACCESS_MULTI_FACTOR, group_id, child_results, _unique_strings(binding_ids), _unique_strings(source_ids), _deduplicate_consumption_plan(plan), {"operator":operator, "branch_count":child_results.size()})
 
 static func _evaluate_factor(factor: Dictionary, target: Dictionary, context: Dictionary, bindings: Array[Dictionary], entities_by_id: Dictionary) -> Dictionary:
 	var access_type: String = normalize_access_type(factor.get("access_type", factor.get("type", "")))
@@ -208,9 +186,8 @@ static func _evaluate_factor(factor: Dictionary, target: Dictionary, context: Di
 		return _branch(true, CODE_NOT_REQUIRED, access_type, factor_id)
 	if access_type not in [ACCESS_KEY_CARD, ACCESS_DIGITAL_KEY, ACCESS_CODE, ACCESS_TERMINAL]:
 		return _branch(false, CODE_INVALID_STRUCTURE, access_type, factor_id)
-	var target_id: String = str(target.get("id", "")).strip_edges()
 	var role: String = BindingStoreContractRef.ROLE_ACCESS_TERMINAL if access_type == ACCESS_TERMINAL else BindingStoreContractRef.ROLE_ACCESS_ITEM
-	var candidates: Array[Dictionary] = _bindings_for_target(bindings, target_id, role, factor_id)
+	var candidates: Array[Dictionary] = _bindings_for_target(bindings, str(target.get("id", "")), role, factor_id)
 	if candidates.is_empty():
 		return _branch(false, CODE_BINDING_MISSING, access_type, factor_id)
 	var first_failure: Dictionary = {}
@@ -224,10 +201,10 @@ static func _evaluate_factor(factor: Dictionary, target: Dictionary, context: Di
 		var source: Dictionary = Dictionary(entities_by_id[source_id])
 		var source_result: Dictionary = _evaluate_terminal(source, source_id, context) if access_type == ACCESS_TERMINAL else _evaluate_credential(source, source_id, access_type, context)
 		if bool(source_result.get("granted", false)):
-			var consumption_plan: Array[Dictionary] = []
+			var plan: Array[Dictionary] = []
 			if access_type != ACCESS_TERMINAL:
-				consumption_plan.append({"item_id":source_id, "consume_on_use":bool(source.get("consume_on_use", false)), "binding_id":binding_id, "factor_id":factor_id})
-			return _branch(true, CODE_GRANTED, access_type, factor_id, [], [binding_id], [source_id], consumption_plan, Dictionary(source_result.get("details", {})))
+				plan.append({"item_id":source_id, "consume_on_use":bool(source.get("consume_on_use", false)), "binding_id":binding_id, "factor_id":factor_id})
+			return _branch(true, CODE_GRANTED, access_type, factor_id, [], [binding_id], [source_id], plan, Dictionary(source_result.get("details", {})))
 		if first_failure.is_empty():
 			first_failure = _branch(false, str(source_result.get("reason_code", CODE_CREDENTIAL_MISSING)), access_type, factor_id, [], [binding_id], [source_id], [], Dictionary(source_result.get("details", {})))
 	return first_failure if not first_failure.is_empty() else _branch(false, CODE_BINDING_MISSING, access_type, factor_id)
@@ -262,12 +239,9 @@ static func _evaluate_terminal(source: Dictionary, source_id: String, context: D
 static func _bindings_for_target(bindings: Array[Dictionary], target_id: String, role: String, factor_id: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for binding in bindings:
-		if str(binding.get("role", "")).strip_edges().to_lower() != role:
+		if str(binding.get("role", "")).strip_edges().to_lower() != role or str(binding.get("target_id", "")).strip_edges() != target_id:
 			continue
-		if str(binding.get("target_id", "")).strip_edges() != target_id:
-			continue
-		var parameters: Dictionary = Dictionary(binding.get("parameters", {}))
-		var binding_factor_id: String = str(parameters.get("factor_id", "")).strip_edges()
+		var binding_factor_id: String = str(Dictionary(binding.get("parameters", {})).get("factor_id", "")).strip_edges()
 		if not factor_id.is_empty() and binding_factor_id != factor_id:
 			continue
 		result.append(binding.duplicate(true))
@@ -297,7 +271,9 @@ static func _validate_node(node: Dictionary, profile: Dictionary, stack: Array[S
 	var group_ref: String = str(node.get("group_ref", "")).strip_edges()
 	if not group_ref.is_empty():
 		if stack.has(group_ref):
-			diagnostics.append({"code":CODE_CYCLE, "group_id":group_ref, "cycle":stack + [group_ref]})
+			var cycle: Array[String] = stack.duplicate()
+			cycle.append(group_ref)
+			diagnostics.append({"code":CODE_CYCLE, "group_id":group_ref, "cycle":cycle})
 			return
 		var groups: Dictionary = Dictionary(profile.get("groups", {}))
 		if not groups.has(group_ref) or not groups[group_ref] is Dictionary:
@@ -371,6 +347,17 @@ static func _is_terminal(source: Dictionary) -> bool:
 	var object_type: String = str(source.get("object_type", "")).strip_edges().to_lower()
 	return object_group == "terminal" or object_type in ["terminal", "information_terminal", "control_terminal", "access_terminal"]
 
+static func _plans(value: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if value is Array:
+		for entry in Array(value):
+			if entry is Dictionary:
+				result.append(Dictionary(entry).duplicate(true))
+	return result
+
+static func _strings(value: Variant) -> Array[String]:
+	return _unique_strings(value)
+
 static func _deduplicate_consumption_plan(plan: Array) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var seen: Dictionary = {}
@@ -396,21 +383,10 @@ static func _unique_strings(values: Variant) -> Array[String]:
 	result.sort()
 	return result
 
-static func _branch(granted: bool, reason_code: String, access_type: String, factor_id: String, branch_results: Array[Dictionary] = [], matched_binding_ids: Array[String] = [], matched_source_ids: Array[String] = [], consumption_plan: Array[Dictionary] = [], details: Dictionary = {}) -> Dictionary:
-	return {
-		"granted":granted,
-		"success":granted,
-		"reason_code":reason_code,
-		"access_type":access_type,
-		"factor_id":factor_id,
-		"branch_results":branch_results.duplicate(true),
-		"matched_binding_ids":_unique_strings(matched_binding_ids),
-		"matched_source_ids":_unique_strings(matched_source_ids),
-		"consumption_plan":_deduplicate_consumption_plan(consumption_plan),
-		"details":details.duplicate(true)
-	}
+static func _branch(granted: bool, reason_code: String, access_type: String, factor_id: String = "", branch_results: Array[Dictionary] = [], matched_binding_ids: Array[String] = [], matched_source_ids: Array[String] = [], consumption_plan: Array[Dictionary] = [], details: Dictionary = {}) -> Dictionary:
+	return {"granted":granted, "success":granted, "reason_code":reason_code, "access_type":access_type, "factor_id":factor_id, "branch_results":branch_results.duplicate(true), "matched_binding_ids":_unique_strings(matched_binding_ids), "matched_source_ids":_unique_strings(matched_source_ids), "consumption_plan":_deduplicate_consumption_plan(consumption_plan), "details":details.duplicate(true)}
 
-static func _result(granted: bool, code: String, target_id: String, access_type: String, branch_results: Array[Dictionary], matched_binding_ids: Array[String], matched_source_ids: Array[String], consumption_plan: Array[Dictionary], target_patch: Dictionary, diagnostics: Array[Dictionary], details: Dictionary = {}) -> Dictionary:
+static func _result(granted: bool, code: String, target_id: String, access_type: String, evaluated: Dictionary, diagnostics: Array[Dictionary], target_patch: Dictionary = {}) -> Dictionary:
 	var structurally_valid: bool = code not in [CODE_TARGET_MISSING, CODE_PROFILE_MISSING, CODE_INVALID_STRUCTURE, CODE_CYCLE]
 	return {
 		"ok":structurally_valid,
@@ -421,11 +397,11 @@ static func _result(granted: bool, code: String, target_id: String, access_type:
 		"first_blocking_reason_code":"" if granted else code,
 		"target_id":target_id,
 		"access_type":access_type,
-		"branch_results":branch_results.duplicate(true),
-		"matched_binding_ids":_unique_strings(matched_binding_ids),
-		"matched_source_ids":_unique_strings(matched_source_ids),
-		"consumption_plan":_deduplicate_consumption_plan(consumption_plan),
+		"branch_results":Array(evaluated.get("branch_results", [])).duplicate(true),
+		"matched_binding_ids":_unique_strings(evaluated.get("matched_binding_ids", [])),
+		"matched_source_ids":_unique_strings(evaluated.get("matched_source_ids", [])),
+		"consumption_plan":_deduplicate_consumption_plan(Array(evaluated.get("consumption_plan", []))),
 		"target_patch":target_patch.duplicate(true),
 		"diagnostics":diagnostics.duplicate(true),
-		"details":details.duplicate(true)
+		"details":Dictionary(evaluated.get("details", {})).duplicate(true)
 	}
