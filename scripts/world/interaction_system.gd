@@ -487,8 +487,11 @@ static func _validate_door_class(actor: Dictionary, target_object: Dictionary, a
 static func _is_keycard_item(target_object: Dictionary) -> bool:
 	return WorldObjectCatalogRef.is_key_card_item(target_object)
 
-static func _result(success: bool, message: String, effects: Array = [], reason: String = "") -> Dictionary:
-	return {"success": success, "message": message, "effects": effects, "reason": reason}
+static func _result(success: bool, message: String, effects: Array = [], reason: String = "", requirements: Array = []) -> Dictionary:
+	var reason_code: String = reason
+	if reason_code.is_empty():
+		reason_code = "" if success else "action_failed"
+	return {"success": success, "reason_code": reason_code, "requirements": requirements.duplicate(true), "message": message, "effects": effects.duplicate(true), "reason": reason_code}
 
 static func normalize_action_result(action_result: Dictionary, target_object: Dictionary, action_id: String = "") -> Dictionary:
 	if action_result.is_empty():

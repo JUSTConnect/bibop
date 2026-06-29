@@ -4,6 +4,7 @@ class_name BipobActionViewModelService
 const InteractionSystemRef = preload("res://scripts/world/interaction_system.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const EntityStatusEvaluatorRef = preload("res://scripts/world/entity_status_evaluator.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
@@ -159,7 +160,7 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		var module: Dictionary = controller.get_world_action_module(action_id, normalized_target)
 		var gate: Dictionary = InteractionSystemRef.can_apply_action(actor, module, normalized_target, action_id)
 		var enabled: bool = bool(gate.get("success", false))
-		var reason: String = str(gate.get("reason", "ok" if enabled else "action_unavailable"))
+		var reason: String = str(gate.get("reason_code", gate.get("reason", "" if enabled else "action_unavailable")))
 		var requires_free_manipulator: bool = _runtime_action_requires_free_manipulator(action_id, normalized_target)
 		if BreachableWallServiceRef.is_breachable_wall_data(normalized_target) and action_id == BreachableWallServiceRef.ACTION_BREAK_BREACHABLE_WALL:
 			var breach_payload: Dictionary = _build_breachable_wall_action_payload(controller, normalized_target, target_position)
@@ -170,7 +171,7 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 			enabled = false
 			reason = "terminal_unpowered"
 		var label: String = controller.get_world_action_display_label(action_id, normalized_target) if enabled else _runtime_action_disabled_label(controller, action_id, reason, normalized_target)
-		descriptors.append({"id":action_id, "label":label, "enabled":enabled, "reason":reason, "target_id":target_id, "target_type":target_type, "target_cell":target_position, "source":"world_object", "priority":100, "requires_free_manipulator":requires_free_manipulator, "module_id":str(module.get("id", "")), "module":module, "gate":gate})
+		descriptors.append(_canonical_action_descriptor(action_id, label, enabled, reason, Array(gate.get("requirements", [])), target_id, target_type, target_position, 100, requires_free_manipulator, module, gate))
 		if enabled:
 			available_action_ids.append(action_id)
 	var primary: Dictionary = {}
@@ -182,12 +183,128 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		primary = descriptors[0]
 	var disabled_reason: String = str(primary.get("reason", "target_missing" if normalized_target.is_empty() else "no_available_action"))
 	var has_interaction_target: bool = not normalized_target.is_empty() and (not descriptors.is_empty() or not wall_mount_gate.is_empty())
+	descriptors.sort_custom(func(a, b): return _sort_action_descriptors(a, b))
+	var presentation_context: Dictionary = {"mode":"runtime"}
 	var view_model: Dictionary = {"target":normalized_target, "actions":descriptors, "raw_action_ids":action_ids, "unfiltered_action_ids":raw_action_ids, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "has_interaction_target":has_interaction_target, "disabled_reason":disabled_reason}
+	view_model["presentation_snapshot"] = build_runtime_presentation_snapshot(controller, normalized_target, target_position, view_model, presentation_context)
 	if not wall_mount_gate.is_empty():
 		_trace_wall_mounted_interaction({"target_position": target_position, "object_id": target_id, "object_type": target_type, "actor_cell": wall_mount_gate.get("actor_cell", Vector2i(-1, -1)), "wall_cell": wall_mount_gate.get("wall_cell", Vector2i(-1, -1)), "approach_direction": wall_mount_gate.get("approach_direction", Vector2i.ZERO), "wall_side": str(wall_mount_gate.get("wall_side", "")), "interaction_side": str(wall_mount_gate.get("interaction_side", "")), "available_actions": available_action_ids})
 	_trace_breachable_wall_runtime_view_model(controller, target_position, normalized_target, raw_action_ids, view_model)
 	_trace_runtime_action_view_model(controller, target_position, normalized_target, raw_action_ids, available_action_ids, view_model)
 	return view_model
+
+
+static func _canonical_action_descriptor(action_code: String, fallback_label: String, available: bool, reason_code: String, requirements: Array, target_id: String, target_type: String, target_cell: Vector2i, priority: int, requires_free_manipulator: bool, module: Dictionary, gate: Dictionary) -> Dictionary:
+	var stable_requirements: Array = _sorted_requirements(requirements)
+	var code: String = action_code.strip_edges().to_lower()
+	var label_key: String = "action.%s.label" % code
+	return {
+		"action_code": code,
+		"label_key": label_key,
+		"available": available,
+		"reason_code": reason_code,
+		"requirements": stable_requirements,
+		"target_id": target_id,
+		"context": {"target_type": target_type, "target_cell": target_cell},
+		"id": code,
+		"label": fallback_label,
+		"enabled": available,
+		"reason": reason_code,
+		"target_type": target_type,
+		"target_cell": target_cell,
+		"source": "world_object",
+		"priority": priority,
+		"requires_free_manipulator": requires_free_manipulator,
+		"module_id": str(module.get("id", "")),
+		"module": module.duplicate(true),
+		"gate": gate.duplicate(true)
+	}
+
+
+static func _sort_action_descriptors(a: Dictionary, b: Dictionary) -> bool:
+	var pa: int = int(a.get("priority", 100))
+	var pb: int = int(b.get("priority", 100))
+	if pa == pb:
+		return str(a.get("action_code", a.get("id", ""))) < str(b.get("action_code", b.get("id", "")))
+	return pa < pb
+
+
+static func _sorted_requirements(requirements: Array) -> Array:
+	var result: Array = []
+	for item in requirements:
+		if item is Dictionary:
+			result.append(Dictionary(item).duplicate(true))
+	result.sort_custom(func(a, b): return _sort_requirement_descriptors(a, b))
+	return result
+
+
+static func _sort_requirement_descriptors(a: Dictionary, b: Dictionary) -> bool:
+	var at: String = str(a.get("type", ""))
+	var bt: String = str(b.get("type", ""))
+	if at == bt:
+		return var_to_str(a) < var_to_str(b)
+	return at < bt
+
+
+static func build_runtime_presentation_snapshot(controller: Variant, target_object: Dictionary, target_position: Vector2i, action_view_model: Dictionary, context: Dictionary = {}) -> Dictionary:
+	var source: Dictionary = target_object.duplicate(true)
+	var debug_enabled: bool = str(context.get("mode", "")).strip_edges().to_lower() in ["task_test", "task_test_context", "debug"] or bool(context.get("debug", false))
+	var contract: Dictionary = WorldObjectCatalogRef.get_entity_definition_contract_for_object(source)
+	var identity: Dictionary = _build_presentation_identity(source, contract)
+	var status_eval: Dictionary = EntityStatusEvaluatorRef.evaluate(source, context.duplicate(true))
+	var status_rows: Array = _build_presentation_status_rows(status_eval, debug_enabled)
+	var actions: Array = []
+	for action_variant in Array(action_view_model.get("actions", [])):
+		if action_variant is Dictionary:
+			actions.append(Dictionary(action_variant).duplicate(true))
+	actions.sort_custom(func(a, b): return _sort_action_descriptors(a, b))
+	var requirements: Array = []
+	for action in actions:
+		for requirement in Array(Dictionary(action).get("requirements", [])):
+			if requirement is Dictionary:
+				requirements.append(Dictionary(requirement).duplicate(true))
+	requirements = _sorted_requirements(requirements)
+	var notification: Dictionary = _build_presentation_notification(Dictionary(context.get("notification", {})), debug_enabled)
+	var snapshot: Dictionary = {"identity":identity, "status":status_rows, "requirements":requirements, "bindings":[], "actions":actions, "notification":notification, "signature":"", "debug":{}}
+	if debug_enabled:
+		snapshot["debug"] = {"target_position":target_position, "status_reason_code":str(status_eval.get("reason_code", "")), "real_values":Dictionary(status_eval.get("real_values", {})).duplicate(true), "forced_values":Dictionary(status_eval.get("forced_values", {})).duplicate(true)}
+	var unsigned: Dictionary = snapshot.duplicate(true)
+	unsigned.erase("signature")
+	snapshot["signature"] = str(hash(var_to_str(unsigned)))
+	return snapshot
+
+
+static func _build_presentation_identity(source: Dictionary, contract: Dictionary) -> Dictionary:
+	var display_name: String = str(source.get("display_name", source.get("name", contract.get("display_name_template", contract.get("name", "Interactable"))))).strip_edges()
+	return {"display_name": display_name, "type_label": str(contract.get("palette_label", source.get("object_group", source.get("type", "")))), "subtype_label": str(source.get("subtype_label", "")), "object_class": str(source.get("object_group", source.get("object_type", ""))), "description": str(contract.get("description", source.get("description", "")))}
+
+
+static func _build_presentation_status_rows(status_eval: Dictionary, debug_enabled: bool) -> Array:
+	var order: Array[String] = ["intent", "operational", "health", "thermal", "energy", "power", "control", "access"]
+	var sections: Dictionary = Dictionary(status_eval.get("sections", {}))
+	var rows: Array = []
+	for section_code in order:
+		if not sections.has(section_code):
+			continue
+		var section: Dictionary = Dictionary(sections.get(section_code, {}))
+		var row: Dictionary = {"label": section_code.capitalize(), "value": str(section.get("value", ""))}
+		if debug_enabled:
+			row["section_code"] = section_code
+			row["reason_code"] = str(status_eval.get("reason_code", ""))
+			row["real_values"] = Dictionary(status_eval.get("real_values", {})).duplicate(true)
+			row["forced_values"] = Dictionary(status_eval.get("forced_values", {})).duplicate(true)
+		rows.append(row)
+	return rows
+
+
+static func _build_presentation_notification(event: Dictionary, debug_enabled: bool) -> Dictionary:
+	if event.is_empty():
+		return {}
+	var result: Dictionary = {"result":str(event.get("result", "")), "message_key":str(event.get("message_key", "")), "fallback":str(event.get("fallback", event.get("message", ""))), "player_action":str(event.get("player_action", ""))}
+	if debug_enabled:
+		result["event_id"] = str(event.get("event_id", ""))
+		result["action_id"] = str(event.get("action_id", ""))
+	return result
 
 static func _trace_wall_mounted_interaction(payload: Dictionary) -> void:
 	if not DEBUG_WALL_MOUNTED_INTERACTION_TRACE:
@@ -273,14 +390,8 @@ static func _build_rules_wall_data(wall_data: Dictionary) -> Dictionary:
 
 
 static func _get_breachable_wall_disabled_reason(action_payload: Dictionary) -> String:
-	var message: String = str(action_payload.get("message", "")).to_lower()
-	if message.find("not installed") >= 0:
-		return "heavy_claw_required"
-	if message.find("cracked side") >= 0:
-		return "wrong_breach_side"
-	if message.find("already") >= 0:
-		return "already_destroyed"
-	return "action_unavailable"
+	var reason_code: String = str(action_payload.get("reason_code", "")).strip_edges().to_lower()
+	return reason_code if not reason_code.is_empty() else "action_unavailable"
 
 
 static func _runtime_action_requires_free_manipulator(_action_id: String, _target_object: Dictionary) -> bool:

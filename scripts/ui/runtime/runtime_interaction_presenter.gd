@@ -53,7 +53,7 @@ static func refresh(ui) -> void:
 			ui._clear_selected_pulse(ui.runtime_action_button)
 	if ui.runtime_connect_button != null:
 		var terminal_connected: bool = ui.bipob != null and ui.bipob.has_method("is_connected_to_terminal") and bool(ui.bipob.call("is_connected_to_terminal"))
-		var terminal_reopen_enabled: bool = not target_object.is_empty() and str(target_object.get("object_group", "")) == "terminal" and bool(target_object.get("connected", false))
+		var terminal_reopen_enabled: bool = not target_object.is_empty() and str(target_object.get("object_group", "")) == "terminal" and bool(connect_descriptor.get("available", connect_descriptor.get("enabled", false)))
 		var connect_channel_active: bool = ui.runtime_interaction_mode_active and active_channel == "connect"
 		var connect_enabled: bool = false
 
@@ -183,6 +183,7 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	var target_data: Dictionary = RuntimeInteractionPanelRef.get_target_data(ui)
 	var target_object: Dictionary = ui._safe_ui_dictionary(target_data.get("target_object", {}))
 	var action_view_model: Dictionary = ui._safe_ui_dictionary(target_data.get("action_view_model", {}))
+	var presentation_snapshot: Dictionary = ui._safe_ui_dictionary(target_data.get("presentation_snapshot", action_view_model.get("presentation_snapshot", {})))
 	var action_ids: Array[String] = RuntimeInteractionPanelRef.get_physical_actions(ui._safe_ui_array(target_data.get("actions", [])), target_object)
 	
 	if action_ids.is_empty():
@@ -201,10 +202,10 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	for action_id in action_ids:
 		var descriptor: Dictionary = RuntimeInteractionPanelRef.get_action_descriptor(target_data, action_id)
 		if descriptor.is_empty():
-			descriptor = {"id": action_id, "label": action_id.capitalize(), "enabled": true, "reason": ""}
+			descriptor = {"action_code": action_id, "label_key": "action.%s.label" % action_id, "available": true, "reason_code": "", "requirements": [], "target_id": target_id, "context": {}, "id": action_id, "label": action_id.capitalize(), "enabled": true, "reason": ""}
 		action_descriptors.append(descriptor)
 	var actions_key: String = "|".join(action_ids)
-	var state_key: String = "%s|%s|%s|%s" % [str(target_object.get("state", "")), str(target_object.get("power_state", "")), str(target_object.get("connected", "")), str(target_object.get("access_code_entry", ""))]
+	var state_key: String = str(presentation_snapshot.get("signature", ""))
 	_trace_breachable_wall_game_ui_payload(target_object, action_ids, selected_action)
 	clear_selected_action_if_stale(ui, target_id, actions_key, state_key)
 	if selected_action.is_empty() or not action_ids.has(selected_action):
@@ -222,9 +223,8 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 		if ui.has_method("clear_runtime_selected_interaction_target"):
 			ui.call("clear_runtime_selected_interaction_target")
 		return
-	var title_text: String = fallback_name if not fallback_name.is_empty() else "Interactable"
-	if not target_id.is_empty() and target_id != title_text:
-		title_text = "%s (%s)" % [title_text, target_id]
+	var identity: Dictionary = ui._safe_ui_dictionary(presentation_snapshot.get("identity", {}))
+	var title_text: String = str(identity.get("display_name", fallback_name)) if not identity.is_empty() else (fallback_name if not fallback_name.is_empty() else "Interactable")
 	ui.runtime_world_actions_target_label.text = "Target: %s" % title_text
 	var cell_text: String = "Cell: -"
 	var target_cell_source: Variant = target_data.get("target_position", target_object.get("position", Vector2i(-1, -1)))
@@ -236,11 +236,15 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 		if not overlay_target.is_empty():
 			ui.call("set_runtime_selected_interaction_target", overlay_target)
 	cell_text = "Cell: (%d, %d)" % [target_cell.x, target_cell.y]
-	var state_text: String = "State: %s" % str(target_object.get("state", "unknown"))
-	if str(target_object.get("power_state", "")).strip_edges() != "":
-		state_text += " | Power: %s" % str(target_object.get("power_state", ""))
-	if str(target_object.get("connected", "")).strip_edges() != "":
-		state_text += " | Connected: %s" % str(target_object.get("connected", false))
+	var status_bits: Array[String] = []
+	for row_variant in Array(presentation_snapshot.get("status", [])):
+		if row_variant is Dictionary:
+			var row: Dictionary = ui._safe_ui_dictionary(row_variant)
+			var label: String = str(row.get("label", "")).strip_edges()
+			var value: String = str(row.get("value", "")).strip_edges()
+			if not label.is_empty() and not value.is_empty():
+				status_bits.append("%s: %s" % [label, value])
+	var state_text: String = " | ".join(status_bits) if not status_bits.is_empty() else "Status: unknown"
 	ui.runtime_world_actions_state_label.text = "%s | %s" % [cell_text, state_text]
 	var summary_bits: Array[String] = []
 	if bool(action_view_model.get("has_available_action", false)):
@@ -255,16 +259,14 @@ static func refresh_world_actions_panel(ui, payload: Dictionary = {}) -> void:
 	else:
 		ui.runtime_world_actions_no_actions_label.visible = false
 	for descriptor in action_descriptors:
-		var action_id: String = str(descriptor.get("id", ""))
+		var action_id: String = str(descriptor.get("action_code", descriptor.get("id", "")))
 		if action_id.is_empty():
 			continue
-		var button_label: String = action_id.capitalize()
-		if ui.bipob != null and ui.bipob.has_method("get_world_action_display_label"):
-			button_label = str(ui.bipob.call("get_world_action_display_label", action_id, target_object))
+		var button_label: String = str(descriptor.get("label", action_id.capitalize()))
 		if button_label.is_empty():
 			button_label = action_id.capitalize()
-		var action_enabled: bool = bool(descriptor.get("enabled", false))
-		var action_reason: String = str(descriptor.get("reason", ""))
+		var action_enabled: bool = bool(descriptor.get("available", descriptor.get("enabled", false)))
+		var action_reason: String = str(descriptor.get("reason_code", descriptor.get("reason", "")))
 		var button: Button = ui._create_runtime_control_button(button_label, Callable(ui, "_on_world_action_button_pressed").bind(action_id), "primary" if action_enabled else "disabled")
 		button.disabled = not action_enabled
 		button.tooltip_text = button_label if action_enabled or action_reason.is_empty() else "%s — %s" % [button_label, action_reason]
@@ -300,7 +302,7 @@ static func _trace_breachable_wall_game_ui_payload(target_object: Dictionary, ac
 		"object_type": str(target_object.get("object_type", "")),
 		"wall_archetype": wall_archetype,
 		"breach_side": str(target_object.get("breach_side", "")),
-		"state": str(target_object.get("state", "")),
+		"status": str(target_object.get("status", "")),
 		"breach_state": str(target_object.get("breach_state", "")),
 		"actions_received": actions,
 		"selected_action": selected_action
@@ -370,7 +372,11 @@ static func _refresh_action_row(ui, target_object: Dictionary, physical_actions:
 	var action_id_texts: Array[String] = []
 	for signature_action_variant in physical_actions:
 		action_id_texts.append(str(signature_action_variant))
-	var access_code_entry: String = str(target_object.get("access_code_entry", ""))
+	var row_snapshot: Dictionary = RuntimeInteractionPanelRef.get_target_data(ui)
+	var row_action_view_model: Dictionary = ui._safe_ui_dictionary(row_snapshot.get("action_view_model", {}))
+	var row_presentation_snapshot: Dictionary = ui._safe_ui_dictionary(row_snapshot.get("presentation_snapshot", row_action_view_model.get("presentation_snapshot", {})))
+	var access_context: Dictionary = ui._safe_ui_dictionary(row_presentation_snapshot.get("access", {}))
+	var access_code_entry: String = str(access_context.get("access_code_entry", ""))
 	var next_signature: String = "%s|%s|%s" % [str(ui.runtime_interaction_mode_active), "|".join(action_id_texts), access_code_entry]
 	if next_signature == ui.runtime_interaction_actions_signature:
 		ui.runtime_interaction_actions_row.visible = ui.runtime_interaction_mode_active
@@ -381,7 +387,7 @@ static func _refresh_action_row(ui, target_object: Dictionary, physical_actions:
 	ui.runtime_interaction_actions_row.visible = ui.runtime_interaction_mode_active
 	if not ui.runtime_interaction_mode_active:
 		return
-	if str(target_object.get("access_type", "")) == "access_code" and bool(target_object.get("connected", false)):
+	if bool(access_context.get("show_keypad", false)):
 		var keypad_display := Label.new()
 		keypad_display.name = "RuntimeAccessCodeDisplay"
 		keypad_display.text = "Code: %s" % (access_code_entry + "_".repeat(maxi(0, 4 - access_code_entry.length())))

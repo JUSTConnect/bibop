@@ -1,0 +1,13 @@
+name: Runtime Entity Presentation Gate
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  runtime-entity-presentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Runtime entity presentation contract
+        run: python3 tools/check_runtime_entity_presentation.py
