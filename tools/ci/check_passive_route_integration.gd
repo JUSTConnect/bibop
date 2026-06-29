@@ -82,14 +82,16 @@ func _run() -> void:
 	var east: Dictionary = _segment("east", "air_duct", Vector2i(1, 0), "NW", "SE")
 	var fake_world = FakeRouteWorld.new()
 	root.add_child(fake_world)
-	fake_world.mission_world_objects = [west, east]
+	var connected_routes: Array[Dictionary] = [west, east]
+	fake_world.mission_world_objects = connected_routes
 	var world_before: String = var_to_str(fake_world.mission_world_objects)
 	var west_issues: Array[Dictionary] = WallRoutingValidationServiceRef.collect_issue_rows(west, Vector2i(0, 0), fake_world)
 	_assert(var_to_str(fake_world.mission_world_objects) == world_before, "constructor validation mutated world routes")
 	_assert(not _codes(west_issues).has(PassiveRouteServiceRef.CODE_NEIGHBOR_PORT_MISMATCH), "matching neighbor ports were rejected")
 
 	var disconnected: Dictionary = _segment("disconnected", "water_pipe", Vector2i(5, 5), "NE", "SW")
-	fake_world.mission_world_objects = [disconnected]
+	var disconnected_routes: Array[Dictionary] = [disconnected]
+	fake_world.mission_world_objects = disconnected_routes
 	var disconnected_issues: Array[Dictionary] = WallRoutingValidationServiceRef.collect_issue_rows(disconnected, Vector2i(5, 5), fake_world)
 	_assert(_codes(disconnected_issues).has(PassiveRouteServiceRef.CODE_DISCONNECTED_PORT), "machine-readable disconnected-port issue missing")
 
