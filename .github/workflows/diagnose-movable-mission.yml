@@ -1,0 +1,30 @@
+name: Diagnose Movable Mission
+
+on:
+  pull_request:
+
+jobs:
+  diagnose-movable-mission:
+    if: github.event.pull_request.number == 1198
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Import project
+        run: godot --headless --path . --import
+      - name: Capture integration output
+        run: |
+          mkdir -p /tmp/movable-diagnostics
+          set +e
+          timeout 90s godot --headless --path . --script res://tools/ci/check_movable_mission_manager.gd > /tmp/movable-diagnostics/integration.log 2>&1
+          echo $? > /tmp/movable-diagnostics/integration.exit
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: movable-mission-diagnostics
+          path: /tmp/movable-diagnostics
+          if-no-files-found: error
