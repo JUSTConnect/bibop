@@ -7453,8 +7453,7 @@ func get_available_world_actions(world_object: Dictionary, target_position: Vect
 	
 	var group: String = str(world_object.get("object_group", ""))
 	var state: String = str(world_object.get("state", ""))
-	var runtime_cable_connection: Dictionary = Dictionary(world_object.get("runtime_cable_connection", {}))
-	var has_runtime_cable_connection: bool = bool(runtime_cable_connection.get("connected", false)) or bool(world_object.get("cable_power_connected", false)) or bool(world_object.get("plugged", false)) or not str(world_object.get("connected_reel_id", "")).strip_edges().is_empty() or world_object.has("plugged_cable_end")
+	var has_runtime_cable_connection: bool = bool(world_object.get("cable_power_connected", false)) or bool(world_object.get("plugged", false)) or not str(world_object.get("connected_reel_id", "")).strip_edges().is_empty() or world_object.has("plugged_cable_end")
 	var _items_here: Array[Dictionary] = mission_manager.get_items_at_cell(target_position) if mission_manager != null else []
 	
 	if _is_platform_object_data(world_object):
@@ -7907,7 +7906,12 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 				if not bool(connect_report.get("success", false)):
 					hint_requested.emit(str(connect_report.get("message", "Nothing to plug in.")))
 					continue
-				world_object["runtime_cable_connection"] = {"connected": true, "reel_id": reel_id_connect, "end_index": end_index_connect, "target_id": target_id}
+				world_object["cable_power_connected"] = true
+				world_object["external_power_reel_id"] = reel_id_connect
+				world_object["external_power_end_index"] = end_index_connect
+				world_object["connected_reel_id"] = reel_id_connect
+				world_object["connected_reel_end_index"] = end_index_connect
+				world_object["plugged_cable_end"] = {"reel_id": reel_id_connect, "end_index": end_index_connect, "target_id": target_id}
 				if wire_side >= 1 and wire_side <= 2:
 					world_object["wire_%d_reel_id" % wire_side] = reel_id_connect
 					world_object["wire_%d_reel_end_index" % wire_side] = end_index_connect
@@ -7916,15 +7920,19 @@ func _apply_world_object_effects(effects: Array, world_object: Dictionary, targe
 				hint_requested.emit("Cable plugged in.")
 		elif effect_type == "disconnect_cable_end_from_target":
 			var disconnect_side: int = int(effect.get("wire_side", 0))
-			var disconnect_connection: Dictionary = Dictionary(world_object.get("runtime_cable_connection", {}))
-			var reel_id_disconnect: String = str(disconnect_connection.get("reel_id", world_object.get("connected_reel_id", ""))).strip_edges()
-			var end_index_disconnect: int = int(disconnect_connection.get("end_index", world_object.get("connected_reel_end_index", 0)))
+			var reel_id_disconnect: String = str(world_object.get("connected_reel_id", "")).strip_edges()
+			var end_index_disconnect: int = int(world_object.get("connected_reel_end_index", 0))
 			if disconnect_side >= 1 and disconnect_side <= 2:
 				reel_id_disconnect = str(world_object.get("wire_%d_reel_id" % disconnect_side, reel_id_disconnect)).strip_edges()
 				end_index_disconnect = int(world_object.get("wire_%d_reel_end_index" % disconnect_side, end_index_disconnect))
 				world_object["wire_%d_reel_id" % disconnect_side] = ""
 				world_object["wire_%d_reel_end_index" % disconnect_side] = 0
-			world_object["runtime_cable_connection"] = {"connected": false, "reel_id": "", "end_index": 0, "target_id": str(world_object.get("id", ""))}
+			world_object["cable_power_connected"] = false
+			world_object["external_power_reel_id"] = ""
+			world_object["external_power_end_index"] = 0
+			world_object["connected_reel_id"] = ""
+			world_object["connected_reel_end_index"] = 0
+			world_object.erase("plugged_cable_end")
 			if mission_manager != null and mission_manager.has_method("disconnect_cable_from_target") and not reel_id_disconnect.is_empty():
 				mission_manager.call("disconnect_cable_from_target", reel_id_disconnect, str(world_object.get("id", "")), end_index_disconnect)
 		elif effect_type == "toggle_linked_lights":

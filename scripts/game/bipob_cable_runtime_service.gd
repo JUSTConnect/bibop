@@ -286,25 +286,25 @@ static func _apply_default_runtime_fields(object_data: Dictionary) -> void:
 		object_data["is_connected"] = bool(object_data.get("connected", true))
 	if not object_data.has("is_powered"):
 		object_data["is_powered"] = false
-	if not object_data.has("runtime_power_state"):
-		object_data["runtime_power_state"] = POWER_STATE_UNPOWERED
-	if not object_data.has("runtime_power_required"):
-		object_data["runtime_power_required"] = _role_requires_power(get_generic_power_role(object_data))
-	if not object_data.has("runtime_power_received"):
-		object_data["runtime_power_received"] = 0
+	if not object_data.has("power_state"):
+		object_data["power_state"] = POWER_STATE_UNPOWERED
+	if not object_data.has("power_required"):
+		object_data["power_required"] = _role_requires_power(get_generic_power_role(object_data))
+	if not object_data.has("power_received"):
+		object_data["power_received"] = 0
 
 
 static func _set_runtime_power_state(object_data: Dictionary, powered: bool, source_id: String, power_state: String, changes: Array[Dictionary]) -> void:
 	var before_powered: bool = bool(object_data.get("is_powered", false))
-	var before_state: String = str(object_data.get("runtime_power_state", object_data.get("power_state", "")))
+	var before_state: String = str(object_data.get("power_state", ""))
 	var power_received_value: int = 0
 	if powered:
 		power_received_value = 1
 	object_data["is_powered"] = powered
-	object_data["runtime_power_received"] = power_received_value
-	object_data["runtime_power_state"] = power_state
+	object_data["power_received"] = power_received_value
+	object_data["power_state"] = power_state
 	if powered:
-		object_data["resolved_source_id"] = source_id
+		object_data["power_source_id"] = source_id
 		var resolved_source_object_id: String = str(object_data.get("source_object_id", source_id))
 		if get_generic_power_role(object_data) == ROLE_POWER_SOURCE:
 			resolved_source_object_id = source_id
@@ -313,8 +313,8 @@ static func _set_runtime_power_state(object_data: Dictionary, powered: bool, sou
 		_restore_powered_object_state(object_data)
 	else:
 		if get_generic_power_role(object_data) != ROLE_POWER_SOURCE:
-			object_data["resolved_source_id"] = ""
-		object_data["runtime_power_received"] = 0
+			object_data["power_source_id"] = ""
+		object_data["power_received"] = 0
 		_apply_unpowered_object_state(object_data)
 	var object_id: String = str(object_data.get("id", ""))
 	if before_powered != powered or before_state != power_state:
