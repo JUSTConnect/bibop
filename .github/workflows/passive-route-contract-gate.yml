@@ -1,0 +1,13 @@
+name: Passive Route Contract Gate
+on: [pull_request]
+jobs:
+  passive-route-contract-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - run: godot --headless --path . --script res://tools/ci/check_constructor_placement_contracts.gd

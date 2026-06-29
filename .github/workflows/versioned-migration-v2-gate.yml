@@ -1,0 +1,13 @@
+name: Versioned Migration V2 Gate
+on: [pull_request]
+jobs:
+  versioned-migration-v2-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - run: godot --headless --path . --script res://tools/ci/check_versioned_migration_v2.gd
