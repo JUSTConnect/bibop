@@ -4,6 +4,7 @@ class_name WorldObjectCatalog
 const WorldObjectDataRef = preload("res://scripts/world/world_object_data.gd")
 const EntityDefinitionContractRef = preload("res://scripts/world/entity_definition_contract.gd")
 const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")
+const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
 
 const DOOR_TYPE_MECHANICAL := "mechanical"
 const DOOR_TYPE_DIGITAL := "digital"
@@ -349,12 +350,9 @@ const FACING_SIDES: Array[String] = [FACING_SIDE_SW, FACING_SIDE_SE]
 const FACING_SIDE_SCHEMA: Dictionary = {"field":"facing_side", "type":"enum", "values":["SW", "SE"], "default":"SW", "labels":{"SW":"SW", "SE":"SE"}, "label":"Facing Side"}
 
 const COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA: Array[Dictionary] = [
-	{"field":"route_mode","type":"enum","values":["inner","outer"],"default":"inner","labels":{"inner":"Inner","outer":"Outer"},"tab":"Cooling System"},
-	{"field":"cooling_contour_mode","type":"enum","values":["auto","manual"],"default":"auto","labels":{"auto":"Auto contour","manual":"Manual contour"},"tab":"Cooling System"},
-	{"field":"cooling_contour_id","type":"string","default":"","internal":true,"legacy":true,"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},
-	{"field":"cooling_contour_member_ids","type":"object_ref_array","target_group":"cooling","default":[],"tab":"Cooling System","visible_if":{"field":"cooling_contour_mode","equals":"manual"}},
-	{"field":"wall_side_1","type":"enum","values":["NE","NW","SE","SW"],"default":"NW","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}},
-	{"field":"wall_side_2","type":"enum","values":["NE","NW","SE","SW"],"default":"SE","labels":{"NE":"NE","NW":"NW","SE":"SE","SW":"SW"},"tab":"Cooling System","visible_if":{"field":"route_mode","equals":"inner"}}
+	{"field":"mount_side","type":"enum","values":["NE","SE","SW","NW"],"default":"SW","labels":{"NE":"NE","SE":"SE","SW":"SW","NW":"NW"},"tab":"Cooling System"},
+	{"field":"route_side_1","type":"enum","values":["NE","SE","SW","NW"],"default":"NW","labels":{"NE":"NE","SE":"SE","SW":"SW","NW":"NW"},"tab":"Cooling System"},
+	{"field":"route_side_2","type":"enum","values":["NE","SE","SW","NW"],"default":"SE","labels":{"NE":"NE","SE":"SE","SW":"SW","NW":"NW"},"tab":"Cooling System"}
 ]
 
 # Hidden compatibility mappings for historic terminal ids. Constructor palettes,
@@ -389,17 +387,17 @@ const DOOR_MATERIAL_BY_OBJECT_TYPE: Dictionary = {
 const ARCHETYPE_REGISTRY: Dictionary = {
 
 	"external_air_duct": {
-		"entity_contract":{"scope":"entity", "entity_type":"cooling_system", "entity_subtype":"external_air_duct", "status_profile":"cooling_passive", "property_profile":"definition_schema", "interaction_profile":"cooling", "notification_profile":"none", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_cooling", "editor_presentation_profile":"standard_cooling", "validation_fixture":"default", "capabilities":{"state":false, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":true, "routing":true, "test_override":true}},
-		"archetype_id":"external_air_duct", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"external_air_duct", "palette_label":"External Air Duct",
-		"legacy_semantic_exceptions":[{"field":"state", "reason":"Legacy runtime field pending passive-route migration.", "migration_issue":1191}, {"field":"durability", "reason":"Legacy runtime field pending passive-route migration.", "migration_issue":1191}], "display_name_template":"External Air Duct", "name":"External Air Duct", "state":"active", "cooling_device_type":"air_duct", "carries_airflow":true, "passive_cooling":true, "generic_airflow_role":"airflow_path_cell", "airflow_roles":["airflow_path_cell"], "blocks_airflow":false, "material":"metal", "blocks_movement":false, "blocks_vision":false, "durability":12, "placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
-		"route_mode":"inner", "wall_routing_mode":"inner", "routing_kind":"air_duct", "cooling_system_type":"air_duct", "cooling_contour_id":"", "cooling_contour_mode":"auto", "cooling_contour_member_ids":[], "cooling_system_tab":true, "routing_label":"Air Duct", "wall_side_1":"NW", "wall_side_2":"SE",
+		"entity_contract":{"scope":"entity", "entity_type":"cooling_system", "entity_subtype":"air_duct", "status_profile":"cooling_passive", "property_profile":"definition_schema", "interaction_profile":"cooling", "notification_profile":"none", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_cooling", "editor_presentation_profile":"standard_cooling", "validation_fixture":"default", "capabilities":{"state":false, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":true, "routing":true, "test_override":false}},
+		"archetype_id":"external_air_duct", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"air_duct", "palette_label":"External Air Duct",
+		"display_name_template":"External Air Duct", "name":"External Air Duct", "passive_route":true, "material":"metal", "blocks_movement":false, "blocks_vision":false, "placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
+		"route_mode":"outer", "routing_kind":"air_duct", "cooling_system_type":"air_duct", "cooling_system_tab":true, "routing_label":"Air Duct", "mount_side":"SW", "route_side_1":"NW", "route_side_2":"SE", "route_shape":"straight",
 		"visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA
 	},
 	"external_water_pipe": {
-		"entity_contract":{"scope":"entity", "entity_type":"cooling_system", "entity_subtype":"external_water_pipe", "status_profile":"cooling_passive", "property_profile":"definition_schema", "interaction_profile":"cooling", "notification_profile":"none", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_cooling", "editor_presentation_profile":"standard_cooling", "validation_fixture":"default", "capabilities":{"state":false, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":true, "routing":true, "test_override":true}},
-		"archetype_id":"external_water_pipe", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"external_water_pipe", "palette_label":"External Water Pipe",
-		"legacy_semantic_exceptions":[{"field":"state", "reason":"Legacy runtime field pending passive-route migration.", "migration_issue":1191}, {"field":"durability", "reason":"Legacy runtime field pending passive-route migration.", "migration_issue":1191}], "display_name_template":"External Water Pipe", "name":"External Water Pipe", "state":"active", "cooling_device_type":"water_pipe", "cooling_output":2, "passive_cooling":true, "material":"metal", "blocks_movement":false, "blocks_vision":false, "durability":15, "placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
-		"route_mode":"inner", "wall_routing_mode":"inner", "routing_kind":"water_pipe", "cooling_system_type":"water_pipe", "cooling_contour_id":"", "cooling_contour_mode":"auto", "cooling_contour_member_ids":[], "cooling_system_tab":true, "routing_label":"Water Pipe", "wall_side_1":"NW", "wall_side_2":"SE",
+		"entity_contract":{"scope":"entity", "entity_type":"cooling_system", "entity_subtype":"water_pipe", "status_profile":"cooling_passive", "property_profile":"definition_schema", "interaction_profile":"cooling", "notification_profile":"none", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_cooling", "editor_presentation_profile":"standard_cooling", "validation_fixture":"default", "capabilities":{"state":false, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":true, "routing":true, "test_override":false}},
+		"archetype_id":"external_water_pipe", "object_group":"cooling", "group":"cooling", "constructor_group":"cooling_system", "constructor_category":"Cooling System", "constructor_tab":"cooling_system", "object_type":"water_pipe", "palette_label":"External Water Pipe",
+		"display_name_template":"External Water Pipe", "name":"External Water Pipe", "passive_route":true, "material":"metal", "blocks_movement":false, "blocks_vision":false, "placement_mode":"wall_mounted", "placement_surfaces":["wall"], "default_placement_surface":"wall", "requires_floor_anchor_when_wall_mounted":true, "mount":"wall", "install_mode":"wall", "is_wall_mounted":true, "changes_passability":false, "configurable":true,
+		"route_mode":"outer", "routing_kind":"water_pipe", "cooling_system_type":"water_pipe", "cooling_system_tab":true, "routing_label":"Water Pipe", "mount_side":"SW", "route_side_1":"NW", "route_side_2":"SE", "route_shape":"straight",
 		"visual_family":"wall_routing_utility", "visual_surface":"wall", "wall_routing_visual_enabled":true, "property_schema":COOLING_SYSTEM_WALL_ROUTING_PROPERTY_SCHEMA
 	},
 	"external_wall": {
@@ -1673,6 +1671,8 @@ static func normalize_world_object_contract(object_data: Dictionary) -> Dictiona
 	data = normalize_terminal_contract(data)
 	data = normalize_item_contract(data)
 	data = normalize_cable_contract(data)
+	if PassiveRouteServiceRef.is_passive_route(data):
+		data = PassiveRouteServiceRef.normalize_segment(data)
 	var normalized_object_type: String = _normalized_contract_token(data.get("object_type", ""))
 	if is_heavy_claw_movable_object(data):
 		data["movable"] = true

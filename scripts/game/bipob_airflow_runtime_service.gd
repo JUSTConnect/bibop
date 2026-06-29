@@ -2,6 +2,7 @@ extends RefCounted
 class_name BipobAirflowRuntimeService
 
 const BipobAirflowRuntimeStateRef = preload("res://scripts/game/bipob_airflow_runtime_state.gd")
+const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
 
 const STATE_COOLED: String = "cooled"
 const STATE_UNCOOLED: String = "uncooled"
@@ -183,6 +184,8 @@ static func _cell_blocks_airflow(cell_objects: Array[Dictionary]) -> bool:
 
 static func _cell_has_path_role(cell_objects: Array[Dictionary]) -> bool:
 	for object_data in cell_objects:
+		if PassiveRouteServiceRef.get_kind(object_data) == PassiveRouteServiceRef.KIND_AIR_DUCT:
+			return true
 		if _has_airflow_role(object_data, BipobAirflowRuntimeStateRef.ROLE_AIRFLOW_PATH_CELL):
 			return true
 	return false
