@@ -57,51 +57,43 @@ func replace_snapshot(objects: Array[Dictionary], bindings: Array[Dictionary] = 
 	return _ok({"object_count": _object_order.size(), "binding_count": _bindings_by_id.size(), "binding_diagnostics": diagnostics})
 
 func replace_serialized_snapshot(snapshot: Dictionary) -> Dictionary:
-	var source_version: int = int(snapshot.get("format_version", 0))
-	if source_version > WORLD_SNAPSHOT_FORMAT_VERSION:
-		return BindingStoreContractRef.make_result("invalid_format_version", {}, {"expected_max": WORLD_SNAPSHOT_FORMAT_VERSION, "actual": source_version})
-	var raw_entities: Variant = snapshot.get("entities", snapshot.get("objects", []))
-	if not (raw_entities is Array):
-		return BindingStoreContractRef.make_result("missing", {}, {"field": "entities"})
+	var source_version: int = int(snapshot.get("format_version", -1))
+	if source_version != WORLD_SNAPSHOT_FORMAT_VERSION:
+		return BindingStoreContractRef.make_result("invalid_format_version", {}, {"expected":WORLD_SNAPSHOT_FORMAT_VERSION, "actual":source_version})
+	var raw_entities: Variant = snapshot.get("entities", null)
+	if not raw_entities is Array:
+		return BindingStoreContractRef.make_result("missing", {}, {"field":"entities"})
 	var entities: Array[Dictionary] = []
 	for entity_value in Array(raw_entities):
-		if not (entity_value is Dictionary):
-			return BindingStoreContractRef.make_result("missing", {}, {"field": "entities", "reason": "entity_not_dictionary"})
+		if not entity_value is Dictionary:
+			return BindingStoreContractRef.make_result("missing", {}, {"field":"entities", "reason":"entity_not_dictionary"})
 		entities.append(Dictionary(entity_value).duplicate(true))
+	var raw_bindings: Variant = snapshot.get("bindings", null)
+	if not raw_bindings is Array:
+		return BindingStoreContractRef.make_result("missing", {}, {"field":"bindings"})
+	var bindings: Array[Dictionary] = []
+	for binding_value in Array(raw_bindings):
+		if not binding_value is Dictionary:
+			return BindingStoreContractRef.make_result("missing", {}, {"field":"bindings", "reason":"binding_not_dictionary"})
+		bindings.append(Dictionary(binding_value).duplicate(true))
 	var built: Dictionary = _build_state_from_objects(entities)
 	if not bool(built.get("ok", false)):
 		return built
 	var objects_by_id: Dictionary = Dictionary(built.get("objects_by_id", {}))
-	var bindings: Array[Dictionary] = []
-	var raw_bindings: Variant = snapshot.get("bindings", [])
-	if not (raw_bindings is Array):
-		return BindingStoreContractRef.make_result("missing", {}, {"field": "bindings"})
-	for binding_value in Array(raw_bindings):
-		if not (binding_value is Dictionary):
-			return BindingStoreContractRef.make_result("missing", {}, {"field": "bindings", "reason": "binding_not_dictionary"})
-		bindings.append(Dictionary(binding_value).duplicate(true))
-	var migrated: bool = false
-	if source_version < WORLD_SNAPSHOT_FORMAT_VERSION and bindings.is_empty():
-		bindings = BindingStoreContractRef.legacy_candidates(objects_by_id)
-		migrated = not bindings.is_empty()
 	var binding_built: Dictionary = BindingStoreContractRef.build_state(bindings, objects_by_id, true)
 	if not bool(binding_built.get("ok", false)):
 		return binding_built
 	_commit_state(objects_by_id, Array(built.get("object_order", [])), Dictionary(built.get("indexes", {})))
 	_commit_binding_state(Dictionary(binding_built.get("bindings_by_id", {})), Dictionary(binding_built.get("indexes", {})))
 	var diagnostics: Array = Array(binding_built.get("diagnostics", [])).duplicate(true)
-	changed.emit({"action": "replace_serialized_snapshot", "warnings": [], "count": _object_order.size(), "binding_count": _bindings_by_id.size(), "binding_diagnostics": diagnostics, "legacy_bindings_migrated": migrated})
-	return _ok({"object_count": _object_order.size(), "binding_count": _bindings_by_id.size(), "binding_diagnostics": diagnostics, "legacy_bindings_migrated": migrated})
+	changed.emit({"action":"replace_serialized_snapshot", "warnings":[], "count":_object_order.size(), "binding_count":_bindings_by_id.size(), "binding_diagnostics":diagnostics})
+	return _ok({"object_count":_object_order.size(), "binding_count":_bindings_by_id.size(), "binding_diagnostics":diagnostics})
 
 func get_serializable_snapshot() -> Dictionary:
 	var entities: Array[Dictionary] = []
 	for object_id in _object_order:
-		entities.append(BindingStoreContractRef.strip_legacy_logical_links(Dictionary(_objects_by_id[object_id])))
-	return {
-		"format_version": WORLD_SNAPSHOT_FORMAT_VERSION,
-		"entities": entities,
-		"bindings": get_all_bindings()
-	}
+		entities.append(Dictionary(_objects_by_id[object_id]).duplicate(true))
+	return {"format_version":WORLD_SNAPSHOT_FORMAT_VERSION, "entities":entities, "bindings":get_all_bindings()}
 
 func add_object(object_data: Dictionary) -> Dictionary:
 	var object_id := _object_id(object_data)
@@ -412,29 +404,6 @@ func remove_bindings_for_entity(object_id: String) -> Dictionary:
 	if not binding_ids.is_empty():
 		changed.emit({"action": "binding_remove_for_entity", "object_id": object_id, "binding_ids": binding_ids, "warnings": []})
 	return BindingStoreContractRef.make_result(BindingStoreContractRef.VALID_CODE, {}, {"object_id": object_id, "removed_binding_ids": binding_ids})
-
-func migrate_legacy_bindings(source_format_version: int) -> Dictionary:
-	if source_format_version >= WORLD_SNAPSHOT_FORMAT_VERSION:
-		return BindingStoreContractRef.make_result(BindingStoreContractRef.VALID_CODE, {}, {"created_binding_ids": []})
-	var candidates: Array[Dictionary] = BindingStoreContractRef.legacy_candidates(_objects_by_id)
-	var next_bindings: Dictionary = _duplicate_bindings_by_id(_bindings_by_id)
-	var created_ids: Array[String] = []
-	for candidate in candidates:
-		if _has_binding_relation(candidate, next_bindings):
-			continue
-		var binding_id: String = str(candidate.get("id", ""))
-		if next_bindings.has(binding_id):
-			binding_id = _next_binding_id_for(next_bindings)
-			candidate["id"] = binding_id
-		next_bindings[binding_id] = candidate.duplicate(true)
-		created_ids.append(binding_id)
-	var built: Dictionary = BindingStoreContractRef.build_state(_binding_values(next_bindings), _objects_by_id, true)
-	if not bool(built.get("ok", false)):
-		return built
-	_commit_binding_state(Dictionary(built.get("bindings_by_id", {})), Dictionary(built.get("indexes", {})))
-	if not created_ids.is_empty():
-		changed.emit({"action": "binding_legacy_migration", "source_format_version": source_format_version, "binding_ids": created_ids, "warnings": [], "binding_diagnostics": Array(built.get("diagnostics", [])).duplicate(true)})
-	return BindingStoreContractRef.make_result(BindingStoreContractRef.VALID_CODE, {}, {"created_binding_ids": created_ids, "diagnostics": Array(built.get("diagnostics", [])).duplicate(true)})
 
 func validate_consistency() -> Array[String]:
 	var warnings: Array[String] = []

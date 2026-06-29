@@ -170,7 +170,7 @@ static func _canonicalize_entity(source: Dictionary) -> Dictionary:
 	var entity: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(source)
 	var object_type: String = str(entity.get("object_type", entity.get("type", ""))).strip_edges().to_lower()
 	if object_type == "power_cable_reel":
-		entity = PowerCableReelServiceRef.canonicalize_reel(entity)
+		entity = PowerCableReelServiceRef.migrate_legacy_reel(entity)
 		for field_name in LEGACY_REEL_ALIAS_FIELDS:
 			entity.erase(field_name)
 	if PassiveRouteServiceRef.is_passive_route(entity):
