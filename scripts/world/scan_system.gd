@@ -57,7 +57,7 @@ static func scan_object(object_data: Dictionary, scan_type: String, scanner_leve
 			var storage: String = str(object_data.get("storage_type", object_data.get("item_storage", "unknown")))
 			out["details"].append("Storage: %s" % storage)
 	elif object_data.get("object_group", "") == "physical_object":
-		if level >= 2:
+		if level >= 2 and WorldObjectCatalogRef.is_crate_object(object_data):
 			out["details"].append("Weight: %s" % object_data.get("weight_class", "normal"))
 	elif object_data.get("object_group", "") == "cooling":
 		out["details"].append("Status: %s" % object_data.get("state", "unknown"))

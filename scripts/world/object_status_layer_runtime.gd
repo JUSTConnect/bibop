@@ -1,6 +1,8 @@
 extends Node
 class_name ObjectStatusLayerRuntimeService
 
+const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+
 const SECTION_NAME := "UnifiedObjectStatusLayerSection"
 const CHECK_INTERVAL := 0.35
 
@@ -132,7 +134,7 @@ func applies_to_object(object_data: Dictionary) -> bool:
 		return false
 	if object_type in EXCLUDED_OBJECT_TYPES or archetype_id in EXCLUDED_OBJECT_TYPES:
 		return false
-	if bool(object_data.get("movable", false)) or bool(object_data.get("heavy_claw_movable", false)):
+	if WorldObjectCatalogRef.is_world_object_movable(object_data):
 		return false
 	for token in EXCLUDED_PREFAB_TOKENS:
 		if joined.contains(token):

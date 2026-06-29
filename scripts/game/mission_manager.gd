@@ -29,6 +29,7 @@ const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const DetailsCurrencyServiceRef = preload("res://scripts/game/inventory/details_currency_service.gd")
 const NormalItemContractRef = preload("res://scripts/game/inventory/normal_item_contract.gd")
+const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const WallRoutingValidationServiceRef = preload("res://scripts/game/routing/wall_routing_validation_service.gd")
@@ -6956,50 +6957,58 @@ func update_world_object_by_id(id: String, new_data: Dictionary) -> void:
 	refresh_world_cooling_received()
 	return
 
-func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -> Dictionary:
-	var result := {"success": false, "message": "Cannot move object there.", "object_id": object_id, "from": Vector2i(-1, -1), "to": target_cell}
-	if object_id.strip_edges().is_empty():
-		result["message"] = "Object not found."
-		return result
-	var object_data := get_world_object_by_id(object_id)
+func preview_movable_action(actor: Dictionary, object_id: String, target_cell: Vector2i, action_id: String = "push") -> Dictionary:
+	var object_data: Dictionary = get_world_object_by_id(object_id)
 	if object_data.is_empty():
-		result["message"] = "Object not found."
-		return result
-	var from_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-	result["from"] = from_cell
-	if not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data):
-		result["message"] = "Object cannot be moved by Heavy Claw."
-		return result
-	if from_cell == target_cell:
-		result["message"] = "Object already there."
-		return result
+		return MovableActionServiceRef.preview_action(actor, object_data, action_id)
+	var from_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var target_cell_state: Dictionary = get_runtime_cell_state(target_cell)
-	if not bool(target_cell_state.get("in_bounds", false)):
-		result["message"] = "Target cell is blocked."
-		return result
 	var from_surface: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(from_cell, mission_world_objects)
 	var target_surface: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(target_cell, mission_world_objects)
-	if not PlatformOccupancyServiceRef.is_surface_move_allowed(from_surface, target_surface):
-		result["message"] = "surface_level_mismatch"
-		return result
-	if not bool(target_cell_state.get("is_passable", false)) and PlatformOccupancyServiceRef.get_platform_for_cell(target_cell, mission_world_objects).is_empty():
-		result["message"] = "Target cell is blocked."
-		return result
-	if from_cell.x < 0 or from_cell.y < 0:
-		result["message"] = "Object not found."
-		return result
-	var target_object := get_blocking_object_at_cell_for_push(target_cell)
-	if not target_object.is_empty():
-		result["message"] = "Target cell is occupied."
-		return result
-	object_data = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
-	_move_world_state_object(object_id, target_cell, object_data)
-	refresh_world_cooling_received()
-	recalculate_power_network("power_net_A")
-	refresh_world_cooling_received()
+	var target_platform: Dictionary = PlatformOccupancyServiceRef.get_platform_for_cell(target_cell, mission_world_objects)
+	var target_object: Dictionary = get_blocking_object_at_cell_for_push(target_cell)
+	var context: Dictionary = {
+		"validate_destination": true,
+		"validate_target_relation": true,
+		"from_cell": from_cell,
+		"to_cell": target_cell,
+		"in_bounds": bool(target_cell_state.get("in_bounds", false)),
+		"destination_passable": bool(target_cell_state.get("is_passable", false)) or not target_platform.is_empty(),
+		"destination_occupied": not target_object.is_empty(),
+		"surface_move_allowed": PlatformOccupancyServiceRef.is_surface_move_allowed(from_surface, target_surface)
+	}
+	return MovableActionServiceRef.preview_action(actor, object_data, action_id, context)
+
+func move_world_object_with_requirements(object_id: String, target_cell: Vector2i, actor: Dictionary, action_id: String = "push") -> Dictionary:
+	var preview: Dictionary = preview_movable_action(actor, object_id, target_cell, action_id)
+	if not bool(preview.get("success", false)):
+		return preview
+	var object_data: Dictionary = get_world_object_by_id(object_id)
+	var from_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var target_surface: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(target_cell, mission_world_objects)
+	var structural_patch: Dictionary = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
+	structural_patch.erase("position")
+	var move_commit: Dictionary = _move_world_state_object(object_id, target_cell, structural_patch)
+	if not bool(move_commit.get("ok", false)):
+		return move_commit
+	var result: Dictionary = preview.duplicate(true)
 	result["success"] = true
-	result["message"] = "Moved %s." % str(object_data.get("display_name", "Object"))
+	result["ok"] = true
+	result["code"] = MovableActionServiceRef.CODE_VALID
+	result["reason_code"] = MovableActionServiceRef.CODE_VALID
+	result["from"] = from_cell
+	result["to"] = target_cell
+	result["message"] = "Moved %s." % str(object_data.get("display_name", object_data.get("name", "Object")))
+	result["affected_ids"] = [object_id]
 	return result
+
+func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i, actor: Dictionary = {}) -> Dictionary:
+	var resolved_actor: Dictionary = actor.duplicate(true)
+	if resolved_actor.is_empty():
+		var object_data: Dictionary = get_world_object_by_id(object_id)
+		var object_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		resolved_actor = {"actor_type":"heavy", "actor_count":1, "power_class":"heavy", "manipulator_level":0, "manipulator_active":false, "manipulator_occupied":false, "heavy_claw_level":99, "heavy_claw_active":true, "actor_position":object_cell, "facing_direction":Vector2i.ZERO}
+	return move_world_object_with_requirements(object_id, target_cell, resolved_actor, "move")
 
 func refresh_world_cooling_received() -> void:
 	var objects: Array[Dictionary] = world_state_store.get_all_objects()

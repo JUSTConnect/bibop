@@ -1,6 +1,7 @@
 extends RefCounted
 class_name InteractionSystem
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")
 const ObjectFacingServiceRef = preload("res://scripts/game/object/object_facing_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
@@ -100,10 +101,10 @@ static func _actor_has_free_storage_slot(actor: Dictionary) -> bool:
 
 	return has_free_pocket_slot or has_free_manipulator_slot
 	
-static func _is_heavy_claw_movable_action(action_type: String, target_object: Dictionary) -> bool:
-	if action_type not in ["push", "pull"]:
+static func _is_movable_action(action_type: String, target_object: Dictionary) -> bool:
+	if action_type != "push":
 		return false
-	return WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(target_object)
+	return MovableActionServiceRef.is_movable_entity(target_object) or MovableActionServiceRef.is_crate(target_object)
 
 static func _is_platform_target_object(target_object: Dictionary) -> bool:
 	if target_object.is_empty():
@@ -163,12 +164,10 @@ static func can_apply_action(actor: Dictionary, module: Dictionary, target_objec
 		return _result(true, "Platform Action possible.")
 	if BreachableWallRulesServiceRef.is_breachable_wall(target_object) and not BreachableWallRulesServiceRef.is_destroyed(target_object) and action_type != "break_breachable_wall":
 		return _result(false, "Use Heavy Claw from the cracked side.", [], "heavy_claw_breach_only")
-	if _is_heavy_claw_movable_action(action_type, target_object):
-		var object_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(target_object.get("position", actor.get("target_position", Vector2i(-1, -1))), Vector2i(-1, -1))
-		var actor_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(actor.get("actor_position", Vector2i(-1, -1)), Vector2i(-1, -1))
-		var facing_direction: Vector2i = Vector2i(actor.get("facing_direction", Vector2i.ZERO))
-		if object_cell != actor_cell + facing_direction:
-			return _result(false, "Face the object to attach Heavy Claw.", [], "face_object_to_attach_heavy_claw")
+	if _is_movable_action(action_type, target_object):
+		var movement_gate: Dictionary = MovableActionServiceRef.preview_action(actor, target_object, action_type)
+		if not bool(movement_gate.get("success", false)):
+			return _result(false, str(movement_gate.get("message", "Movement unavailable.")), [], str(movement_gate.get("code", MovableActionServiceRef.CODE_NOT_MOVABLE)))
 	if _is_door_object(target_object):
 		target_object = _normalize_runtime_door_data(target_object)
 		if action_type in ["open", "close"]:

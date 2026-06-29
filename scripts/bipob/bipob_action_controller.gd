@@ -12,6 +12,7 @@ const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_ser
 const BipobTerminalControlExecutionServiceRef = preload("res://scripts/game/bipob_terminal_control_execution_service.gd")
 const BipobWorldObjectExecutionServiceRef = preload("res://scripts/game/bipob_world_object_execution_service.gd")
 const InteractionActionCostServiceRef = preload("res://scripts/game/interaction/interaction_action_cost_service.gd")
+const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")
 
 const DEBUG_WORLD_ACTION_TRACE := false
 
@@ -665,7 +666,7 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 	if str(world_object.get("object_group", "")) == "terminal" and _is_terminal_control_action(action_id):
 		_apply_terminal_control_execution(controller, world_object, target_position, action_id)
 		return
-	if action_id in ["push", "pull"] and WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(world_object):
+	if action_id == "push" and (MovableActionServiceRef.is_movable_entity(world_object) or MovableActionServiceRef.is_crate(world_object)):
 		_apply_heavy_claw_execution(controller, world_object, target_position, actor, module, action_id)
 		return
 	_apply_world_execution(controller, world_object, target_position, actor, module, action_id)
@@ -674,9 +675,7 @@ static func _execute_world_object_action(controller: Variant, world_object: Dict
 static func _emit_no_action_available(controller: Variant, world_object: Dictionary, target_position: Vector2i) -> void:
 	var unavailable_view_model: Dictionary = build_runtime_action_view_model(controller, world_object, target_position)
 	var unavailable_label: String = str(unavailable_view_model.get("primary_action_label", ""))
-	if WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(world_object) and not controller.has_heavy_claw_capability():
-		controller.hint_requested.emit("Heavy Claw required.")
-	elif not unavailable_label.is_empty() and unavailable_label != "Action":
+	if not unavailable_label.is_empty() and unavailable_label != "Action":
 		controller.hint_requested.emit(unavailable_label)
 	else:
 		controller.hint_requested.emit("No available action for this object.")
@@ -746,6 +745,8 @@ static func _apply_heavy_claw_execution(controller: Variant, world_object: Dicti
 		controller.status_changed.emit()
 		return
 	var claw_execution: Dictionary = BipobHeavyClawExecutionServiceRef.execute_heavy_claw_action(controller, world_object, target_position, action_id)
+	if bool(claw_execution.get("success", false)) and bool(claw_execution.get("pending_paid_action", false)):
+		InteractionActionCostServiceRef.commit_gameplay_action(controller, claw_execution)
 	controller.hint_requested.emit(str(claw_execution.get("message", "Cannot move object there.")))
 	_apply_action_execution_refresh(controller, claw_execution)
 
