@@ -1,0 +1,19 @@
+name: Run Canonical Cleanup V3
+on: pull_request
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.event.pull_request.number == 1203
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/finalize-canonical-runtime
+      - run: python3 tools/apply_canonical_store_reel_cleanup_v2.py
+      - run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add scripts/world/world_state_store.gd scripts/game/power_cable_reel_service.gd scripts/world/versioned_snapshot_migration_service.gd
+          git commit -m 'Remove store and reel legacy runtime paths'
+          git push
