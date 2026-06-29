@@ -7,7 +7,7 @@ service_path = root / "scripts/world/versioned_snapshot_migration_service.gd"
 world_path = root / "scripts/world/world_state_store.gd"
 mission_path = root / "scripts/game/mission_manager.gd"
 preset_path = root / "scripts/game/map_constructor_preset_service.gd"
-workflow_path = root / ".github/workflows/versioned-migration-contract-gate.yml"
+workflow_path = root / ".github/workflows/versioned-migration-v2-gate.yml"
 
 service = service_path.read_text() if service_path.exists() else ""
 world = world_path.read_text() if world_path.exists() else ""
