@@ -1,0 +1,29 @@
+name: Versioned Mission Debug
+
+on:
+  pull_request:
+
+jobs:
+  debug-mission:
+    if: github.event.pull_request.number == 1202
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - run: godot --headless --path . --import
+      - name: Capture MissionManager log
+        run: |
+          mkdir -p /tmp/versioned-mission-debug
+          set +e
+          timeout 120s godot --headless --path . --script res://tools/ci/check_versioned_snapshot_migration_mission_manager.gd > /tmp/versioned-mission-debug/output.log 2>&1
+          echo $? > /tmp/versioned-mission-debug/exit-code.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: versioned-mission-debug
+          path: /tmp/versioned-mission-debug
+          if-no-files-found: error
