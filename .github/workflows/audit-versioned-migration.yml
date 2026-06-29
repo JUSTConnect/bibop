@@ -1,30 +1,25 @@
-name: Audit Versioned Migration
+name: Retire Versioned Migration Audit
 
 on:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
-  audit-versioned-migration:
+  retire:
+    if: github.event.pull_request.number == 1202
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Collect persistence and migration paths
-        run: |
-          mkdir -p /tmp/versioned-migration-audit
-          {
-            echo '## format and schema versions'
-            grep -RIn --exclude-dir=.git -E 'format_version|schema_version|migration_version|save_version|map_version' scripts tools docs || true
-            echo '## save load and snapshot functions'
-            grep -RIn --exclude-dir=.git -E '^func .*save|^func .*load|serialized_snapshot|replace_.*snapshot|get_.*snapshot|FileAccess|ResourceSaver|JSON\.' scripts/game scripts/world scripts/ui tools || true
-            echo '## legacy canonicalizers and adapters'
-            grep -RIn --exclude-dir=.git -E 'canonicalize_legacy|normalize_legacy|migrate_legacy|legacy_|compatib|adapter' scripts/game scripts/world tools || true
-            echo '## BindingStore persistence'
-            grep -RIn --exclude-dir=.git -E 'BindingStore|binding_store|bindings|replace_records|serialize' scripts/world scripts/game tools || true
-            echo '## canonical migration targets'
-            grep -RIn --exclude-dir=.git -E 'details_currency|preferred_source_id|power_cable_reel|movement_requirement|passive_route|route_side_1|route_side_2' scripts/game scripts/world tools || true
-          } > /tmp/versioned-migration-audit/audit.txt
-      - uses: actions/upload-artifact@v4
         with:
-          name: versioned-migration-audit
-          path: /tmp/versioned-migration-audit/audit.txt
-          if-no-files-found: error
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Remove retired audit
+        run: |
+          rm -f .github/workflows/audit-versioned-migration.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u .github/workflows/audit-versioned-migration.yml
+          git commit -m "Remove retired versioned migration audit"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
