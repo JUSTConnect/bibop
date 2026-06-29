@@ -61,7 +61,8 @@ func _run() -> void:
 	var normalized: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(legacy)
 	_assert(str(normalized.get("object_type", "")) == PassiveRouteServiceRef.KIND_AIR_DUCT, "catalog did not canonicalize air duct subtype")
 	_assert(str(normalized.get("mount_side", "")) == "SW", "catalog lost mount side")
-	_assert(str(normalized.get("route_side_1", "")) == "NW" and str(normalized.get("route_side_2", "")) == "SE", "catalog lost route pair")
+	var normalized_pair: Array[String] = PassiveRouteServiceRef.normalize_route_pair(normalized)
+	_assert(normalized_pair.size() == 2 and normalized_pair.has("NW") and normalized_pair.has("SE"), "catalog lost route pair")
 	for field_name in ["state", "durability", "test_override_enabled", "generic_airflow_role", "cooling_contour_mode", "cooling_contour_id", "cooling_contour_member_ids", "wall_side_1", "wall_side_2"]:
 		_assert(not normalized.has(field_name), "catalog retained forbidden field: %s" % field_name)
 
