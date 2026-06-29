@@ -205,7 +205,7 @@ static func get_wall_mounted_render_layer(object_data: Dictionary, is_routing_ut
 	var routing_kind: String = str(object_data.get("routing_kind", "")).strip_edges().to_lower()
 	if object_type.contains("cable") or prefab_id.contains("cable") or visual_family.contains("cable") or routing_kind.contains("cable"):
 		return 10
-	if prefab_id in ["external_air_duct", "external_water_pipe"] or object_type in ["external_air_duct", "external_water_pipe"]:
+	if prefab_id in ["external_air_duct", "external_water_pipe"] or object_type in ["external_air_duct", "external_water_pipe", "air_duct", "water_pipe"]:
 		return 10
 	if is_routing_utility:
 		return 10
