@@ -33,6 +33,7 @@ const MovableActionServiceRef = preload("res://scripts/game/movable/movable_acti
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const WallRoutingValidationServiceRef = preload("res://scripts/game/routing/wall_routing_validation_service.gd")
+const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
 const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cooling_routing_contour_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
@@ -4764,40 +4765,13 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
 		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string","mount":"string","switch_state":"string","switcher_type":"string","light_group_id":"string","light_enabled":"bool","target_light_ids":"array_string","linked_light_ids":"array_string","active_line_id":"string","switcher_lines":"array_dictionary","line_1_label":"string","line_1_direction":"string","line_1_color_id":"string","line_1_circuit_id":"string","line_2_label":"string","line_2_direction":"string","line_2_color_id":"string","line_2_circuit_id":"string","line_3_label":"string","line_3_direction":"string","line_3_color_id":"string","line_3_circuit_id":"string","fuse_present":"bool","variant":"string",
 		"platform_mode":"string","platform_level":"int","max_level":"int","mechanism_id":"string","mechanism_role":"string","activation_mode":"string","activation_delay_turns":"int","control_cell_x":"int","control_cell_y":"int",
-		"route_mode":"string","cooling_contour_mode":"string","cooling_contour_id":"string","cooling_contour_member_ids":"array_string","wall_side_1":"string","wall_side_2":"string",
+		"mount_side":"string","route_side_1":"string","route_side_2":"string",
 		"bipob_type":"string","bipob_status":"string","bipob_alignment":"string","chassis_type":"string","visor_type":"string","loadout_profile":"string"
 	}
 
 
-func get_map_constructor_object_ref_options(entity_kind: String, entity_id: String, field_name: String) -> Array[Dictionary]:
-	if field_name != "cooling_contour_member_ids":
-		return []
-	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
-	if not bool(entity_info.get("ok", false)):
-		return []
-	var selected_data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
-	var selected_kind: String = str(selected_data.get("routing_kind", selected_data.get("cooling_system_type", ""))).strip_edges().to_lower()
-	var selected_members: Array = _safe_array(selected_data.get(field_name, []))
-	var options: Array[Dictionary] = []
-	for object_variant in mission_world_objects:
-		if not object_variant is Dictionary:
-			continue
-		var object_data: Dictionary = _safe_dictionary(object_variant)
-		var object_id: String = str(object_data.get("id", "")).strip_edges()
-		if object_id.is_empty():
-			continue
-		if str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower() != "cooling":
-			continue
-		var routing_kind: String = str(object_data.get("routing_kind", object_data.get("cooling_system_type", ""))).strip_edges().to_lower()
-		if routing_kind != selected_kind:
-			continue
-		options.append({
-			"id": object_id,
-			"label": "%s (%s)" % [str(object_data.get("display_name", object_data.get("name", object_id))), object_id],
-			"checked": selected_members.has(object_id) or object_id == entity_id,
-			"disabled": object_id == entity_id
-		})
-	return options
+func get_map_constructor_object_ref_options(_entity_kind: String, _entity_id: String, _field_name: String) -> Array[Dictionary]:
+	return []
 
 func get_map_constructor_archetype_property_schema(entity_kind: String, entity_id: String) -> Array[Dictionary]:
 	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
@@ -5943,10 +5917,9 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 		"facing_side",
 		"facing_dir",
 		"mirror_visual_for_facing_side",
-		"wall_routing_mode",
-		"route_mode",
-		"wall_side_1",
-		"wall_side_2"
+		"mount_side",
+		"route_side_1",
+		"route_side_2"
 	]
 
 	var has_visual_wall_update: bool = false
@@ -6005,35 +5978,28 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 		if safe.has("mirror_visual_for_facing_side"):
 			data["mirror_visual_for_facing_side"] = bool(safe.get("mirror_visual_for_facing_side", true))
 
-		if safe.has("wall_routing_mode") or safe.has("route_mode"):
-			var normalized_routing_mode: String = str(safe.get("route_mode", safe.get("wall_routing_mode", data.get("route_mode", data.get("wall_routing_mode", "outer"))))).strip_edges().to_lower()
-			normalized_routing_mode = normalized_routing_mode.replace("-", "_")
-			normalized_routing_mode = normalized_routing_mode.replace(" ", "_")
-			match normalized_routing_mode:
-				"inner", "inside", "internal", "in_wall", "embedded":
-					normalized_routing_mode = "inner"
-				"outer", "outside", "external", "surface", "":
-					normalized_routing_mode = "outer"
-				_:
-					normalized_routing_mode = "outer"
-			data["wall_routing_mode"] = normalized_routing_mode
-			data["route_mode"] = normalized_routing_mode
-
-		for route_side_field in ["wall_side_1", "wall_side_2"]:
-			if safe.has(route_side_field):
-				var route_side: String = str(safe.get(route_side_field, data.get(route_side_field, ""))).strip_edges().to_upper()
-				if route_side in ["NE", "NW", "SE", "SW"]:
-					data[route_side_field] = route_side
+		var passive_route_update: bool = PassiveRouteServiceRef.is_passive_route(data)
+		if passive_route_update:
+			if safe.has("mount_side"):
+				var mount_side: String = PassiveRouteServiceRef.normalize_side(safe.get("mount_side", data.get("mount_side", "SW")))
+				if not mount_side.is_empty():
+					data["mount_side"] = mount_side
+					data["wall_side"] = mount_side
+			for route_side_field in ["route_side_1", "route_side_2"]:
+				if safe.has(route_side_field):
+					data[route_side_field] = PassiveRouteServiceRef.normalize_side(safe.get(route_side_field, data.get(route_side_field, "")))
+			data["route_mode"] = PassiveRouteServiceRef.get_mode(data)
 
 		for routing_warning in WallRoutingValidationServiceRef.collect_warnings(data, _deserialize_cell_variant(data.get("position", data.get("cell", Vector2i(-1, -1)))), self):
 			warnings.append(str(routing_warning))
 
-		update_world_object_by_id(entity_id, data)
+		if PassiveRouteServiceRef.is_passive_route(data):
+			_upsert_world_state_object(PassiveRouteServiceRef.normalize_segment(data))
+		else:
+			update_world_object_by_id(entity_id, data)
 
 		if has_method("_rebuild_wall_mounted_world_object_lookup"):
 			_rebuild_wall_mounted_world_object_lookup()
-
-		refresh_world_cooling_received()
 
 		for visual_field in visual_wall_fields:
 			safe.erase(visual_field)

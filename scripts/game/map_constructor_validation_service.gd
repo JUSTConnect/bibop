@@ -8,7 +8,7 @@ const MapConstructorReadinessValidationServiceRef = preload("res://scripts/game/
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
-const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cooling_routing_contour_service.gd")
+const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
 var manager: Variant
 var power_link_validation_rules: Variant = null
 
@@ -1122,20 +1122,19 @@ func get_map_constructor_validation_issues() -> Array[Dictionary]:
 				if not has_power_metadata:
 					issues.append(_make_map_constructor_issue("powered_gate_missing_power_metadata_%s" % door_object_id, "warning", "Powered gate has no power metadata for visual state diagnostics.", door_object_cell, source_name, "world_object", door_object_id, "Add optional power metadata if this gate should show powered/unpowered state."))
 
-	var contour_objects_by_id: Dictionary = {}
-	for contour_object_variant in manager.mission_world_objects:
-		var contour_object: Dictionary = manager._safe_dictionary(contour_object_variant)
-		var contour_object_id: String = _safe_string(contour_object.get("id", "")).strip_edges()
-		if not contour_object_id.is_empty():
-			contour_objects_by_id[contour_object_id] = contour_object
-	var contour_warnings: Dictionary = CoolingRoutingContourServiceRef.collect_contour_warnings(contour_objects_by_id)
-	for contour_object_id in contour_warnings.keys():
-		var contour_object_data: Dictionary = Dictionary(contour_objects_by_id.get(contour_object_id, {}))
-		var contour_cell: Vector2i = manager._deserialize_cell_variant(contour_object_data.get("position", Vector2i(-1, -1)))
-		var warning_index: int = 0
-		for contour_warning in Array(contour_warnings[contour_object_id]):
-			issues.append(_make_map_constructor_issue("cooling_contour_%s_%d" % [str(contour_object_id), warning_index], "warning", str(contour_warning), contour_cell, source_name, "world_object", str(contour_object_id), "Adjust Cooling System contour settings or matching ports."))
-			warning_index += 1
+	var passive_route_issues: Dictionary = PassiveRouteServiceRef.collect_issues(manager.mission_world_objects)
+	for route_object_id in passive_route_issues.keys():
+		var route_object_data: Dictionary = manager.get_world_object_by_id(str(route_object_id))
+		var route_cell: Vector2i = manager._deserialize_cell_variant(route_object_data.get("position", Vector2i(-1, -1)))
+		var route_issue_index: int = 0
+		for route_issue_variant in Array(passive_route_issues[route_object_id]):
+			if not route_issue_variant is Dictionary:
+				continue
+			var route_issue: Dictionary = Dictionary(route_issue_variant)
+			var route_code: String = str(route_issue.get("code", "unknown"))
+			var route_severity: String = str(route_issue.get("severity", "warning"))
+			issues.append(_make_map_constructor_issue("passive_route_%s_%s_%d" % [str(route_object_id), route_code, route_issue_index], route_severity, str(route_issue.get("message", "Passive route issue.")), route_cell, source_name, "world_object", str(route_object_id), "Adjust mount side or the two physical route ports."))
+			route_issue_index += 1
 	_get_power_link_validation_rules().append_key_door_link_issues(source_name, issues)
 	return issues
 

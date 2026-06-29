@@ -5,6 +5,7 @@ const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wal
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 const WallRoutingValidationServiceRef = preload("res://scripts/game/routing/wall_routing_validation_service.gd")
+const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
 
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformTypesRef = preload("res://scripts/game/platform/platform_types.gd")
@@ -1911,12 +1912,13 @@ func _wall_route_side_to_visible_face(wall_side: String) -> String:
 func draw_wall_routing_utility(cell: Vector2i, object_data: Dictionary, visual_center: Vector2) -> bool:
 	if not is_wall_routing_utility_object(object_data):
 		return false
+	var render_snapshot: Dictionary = PassiveRouteServiceRef.get_render_snapshot(object_data)
 	if is_authored_cooling_wall_canvas_object(object_data):
 		var faces: Array[String] = get_cooling_wall_canvas_visible_faces(object_data)
 		return draw_cooling_wall_canvas_asset_for_faces(cell, object_data, faces)
-	if get_wall_routing_mode(object_data) == "inner":
-		for side_key in ["wall_side_1", "wall_side_2"]:
-			draw_inner_wall_route_port(cell, object_data, str(object_data.get(side_key, "")), visual_center)
+	if str(render_snapshot.get("route_mode", "inner")) == PassiveRouteServiceRef.MODE_INNER:
+		for side_variant in Array(render_snapshot.get("route_pair", [])):
+			draw_inner_wall_route_port(cell, object_data, str(side_variant), visual_center)
 		return true
 	return draw_outer_wall_route_surface(cell, object_data, visual_center)
 
@@ -1934,8 +1936,8 @@ func is_authored_cooling_wall_canvas_object(object_data: Dictionary) -> bool:
 	var routing_kind: String = str(object_data.get("routing_kind", _get_wall_routed_object_family(object_data))).strip_edges().to_lower()
 	var asset_id: String = get_inner_wall_route_asset_id(object_data)
 	return (
-		(object_type == "external_air_duct" and routing_kind == "air_duct" and asset_id == "air_duct_inner_wall_01")
-		or (object_type == "external_water_pipe" and routing_kind == "water_pipe" and asset_id == "water_pipe_inner_wall_01")
+		(object_type in ["external_air_duct", "air_duct"] and routing_kind == "air_duct" and asset_id == "air_duct_inner_wall_01")
+		or (object_type in ["external_water_pipe", "water_pipe"] and routing_kind == "water_pipe" and asset_id == "water_pipe_inner_wall_01")
 	)
 
 func get_wall_canvas_asset_key_for_cell(cell: Vector2i) -> String:
@@ -1947,21 +1949,15 @@ func get_wall_canvas_asset_key_for_cell(cell: Vector2i) -> String:
 
 func get_cooling_wall_canvas_visible_faces(object_data: Dictionary) -> Array[String]:
 	var faces: Array[String] = []
-
-	if get_wall_routing_mode(object_data) == "inner":
-		for side_key in ["wall_side_1", "wall_side_2"]:
-			var face: String = _wall_route_side_to_visible_face(str(object_data.get(side_key, "")))
-			if not face.is_empty() and face not in faces:
-				faces.append(face)
-	else:
-		var fallback_face: String = normalize_wall_visual_side(object_data)
-		if not fallback_face.is_empty():
-			faces.append(fallback_face)
-
+	var render_snapshot: Dictionary = PassiveRouteServiceRef.get_render_snapshot(object_data)
+	for side_variant in Array(render_snapshot.get("route_pair", [])):
+		var face: String = _wall_route_side_to_visible_face(str(side_variant))
+		if not face.is_empty() and face not in faces:
+			faces.append(face)
 	if faces.is_empty():
-		faces.append("sw")
-		faces.append("se")
-
+		var mount_face: String = _wall_route_side_to_visible_face(str(render_snapshot.get("mount_side", "SW")))
+		if not mount_face.is_empty():
+			faces.append(mount_face)
 	return faces
 
 func _get_cooling_wall_canvas_region(region_key: String, full_size: Vector2) -> Rect2:
