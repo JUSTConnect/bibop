@@ -71,10 +71,14 @@ jobs:
           godot --headless --path . --script res://tools/ci/check_binding_store_mission_manager.gd
           godot --headless --path . --script res://tools/ci/check_power_control_resolver.gd
           godot --headless --path . --script res://tools/ci/check_power_control_runtime_service.gd
-          godot --headless --path . --script res://tools/ci/check_access_resolver.gd
-          godot --headless --path . --script res://tools/ci/check_access_any_of.gd
-          godot --headless --path . --script res://tools/ci/check_access_runtime_service.gd
-          godot --headless --path . --script res://tools/ci/check_access_binding_service.gd
+          echo "ACCESS_GATE: resolver"
+          timeout 60s godot --headless --path . --script res://tools/ci/check_access_resolver.gd
+          echo "ACCESS_GATE: any_of"
+          timeout 60s godot --headless --path . --script res://tools/ci/check_access_any_of.gd
+          echo "ACCESS_GATE: runtime"
+          timeout 60s godot --headless --path . --script res://tools/ci/check_access_runtime_service.gd
+          echo "ACCESS_GATE: binding"
+          timeout 60s godot --headless --path . --script res://tools/ci/check_access_binding_service.gd
           godot --headless --path . --script res://tools/ci/check_power_cable_reel.gd
           godot --headless --path . --script res://tools/ci/check_power_cable_reel_mission_manager.gd
           godot --headless --path . --script res://tools/ci/check_grid_manager_renderer_contract.gd
