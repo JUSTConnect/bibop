@@ -29,9 +29,12 @@ const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
 const DetailsCurrencyServiceRef = preload("res://scripts/game/inventory/details_currency_service.gd")
 const NormalItemContractRef = preload("res://scripts/game/inventory/normal_item_contract.gd")
+const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const WallRoutingValidationServiceRef = preload("res://scripts/game/routing/wall_routing_validation_service.gd")
+const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
+const VersionedSnapshotMigrationServiceRef = preload("res://scripts/world/versioned_snapshot_migration_service.gd")
 const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cooling_routing_contour_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
@@ -54,6 +57,7 @@ var wall_mounted_objects_by_cell: Dictionary:
 var generic_cable_runtime_report: Dictionary = {}
 var generic_airflow_runtime_report: Dictionary = {}
 var details_currency_service = DetailsCurrencyServiceRef.new()
+var migrated_center_storage_state: Dictionary = {}
 
 var cell_items: Dictionary:
 	get:
@@ -69,39 +73,60 @@ var grid_manager: Node = null
 var platform_last_tick_action_index: int = -1
 
 func replace_world_state_snapshot(objects: Array[Dictionary]) -> Dictionary:
-	var bounds_check: Dictionary = _validate_world_state_store_snapshot_bounds(objects)
-	if not bool(bounds_check.get("ok", false)):
-		return bounds_check
-	return world_state_store.replace_serialized_snapshot({"format_version": 0, "objects": objects})
+	return replace_world_state_serialized_snapshot({"format_version":0, "objects":objects.duplicate(true)})
+
+func preview_world_state_snapshot_migration(snapshot: Dictionary) -> Dictionary:
+	return VersionedSnapshotMigrationServiceRef.preview_migration(snapshot)
 
 func replace_world_state_serialized_snapshot(snapshot: Dictionary) -> Dictionary:
-	var raw_entities: Variant = snapshot.get("entities", snapshot.get("objects", []))
-	if not (raw_entities is Array):
-		return {"ok": false, "success": false, "code": "missing", "reason_code": "missing", "details": {"field": "entities"}}
+	var migration: Dictionary = VersionedSnapshotMigrationServiceRef.migrate_document(snapshot)
+	if not bool(migration.get("success", false)):
+		return migration
+	var canonical: Dictionary = Dictionary(migration.get("snapshot", {})).duplicate(true)
+	var raw_entities: Variant = canonical.get("entities", [])
+	if not raw_entities is Array:
+		return {"ok":false, "success":false, "code":"invalid_document", "reason_code":"invalid_document", "details":{"field":"entities"}}
 	var entities: Array[Dictionary] = []
 	for entity_value in Array(raw_entities):
-		if not (entity_value is Dictionary):
-			return {"ok": false, "success": false, "code": "missing", "reason_code": "missing", "details": {"field": "entities", "reason": "entity_not_dictionary"}}
-		entities.append(Dictionary(entity_value))
-	var details_snapshot: Variant = snapshot.get("details_currency", {})
-	if details_snapshot is Dictionary and not Dictionary(details_snapshot).is_empty():
-		var preview_service = DetailsCurrencyServiceRef.new()
-		var details_validation: Dictionary = preview_service.replace_snapshot(Dictionary(details_snapshot))
-		if not bool(details_validation.get("success", false)):
-			return details_validation
+		if not entity_value is Dictionary:
+			return {"ok":false, "success":false, "code":"invalid_document", "reason_code":"invalid_document", "details":{"field":"entities", "reason":"entity_not_dictionary"}}
+		entities.append(Dictionary(entity_value).duplicate(true))
 	var bounds_check: Dictionary = _validate_world_state_store_snapshot_bounds(entities)
 	if not bool(bounds_check.get("ok", false)):
 		return bounds_check
-	var world_result: Dictionary = world_state_store.replace_serialized_snapshot(snapshot)
+	var world_result: Dictionary = world_state_store.replace_serialized_snapshot(canonical)
 	if not bool(world_result.get("ok", false)):
 		return world_result
+	var details_snapshot: Variant = canonical.get("details_currency", {})
 	if details_snapshot is Dictionary and not Dictionary(details_snapshot).is_empty():
 		details_currency_service.replace_snapshot(Dictionary(details_snapshot))
-	return world_result
+	var migrated_inventory: Variant = canonical.get("inventory_state", {})
+	if migrated_inventory is Dictionary:
+		var next_inventory: Dictionary = runtime_inventory_state.duplicate(true)
+		for key in Dictionary(migrated_inventory).keys():
+			next_inventory[key] = Dictionary(migrated_inventory)[key]
+		runtime_inventory_state = next_inventory
+	var center_storage: Variant = canonical.get("center_storage", {})
+	if center_storage is Dictionary:
+		migrated_center_storage_state = Dictionary(center_storage).duplicate(true)
+	var result: Dictionary = world_result.duplicate(true)
+	result["success"] = bool(world_result.get("ok", false))
+	result["migration"] = migration.duplicate(true)
+	result["migration_issues"] = Array(migration.get("issues", [])).duplicate(true)
+	result["source_format_version"] = int(migration.get("source_format_version", 0))
+	result["target_format_version"] = int(migration.get("target_format_version", VersionedSnapshotMigrationServiceRef.CURRENT_FORMAT_VERSION))
+	result["migrated"] = bool(migration.get("migrated", false))
+	result["draft_save_allowed"] = bool(migration.get("draft_save_allowed", false))
+	result["task_test_allowed"] = bool(migration.get("task_test_allowed", false))
+	result["promotion_allowed"] = bool(migration.get("promotion_allowed", false))
+	return result
 
 func get_world_state_serializable_snapshot() -> Dictionary:
 	var snapshot: Dictionary = world_state_store.get_serializable_snapshot()
+	snapshot["format_version"] = VersionedSnapshotMigrationServiceRef.CURRENT_FORMAT_VERSION
 	snapshot["details_currency"] = details_currency_service.get_snapshot()
+	snapshot["inventory_state"] = get_inventory_state()
+	snapshot["center_storage"] = migrated_center_storage_state.duplicate(true)
 	return snapshot
 
 func _upsert_world_state_object(object_data: Dictionary) -> Dictionary:
@@ -4763,40 +4788,13 @@ func _get_map_constructor_editable_field_schema() -> Dictionary:
 		"item_class":"string","storage_route":"string","item_type":"string","digital_state":"string","key_kind":"string","key_type":"string","display_name":"string","description":"string","custom_description":"string","linked_door_id":"string","payload_id":"string","access_code":"string","damaged":"bool",
 		"power_mode":"string","power_source_id":"string","control_mode":"string","control_terminal_id":"string","access_type":"string","access_terminal_id":"string","access_code_value":"string","stored_key_ids":"array_string","route_surface":"string","cable_install_mode":"string","install_mode":"string","cable_health_state":"string","health_state":"string","physical_connection_source_id":"string","input_wire_id":"string","input_direction":"string","output_1_wire_id":"string","output_2_wire_id":"string","output_3_wire_id":"string","output_1_direction":"string","output_2_direction":"string","output_3_direction":"string","brightness":"string","color":"string","mount":"string","switch_state":"string","switcher_type":"string","light_group_id":"string","light_enabled":"bool","target_light_ids":"array_string","linked_light_ids":"array_string","active_line_id":"string","switcher_lines":"array_dictionary","line_1_label":"string","line_1_direction":"string","line_1_color_id":"string","line_1_circuit_id":"string","line_2_label":"string","line_2_direction":"string","line_2_color_id":"string","line_2_circuit_id":"string","line_3_label":"string","line_3_direction":"string","line_3_color_id":"string","line_3_circuit_id":"string","fuse_present":"bool","variant":"string",
 		"platform_mode":"string","platform_level":"int","max_level":"int","mechanism_id":"string","mechanism_role":"string","activation_mode":"string","activation_delay_turns":"int","control_cell_x":"int","control_cell_y":"int",
-		"route_mode":"string","cooling_contour_mode":"string","cooling_contour_id":"string","cooling_contour_member_ids":"array_string","wall_side_1":"string","wall_side_2":"string",
+		"mount_side":"string","route_side_1":"string","route_side_2":"string",
 		"bipob_type":"string","bipob_status":"string","bipob_alignment":"string","chassis_type":"string","visor_type":"string","loadout_profile":"string"
 	}
 
 
-func get_map_constructor_object_ref_options(entity_kind: String, entity_id: String, field_name: String) -> Array[Dictionary]:
-	if field_name != "cooling_contour_member_ids":
-		return []
-	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
-	if not bool(entity_info.get("ok", false)):
-		return []
-	var selected_data: Dictionary = _safe_dictionary(entity_info.get("data", {}))
-	var selected_kind: String = str(selected_data.get("routing_kind", selected_data.get("cooling_system_type", ""))).strip_edges().to_lower()
-	var selected_members: Array = _safe_array(selected_data.get(field_name, []))
-	var options: Array[Dictionary] = []
-	for object_variant in mission_world_objects:
-		if not object_variant is Dictionary:
-			continue
-		var object_data: Dictionary = _safe_dictionary(object_variant)
-		var object_id: String = str(object_data.get("id", "")).strip_edges()
-		if object_id.is_empty():
-			continue
-		if str(object_data.get("object_group", object_data.get("group", ""))).strip_edges().to_lower() != "cooling":
-			continue
-		var routing_kind: String = str(object_data.get("routing_kind", object_data.get("cooling_system_type", ""))).strip_edges().to_lower()
-		if routing_kind != selected_kind:
-			continue
-		options.append({
-			"id": object_id,
-			"label": "%s (%s)" % [str(object_data.get("display_name", object_data.get("name", object_id))), object_id],
-			"checked": selected_members.has(object_id) or object_id == entity_id,
-			"disabled": object_id == entity_id
-		})
-	return options
+func get_map_constructor_object_ref_options(_entity_kind: String, _entity_id: String, _field_name: String) -> Array[Dictionary]:
+	return []
 
 func get_map_constructor_archetype_property_schema(entity_kind: String, entity_id: String) -> Array[Dictionary]:
 	var entity_info: Dictionary = get_map_constructor_entity_by_id(entity_kind, entity_id)
@@ -5942,10 +5940,9 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 		"facing_side",
 		"facing_dir",
 		"mirror_visual_for_facing_side",
-		"wall_routing_mode",
-		"route_mode",
-		"wall_side_1",
-		"wall_side_2"
+		"mount_side",
+		"route_side_1",
+		"route_side_2"
 	]
 
 	var has_visual_wall_update: bool = false
@@ -6004,35 +6001,28 @@ func update_map_constructor_entity_properties(entity_kind: String, entity_id: St
 		if safe.has("mirror_visual_for_facing_side"):
 			data["mirror_visual_for_facing_side"] = bool(safe.get("mirror_visual_for_facing_side", true))
 
-		if safe.has("wall_routing_mode") or safe.has("route_mode"):
-			var normalized_routing_mode: String = str(safe.get("route_mode", safe.get("wall_routing_mode", data.get("route_mode", data.get("wall_routing_mode", "outer"))))).strip_edges().to_lower()
-			normalized_routing_mode = normalized_routing_mode.replace("-", "_")
-			normalized_routing_mode = normalized_routing_mode.replace(" ", "_")
-			match normalized_routing_mode:
-				"inner", "inside", "internal", "in_wall", "embedded":
-					normalized_routing_mode = "inner"
-				"outer", "outside", "external", "surface", "":
-					normalized_routing_mode = "outer"
-				_:
-					normalized_routing_mode = "outer"
-			data["wall_routing_mode"] = normalized_routing_mode
-			data["route_mode"] = normalized_routing_mode
-
-		for route_side_field in ["wall_side_1", "wall_side_2"]:
-			if safe.has(route_side_field):
-				var route_side: String = str(safe.get(route_side_field, data.get(route_side_field, ""))).strip_edges().to_upper()
-				if route_side in ["NE", "NW", "SE", "SW"]:
-					data[route_side_field] = route_side
+		var passive_route_update: bool = PassiveRouteServiceRef.is_passive_route(data)
+		if passive_route_update:
+			if safe.has("mount_side"):
+				var mount_side: String = PassiveRouteServiceRef.normalize_side(safe.get("mount_side", data.get("mount_side", "SW")))
+				if not mount_side.is_empty():
+					data["mount_side"] = mount_side
+					data["wall_side"] = mount_side
+			for route_side_field in ["route_side_1", "route_side_2"]:
+				if safe.has(route_side_field):
+					data[route_side_field] = PassiveRouteServiceRef.normalize_side(safe.get(route_side_field, data.get(route_side_field, "")))
+			data["route_mode"] = PassiveRouteServiceRef.get_mode(data)
 
 		for routing_warning in WallRoutingValidationServiceRef.collect_warnings(data, _deserialize_cell_variant(data.get("position", data.get("cell", Vector2i(-1, -1)))), self):
 			warnings.append(str(routing_warning))
 
-		update_world_object_by_id(entity_id, data)
+		if PassiveRouteServiceRef.is_passive_route(data):
+			_upsert_world_state_object(PassiveRouteServiceRef.normalize_segment(data))
+		else:
+			update_world_object_by_id(entity_id, data)
 
 		if has_method("_rebuild_wall_mounted_world_object_lookup"):
 			_rebuild_wall_mounted_world_object_lookup()
-
-		refresh_world_cooling_received()
 
 		for visual_field in visual_wall_fields:
 			safe.erase(visual_field)
@@ -6956,50 +6946,58 @@ func update_world_object_by_id(id: String, new_data: Dictionary) -> void:
 	refresh_world_cooling_received()
 	return
 
-func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i) -> Dictionary:
-	var result := {"success": false, "message": "Cannot move object there.", "object_id": object_id, "from": Vector2i(-1, -1), "to": target_cell}
-	if object_id.strip_edges().is_empty():
-		result["message"] = "Object not found."
-		return result
-	var object_data := get_world_object_by_id(object_id)
+func preview_movable_action(actor: Dictionary, object_id: String, target_cell: Vector2i, action_id: String = "push") -> Dictionary:
+	var object_data: Dictionary = get_world_object_by_id(object_id)
 	if object_data.is_empty():
-		result["message"] = "Object not found."
-		return result
-	var from_cell := WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
-	result["from"] = from_cell
-	if not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data):
-		result["message"] = "Object cannot be moved by Heavy Claw."
-		return result
-	if from_cell == target_cell:
-		result["message"] = "Object already there."
-		return result
+		return MovableActionServiceRef.preview_action(actor, object_data, action_id)
+	var from_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
 	var target_cell_state: Dictionary = get_runtime_cell_state(target_cell)
-	if not bool(target_cell_state.get("in_bounds", false)):
-		result["message"] = "Target cell is blocked."
-		return result
 	var from_surface: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(from_cell, mission_world_objects)
 	var target_surface: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(target_cell, mission_world_objects)
-	if not PlatformOccupancyServiceRef.is_surface_move_allowed(from_surface, target_surface):
-		result["message"] = "surface_level_mismatch"
-		return result
-	if not bool(target_cell_state.get("is_passable", false)) and PlatformOccupancyServiceRef.get_platform_for_cell(target_cell, mission_world_objects).is_empty():
-		result["message"] = "Target cell is blocked."
-		return result
-	if from_cell.x < 0 or from_cell.y < 0:
-		result["message"] = "Object not found."
-		return result
-	var target_object := get_blocking_object_at_cell_for_push(target_cell)
-	if not target_object.is_empty():
-		result["message"] = "Target cell is occupied."
-		return result
-	object_data = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
-	_move_world_state_object(object_id, target_cell, object_data)
-	refresh_world_cooling_received()
-	recalculate_power_network("power_net_A")
-	refresh_world_cooling_received()
+	var target_platform: Dictionary = PlatformOccupancyServiceRef.get_platform_for_cell(target_cell, mission_world_objects)
+	var target_object: Dictionary = get_blocking_object_at_cell_for_push(target_cell)
+	var context: Dictionary = {
+		"validate_destination": true,
+		"validate_target_relation": true,
+		"from_cell": from_cell,
+		"to_cell": target_cell,
+		"in_bounds": bool(target_cell_state.get("in_bounds", false)),
+		"destination_passable": bool(target_cell_state.get("is_passable", false)) or not target_platform.is_empty(),
+		"destination_occupied": not target_object.is_empty(),
+		"surface_move_allowed": PlatformOccupancyServiceRef.is_surface_move_allowed(from_surface, target_surface)
+	}
+	return MovableActionServiceRef.preview_action(actor, object_data, action_id, context)
+
+func move_world_object_with_requirements(object_id: String, target_cell: Vector2i, actor: Dictionary, action_id: String = "push") -> Dictionary:
+	var preview: Dictionary = preview_movable_action(actor, object_id, target_cell, action_id)
+	if not bool(preview.get("success", false)):
+		return preview
+	var object_data: Dictionary = get_world_object_by_id(object_id)
+	var from_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+	var target_surface: Dictionary = PlatformOccupancyServiceRef.get_surface_context_for_cell(target_cell, mission_world_objects)
+	var structural_patch: Dictionary = PlatformOccupancyServiceRef.attach_entity_to_surface(object_data, target_surface)
+	structural_patch.erase("position")
+	var move_commit: Dictionary = _move_world_state_object(object_id, target_cell, structural_patch)
+	if not bool(move_commit.get("ok", false)):
+		return move_commit
+	var result: Dictionary = preview.duplicate(true)
 	result["success"] = true
-	result["message"] = "Moved %s." % str(object_data.get("display_name", "Object"))
+	result["ok"] = true
+	result["code"] = MovableActionServiceRef.CODE_VALID
+	result["reason_code"] = MovableActionServiceRef.CODE_VALID
+	result["from"] = from_cell
+	result["to"] = target_cell
+	result["message"] = "Moved %s." % str(object_data.get("display_name", object_data.get("name", "Object")))
+	result["affected_ids"] = [object_id]
 	return result
+
+func move_world_object_by_heavy_claw(object_id: String, target_cell: Vector2i, actor: Dictionary = {}) -> Dictionary:
+	var resolved_actor: Dictionary = actor.duplicate(true)
+	if resolved_actor.is_empty():
+		var object_data: Dictionary = get_world_object_by_id(object_id)
+		var object_cell: Vector2i = WorldObjectCatalogRef.to_world_cell(object_data.get("position", Vector2i(-1, -1)), Vector2i(-1, -1))
+		resolved_actor = {"actor_type":"heavy", "actor_count":1, "power_class":"heavy", "manipulator_level":0, "manipulator_active":false, "manipulator_occupied":false, "heavy_claw_level":99, "heavy_claw_active":true, "actor_position":object_cell, "facing_direction":Vector2i.ZERO}
+	return move_world_object_with_requirements(object_id, target_cell, resolved_actor, "move")
 
 func refresh_world_cooling_received() -> void:
 	var objects: Array[Dictionary] = world_state_store.get_all_objects()

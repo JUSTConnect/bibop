@@ -4,7 +4,7 @@ class_name MapConstructorInspector
 const MapConstructorPlatformControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_platform_controls.gd")
 const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
 const MapConstructorTerminalStoredDataControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_terminal_stored_data_controls.gd")
-const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cooling_routing_contour_service.gd")
+const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
 
 
 static func _is_simple_movable_object(data: Dictionary) -> bool:
@@ -182,39 +182,24 @@ static func _normalize_wall_routing_mode_value(data: Dictionary) -> String:
 
 
 static func _is_cooling_routing_object(data: Dictionary) -> bool:
-	var kind: String = str(data.get("routing_kind", data.get("cooling_system_type", ""))).strip_edges().to_lower()
-	var object_type: String = str(data.get("object_type", data.get("type", ""))).strip_edges().to_lower()
-	return kind in ["air_duct", "water_pipe"] or object_type in ["external_air_duct", "external_water_pipe"]
+	return PassiveRouteServiceRef.is_passive_route(data)
 
 
 static func _normalize_cooling_routing_kind(data: Dictionary) -> String:
-	var kind: String = str(data.get("routing_kind", data.get("cooling_system_type", ""))).strip_edges().to_lower()
-	if kind in ["air_duct", "water_pipe"]:
-		return kind
-	var object_type: String = str(data.get("object_type", data.get("type", ""))).strip_edges().to_lower()
-	if object_type == "external_air_duct":
-		return "air_duct"
-	if object_type == "external_water_pipe":
-		return "water_pipe"
-	return ""
+	return PassiveRouteServiceRef.get_kind(data)
 
 
 static func _format_cooling_routing_kind(kind: String) -> String:
-	if kind == "air_duct":
+	if kind == PassiveRouteServiceRef.KIND_AIR_DUCT:
 		return "air duct"
-	if kind == "water_pipe":
+	if kind == PassiveRouteServiceRef.KIND_WATER_PIPE:
 		return "water pipe"
 	return "unknown"
 
 
 static func _normalize_cooling_wall_side(data: Dictionary, field_name: String, fallback: String) -> String:
-	var side: String = MapConstructorUiSafe.safe_string(data.get(field_name, fallback)).strip_edges().to_upper()
-	return side if side in ["NE", "NW", "SE", "SW"] else fallback
-
-
-static func _normalize_cooling_contour_mode(data: Dictionary) -> String:
-	var mode: String = MapConstructorUiSafe.safe_string(data.get("cooling_contour_mode", "auto")).strip_edges().to_lower()
-	return "manual" if mode == "manual" else "auto"
+	var side: String = PassiveRouteServiceRef.normalize_side(data.get(field_name, fallback))
+	return fallback if side.is_empty() else side
 
 
 static func _is_bipob_constructor_object(entity_kind: String, data: Dictionary) -> bool:
@@ -240,16 +225,10 @@ static func _get_cooling_objects_by_id(ui: Variant, selected_entity_id: String, 
 			for object_variant in Array(mission_objects):
 				var object_data: Dictionary = ui._safe_ui_dictionary(object_variant)
 				var object_id: String = ui._safe_ui_string(object_data.get("id", object_data.get("object_id", ""))).strip_edges()
-				if object_id.is_empty() or not _is_cooling_routing_object(object_data):
+				if object_id.is_empty() or not PassiveRouteServiceRef.is_passive_route(object_data):
 					continue
-				var preview_data: Dictionary = object_data.duplicate(true)
-				if not (str(preview_data.get("routing_kind", "")).strip_edges().to_lower() in ["air_duct", "water_pipe"]):
-					preview_data["routing_kind"] = _normalize_cooling_routing_kind(preview_data)
-				objects_by_id[object_id] = preview_data
-	var selected_preview: Dictionary = selected_data.duplicate(true)
-	if not (str(selected_preview.get("routing_kind", "")).strip_edges().to_lower() in ["air_duct", "water_pipe"]):
-		selected_preview["routing_kind"] = _normalize_cooling_routing_kind(selected_preview)
-	objects_by_id[selected_entity_id] = selected_preview
+				objects_by_id[object_id] = object_data.duplicate(true)
+	objects_by_id[selected_entity_id] = selected_data.duplicate(true)
 	return objects_by_id
 
 
@@ -261,39 +240,60 @@ static func _add_read_only_text_row(ui: Variant, section: VBoxContainer, label: 
 
 
 static func _render_cooling_system_controls(ui: Variant, parent: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
-	MapConstructorPropertyControls.add_enum_updates_property(
-		ui,
-		parent,
-		"Route mode",
-		entity_kind,
-		entity_id,
-		_normalize_wall_routing_mode_value(data),
-		[
-			{"label": "Inner", "value": "inner", "updates": {"route_mode": "inner", "wall_routing_mode": "inner"}},
-			{"label": "Outer", "value": "outer", "updates": {"route_mode": "outer", "wall_routing_mode": "outer"}}
-		]
-	)
-	if _normalize_wall_routing_mode_value(data) == "inner":
-		MapConstructorPropertyControls.add_enum_property(ui, parent, "Wall side 1", entity_kind, entity_id, "wall_side_1", _normalize_cooling_wall_side(data, "wall_side_1", "NW"), [{"label":"NE", "value":"NE"}, {"label":"NW", "value":"NW"}, {"label":"SE", "value":"SE"}, {"label":"SW", "value":"SW"}])
-		MapConstructorPropertyControls.add_enum_property(ui, parent, "Wall side 2", entity_kind, entity_id, "wall_side_2", _normalize_cooling_wall_side(data, "wall_side_2", "SE"), [{"label":"NE", "value":"NE"}, {"label":"NW", "value":"NW"}, {"label":"SE", "value":"SE"}, {"label":"SW", "value":"SW"}])
-		if _normalize_cooling_wall_side(data, "wall_side_1", "NW") == _normalize_cooling_wall_side(data, "wall_side_2", "SE"):
-			_add_cable_note(ui, parent, "Inner routing sides must be different.", true)
-	MapConstructorPropertyControls.add_enum_property(ui, parent, "Contour mode", entity_kind, entity_id, "cooling_contour_mode", _normalize_cooling_contour_mode(data), [{"label":"Auto", "value":"auto"}, {"label":"Manual", "value":"manual"}])
-	if _normalize_cooling_contour_mode(data) == "manual":
-		MapConstructorPropertyControls.add_object_ref_array_property(ui, parent, "Contour members", entity_kind, entity_id, "cooling_contour_member_ids", data.get("cooling_contour_member_ids", []))
-		# "Manual contour id" is legacy-only; UI edits manual contour membership with checkboxes.
+	var side_options: Array[Dictionary] = [
+		{"label":"NE", "value":"NE"},
+		{"label":"SE", "value":"SE"},
+		{"label":"SW", "value":"SW"},
+		{"label":"NW", "value":"NW"}
+	]
+	MapConstructorPropertyControls.add_enum_property(ui, parent, "Mount side", entity_kind, entity_id, "mount_side", _normalize_cooling_wall_side(data, "mount_side", "SW"), side_options)
+	MapConstructorPropertyControls.add_enum_property(ui, parent, "Route side 1", entity_kind, entity_id, "route_side_1", _normalize_cooling_wall_side(data, "route_side_1", "NW"), side_options)
+	MapConstructorPropertyControls.add_enum_property(ui, parent, "Route side 2", entity_kind, entity_id, "route_side_2", _normalize_cooling_wall_side(data, "route_side_2", "SE"), side_options)
+
 	var objects_by_id: Dictionary = _get_cooling_objects_by_id(ui, entity_id, data)
-	var contours: Dictionary = CoolingRoutingContourServiceRef.build_contours(objects_by_id)
-	var contour_id: String = CoolingRoutingContourServiceRef.get_object_contour_id(Dictionary(objects_by_id.get(entity_id, data)), entity_id, contours)
-	var routing_kind: String = _normalize_cooling_routing_kind(data)
-	_add_read_only_text_row(ui, parent, "Routing kind", _format_cooling_routing_kind(routing_kind))
-	_add_read_only_text_row(ui, parent, "Computed contour id", contour_id if not contour_id.is_empty() else "none")
-	var contour_data: Dictionary = Dictionary(Dictionary(contours.get(routing_kind, {})).get(contour_id, {})) if not contour_id.is_empty() else {}
-	var members: Array = Array(contour_data.get("members", []))
-	_add_read_only_text_row(ui, parent, "Contour members", ", ".join(members) if not members.is_empty() else "0")
-	var warnings_by_id: Dictionary = CoolingRoutingContourServiceRef.collect_contour_warnings(objects_by_id)
-	var warnings: Array = Array(warnings_by_id.get(entity_id, []))
-	_add_read_only_text_row(ui, parent, "Contour warnings", "\n".join(warnings) if not warnings.is_empty() else "none")
+	var route_objects: Array[Dictionary] = []
+	var object_ids: Array = objects_by_id.keys()
+	object_ids.sort()
+	for object_id_variant in object_ids:
+		var object_value: Variant = objects_by_id[object_id_variant]
+		if object_value is Dictionary:
+			var route_object: Dictionary = Dictionary(object_value).duplicate(true)
+			if str(route_object.get("id", "")).strip_edges().is_empty():
+				route_object["id"] = str(object_id_variant)
+			route_objects.append(route_object)
+	var topology: Dictionary = PassiveRouteServiceRef.build_topology(route_objects)
+	var preview: Dictionary = Dictionary(Dictionary(topology.get("previews", {})).get(entity_id, PassiveRouteServiceRef.validate_segment(data)))
+	var pair_labels: Array[String] = []
+	for side_variant in Array(preview.get("route_pair", [])):
+		pair_labels.append(str(side_variant))
+	var neighbor_labels: Array[String] = []
+	for neighbor_variant in Array(preview.get("compatible_neighbor_ids", [])):
+		neighbor_labels.append(str(neighbor_variant))
+	var issue_lines: Array[String] = []
+	for issue_variant in Array(preview.get("issues", [])):
+		if not issue_variant is Dictionary:
+			continue
+		var issue: Dictionary = Dictionary(issue_variant)
+		issue_lines.append("[%s] %s" % [str(issue.get("code", "unknown")), str(issue.get("message", ""))])
+	var pair_text: String = "invalid"
+	if pair_labels.size() == 2:
+		pair_text = "%s + %s" % [pair_labels[0], pair_labels[1]]
+	var neighbor_text: String = "none"
+	if not neighbor_labels.is_empty():
+		neighbor_text = ", ".join(neighbor_labels)
+	var issue_text: String = "none"
+	if not issue_lines.is_empty():
+		issue_text = "
+".join(issue_lines)
+	var component_id: String = str(preview.get("component_id", ""))
+	if component_id.is_empty():
+		component_id = "none"
+	_add_read_only_text_row(ui, parent, "Routing kind", _format_cooling_routing_kind(str(preview.get("routing_kind", ""))))
+	_add_read_only_text_row(ui, parent, "Normalized route pair", pair_text)
+	_add_read_only_text_row(ui, parent, "Route shape", str(preview.get("route_shape", "invalid")))
+	_add_read_only_text_row(ui, parent, "Compatible neighbors", neighbor_text)
+	_add_read_only_text_row(ui, parent, "Computed component id", component_id)
+	_add_read_only_text_row(ui, parent, "Route issues", issue_text)
 
 static func _is_wall_cable_constructor_object(data: Dictionary) -> bool:
 	var tokens: Array[String] = [
