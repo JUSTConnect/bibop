@@ -1,0 +1,27 @@
+name: Versioned Migration Contract Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  versioned-migration-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+
+      - name: Godot import smoke
+        run: godot --headless --path . --import
+
+      - name: Versioned migration behavior gate
+        run: timeout 120s godot --headless --path . --script res://tools/ci/check_versioned_snapshot_migration.gd
