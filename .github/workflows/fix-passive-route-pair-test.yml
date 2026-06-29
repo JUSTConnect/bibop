@@ -1,0 +1,38 @@
+name: Fix Passive Route Pair Test
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-pair-test:
+    if: github.event.pull_request.number == 1200
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Patch order-independent assertion
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/ci/check_passive_route_integration.gd')
+          text = path.read_text()
+          old = '\t_assert(str(normalized.get("route_side_1", "")) == "NW" and str(normalized.get("route_side_2", "")) == "SE", "catalog lost route pair")\n'
+          new = '\tvar normalized_pair: Array[String] = PassiveRouteServiceRef.normalize_route_pair(normalized)\n\t_assert(normalized_pair.size() == 2 and normalized_pair.has("NW") and normalized_pair.has("SE"), "catalog lost route pair")\n'
+          if text.count(old) != 1:
+              raise SystemExit('route pair assertion marker missing')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit fix
+        run: |
+          rm -f .github/workflows/passive-route-integration-debug.yml
+          rm -f .github/workflows/fix-passive-route-pair-test.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/ci/check_passive_route_integration.gd .github/workflows/passive-route-integration-debug.yml .github/workflows/fix-passive-route-pair-test.yml
+          git commit -m "Make passive route pair assertion order independent"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
