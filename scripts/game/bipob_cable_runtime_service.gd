@@ -2,6 +2,7 @@ extends RefCounted
 class_name BipobCableRuntimeService
 
 const CableRuntimeStateRef = preload("res://scripts/game/bipob_cable_runtime_state.gd")
+const PowerCableReelServiceRef = preload("res://scripts/game/power_cable_reel_service.gd")
 
 const ROLE_POWER_SOURCE: String = "power_source"
 const ROLE_SOCKET_INPUT: String = "socket_input"
@@ -26,6 +27,18 @@ const POWER_STATE_SOURCE_OFF: String = "source_off"
 static func create_empty_state() -> BipobCableRuntimeState:
 	var result: BipobCableRuntimeState = CableRuntimeStateRef.new()
 	return result
+
+static func preview_power_cable_reel_action(objects: Array[Dictionary], reel_id: String, action: String, parameters: Dictionary = {}, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	return PowerCableReelServiceRef.preview_action(objects, reel_id, action, parameters, blocked_cells)
+
+static func apply_power_cable_reel_action(objects: Array[Dictionary], reel_id: String, action: String, parameters: Dictionary = {}, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	return PowerCableReelServiceRef.apply_action_to_world(objects, reel_id, action, parameters, blocked_cells)
+
+static func recalculate_power_cable_reel(objects: Array[Dictionary], reel_id: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	return PowerCableReelServiceRef.recalculate_world(objects, reel_id, blocked_cells)
+
+static func recalculate_power_cable_reels_for_socket(objects: Array[Dictionary], socket_id: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	return PowerCableReelServiceRef.recalculate_for_socket(objects, socket_id, blocked_cells)
 
 
 static func can_start_drag(state: BipobCableRuntimeState, hand_occupied: bool = false) -> bool:

@@ -2,42 +2,56 @@ extends RefCounted
 class_name CenterStorageService
 
 # Center virtual storage helpers for items, files and modules.
-# This service is data-only/helper-only and must not own UI or mission runtime flow.
+# Details currency is owned by DetailsCurrencyService and never by this storage.
 
 const ItemFileTypesRef = preload("res://scripts/game/inventory/item_file_types.gd")
+const DetailsCurrencyServiceRef = preload("res://scripts/game/inventory/details_currency_service.gd")
 
 const STORAGE_ITEMS: String = "items"
 const STORAGE_FILES: String = "files"
 const STORAGE_INTERNAL_MODULES: String = "internal_modules"
 const STORAGE_EXTERNAL_MODULES: String = "external_modules"
-const STORAGE_PARTS: String = "parts"
+const STORAGE_PARTS: String = "parts" # Legacy read-only migration key.
 
 static func create_empty_storage() -> Dictionary:
 	return {
 		STORAGE_ITEMS: [],
 		STORAGE_FILES: [],
 		STORAGE_INTERNAL_MODULES: [],
-		STORAGE_EXTERNAL_MODULES: [],
-		STORAGE_PARTS: 0
+		STORAGE_EXTERNAL_MODULES: []
 	}
 
 static func normalize_storage(storage: Dictionary) -> Dictionary:
 	var result: Dictionary = create_empty_storage()
 	for key in result.keys():
 		if storage.has(key):
-			if key == STORAGE_PARTS:
-				result[key] = int(storage.get(key, 0))
-			else:
-				result[key] = _normalize_array_of_dictionaries(storage.get(key, []))
+			result[key] = _normalize_array_of_dictionaries(storage.get(key, []))
 	return result
+
+static func extract_legacy_details_amount(storage: Dictionary) -> int:
+	var amount: int = maxi(0, int(storage.get(STORAGE_PARTS, 0)))
+	for entry in _normalize_array_of_dictionaries(storage.get(STORAGE_ITEMS, [])):
+		if DetailsCurrencyServiceRef.is_details_entry(entry, str(entry.get("id", ""))):
+			amount += DetailsCurrencyServiceRef.get_entry_amount(entry)
+	return amount
+
+static func migrate_legacy_details(storage: Dictionary) -> Dictionary:
+	var result: Dictionary = normalize_storage(storage)
+	var filtered_items: Array[Dictionary] = []
+	for entry in Array(result.get(STORAGE_ITEMS, [])):
+		var entry_dict: Dictionary = Dictionary(entry)
+		if not DetailsCurrencyServiceRef.is_details_entry(entry_dict, str(entry_dict.get("id", ""))):
+			filtered_items.append(entry_dict.duplicate(true))
+	result[STORAGE_ITEMS] = filtered_items
+	return {
+		"storage": result,
+		"details_amount": extract_legacy_details_amount(storage)
+	}
 
 static func add_entry(storage: Dictionary, entry: Dictionary) -> Dictionary:
 	var result: Dictionary = normalize_storage(storage)
 	var target_key: String = _get_storage_key_for_entry(entry)
 	if target_key.is_empty():
-		return result
-	if target_key == STORAGE_PARTS:
-		result[STORAGE_PARTS] = int(result.get(STORAGE_PARTS, 0)) + int(entry.get("amount", 0))
 		return result
 	var entries: Array[Dictionary] = Array(result.get(target_key, []))
 	entries.append(entry.duplicate(true))
@@ -103,6 +117,8 @@ static func get_programmer_files(storage: Dictionary) -> Array[Dictionary]:
 static func collect_mission_return(storage: Dictionary, carried_entries: Array[Dictionary]) -> Dictionary:
 	var result: Dictionary = normalize_storage(storage)
 	for entry in carried_entries:
+		if DetailsCurrencyServiceRef.is_details_entry(entry, str(entry.get("id", ""))):
+			continue
 		result = add_entry(result, _mark_returned_from_mission(entry))
 	return result
 
@@ -127,9 +143,9 @@ static func consume_repair_tool(entries: Array[Dictionary], repair_tool_id: Stri
 	return result
 
 static func _get_storage_key_for_entry(entry: Dictionary) -> String:
+	if DetailsCurrencyServiceRef.is_details_entry(entry, str(entry.get("id", ""))):
+		return ""
 	if ItemFileTypesRef.is_resource(entry):
-		if str(entry.get("kind", "")) == ItemFileTypesRef.RESOURCE_KIND_PARTS:
-			return STORAGE_PARTS
 		return ""
 	if ItemFileTypesRef.is_file(entry):
 		return STORAGE_FILES

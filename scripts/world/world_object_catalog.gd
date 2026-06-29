@@ -114,10 +114,10 @@ const PREFAB_ALIASES: Dictionary = {
 	"fuse": "physical_item",
 	"repair_kit": "physical_item",
 	"reinforcement": "physical_item",
-	"parts": "physical_item",
-	"parts_small": "physical_item",
-	"parts_medium": "physical_item",
-	"parts_large": "physical_item",
+	"parts": "details_pickup",
+	"parts_small": "details_pickup",
+	"parts_medium": "details_pickup",
+	"parts_large": "details_pickup",
 	"module_internal": "module_item",
 	"module_external": "module_item",
 	"vagus": "enemy",
@@ -214,10 +214,10 @@ const PREFAB_ALIAS_DEFAULTS: Dictionary = {
 	"fuse": {"physical_item_type":"fuse", "item_type":"fuse", "visual_asset_id":"fuse_floor_01"},
 	"reinforcement": {"physical_item_type":"reinforcement", "item_type":"reinforcement", "visual_asset_id":"reinforcement_floor_01"},
 	"repair_kit": {"physical_item_type":"repair_kit", "item_type":"repair_kit", "visual_asset_id":"repair_kit_floor_01"},
-	"parts": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":1},
-	"parts_small": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":5},
-	"parts_medium": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":10},
-	"parts_large": {"physical_item_type":"parts", "item_type":"parts", "visual_asset_id":"parts_floor_01", "amount":20},
+	"parts": {"currency_id":"details", "item_type":"details", "object_type":"details_pickup", "visual_asset_id":"parts_floor_01", "amount":1},
+	"parts_small": {"currency_id":"details", "item_type":"details", "object_type":"details_pickup", "visual_asset_id":"parts_floor_01", "amount":5},
+	"parts_medium": {"currency_id":"details", "item_type":"details", "object_type":"details_pickup", "visual_asset_id":"parts_floor_01", "amount":10},
+	"parts_large": {"currency_id":"details", "item_type":"details", "object_type":"details_pickup", "visual_asset_id":"parts_floor_01", "amount":20},
 	"module_internal": {"module_item_type":"module_internal", "item_type":"module_internal"},
 	"module_external": {"module_item_type":"module_external", "item_type":"module_external"},
 	"enemy_robot": {"enemy_type":"vagus", "enemy_kind":"vagus"}
@@ -592,8 +592,13 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"physical_item": {
 		"entity_contract":{"scope":"entity", "entity_type":"item", "entity_subtype":"physical_item", "status_profile":"item_standard", "property_profile":"definition_schema", "interaction_profile":"item", "notification_profile":"standard_action", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"standard", "runtime_presentation_profile":"standard_item", "editor_presentation_profile":"standard_item", "validation_fixture":"default", "capabilities":{"state":true, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":true, "mount":true, "side":false, "routing":false, "test_override":true}},
-		"archetype_id":"physical_item", "object_group":"item", "object_type":"item", "palette_label":"Physical Items", "placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{physical_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"physical", "item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "physical_item_type":"parts", "item_class":"physical_item", "item_type":"parts", "visual_asset_id":"parts_floor_01", "visual_family":"parts", "visual_surface":"floor", "state":"available", "allowed_states":["available", "collected", "disabled"],
-		"property_schema":[{"field":"physical_item_type", "type":"enum", "values":["fuse", "reinforcement", "repair_kit", "parts"], "default":"parts", "labels":{"fuse":"Fuse", "reinforcement":"Reinforcement Kit", "repair_kit":"Repair Kit", "parts":"Parts"}}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}, {"field":"amount", "type":"int", "default":1, "min":1}]
+		"archetype_id":"physical_item", "object_group":"item", "object_type":"item", "palette_label":"Physical Items", "placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"{physical_item_type_label}", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"physical", "item_form":"physical", "storage_route":"pocket", "storage_type":"pocket", "physical_item_type":"fuse", "item_class":"physical_item", "item_type":"fuse", "visual_asset_id":"fuse_floor_01", "visual_family":"fuse", "visual_surface":"floor", "state":"available", "allowed_states":["available", "collected", "disabled"], "stackable":false,
+		"property_schema":[{"field":"physical_item_type", "type":"enum", "values":["fuse", "reinforcement", "repair_kit"], "default":"fuse", "labels":{"fuse":"Fuse", "reinforcement":"Reinforcement Kit", "repair_kit":"Repair Kit"}}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}]
+	},
+	"details_pickup": {
+		"entity_contract":{"scope":"entity", "entity_type":"item", "entity_subtype":"details_pickup", "status_profile":"item_standard", "property_profile":"definition_schema", "interaction_profile":"item", "notification_profile":"standard_action", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_item", "editor_presentation_profile":"standard_item", "validation_fixture":"default", "capabilities":{"state":true, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":false, "routing":false, "test_override":true}},
+		"archetype_id":"details_pickup", "object_group":"item", "object_type":"details_pickup", "palette_label":"Details", "placement_mode":"item", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Детали", "configurable":true, "can_pickup":true, "interactable":true, "item_category":"currency_pickup", "item_form":"currency_pickup", "storage_route":"none", "storage_type":"none", "currency_id":"details", "item_type":"details", "visual_asset_id":"parts_floor_01", "visual_family":"parts", "visual_surface":"floor", "state":"available", "allowed_states":["available", "collected", "disabled"], "amount":1, "stackable":false,
+		"property_schema":[{"field":"amount", "type":"int", "default":1, "min":1}, {"field":"state", "type":"enum", "values":["available", "collected", "disabled"], "default":"available"}]
 	},
 	"module_item": {
 		"entity_contract":{"scope":"entity", "entity_type":"item", "entity_subtype":"module_item", "status_profile":"item_standard", "property_profile":"definition_schema", "interaction_profile":"item", "notification_profile":"standard_action", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"standard", "runtime_presentation_profile":"standard_item", "editor_presentation_profile":"standard_item", "validation_fixture":"default", "capabilities":{"state":true, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":true, "mount":true, "side":false, "routing":false, "test_override":true}},
@@ -1087,7 +1092,12 @@ const OBJECT_LIBRARY := {
 		"entity_contract":{"scope":"entity", "entity_type":"object", "entity_subtype":"power_socket", "status_profile":"object_standard", "property_profile":"definition_schema", "interaction_profile":"standard_object", "notification_profile":"standard_action", "power_profile":"configurable", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_object", "editor_presentation_profile":"standard_object", "validation_fixture":"default", "capabilities":{"state":true, "power":true, "health":true, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":true, "routing":false, "test_override":true}},
 		"legacy_semantic_exceptions":[{"field":"control_mode", "reason":"Legacy power socket field pending stationary power migration.", "migration_issue":1181}, {"field":"connected_device_ids", "reason":"Legacy power socket field pending stationary power migration.", "migration_issue":1181}],
 		"group":"power","placement_surfaces":["floor", "wall"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":true,"object_group":"power","object_type":"power_socket","archetype_id":"power_socket","palette_label":"Power Socket","name":"Power Socket","display_name_template":"Power Socket","placement_mode":"object","configurable":true,"interactable":true,"blocks_movement":false,"blocks_vision":false,"state":"disconnected","status":"inactive","durability":8,"power_mode":"external_power","control_mode":"internal_control","generic_power_role":"socket_input","socket_role":"socket_input","visual_family":"power_socket","visual_state_policy":"power_socket_connection_state","power_visual_state_enabled":false,"has_connected_cable":false,"connected_endpoint_count":0,"socket_connected_endpoint_count":0,"is_powered":false,"power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","power_source_id":"","physical_connection_source_id":"","is_connected":false,"connected":false,"disconnected":true,"connected_side":false,"damaged":false,"broken":false,"can_connect_cable":true,"mount":"floor","install_mode":"floor","property_schema":[FACING_SIDE_SCHEMA,{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}}]},
-	"power_cable_reel": {"group":"item","name":"Power Cable Reel","placement_surfaces":["floor", "wall"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":true,"placement_mode":"wall_mounted","state":"disconnected","generic_power_role":"cable_endpoint","power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","item_form":"physical","storage_type":"pocket","can_connect_socket":true,"max_cable_length":5,"is_connected":false,"connected":false,"disconnected":true,"connected_side":false,"connected_side_1":false,"connected_side_2":false,"end_1_state":"on_reel","end_1_target_id":"","end_1_path_cells":[],"end_1_cable_length":0,"end_2_state":"on_reel","end_2_target_id":"","end_2_path_cells":[],"end_2_cable_length":0,"cable_endpoint_a_id":"","cable_endpoint_b_id":"","cable_path_cells":[],"cable_length":0,"cut":false,"damaged":false,"broken":false,"cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal"},
+	"power_cable_reel": {
+		"entity_contract":{"scope":"entity", "entity_type":"item", "entity_subtype":"power_cable_reel", "status_profile":"item_standard", "property_profile":"fixed", "interaction_profile":"item", "notification_profile":"standard_action", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_item", "editor_presentation_profile":"excluded", "validation_fixture":"default", "capabilities":{"state":true, "power":false, "health":true, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":false, "side":false, "routing":true, "test_override":false}},
+		"group":"item", "object_group":"item", "object_type":"power_cable_reel", "name":"Power Cable Reel", "runtime_power_profile":"power_cable_reel", "runtime_reel_feed_only":true, "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "placement_mode":"item", "state":"disconnected", "health_state":"healthy", "item_form":"physical", "storage_type":"pocket", "can_connect_socket":true, "max_cable_length":5,
+		"end_1":{"state":"on_reel", "target_id":""}, "end_2":{"state":"on_reel", "target_id":""}, "path_cells":[], "connection_state":"disconnected", "reconnect_required":false,
+		"end_1_state":"on_reel", "end_1_target_id":"", "end_2_state":"on_reel", "end_2_target_id":"", "cable_path_cells":[], "cable_length":0, "is_connected":false, "connected":false, "disconnected":true, "connected_side_1":false, "connected_side_2":false, "cut":false
+	},
 	"power_source_class_1": {"group":"power","name":"Power Source C1","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":1,"outlet_capacity":4,"drain_pool":60,"working_heat":1,"current_heat":1,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":1,"connected_device_ids":[]},
 	"power_source_class_2": {"group":"power","name":"Power Source C2","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":2,"outlet_capacity":5,"drain_pool":120,"working_heat":2,"current_heat":2,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":2,"connected_device_ids":[]},
 	"power_source_class_3": {"group":"power","name":"Power Source C3","placeable_in_constructor":false,"state":"on","power_mode":"internal","control_mode":"internal","visual_family":"power_source","visual_surface":"floor","visual_state_policy":"powered_three_state","power_visual_state_enabled":true,"requires_external_control":false,"generic_power_role":"power_source","is_powered":true,"power_state":"source_on","power_required":false,"power_received":1,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","is_connected":true,"damaged":false,"broken":false,"durability":30,"power_source_class":3,"outlet_capacity":6,"drain_pool":240,"working_heat":3,"current_heat":3,"overheat_threshold":3,"heat_from_connections":0,"cooling_received":0,"overheated_state_before":"","allowed_socket_connections":3,"connected_device_ids":[]},
@@ -1104,10 +1114,10 @@ const OBJECT_LIBRARY := {
 	"fuse": {"group":"item","name":"Fuse","visual_asset_id":"fuse_floor_01","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["fuse_box","fuse_box_empty"]},
 	"repair_kit": {"group":"item","name":"Repair Kit","visual_asset_id":"repair_kit_floor_01","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["door","terminal","power"]},
 	"reinforcement": {"group":"item","name":"Reinforcement","visual_asset_id":"reinforcement_floor_01","item_form":"physical","storage_type":"manipulator_hold","can_place_in_digital_buffer":false,"consumable":true,"fits_targets":["door"],"damage":2},
-	"parts": {"group":"item","name":"Parts","visual_asset_id":"parts_floor_01","item_form":"physical","storage_type":"pocket","can_pickup":true,"can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
-	"parts_small": {"group":"item","name":"Parts (Small)","visual_asset_id":"parts_floor_01","item_form":"physical","storage_type":"pocket","can_pickup":true,"amount":5,"can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
-	"parts_medium": {"group":"item","name":"Parts (Medium)","visual_asset_id":"parts_floor_01","item_form":"physical","storage_type":"pocket","can_pickup":true,"amount":10,"can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
-	"parts_large": {"group":"item","name":"Parts (Large)","visual_asset_id":"parts_floor_01","item_form":"physical","storage_type":"pocket","can_pickup":true,"amount":20,"can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
+	"parts": {"group":"item","object_group":"item","object_type":"details_pickup","name":"Детали","currency_id":"details","item_type":"details","visual_asset_id":"parts_floor_01","item_form":"currency_pickup","storage_type":"none","can_pickup":true,"amount":1,"stackable":false},
+	"parts_small": {"group":"item","object_group":"item","object_type":"details_pickup","name":"Детали","currency_id":"details","item_type":"details","visual_asset_id":"parts_floor_01","item_form":"currency_pickup","storage_type":"none","can_pickup":true,"amount":5,"stackable":false},
+	"parts_medium": {"group":"item","object_group":"item","object_type":"details_pickup","name":"Детали","currency_id":"details","item_type":"details","visual_asset_id":"parts_floor_01","item_form":"currency_pickup","storage_type":"none","can_pickup":true,"amount":10,"stackable":false},
+	"parts_large": {"group":"item","object_group":"item","object_type":"details_pickup","name":"Детали","currency_id":"details","item_type":"details","visual_asset_id":"parts_floor_01","item_form":"currency_pickup","storage_type":"none","can_pickup":true,"amount":20,"stackable":false},
 	"sample": {"group":"item","name":"Sample","item_form":"physical","storage_type":"box_storage","can_pickup":true,"can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"mission_item": {"group":"item","name":"Mission Item","item_form":"physical","storage_type":"box_storage","can_pickup":true,"can_place_in_digital_buffer":false,"consumable":false,"fits_targets":[]},
 	"digital_key_opened": {"group":"item","name":"Digital Key Opened","item_form":"digital","storage_type":"digital_buffer","can_place_in_digital_buffer":true,"item_family":"digital_key","digital_state":"opened","consumable":false,"fits_targets":["door"]},
@@ -1273,10 +1283,23 @@ static func normalize_item_contract(item_data: Dictionary) -> Dictionary:
 		data["storage_type"] = ITEM_STORAGE_ROUTE_POCKET
 		data.erase("key_kind")
 		data.erase("key_type")
-	elif archetype_token == "physical_item" or data.has("physical_item_type") or source_type in ["fuse", "reinforcement", "repair_kit", "parts"]:
-		var physical_item_type: String = _normalized_contract_token(data.get("physical_item_type", data.get("item_type", "parts")))
-		if not physical_item_type in ["fuse", "reinforcement", "repair_kit", "parts"]:
-			physical_item_type = "parts"
+	elif archetype_token == "details_pickup" or source_type in ["parts", "parts_small", "parts_medium", "parts_large", "details"] or str(data.get("currency_id", "")) == "details":
+		data["archetype_id"] = "details_pickup"
+		data["item_category"] = "currency_pickup"
+		data["object_type"] = "details_pickup"
+		data["currency_id"] = "details"
+		data["item_type"] = "details"
+		data["item_form"] = "currency_pickup"
+		data["storage_route"] = "none"
+		data["storage_type"] = "none"
+		data["amount"] = maxi(1, int(data.get("amount", 1)))
+		data["stackable"] = false
+		data.erase("physical_item_type")
+		data.erase("item_class")
+	elif archetype_token == "physical_item" or data.has("physical_item_type") or source_type in ["fuse", "reinforcement", "repair_kit"]:
+		var physical_item_type: String = _normalized_contract_token(data.get("physical_item_type", data.get("item_type", "fuse")))
+		if not physical_item_type in ["fuse", "reinforcement", "repair_kit"]:
+			physical_item_type = "fuse"
 		data["archetype_id"] = "physical_item"
 		data["item_category"] = "physical"
 		data["physical_item_type"] = physical_item_type
@@ -1303,13 +1326,15 @@ static func normalize_item_contract(item_data: Dictionary) -> Dictionary:
 				data["access_item_type"] = ITEM_CLASS_KEY_CARD
 				return normalize_item_contract(data)
 			_:
-				data["physical_item_type"] = str(data.get("item_type", "parts"))
+				data["physical_item_type"] = str(data.get("item_type", "fuse"))
 				return normalize_item_contract(data)
 
 	data["display_name"] = generate_display_name(data)
 	return data
 
 static func get_item_storage_class(item_data: Dictionary) -> String:
+	if str(item_data.get("currency_id", "")).strip_edges().to_lower() == "details" or str(item_data.get("object_type", "")).strip_edges().to_lower() == "details_pickup":
+		return ITEM_STORAGE_CLASS_UNKNOWN
 	var item_type: String = normalize_item_type(item_data.get("item_type", item_data.get("object_type", "")))
 	var item_family: String = normalize_item_type(item_data.get("item_family", ""))
 	var storage_type: String = _normalized_contract_token(item_data.get("storage_type", ""))

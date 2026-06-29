@@ -27,6 +27,8 @@ const PlatformMotionServiceRef = preload("res://scripts/game/platform/platform_m
 const PlatformOccupancyServiceRef = preload("res://scripts/game/platform/platform_occupancy_service.gd")
 const PlatformRotationServiceRef = preload("res://scripts/game/platform/platform_rotation_service.gd")
 const BipobCableRuntimeServiceRef = preload("res://scripts/game/bipob_cable_runtime_service.gd")
+const DetailsCurrencyServiceRef = preload("res://scripts/game/inventory/details_currency_service.gd")
+const NormalItemContractRef = preload("res://scripts/game/inventory/normal_item_contract.gd")
 const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_runtime_service.gd")
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const WallRoutingValidationServiceRef = preload("res://scripts/game/routing/wall_routing_validation_service.gd")
@@ -51,6 +53,7 @@ var wall_mounted_objects_by_cell: Dictionary:
 
 var generic_cable_runtime_report: Dictionary = {}
 var generic_airflow_runtime_report: Dictionary = {}
+var details_currency_service = DetailsCurrencyServiceRef.new()
 
 var cell_items: Dictionary:
 	get:
@@ -80,13 +83,26 @@ func replace_world_state_serialized_snapshot(snapshot: Dictionary) -> Dictionary
 		if not (entity_value is Dictionary):
 			return {"ok": false, "success": false, "code": "missing", "reason_code": "missing", "details": {"field": "entities", "reason": "entity_not_dictionary"}}
 		entities.append(Dictionary(entity_value))
+	var details_snapshot: Variant = snapshot.get("details_currency", {})
+	if details_snapshot is Dictionary and not Dictionary(details_snapshot).is_empty():
+		var preview_service = DetailsCurrencyServiceRef.new()
+		var details_validation: Dictionary = preview_service.replace_snapshot(Dictionary(details_snapshot))
+		if not bool(details_validation.get("success", false)):
+			return details_validation
 	var bounds_check: Dictionary = _validate_world_state_store_snapshot_bounds(entities)
 	if not bool(bounds_check.get("ok", false)):
 		return bounds_check
-	return world_state_store.replace_serialized_snapshot(snapshot)
+	var world_result: Dictionary = world_state_store.replace_serialized_snapshot(snapshot)
+	if not bool(world_result.get("ok", false)):
+		return world_result
+	if details_snapshot is Dictionary and not Dictionary(details_snapshot).is_empty():
+		details_currency_service.replace_snapshot(Dictionary(details_snapshot))
+	return world_result
 
 func get_world_state_serializable_snapshot() -> Dictionary:
-	return world_state_store.get_serializable_snapshot()
+	var snapshot: Dictionary = world_state_store.get_serializable_snapshot()
+	snapshot["details_currency"] = details_currency_service.get_snapshot()
+	return snapshot
 
 func _upsert_world_state_object(object_data: Dictionary) -> Dictionary:
 	var bounds_check := _validate_world_state_store_object_bounds(object_data)
@@ -120,6 +136,41 @@ func _validate_world_state_store_object_bounds(object_data: Dictionary) -> Dicti
 func _commit_runtime_world_snapshot(mutated_objects: Array[Dictionary], action: String) -> Dictionary:
 	return world_state_store.apply_non_structural_snapshot(mutated_objects, action)
 
+func preview_power_cable_reel_action(reel_id: String, action: String, parameters: Dictionary = {}, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	return BipobCableRuntimeServiceRef.preview_power_cable_reel_action(objects, reel_id, action, parameters, blocked_cells)
+
+func apply_power_cable_reel_action(reel_id: String, action: String, parameters: Dictionary = {}, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	var action_result: Dictionary = BipobCableRuntimeServiceRef.apply_power_cable_reel_action(objects, reel_id, action, parameters, blocked_cells)
+	if not bool(action_result.get("success", false)):
+		return action_result
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "power_cable_reel_%s" % action.strip_edges().to_lower())
+	if not bool(commit_result.get("ok", false)):
+		return commit_result
+	action_result["commit"] = commit_result
+	return action_result
+
+func recalculate_power_cable_reel(reel_id: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	var result: Dictionary = BipobCableRuntimeServiceRef.recalculate_power_cable_reel(objects, reel_id, blocked_cells)
+	if str(result.get("code", "")) == "reel_missing":
+		return result
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "power_cable_reel_recalculated")
+	if not bool(commit_result.get("ok", false)):
+		return commit_result
+	result["commit"] = commit_result
+	return result
+
+func recalculate_power_cable_reels_for_socket(socket_id: String, blocked_cells: Array[Vector2i] = []) -> Dictionary:
+	var objects: Array[Dictionary] = world_state_store.get_all_objects()
+	var result: Dictionary = BipobCableRuntimeServiceRef.recalculate_power_cable_reels_for_socket(objects, socket_id, blocked_cells)
+	var commit_result: Dictionary = _commit_runtime_world_snapshot(objects, "power_cable_reels_socket_recalculated")
+	if not bool(commit_result.get("ok", false)):
+		return commit_result
+	result["commit"] = commit_result
+	return result
+
 func recalculate_power_network(network_id: String) -> Dictionary:
 	var objects: Array[Dictionary] = world_state_store.get_all_objects()
 	PowerSystemRef.recalculate_network(objects, network_id)
@@ -131,7 +182,6 @@ var runtime_inventory_state := {
 	"digital_buffer": [],
 	"digital_storage": [],
 	"box_storage": [],
-	"item_amounts": {},
 	"consumed_item_ids": [],
 	"collected_key_ids": [],
 	"world_item_runtime": {}
@@ -10084,6 +10134,11 @@ func _normalize_runtime_route_item_data(item_variant: Variant) -> Dictionary:
 		item_data = _get_known_inventory_item_data(item_id)
 	if item_data.is_empty():
 		item_data = {"id": item_id, "item_type": item_id}
+	if DetailsCurrencyServiceRef.is_details_entry(item_data, item_id):
+		if item_id.is_empty():
+			item_id = _allocate_runtime_inventory_item_id("details")
+		item_data["id"] = item_id
+		return DetailsCurrencyServiceRef.make_details_pickup(item_data)
 	var item_type: String = str(item_data.get("item_type", item_data.get("object_type", item_data.get("id", "")))).strip_edges()
 	if item_type.is_empty():
 		item_type = "physical_item"
@@ -10111,11 +10166,13 @@ func _normalize_runtime_route_item_data(item_variant: Variant) -> Dictionary:
 	if normalized_id.is_empty():
 		normalized_id = _allocate_runtime_inventory_item_id(item_type)
 	item_data["id"] = normalized_id
-	return item_data
+	return NormalItemContractRef.canonicalize(item_data)
 
 func can_route_runtime_item(item_variant: Variant, preferred_target: String = "") -> Dictionary:
 	var item_data: Dictionary = _normalize_runtime_route_item_data(item_variant)
 	var item_id: String = _get_runtime_inventory_item_id(item_data)
+	if DetailsCurrencyServiceRef.is_details_entry(item_data, item_id):
+		return {"success": true, "ok": true, "code": "received", "reason_code": "received", "item_id": item_id, "storage": "details_balance", "slot_index": -1, "amount": DetailsCurrencyServiceRef.get_entry_amount(item_data), "message": "Details collected.", "reasons": ["ok"]}
 	var classification: String = classify_runtime_item(item_data)
 	var target: String = preferred_target.strip_edges().to_lower()
 	if classification == WorldObjectCatalogRef.ITEM_STORAGE_CLASS_DIGITAL:
@@ -10210,6 +10267,10 @@ func route_runtime_item(item_variant: Variant, preferred_target: String = "") ->
 		return gate
 	var item_id: String = str(gate.get("item_id", _get_runtime_inventory_item_id(item_data))).strip_edges()
 	item_data["id"] = item_id
+	if DetailsCurrencyServiceRef.is_details_entry(item_data, item_id):
+		var reward_id: String = "world_pickup:%s" % item_id
+		var currency_result: Dictionary = details_currency_service.receive(DetailsCurrencyServiceRef.get_entry_amount(item_data), reward_id, "world_pickup")
+		return {"success": bool(currency_result.get("success", false)), "ok": bool(currency_result.get("success", false)), "code": str(currency_result.get("code", "")), "reason_code": str(currency_result.get("reason_code", "")), "item_id": item_id, "storage": "details_balance", "slot_index": -1, "amount": int(currency_result.get("amount", 0)), "message": "Details collected.", "reasons": ["ok"], "item_data": item_data.duplicate(true), "currency_result": currency_result, "notification_event": Dictionary(currency_result.get("notification_event", {})).duplicate(true)}
 	var runtime_map: Dictionary = _get_world_item_runtime_map()
 	runtime_map[item_id] = _build_picked_up_world_item_runtime(item_data)
 	runtime_inventory_state["world_item_runtime"] = runtime_map
@@ -10481,7 +10542,44 @@ func get_inventory_state() -> Dictionary:
 	snapshot["acquired_data_file_ids"] = Array(runtime_inventory_state.get("acquired_data_file_ids", [])).duplicate()
 	snapshot["digital_buffer"] = get_digital_buffer_items()
 	snapshot["digital_storage"] = get_digital_storage_items()
+	snapshot.erase("item_amounts")
 	return snapshot
+
+func get_details_balance() -> int:
+	return details_currency_service.get_balance()
+
+func get_details_currency_snapshot() -> Dictionary:
+	return details_currency_service.get_snapshot()
+
+func replace_details_currency_snapshot(snapshot: Dictionary) -> Dictionary:
+	return details_currency_service.replace_snapshot(snapshot)
+
+func preview_receive_details(amount: int, reward_id: String, source: String = "") -> Dictionary:
+	return details_currency_service.preview_receive(amount, reward_id, source)
+
+func receive_details_reward(reward_id: String, amount: int, source: String = "reward") -> Dictionary:
+	return details_currency_service.receive(amount, reward_id, source)
+
+func preview_spend_details(amount: int, transaction_id: String = "", source: String = "") -> Dictionary:
+	return details_currency_service.preview_spend(amount, transaction_id, source)
+
+func spend_details(amount: int, transaction_id: String = "", source: String = "") -> Dictionary:
+	return details_currency_service.spend(amount, transaction_id, source)
+
+func migrate_legacy_parts_state(center_storage: Dictionary = {}, migration_id: String = "legacy_parts_v1") -> Dictionary:
+	var migration: Dictionary = details_currency_service.migrate_legacy_parts(runtime_inventory_state, center_storage, migration_id)
+	if not bool(migration.get("success", false)):
+		return migration
+	runtime_inventory_state = Dictionary(migration.get("inventory_state", {})).duplicate(true)
+	var migrated_objects: Array[Dictionary] = DetailsCurrencyServiceRef.migrate_world_pickups(world_state_store.get_all_objects())
+	for object_data in migrated_objects:
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
+		if object_id.is_empty():
+			continue
+		var current: Dictionary = world_state_store.get_object_by_id(object_id)
+		if str(current.get("object_type", "")) != str(object_data.get("object_type", "")) or str(current.get("item_type", "")) != str(object_data.get("item_type", "")):
+			_upsert_world_state_object(object_data)
+	return migration
 
 func mark_key_collected(key_id: String) -> void:
 	add_keycard_to_keychain(key_id)
@@ -10989,7 +11087,7 @@ func pickup_world_item(item_id: String) -> Dictionary:
 	_remove_world_item_from_lookup_tables(normalized_id, item)
 	refresh_world_cooling_received()
 	var message: String = str(route_result.get("message", "Item collected."))
-	return {"success": true, "reasons": ["ok"], "message": message, "item_id": normalized_id, "storage": str(route_result.get("storage", "")), "slot_index": int(route_result.get("slot_index", -1)), "item_data": Dictionary(route_result.get("item_data", item))}
+	return {"success": true, "ok": true, "code": str(route_result.get("code", "valid")), "reason_code": str(route_result.get("reason_code", route_result.get("code", "valid"))), "reasons": ["ok"], "message": message, "item_id": normalized_id, "storage": str(route_result.get("storage", "")), "slot_index": int(route_result.get("slot_index", -1)), "item_data": Dictionary(route_result.get("item_data", item)), "notification_event": Dictionary(route_result.get("notification_event", {})).duplicate(true)}
 
 func _get_world_item_runtime_map() -> Dictionary:
 	var runtime_map: Dictionary = Dictionary(runtime_inventory_state.get("world_item_runtime", {}))
@@ -12772,6 +12870,8 @@ func use_access_item_on_door(item_id: String, door_id: String) -> Dictionary:
 func use_inventory_item_on_world_object(item_id: String, target_id: String, action: String = "") -> Dictionary:
 	var out := {"success": false, "item_id": item_id, "target_id": target_id, "action": action, "reasons": [], "consumed": false, "target_state_before": "", "target_state_after": "", "side_effects": {}}
 	var item := get_world_object_by_id(item_id)
+	if item.is_empty():
+		item = _get_runtime_item_data_snapshot(item_id)
 	var target := get_world_object_by_id(target_id)
 	if item.is_empty():
 		out["reasons"] = ["item_missing"]
@@ -12824,6 +12924,11 @@ func use_inventory_item_on_world_object(item_id: String, target_id: String, acti
 		out["reasons"] = ["wrong_item_type"]
 		return out
 	out["target_state_after"] = str(target.get("state", before))
+	if bool(out.get("success", false)) and bool(out.get("consumed", false)):
+		var consumption: Dictionary = NormalItemContractRef.apply_consumption(runtime_inventory_state, item_id, item, out)
+		if bool(consumption.get("success", false)):
+			runtime_inventory_state = Dictionary(consumption.get("inventory", {})).duplicate(true)
+			out["consumption_code"] = str(consumption.get("code", ""))
 	return out
 
 func get_door_debug_report_text(door_id: String = "") -> String:
@@ -13086,7 +13191,7 @@ func validate_full_runtime_persistence() -> Array[String]:
 	if snap.is_empty() and not mission_world_objects.is_empty():
 		warnings.append("world_runtime_snapshot_empty")
 	var inv := get_inventory_state()
-	for field_name in ["pocket_items", "manipulator_hold", "digital_buffer", "item_amounts", "consumed_item_ids", "world_item_runtime"]:
+	for field_name in ["pocket_items", "manipulator_hold", "digital_buffer", "consumed_item_ids", "world_item_runtime"]:
 		if not inv.has(field_name):
 			warnings.append("inventory_field_missing_%s" % field_name)
 	return warnings
