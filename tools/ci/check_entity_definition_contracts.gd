@@ -61,8 +61,8 @@ func _run() -> void:
 		_assert(bool(archetype_report.get("valid", false)), "managed archetype contract invalid: %s %s" % [str(archetype_id), str(archetype_report.get("errors", []))])
 	var pipe_contract := WorldObjectCatalog.get_entity_definition_contract("external_air_duct")
 	var pipe_caps := Dictionary(pipe_contract.get("capabilities", {}))
-	_assert(bool(pipe_caps.get("side", false)) and bool(pipe_caps.get("routing", false)) and bool(pipe_caps.get("test_override", false)), "air duct missing passive route capabilities")
-	for disabled_key in ["state", "health", "power", "control", "access", "bindings"]:
+	_assert(bool(pipe_caps.get("side", false)) and bool(pipe_caps.get("routing", false)), "air duct missing passive route capabilities")
+	for disabled_key in ["state", "health", "power", "control", "access", "bindings", "test_override"]:
 		_assert(not bool(pipe_caps.get(disabled_key, true)), "air duct has forbidden capability: %s" % disabled_key)
 	var synthetic := WorldObjectCatalog.get_constructor_prefab_definition("door")
 	var missing_notification_contract := WorldObjectCatalog.get_entity_definition_contract("door")

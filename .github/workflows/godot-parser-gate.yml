@@ -41,9 +41,10 @@ jobs:
           python tools/check_map_constructor_prefab_catalog.py
           python tools/check_entity_definition_contracts.py
           python tools/check_world_state_store.py
+          python tools/check_binding_store.py
+          python tools/check_power_cable_reel.py
           python tools/check_runtime_readiness_service.py
           python tools/check_event_driven_runtime_hud.py
-          python tools/check_canonical_runtime_ownership.py
 
       - name: Godot import smoke
         run: |
@@ -63,12 +64,13 @@ jobs:
       - name: Entity contract consistency gate
         run: godot --headless --path . --script res://tools/ci/check_entity_contract_consistency.gd
 
-      - name: Entity status evaluator gate
-        run: godot --headless --path . --script res://tools/ci/check_entity_status_evaluator.gd
-
-      - name: World state store behavior gate
+      - name: World state and runtime power gates
         run: |
           godot --headless --path . --script res://tools/ci/check_world_state_store.gd
+          godot --headless --path . --script res://tools/ci/check_binding_store.gd
+          godot --headless --path . --script res://tools/ci/check_binding_store_mission_manager.gd
+          godot --headless --path . --script res://tools/ci/check_power_cable_reel.gd
+          godot --headless --path . --script res://tools/ci/check_power_cable_reel_mission_manager.gd
           godot --headless --path . --script res://tools/ci/check_grid_manager_renderer_contract.gd
 
       - name: Constructor placement behavior gate

@@ -3,6 +3,8 @@ class_name HeavyClawDragService
 
 const BipobMovementControllerRef = preload("res://scripts/bipob/bipob_movement_controller.gd")
 const WorldObjectCatalogRef = preload("res://scripts/world/world_object_catalog.gd")
+const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")
+const BipobRuntimeActionActorServiceRef = preload("res://scripts/game/bipob_runtime_action_actor_service.gd")
 
 # Cancel only exits drag mode and does not move the object, so it is intentionally free.
 const CANCEL_ACTION_COST := 0
@@ -17,8 +19,12 @@ static func start_drag(controller: Variant, object_data: Dictionary) -> Dictiona
 	var object_id: String = str(object_data.get("id", "")).strip_edges()
 	if object_id.is_empty():
 		return {"success": false, "message": "Object not found."}
-	if not WorldObjectCatalogRef.can_world_object_be_moved_by_heavy_claw(object_data):
-		return {"success": false, "message": "Object is too heavy."}
+	var actor: Dictionary = BipobRuntimeActionActorServiceRef.build_runtime_action_actor(controller, object_data, Vector2i(object_data.get("position", Vector2i(-1, -1))))
+	var movement_gate: Dictionary = MovableActionServiceRef.preview_action(actor, object_data, "push")
+	if not bool(movement_gate.get("success", false)):
+		return {"success": false, "ok": false, "code": str(movement_gate.get("code", "movement_unavailable")), "reason_code": str(movement_gate.get("code", "movement_unavailable")), "message": str(movement_gate.get("message", "Movement unavailable."))}
+	if str(Dictionary(movement_gate.get("movement_requirement", {})).get("movement_mode", "")) != MovableActionServiceRef.MOVEMENT_DRAG:
+		return {"success": false, "ok": false, "code": MovableActionServiceRef.CODE_ACTION_UNSUPPORTED, "reason_code": MovableActionServiceRef.CODE_ACTION_UNSUPPORTED, "message": "Heavy Claw drag is not required for this object."}
 	var object_cell: Vector2i = Vector2i(object_data.get("position", Vector2i(-1, -1)))
 	var anchor_direction: Vector2i = controller.get_direction_vector(controller.direction)
 	var object_delta: Vector2i = object_cell - controller.grid_position
@@ -107,7 +113,8 @@ static func try_move_to(controller: Variant, target_position: Vector2i) -> bool:
 		_emit_blocked(controller, "Object movement blocked.")
 		return false
 
-	var move_result: Dictionary = Dictionary(controller.mission_manager.call("move_world_object_by_heavy_claw", controller.heavy_claw_drag_object_id, object_destination))
+	var actor: Dictionary = BipobRuntimeActionActorServiceRef.build_runtime_action_actor(controller, object_data, object_cell)
+	var move_result: Dictionary = Dictionary(controller.mission_manager.call("move_world_object_with_requirements", controller.heavy_claw_drag_object_id, object_destination, actor, "move"))
 	if not bool(move_result.get("success", false)):
 		var message: String = str(move_result.get("message", "Object movement blocked."))
 		if message.is_empty():

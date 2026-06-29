@@ -6,6 +6,11 @@ signal changed(change: Dictionary)
 const CableTopologyServiceRef = preload("res://scripts/game/cable_topology_service.gd")
 const PlatformOccupancyServiceRef = preload("res://scripts/game/platform/platform_occupancy_service.gd")
 const FacingSideUtilsRef = preload("res://scripts/visual/facing_side_utils.gd")
+const BindingStoreContractRef = preload("res://scripts/world/world_binding_store_contract.gd")
+const WORLD_SNAPSHOT_FORMAT_VERSION: int = 2
+const BINDING_POLICY_PRESERVE := "preserve"
+const BINDING_POLICY_REMOVE_RELATED := "remove_related"
+const BINDING_POLICY_REJECT_IF_BOUND := "reject_if_bound"
 const LAYER_SURFACE := "surface"
 const LAYER_PLATFORM := "platform"
 const LAYER_OCCUPANT := "occupant"
@@ -27,18 +32,68 @@ var _item_ids_by_cell: Dictionary = {}
 var _wall_mount_ids_by_cell: Dictionary = {}
 var _wall_mount_ids_by_cell_and_side: Dictionary = {}
 var _visual_ids_by_cell: Dictionary = {}
+var _bindings_by_id: Dictionary = {}
+var _binding_ids_by_source_id: Dictionary = {}
+var _binding_ids_by_target_id: Dictionary = {}
+var _binding_ids_by_role: Dictionary = {}
 
 func clear() -> void:
 	_commit_state({}, [], _empty_indexes())
-	changed.emit({"action": "clear", "warnings": []})
+	_commit_binding_state({}, BindingStoreContractRef.rebuild_indexes({}))
+	changed.emit({"action": "clear", "warnings": [], "binding_count": 0})
 
-func replace_snapshot(objects: Array[Dictionary]) -> Dictionary:
-	var built := _build_state_from_objects(objects)
+func replace_snapshot(objects: Array[Dictionary], bindings: Array[Dictionary] = []) -> Dictionary:
+	var built: Dictionary = _build_state_from_objects(objects)
 	if not bool(built.get("ok", false)):
 		return built
-	_commit_state(Dictionary(built.get("objects_by_id", {})), Array(built.get("object_order", [])), Dictionary(built.get("indexes", {})))
-	changed.emit({"action": "replace_snapshot", "warnings": [], "count": _object_order.size()})
-	return _ok({"object_count": _object_order.size()})
+	var objects_by_id: Dictionary = Dictionary(built.get("objects_by_id", {}))
+	var binding_built: Dictionary = BindingStoreContractRef.build_state(bindings, objects_by_id, true)
+	if not bool(binding_built.get("ok", false)):
+		return binding_built
+	_commit_state(objects_by_id, Array(built.get("object_order", [])), Dictionary(built.get("indexes", {})))
+	_commit_binding_state(Dictionary(binding_built.get("bindings_by_id", {})), Dictionary(binding_built.get("indexes", {})))
+	var diagnostics: Array = Array(binding_built.get("diagnostics", [])).duplicate(true)
+	changed.emit({"action": "replace_snapshot", "warnings": [], "count": _object_order.size(), "binding_count": _bindings_by_id.size(), "binding_diagnostics": diagnostics})
+	return _ok({"object_count": _object_order.size(), "binding_count": _bindings_by_id.size(), "binding_diagnostics": diagnostics})
+
+func replace_serialized_snapshot(snapshot: Dictionary) -> Dictionary:
+	var source_version: int = int(snapshot.get("format_version", -1))
+	if source_version != WORLD_SNAPSHOT_FORMAT_VERSION:
+		return BindingStoreContractRef.make_result("invalid_format_version", {}, {"expected":WORLD_SNAPSHOT_FORMAT_VERSION, "actual":source_version})
+	var raw_entities: Variant = snapshot.get("entities", null)
+	if not raw_entities is Array:
+		return BindingStoreContractRef.make_result("missing", {}, {"field":"entities"})
+	var entities: Array[Dictionary] = []
+	for entity_value in Array(raw_entities):
+		if not entity_value is Dictionary:
+			return BindingStoreContractRef.make_result("missing", {}, {"field":"entities", "reason":"entity_not_dictionary"})
+		entities.append(Dictionary(entity_value).duplicate(true))
+	var raw_bindings: Variant = snapshot.get("bindings", null)
+	if not raw_bindings is Array:
+		return BindingStoreContractRef.make_result("missing", {}, {"field":"bindings"})
+	var bindings: Array[Dictionary] = []
+	for binding_value in Array(raw_bindings):
+		if not binding_value is Dictionary:
+			return BindingStoreContractRef.make_result("missing", {}, {"field":"bindings", "reason":"binding_not_dictionary"})
+		bindings.append(Dictionary(binding_value).duplicate(true))
+	var built: Dictionary = _build_state_from_objects(entities)
+	if not bool(built.get("ok", false)):
+		return built
+	var objects_by_id: Dictionary = Dictionary(built.get("objects_by_id", {}))
+	var binding_built: Dictionary = BindingStoreContractRef.build_state(bindings, objects_by_id, true)
+	if not bool(binding_built.get("ok", false)):
+		return binding_built
+	_commit_state(objects_by_id, Array(built.get("object_order", [])), Dictionary(built.get("indexes", {})))
+	_commit_binding_state(Dictionary(binding_built.get("bindings_by_id", {})), Dictionary(binding_built.get("indexes", {})))
+	var diagnostics: Array = Array(binding_built.get("diagnostics", [])).duplicate(true)
+	changed.emit({"action":"replace_serialized_snapshot", "warnings":[], "count":_object_order.size(), "binding_count":_bindings_by_id.size(), "binding_diagnostics":diagnostics})
+	return _ok({"object_count":_object_order.size(), "binding_count":_bindings_by_id.size(), "binding_diagnostics":diagnostics})
+
+func get_serializable_snapshot() -> Dictionary:
+	var entities: Array[Dictionary] = []
+	for object_id in _object_order:
+		entities.append(Dictionary(_objects_by_id[object_id]).duplicate(true))
+	return {"format_version":WORLD_SNAPSHOT_FORMAT_VERSION, "entities":entities, "bindings":get_all_bindings()}
 
 func add_object(object_data: Dictionary) -> Dictionary:
 	var object_id := _object_id(object_data)
@@ -113,23 +168,37 @@ func move_object(object_id: String, destination: Vector2i, structural_patch: Dic
 		changed.emit({"action": "move", "object_id": object_id, "previous_cell": previous_cell, "current_cell": destination, "layer": _layer(object_data), "warnings": []})
 	return result
 
-func remove_object_by_id(object_id: String) -> Dictionary:
-	if not _objects_by_id.has(object_id): return _fail("missing_object_id")
+func remove_object_by_id(object_id: String, binding_policy: String = BINDING_POLICY_PRESERVE) -> Dictionary:
+	if not _objects_by_id.has(object_id):
+		return _fail("missing_object_id")
+	if binding_policy not in [BINDING_POLICY_PRESERVE, BINDING_POLICY_REMOVE_RELATED, BINDING_POLICY_REJECT_IF_BOUND]:
+		return BindingStoreContractRef.make_result("missing", {}, {"field": "binding_policy", "value": binding_policy})
+	var related_binding_ids: Array[String] = _binding_ids_for_entity(object_id)
+	if binding_policy == BINDING_POLICY_REJECT_IF_BOUND and not related_binding_ids.is_empty():
+		return BindingStoreContractRef.make_result("binding_cleanup_required", {}, {"object_id": object_id, "binding_ids": related_binding_ids})
 	var removed: Dictionary = Dictionary(_objects_by_id[object_id]).duplicate(true)
-	var objects := _duplicate_objects_by_id(_objects_by_id)
+	var objects: Dictionary = _duplicate_objects_by_id(_objects_by_id)
 	var order: Array[String] = _object_order.duplicate()
 	objects.erase(object_id)
 	order.erase(object_id)
-	var built := _build_state_from_maps(objects, order)
-	if not bool(built.get("ok", false)): return built
+	var built: Dictionary = _build_state_from_maps(objects, order)
+	if not bool(built.get("ok", false)):
+		return built
+	var next_bindings: Dictionary = _duplicate_bindings_by_id(_bindings_by_id)
+	if binding_policy == BINDING_POLICY_REMOVE_RELATED:
+		for binding_id in related_binding_ids:
+			next_bindings.erase(binding_id)
 	_commit_state(objects, order, Dictionary(built.get("indexes", {})))
-	changed.emit({"action": "remove", "object_id": object_id, "previous_cell": _cell(removed), "warnings": []})
-	return _ok({"removed": removed})
+	if binding_policy == BINDING_POLICY_REMOVE_RELATED:
+		_commit_binding_state(next_bindings, BindingStoreContractRef.rebuild_indexes(next_bindings))
+	changed.emit({"action": "remove", "object_id": object_id, "previous_cell": _cell(removed), "warnings": [], "binding_policy": binding_policy, "related_binding_ids": related_binding_ids})
+	return _ok({"removed": removed, "binding_policy": binding_policy, "related_binding_ids": related_binding_ids})
 
-func remove_object_at_cell(cell: Vector2i) -> Dictionary:
-	var object_data := get_primary_object_at_cell(cell)
-	if object_data.is_empty(): return _fail("missing_object_at_cell")
-	return remove_object_by_id(_object_id(object_data))
+func remove_object_at_cell(cell: Vector2i, binding_policy: String = BINDING_POLICY_PRESERVE) -> Dictionary:
+	var object_data: Dictionary = get_primary_object_at_cell(cell)
+	if object_data.is_empty():
+		return _fail("missing_object_at_cell")
+	return remove_object_by_id(_object_id(object_data), binding_policy)
 
 func add_item(cell: Vector2i, item_data: Dictionary) -> Dictionary:
 	var stored := item_data.duplicate(true)
@@ -237,6 +306,105 @@ func get_wall_mount_lookup_snapshot() -> Dictionary:
 		result[cell] = get_wall_mounted_objects_at_cell(cell)
 	return result
 
+func has_binding(binding_id: String) -> bool:
+	return _bindings_by_id.has(binding_id)
+
+func get_binding_by_id(binding_id: String) -> Dictionary:
+	return Dictionary(_bindings_by_id.get(binding_id, {})).duplicate(true)
+
+func get_all_bindings() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var binding_ids: Array = _bindings_by_id.keys()
+	binding_ids.sort()
+	for binding_id_value in binding_ids:
+		result.append(Dictionary(_bindings_by_id[str(binding_id_value)]).duplicate(true))
+	return result
+
+func get_bindings_by_source_id(source_id: String) -> Array[Dictionary]:
+	return _bindings_for_ids(Array(_binding_ids_by_source_id.get(source_id, [])))
+
+func get_bindings_by_target_id(target_id: String) -> Array[Dictionary]:
+	return _bindings_for_ids(Array(_binding_ids_by_target_id.get(target_id, [])))
+
+func get_bindings_by_role(role: String) -> Array[Dictionary]:
+	return _bindings_for_ids(Array(_binding_ids_by_role.get(role.strip_edges().to_lower(), [])))
+
+func validate_binding(binding: Dictionary, replacing_binding_id: String = "", allow_missing_entities: bool = false) -> Dictionary:
+	return BindingStoreContractRef.validate_record(binding, _objects_by_id, _bindings_by_id, replacing_binding_id, allow_missing_entities)
+
+func get_binding_status(binding_id: String) -> Dictionary:
+	if not _bindings_by_id.has(binding_id):
+		return BindingStoreContractRef.make_result("missing", {"id": binding_id})
+	return BindingStoreContractRef.validate_record(Dictionary(_bindings_by_id[binding_id]), _objects_by_id, _bindings_by_id, binding_id, true)
+
+func get_binding_diagnostics() -> Array[Dictionary]:
+	var diagnostics: Array[Dictionary] = []
+	var binding_ids: Array = _bindings_by_id.keys()
+	binding_ids.sort()
+	for binding_id_value in binding_ids:
+		var status: Dictionary = get_binding_status(str(binding_id_value))
+		if str(status.get("code", "")) != BindingStoreContractRef.VALID_CODE:
+			diagnostics.append(status.duplicate(true))
+	return diagnostics
+
+func create_binding(record: Dictionary) -> Dictionary:
+	var candidate: Dictionary = record.duplicate(true)
+	if str(candidate.get("id", "")).strip_edges().is_empty():
+		candidate["id"] = _next_binding_id()
+	candidate = BindingStoreContractRef.canonicalize_record(candidate)
+	var validation: Dictionary = validate_binding(candidate)
+	if not bool(validation.get("success", false)):
+		return validation
+	var next_bindings: Dictionary = _duplicate_bindings_by_id(_bindings_by_id)
+	var binding_id: String = str(candidate.get("id", ""))
+	next_bindings[binding_id] = candidate.duplicate(true)
+	_commit_binding_state(next_bindings, BindingStoreContractRef.rebuild_indexes(next_bindings))
+	changed.emit({"action": "binding_create", "binding_id": binding_id, "role": str(candidate.get("role", "")), "source_id": str(candidate.get("source_id", "")), "target_id": str(candidate.get("target_id", "")), "warnings": []})
+	var result: Dictionary = BindingStoreContractRef.make_result(BindingStoreContractRef.VALID_CODE, candidate)
+	result["binding"] = candidate.duplicate(true)
+	return result
+
+func replace_binding(binding_id: String, record: Dictionary) -> Dictionary:
+	if not _bindings_by_id.has(binding_id):
+		return BindingStoreContractRef.make_result("missing", {"id": binding_id})
+	if record.has("id") and str(record.get("id", "")).strip_edges() != binding_id:
+		return BindingStoreContractRef.make_result("missing", record, {"field": "id", "reason": "binding_id_is_immutable"})
+	var candidate: Dictionary = record.duplicate(true)
+	candidate["id"] = binding_id
+	candidate = BindingStoreContractRef.canonicalize_record(candidate)
+	var validation: Dictionary = validate_binding(candidate, binding_id)
+	if not bool(validation.get("success", false)):
+		return validation
+	var next_bindings: Dictionary = _duplicate_bindings_by_id(_bindings_by_id)
+	next_bindings[binding_id] = candidate.duplicate(true)
+	_commit_binding_state(next_bindings, BindingStoreContractRef.rebuild_indexes(next_bindings))
+	changed.emit({"action": "binding_replace", "binding_id": binding_id, "role": str(candidate.get("role", "")), "source_id": str(candidate.get("source_id", "")), "target_id": str(candidate.get("target_id", "")), "warnings": []})
+	var result: Dictionary = BindingStoreContractRef.make_result(BindingStoreContractRef.VALID_CODE, candidate)
+	result["binding"] = candidate.duplicate(true)
+	return result
+
+func remove_binding(binding_id: String) -> Dictionary:
+	if not _bindings_by_id.has(binding_id):
+		return BindingStoreContractRef.make_result("missing", {"id": binding_id})
+	var removed: Dictionary = Dictionary(_bindings_by_id[binding_id]).duplicate(true)
+	var next_bindings: Dictionary = _duplicate_bindings_by_id(_bindings_by_id)
+	next_bindings.erase(binding_id)
+	_commit_binding_state(next_bindings, BindingStoreContractRef.rebuild_indexes(next_bindings))
+	changed.emit({"action": "binding_remove", "binding_id": binding_id, "role": str(removed.get("role", "")), "source_id": str(removed.get("source_id", "")), "target_id": str(removed.get("target_id", "")), "warnings": []})
+	var result: Dictionary = BindingStoreContractRef.make_result(BindingStoreContractRef.VALID_CODE, removed)
+	result["removed"] = removed
+	return result
+
+func remove_bindings_for_entity(object_id: String) -> Dictionary:
+	var binding_ids: Array[String] = _binding_ids_for_entity(object_id)
+	var next_bindings: Dictionary = _duplicate_bindings_by_id(_bindings_by_id)
+	for binding_id in binding_ids:
+		next_bindings.erase(binding_id)
+	_commit_binding_state(next_bindings, BindingStoreContractRef.rebuild_indexes(next_bindings))
+	if not binding_ids.is_empty():
+		changed.emit({"action": "binding_remove_for_entity", "object_id": object_id, "binding_ids": binding_ids, "warnings": []})
+	return BindingStoreContractRef.make_result(BindingStoreContractRef.VALID_CODE, {}, {"object_id": object_id, "removed_binding_ids": binding_ids})
+
 func validate_consistency() -> Array[String]:
 	var warnings: Array[String] = []
 	var order_seen := {}
@@ -267,10 +435,13 @@ func validate_consistency() -> Array[String]:
 				var object_data: Dictionary = _objects_by_id.get(text_id, {})
 				if object_data.is_empty(): warnings.append("stale_index_id:%s" % text_id)
 				elif _cell(object_data) != cell or _wall_side(object_data) != str(side): warnings.append("wall_wrong_side_index:%s" % text_id)
+	warnings.append_array(BindingStoreContractRef.validate_indexes(_bindings_by_id, _binding_ids_by_source_id, _binding_ids_by_target_id, _binding_ids_by_role))
+	for binding_diagnostic in get_binding_diagnostics():
+		warnings.append("binding_invalid:%s:%s" % [str(binding_diagnostic.get("binding_id", "")), str(binding_diagnostic.get("code", ""))])
 	return warnings
 
 func get_diagnostic_snapshot() -> Dictionary:
-	return {"object_ids": _object_order.duplicate(), "primary": _primary_object_id_by_cell.duplicate(true), "surface": _surface_ids_by_cell.duplicate(true), "platform": _platform_ids_by_cell.duplicate(true), "occupant": _occupant_ids_by_cell.duplicate(true), "route": _route_ids_by_cell.duplicate(true), "items": _item_ids_by_cell.duplicate(true), "wall": _wall_mount_ids_by_cell.duplicate(true), "wall_by_side": _wall_mount_ids_by_cell_and_side.duplicate(true), "visual": _visual_ids_by_cell.duplicate(true)}
+	return {"object_ids": _object_order.duplicate(), "primary": _primary_object_id_by_cell.duplicate(true), "surface": _surface_ids_by_cell.duplicate(true), "platform": _platform_ids_by_cell.duplicate(true), "occupant": _occupant_ids_by_cell.duplicate(true), "route": _route_ids_by_cell.duplicate(true), "items": _item_ids_by_cell.duplicate(true), "wall": _wall_mount_ids_by_cell.duplicate(true), "wall_by_side": _wall_mount_ids_by_cell_and_side.duplicate(true), "visual": _visual_ids_by_cell.duplicate(true), "bindings": _bindings_by_id.duplicate(true), "bindings_by_source": _binding_ids_by_source_id.duplicate(true), "bindings_by_target": _binding_ids_by_target_id.duplicate(true), "bindings_by_role": _binding_ids_by_role.duplicate(true)}
 
 func _build_state_from_objects(objects: Array[Dictionary]) -> Dictionary:
 	var by_id := {}
@@ -318,6 +489,13 @@ func _commit_state(objects: Dictionary, order: Array, indexes: Dictionary) -> vo
 	_wall_mount_ids_by_cell = Dictionary(indexes.get("wall", {}))
 	_wall_mount_ids_by_cell_and_side = Dictionary(indexes.get("wall_side", {}))
 	_visual_ids_by_cell = Dictionary(indexes.get("visual", {}))
+
+func _commit_binding_state(bindings: Dictionary, indexes: Dictionary) -> void:
+	_bindings_by_id = _duplicate_bindings_by_id(bindings)
+	_binding_ids_by_source_id = Dictionary(indexes.get("by_source", {})).duplicate(true)
+	_binding_ids_by_target_id = Dictionary(indexes.get("by_target", {})).duplicate(true)
+	_binding_ids_by_role = Dictionary(indexes.get("by_role", {})).duplicate(true)
+
 func _validate_against_indexes(object_data: Dictionary, indexes: Dictionary, replacing_object_id: String = "") -> Dictionary:
 	var layer := _layer(object_data)
 	var cell := _cell(object_data)
@@ -394,6 +572,63 @@ func _duplicate_objects_by_id(source: Dictionary) -> Dictionary:
 	for id in source.keys():
 		result[str(id)] = Dictionary(source[id]).duplicate(true)
 	return result
+func _bindings_for_ids(ids: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for binding_id_value in ids:
+		var binding_id: String = str(binding_id_value)
+		if _bindings_by_id.has(binding_id):
+			result.append(Dictionary(_bindings_by_id[binding_id]).duplicate(true))
+	return result
+
+func _duplicate_bindings_by_id(source: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for binding_id_value in source.keys():
+		var binding_id: String = str(binding_id_value)
+		result[binding_id] = Dictionary(source[binding_id]).duplicate(true)
+	return result
+
+func _binding_ids_for_entity(object_id: String) -> Array[String]:
+	var unique: Dictionary = {}
+	for binding_id_value in Array(_binding_ids_by_source_id.get(object_id, [])):
+		unique[str(binding_id_value)] = true
+	for binding_id_value in Array(_binding_ids_by_target_id.get(object_id, [])):
+		unique[str(binding_id_value)] = true
+	var result: Array[String] = []
+	for binding_id_value in unique.keys():
+		result.append(str(binding_id_value))
+	result.sort()
+	return result
+
+func _binding_values(bindings: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var binding_ids: Array = bindings.keys()
+	binding_ids.sort()
+	for binding_id_value in binding_ids:
+		result.append(Dictionary(bindings[str(binding_id_value)]).duplicate(true))
+	return result
+
+func _has_binding_relation(candidate: Dictionary, bindings: Dictionary) -> bool:
+	var role: String = str(candidate.get("role", ""))
+	var source_id: String = str(candidate.get("source_id", ""))
+	var target_id: String = str(candidate.get("target_id", ""))
+	for binding_value in bindings.values():
+		var binding: Dictionary = Dictionary(binding_value)
+		if str(binding.get("role", "")) == role and str(binding.get("source_id", "")) == source_id and str(binding.get("target_id", "")) == target_id:
+			return true
+	return false
+
+func _next_binding_id() -> String:
+	return _next_binding_id_for(_bindings_by_id)
+
+func _next_binding_id_for(bindings: Dictionary) -> String:
+	var sequence: int = 1
+	while sequence < 1000000:
+		var candidate: String = "binding_%06d" % sequence
+		if not bindings.has(candidate):
+			return candidate
+		sequence += 1
+	return "binding_invalid"
+
 func _validate_structural_consistency(object_id: String, object_data: Dictionary, warnings: Array[String]) -> void:
 	var structural := _validate_structural_object(object_data)
 	if bool(structural.get("ok", false)):

@@ -1,14 +1,15 @@
 extends RefCounted
 class_name ItemFileTypes
 
-# Shared type/status constants for physical items, files, keys, modules and future resources.
+# Shared type/status constants for physical items, files, keys, modules and currency migration.
 # Data-only foundation. Do not put inventory UI or mission mutation here.
 
 const CATEGORY_ITEM: String = "item"
 const CATEGORY_FILE: String = "file"
 const CATEGORY_MODULE: String = "module"
-const CATEGORY_RESOURCE: String = "resource"
+const CATEGORY_RESOURCE: String = "resource" # Legacy serialization category only.
 const CATEGORY_ACCESS_CODE: String = "access_code"
+const CATEGORY_CURRENCY_PICKUP: String = "currency_pickup"
 
 const ITEM_KIND_PHYSICAL_ITEM: String = "physical_item"
 const ITEM_KIND_REPAIR_TOOL: String = "repair_tool"
@@ -20,7 +21,8 @@ const ITEM_KIND_MODULE_LOOT: String = "module_loot"
 const FILE_KIND_DIGITAL_KEY: String = "digital_key"
 const FILE_KIND_INFORMATION_DATA: String = "information_data"
 
-const RESOURCE_KIND_PARTS: String = "parts"
+const CURRENCY_KIND_DETAILS: String = "details"
+const RESOURCE_KIND_PARTS: String = "parts" # Legacy migration alias only.
 
 const FILE_STATUS_OPEN: String = "open"
 const FILE_STATUS_ENCRYPTED: String = "encrypted"
@@ -55,6 +57,9 @@ static func is_module(entry: Dictionary) -> bool:
 static func is_resource(entry: Dictionary) -> bool:
 	return str(entry.get("category", "")) == CATEGORY_RESOURCE
 
+static func is_currency_pickup(entry: Dictionary) -> bool:
+	return str(entry.get("category", "")) == CATEGORY_CURRENCY_PICKUP or str(entry.get("currency_id", "")) == CURRENCY_KIND_DETAILS
+
 static func is_access_code(entry: Dictionary) -> bool:
 	return str(entry.get("category", "")) == CATEGORY_ACCESS_CODE
 
@@ -80,12 +85,10 @@ static func is_repair_tool(entry: Dictionary) -> bool:
 	return is_item(entry) and str(entry.get("kind", "")) == ITEM_KIND_REPAIR_TOOL
 
 static func can_center_assign_to_pocket_or_manipulator(entry: Dictionary) -> bool:
-	# From Center, modules can only be installed into/on Bipob, not loaded into pockets/manipulator.
-	return is_item(entry) and not is_physical_key(entry)
+	return is_item(entry) and not is_physical_key(entry) and not is_currency_pickup(entry)
 
 static func can_mission_loot_assign_to_pocket_or_manipulator(entry: Dictionary) -> bool:
-	# During a mission, modules found on the map can be carried as physical loot.
-	return is_item(entry) or is_module(entry)
+	return (is_item(entry) or is_module(entry)) and not is_currency_pickup(entry)
 
 static func can_assign_to_keyholder(entry: Dictionary) -> bool:
 	return is_physical_key(entry)
