@@ -45,7 +45,8 @@ func _run() -> void:
 	print("ACCESS_RESOLVER_GATE: none")
 	var open_target := target("open", "none")
 	var open_result: Dictionary = Resolver.resolve(open_target, {}, [], index([open_target]))
-	check(bool(open_result.get("granted", false)) and str(open_result.get("code", "")) == Resolver.CODE_NOT_REQUIRED, "none access failed")
+	check(bool(open_result.get("granted", false)) and str(open_result.get("code", "")) == Resolver.CODE_NO_CHANGE, "none access failed")
+	check(_plan(open_result).is_empty() and Dictionary(open_result.get("target_patch", {})).is_empty(), "none access planned mutation")
 
 	print("ACCESS_RESOLVER_GATE: reusable")
 	var door := target("door", "key_card")
