@@ -72,6 +72,7 @@ jobs:
           godot --headless --path . --script res://tools/ci/check_power_control_resolver.gd
           godot --headless --path . --script res://tools/ci/check_power_control_runtime_service.gd
           godot --headless --path . --script res://tools/ci/check_access_resolver.gd
+          godot --headless --path . --script res://tools/ci/check_access_any_of.gd
           godot --headless --path . --script res://tools/ci/check_access_runtime_service.gd
           godot --headless --path . --script res://tools/ci/check_access_binding_service.gd
           godot --headless --path . --script res://tools/ci/check_power_cable_reel.gd
