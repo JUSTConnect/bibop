@@ -11,8 +11,7 @@ static func preview(store: WorldStateStore, target_id: String, context: Dictiona
 	if target.is_empty():
 		return _failure(AccessResolverRef.CODE_TARGET_MISSING, target_id)
 	var entities_by_id: Dictionary = _index_entities(store.get_all_objects())
-	var effective_context: Dictionary = context.duplicate(true)
-	return AccessResolverRef.resolve(target, effective_context, store.get_all_bindings(), entities_by_id)
+	return AccessResolverRef.resolve(target, context.duplicate(true), store.get_all_bindings(), entities_by_id)
 
 static func apply_access(store: WorldStateStore, target_id: String, context: Dictionary = {}, inventory_state: Dictionary = {}) -> Dictionary:
 	if store == null:
@@ -24,15 +23,14 @@ static func apply_access(store: WorldStateStore, target_id: String, context: Dic
 		return _failure(AccessResolverRef.CODE_TARGET_MISSING, target_id, inventory_state)
 	var resolution: Dictionary = preview(store, target_id, effective_context)
 	if not bool(resolution.get("granted", false)):
-		var denied: Dictionary = resolution.duplicate(true)
-		denied["target_before"] = before_target.duplicate(true)
-		denied["target_after"] = before_target.duplicate(true)
-		denied["inventory_before"] = inventory_state.duplicate(true)
-		denied["inventory_after"] = inventory_state.duplicate(true)
-		denied["consumed_item_ids"] = []
-		denied["mutated"] = false
-		return denied
+		return _unchanged_result(resolution, before_target, inventory_state)
 	var patch: Dictionary = Dictionary(resolution.get("target_patch", {})).duplicate(true)
+	var plan: Array[Dictionary] = []
+	for entry in Array(resolution.get("consumption_plan", [])):
+		if entry is Dictionary:
+			plan.append(Dictionary(entry).duplicate(true))
+	if patch.is_empty():
+		return _unchanged_result(resolution, before_target, inventory_state)
 	var update_result: Dictionary = store.update_object_state(target_id, patch)
 	if not bool(update_result.get("ok", false)):
 		return {
@@ -52,7 +50,7 @@ static func apply_access(store: WorldStateStore, target_id: String, context: Dic
 			"consumed_item_ids":[],
 			"mutated":false
 		}
-	var consumption: Dictionary = AccessResolverRef.apply_consumption_plan(inventory_state, Array(resolution.get("consumption_plan", [])))
+	var consumption: Dictionary = AccessResolverRef.apply_consumption_plan(inventory_state, plan)
 	var result: Dictionary = resolution.duplicate(true)
 	result["target_before"] = before_target.duplicate(true)
 	result["target_after"] = store.get_object_by_id(target_id)
@@ -62,6 +60,18 @@ static func apply_access(store: WorldStateStore, target_id: String, context: Dic
 	result["update"] = update_result
 	result["consumption"] = consumption
 	result["mutated"] = true
+	return result
+
+static func _unchanged_result(resolution: Dictionary, target: Dictionary, inventory_state: Dictionary) -> Dictionary:
+	var result: Dictionary = resolution.duplicate(true)
+	result["target_before"] = target.duplicate(true)
+	result["target_after"] = target.duplicate(true)
+	result["inventory_before"] = inventory_state.duplicate(true)
+	result["inventory_after"] = inventory_state.duplicate(true)
+	result["consumed_item_ids"] = []
+	result["update"] = {}
+	result["consumption"] = {}
+	result["mutated"] = false
 	return result
 
 static func _index_entities(objects: Array[Dictionary]) -> Dictionary:
