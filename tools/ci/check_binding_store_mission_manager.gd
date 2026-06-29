@@ -1,6 +1,7 @@
 extends SceneTree
 
 const MissionManagerRef = preload("res://scripts/game/mission_manager.gd")
+const VersionedSnapshotMigrationServiceRef = preload("res://scripts/world/versioned_snapshot_migration_service.gd")
 
 var failures: Array[String] = []
 
@@ -50,7 +51,7 @@ func _run() -> void:
 	_assert(bool(legacy_result.get("ok", false)), "legacy MissionManager snapshot rejected: %s" % str(legacy_result))
 	_assert(manager.world_state_store.get_all_bindings().size() == 1, "legacy MissionManager wrapper did not migrate logical relation")
 	var canonical_snapshot: Dictionary = manager.get_world_state_serializable_snapshot()
-	_assert(int(canonical_snapshot.get("format_version", 0)) == 1, "canonical snapshot version missing")
+	_assert(int(canonical_snapshot.get("format_version", 0)) == VersionedSnapshotMigrationServiceRef.CURRENT_FORMAT_VERSION, "canonical snapshot version missing")
 	_assert(Array(canonical_snapshot.get("bindings", [])).size() == 1, "canonical snapshot lost migrated binding")
 	var serialized_door: Dictionary = _find_entity(canonical_snapshot, "legacy_door")
 	_assert(not serialized_door.has("control_terminal_id"), "legacy logical field remained in canonical entity serialization")
@@ -62,8 +63,8 @@ func _run() -> void:
 	_assert(restored_manager.world_state_store.get_all_bindings().size() == 1, "canonical MissionManager roundtrip lost binding")
 	_assert(restored_manager.world_state_store.validate_consistency().is_empty(), "MissionManager roundtrip consistency warnings: %s" % str(restored_manager.world_state_store.validate_consistency()))
 
-	var malformed_result: Dictionary = restored_manager.replace_world_state_serialized_snapshot({"format_version": 1, "entities": "invalid", "bindings": []})
-	_assert(str(malformed_result.get("code", "")) == "missing", "malformed canonical snapshot did not return machine-readable missing code")
+	var malformed_result: Dictionary = restored_manager.replace_world_state_serialized_snapshot({"format_version": VersionedSnapshotMigrationServiceRef.CURRENT_FORMAT_VERSION, "entities": "invalid", "bindings": []})
+	_assert(str(malformed_result.get("code", "")) == VersionedSnapshotMigrationServiceRef.CODE_INVALID_DOCUMENT, "malformed canonical snapshot did not return machine-readable missing code")
 
 	manager.queue_free()
 	restored_manager.queue_free()

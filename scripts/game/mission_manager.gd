@@ -34,6 +34,7 @@ const BipobAirflowRuntimeServiceRef = preload("res://scripts/game/bipob_airflow_
 const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wall_service.gd")
 const WallRoutingValidationServiceRef = preload("res://scripts/game/routing/wall_routing_validation_service.gd")
 const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
+const VersionedSnapshotMigrationServiceRef = preload("res://scripts/world/versioned_snapshot_migration_service.gd")
 const CoolingRoutingContourServiceRef = preload("res://scripts/game/cooling/cooling_routing_contour_service.gd")
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
@@ -56,6 +57,7 @@ var wall_mounted_objects_by_cell: Dictionary:
 var generic_cable_runtime_report: Dictionary = {}
 var generic_airflow_runtime_report: Dictionary = {}
 var details_currency_service = DetailsCurrencyServiceRef.new()
+var migrated_center_storage_state: Dictionary = {}
 
 var cell_items: Dictionary:
 	get:
@@ -71,39 +73,60 @@ var grid_manager: Node = null
 var platform_last_tick_action_index: int = -1
 
 func replace_world_state_snapshot(objects: Array[Dictionary]) -> Dictionary:
-	var bounds_check: Dictionary = _validate_world_state_store_snapshot_bounds(objects)
-	if not bool(bounds_check.get("ok", false)):
-		return bounds_check
-	return world_state_store.replace_serialized_snapshot({"format_version": 0, "objects": objects})
+	return replace_world_state_serialized_snapshot({"format_version":0, "objects":objects.duplicate(true)})
+
+func preview_world_state_snapshot_migration(snapshot: Dictionary) -> Dictionary:
+	return VersionedSnapshotMigrationServiceRef.preview_migration(snapshot)
 
 func replace_world_state_serialized_snapshot(snapshot: Dictionary) -> Dictionary:
-	var raw_entities: Variant = snapshot.get("entities", snapshot.get("objects", []))
-	if not (raw_entities is Array):
-		return {"ok": false, "success": false, "code": "missing", "reason_code": "missing", "details": {"field": "entities"}}
+	var migration: Dictionary = VersionedSnapshotMigrationServiceRef.migrate_document(snapshot)
+	if not bool(migration.get("success", false)):
+		return migration
+	var canonical: Dictionary = Dictionary(migration.get("snapshot", {})).duplicate(true)
+	var raw_entities: Variant = canonical.get("entities", [])
+	if not raw_entities is Array:
+		return {"ok":false, "success":false, "code":"invalid_document", "reason_code":"invalid_document", "details":{"field":"entities"}}
 	var entities: Array[Dictionary] = []
 	for entity_value in Array(raw_entities):
-		if not (entity_value is Dictionary):
-			return {"ok": false, "success": false, "code": "missing", "reason_code": "missing", "details": {"field": "entities", "reason": "entity_not_dictionary"}}
-		entities.append(Dictionary(entity_value))
-	var details_snapshot: Variant = snapshot.get("details_currency", {})
-	if details_snapshot is Dictionary and not Dictionary(details_snapshot).is_empty():
-		var preview_service = DetailsCurrencyServiceRef.new()
-		var details_validation: Dictionary = preview_service.replace_snapshot(Dictionary(details_snapshot))
-		if not bool(details_validation.get("success", false)):
-			return details_validation
+		if not entity_value is Dictionary:
+			return {"ok":false, "success":false, "code":"invalid_document", "reason_code":"invalid_document", "details":{"field":"entities", "reason":"entity_not_dictionary"}}
+		entities.append(Dictionary(entity_value).duplicate(true))
 	var bounds_check: Dictionary = _validate_world_state_store_snapshot_bounds(entities)
 	if not bool(bounds_check.get("ok", false)):
 		return bounds_check
-	var world_result: Dictionary = world_state_store.replace_serialized_snapshot(snapshot)
+	var world_result: Dictionary = world_state_store.replace_serialized_snapshot(canonical)
 	if not bool(world_result.get("ok", false)):
 		return world_result
+	var details_snapshot: Variant = canonical.get("details_currency", {})
 	if details_snapshot is Dictionary and not Dictionary(details_snapshot).is_empty():
 		details_currency_service.replace_snapshot(Dictionary(details_snapshot))
-	return world_result
+	var migrated_inventory: Variant = canonical.get("inventory_state", {})
+	if migrated_inventory is Dictionary:
+		var next_inventory: Dictionary = runtime_inventory_state.duplicate(true)
+		for key in Dictionary(migrated_inventory).keys():
+			next_inventory[key] = Dictionary(migrated_inventory)[key]
+		runtime_inventory_state = next_inventory
+	var center_storage: Variant = canonical.get("center_storage", {})
+	if center_storage is Dictionary:
+		migrated_center_storage_state = Dictionary(center_storage).duplicate(true)
+	var result: Dictionary = world_result.duplicate(true)
+	result["success"] = bool(world_result.get("ok", false))
+	result["migration"] = migration.duplicate(true)
+	result["migration_issues"] = Array(migration.get("issues", [])).duplicate(true)
+	result["source_format_version"] = int(migration.get("source_format_version", 0))
+	result["target_format_version"] = int(migration.get("target_format_version", VersionedSnapshotMigrationServiceRef.CURRENT_FORMAT_VERSION))
+	result["migrated"] = bool(migration.get("migrated", false))
+	result["draft_save_allowed"] = bool(migration.get("draft_save_allowed", false))
+	result["task_test_allowed"] = bool(migration.get("task_test_allowed", false))
+	result["promotion_allowed"] = bool(migration.get("promotion_allowed", false))
+	return result
 
 func get_world_state_serializable_snapshot() -> Dictionary:
 	var snapshot: Dictionary = world_state_store.get_serializable_snapshot()
+	snapshot["format_version"] = VersionedSnapshotMigrationServiceRef.CURRENT_FORMAT_VERSION
 	snapshot["details_currency"] = details_currency_service.get_snapshot()
+	snapshot["inventory_state"] = get_inventory_state()
+	snapshot["center_storage"] = migrated_center_storage_state.duplicate(true)
 	return snapshot
 
 func _upsert_world_state_object(object_data: Dictionary) -> Dictionary:
