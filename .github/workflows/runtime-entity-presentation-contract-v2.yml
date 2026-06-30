@@ -19,6 +19,6 @@ jobs:
           use-dotnet: false
           include-templates: false
       - name: Import project
-        run: godot --headless --path . --import
+        run: godot --headless --quiet --path . --import
       - name: Canonical runtime presentation behavior
-        run: timeout 60s godot --headless --path . --script res://tools/ci/check_runtime_entity_presentation_contract.gd
+        run: timeout 60s godot --headless --quiet --path . --script res://tools/ci/check_runtime_entity_presentation_contract.gd
