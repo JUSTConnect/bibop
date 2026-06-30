@@ -126,7 +126,6 @@ static func _editable_section(source: Dictionary, definition: Dictionary) -> Dic
 			"value":source.get(field_name, schema.get("default")),
 			"schema":schema
 		})
-	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.get("field", "")) < str(b.get("field", "")))
 	return {"id":"editable_fields", "label":"Properties", "rows":rows}
 
 static func _capability_section(capabilities: Dictionary) -> Dictionary:
