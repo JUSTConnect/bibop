@@ -21,7 +21,12 @@ func _run() -> void:
 	await process_frame
 	var definition: Dictionary = {
 		"display_name_template":"Test Device",
-		"entity_contract":{"entity_type":"object", "entity_subtype":"test_device", "capabilities":{"state":true, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":true, "mount":true, "side":true, "routing":false, "test_override":true}},
+		"entity_contract":{
+			"entity_type":"object",
+			"entity_subtype":"test_device",
+			"status_profile":"object_standard",
+			"capabilities":{"state":true, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":true, "mount":true, "side":true, "routing":false, "test_override":true}
+		},
 		"property_schema":[
 			{"field":"z_enabled", "type":"bool", "default":false},
 			{"field":"a_mode", "type":"enum", "values":["one", "two"], "default":"one"},
@@ -30,7 +35,7 @@ func _run() -> void:
 			{"field":"computed_value", "type":"computed"}
 		]
 	}
-	var entity: Dictionary = {"id":"device_a", "display_name":"Device A", "object_type":"test_device", "z_enabled":true, "a_mode":"two", "count":2, "intent_state":"on", "operational_state":"ready", "health_state":"healthy", "thermal_state":"normal"}
+	var entity: Dictionary = {"id":"device_a", "display_name":"Device A", "object_type":"test_device", "z_enabled":true, "a_mode":"two", "count":2, "intent_state":"on", "operational_state":"operational"}
 	var context: Dictionary = {
 		"mode":"task_test", "definition":definition,
 		"entities_by_id":{"device_a":entity, "terminal_a":{"id":"terminal_a", "display_name":"Terminal A"}},
@@ -57,11 +62,28 @@ func _run() -> void:
 	_check(not _section(first, "logical_bindings").is_empty(), "logical bindings missing")
 	_check(not _section(first, "physical_topology").is_empty(), "physical topology missing")
 	_check(not _section(first, "issues").is_empty(), "issue section missing")
+	var status_rows: Array = Array(_section(first, "computed_status").get("rows", []))
+	var forced_status_found: bool = false
+	for value in status_rows:
+		if value is Dictionary and str(Dictionary(value).get("field", "")) == "operational":
+			forced_status_found = str(Dictionary(value).get("real_value", "")) == "operational" and str(Dictionary(value).get("forced_value", "")) == "blocked"
+	_check(forced_status_found, "computed status did not expose real and forced values")
 	var override_section: Dictionary = _section(first, "test_override")
 	_check(not override_section.is_empty(), "test override section missing")
 	if not override_section.is_empty():
 		var row: Dictionary = Dictionary(Array(override_section.get("rows", []))[0])
-		_check(row.has("real_values") and row.has("forced_values"), "real/forced values not both visible")
+		_check(str(Dictionary(row.get("forced_values", {})).get("operational_state", "")) == "blocked", "forced value alias was not normalized")
+	var runtime_context: Dictionary = context.duplicate(true)
+	runtime_context["mode"] = "runtime"
+	_check(_section(Inspector.build(entity, runtime_context), "test_override").is_empty(), "normal runtime exposed test override")
+	var passive_definition: Dictionary = {
+		"display_name_template":"Passive",
+		"entity_contract":{"entity_type":"object", "entity_subtype":"passive", "status_profile":"cooling_passive", "capabilities":{}},
+		"property_schema":[]
+	}
+	var passive: Dictionary = Inspector.build({"id":"passive_a", "object_type":"passive"}, {"definition":passive_definition})
+	_check(_section(passive, "computed_status").is_empty(), "unsupported computed status section was emitted")
+	_check(_section(passive, "test_override").is_empty(), "unsupported test override section was emitted")
 	if failures.is_empty():
 		print("MAP_CONSTRUCTOR_SCHEMA_SNAPSHOT_GATE: OK")
 		quit(0)
