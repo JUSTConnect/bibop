@@ -42,8 +42,8 @@ static func build(entity: Dictionary, context: Dictionary = {}) -> Dictionary:
 	var definition: Dictionary = _definition(source, context)
 	var contract: Dictionary = Dictionary(definition.get("entity_contract", WorldObjectCatalogRef.get_entity_definition_contract_for_object(source))).duplicate(true)
 	var capabilities: Dictionary = Dictionary(contract.get("capabilities", {})).duplicate(true)
-	var status_context: Dictionary = Dictionary(context.get("status_context", {})).duplicate(true)
-	var status_result: Dictionary = EntityStatusEvaluatorRef.evaluate(source, status_context)
+	var status_context: Dictionary = _status_context(context)
+	var status_result: Dictionary = EntityStatusEvaluatorRef.evaluate_synthetic_for_test(source, contract, status_context)
 	var entity_id: String = str(source.get("id", "")).strip_edges()
 	var entities_by_id: Dictionary = Dictionary(context.get("entities_by_id", {})).duplicate(true)
 	if not entity_id.is_empty() and not entities_by_id.has(entity_id):
@@ -92,8 +92,35 @@ static func _definition(source: Dictionary, context: Dictionary) -> Dictionary:
 	var supplied: Variant = context.get("definition", {})
 	if supplied is Dictionary and not Dictionary(supplied).is_empty():
 		return Dictionary(supplied).duplicate(true)
-	var prefab_id: String = str(source.get("map_constructor_prefab_id", source.get("archetype_id", source.get("object_type", "")))).strip_edges()
+	var prefab_id: String = str(source.get("map_constructor_prefab_id", source.get("archetype_id", source.get("object_type", source.get("item_type", ""))))).strip_edges()
 	return WorldObjectCatalogRef.get_constructor_prefab_definition(prefab_id)
+
+static func _status_context(context: Dictionary) -> Dictionary:
+	var result: Dictionary = Dictionary(context.get("status_context", {})).duplicate(true)
+	var mode: String = str(context.get("mode", "")).strip_edges().to_lower()
+	if not mode.is_empty():
+		result["mode"] = mode
+	var override: Variant = context.get("test_override", {})
+	if override is Dictionary and not Dictionary(override).is_empty():
+		var raw_forced: Variant = Dictionary(override).get("forced_values", override)
+		if raw_forced is Dictionary:
+			result["supports_test_override"] = true
+			result["forced_values"] = _normalized_forced_values(Dictionary(raw_forced))
+	return result
+
+static func _normalized_forced_values(values: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	var aliases: Dictionary = {
+		"intent":"intent_state",
+		"operational":"operational_state",
+		"health":"health_state",
+		"thermal":"thermal_state"
+	}
+	for key in values.keys():
+		var field_name: String = str(key).strip_edges().to_lower()
+		field_name = str(aliases.get(field_name, field_name))
+		result[field_name] = values[key]
+	return result
 
 static func _identity_section(source: Dictionary, definition: Dictionary, contract: Dictionary) -> Dictionary:
 	var rows: Array[Dictionary] = [
@@ -145,6 +172,10 @@ static func _status_section(result: Dictionary, debug_enabled: bool) -> Dictiona
 	for key in keys:
 		var source_row: Dictionary = Dictionary(sections[key])
 		var row: Dictionary = {"field":str(key), "label":str(key).replace("_", " ").capitalize(), "value":source_row.get("value"), "control":"read_only"}
+		if source_row.has("real_value"):
+			row["real_value"] = source_row.get("real_value")
+		if source_row.has("forced_value"):
+			row["forced_value"] = source_row.get("forced_value")
 		if debug_enabled:
 			row["reason_code"] = str(result.get("reason_code", ""))
 		rows.append(row)
@@ -196,6 +227,9 @@ static func _test_override_section(capabilities: Dictionary, context: Dictionary
 	var override: Dictionary = Dictionary(context.get("test_override", {})).duplicate(true)
 	if override.is_empty():
 		return {"id":"test_override", "label":"Test Override", "rows":[]}
+	var forced_values: Dictionary = Dictionary(status_result.get("forced_values", {})).duplicate(true)
+	if forced_values.is_empty():
+		forced_values = _normalized_forced_values(Dictionary(override.get("forced_values", override)))
 	return {
 		"id":"test_override",
 		"label":"Test Override",
@@ -203,7 +237,7 @@ static func _test_override_section(capabilities: Dictionary, context: Dictionary
 			"field":"test_override",
 			"control":"read_only",
 			"real_values":Dictionary(status_result.get("real_values", {})).duplicate(true),
-			"forced_values":Dictionary(override.get("forced_values", override)).duplicate(true)
+			"forced_values":forced_values
 		}]
 	}
 
