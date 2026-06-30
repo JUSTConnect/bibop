@@ -58,6 +58,9 @@ jobs:
           godot --headless --path . --script res://tools/ci/check_event_driven_runtime_hud.gd
           godot --headless --path . --script res://tools/ci/check_screen_router.gd
 
+      - name: Map Constructor issue contract
+        run: godot --headless --path . --script res://tools/ci/check_map_constructor_issue_contract.gd
+
       - name: Map Constructor readiness contract
         run: godot --headless --path . --script res://tools/ci/check_map_constructor_readiness_contract.gd
 
