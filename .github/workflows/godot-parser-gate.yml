@@ -57,9 +57,15 @@ jobs:
           godot --headless --path . --script res://tools/ci/check_runtime_readiness_service.gd
           godot --headless --path . --script res://tools/ci/check_event_driven_runtime_hud.gd
           godot --headless --path . --script res://tools/ci/check_screen_router.gd
-          godot --headless --path . --script res://tools/ci/check_map_constructor_readiness_contract.gd
-          godot --headless --path . --script res://tools/ci/check_map_constructor_schema_snapshot.gd
-          godot --headless --path . --script res://tools/ci/check_map_constructor_diagnostic_policy.gd
+
+      - name: Map Constructor readiness contract
+        run: godot --headless --path . --script res://tools/ci/check_map_constructor_readiness_contract.gd
+
+      - name: Map Constructor schema snapshot
+        run: godot --headless --path . --script res://tools/ci/check_map_constructor_schema_snapshot.gd
+
+      - name: Map Constructor diagnostic policy
+        run: godot --headless --path . --script res://tools/ci/check_map_constructor_diagnostic_policy.gd
 
       - name: Entity definition contract gate
         run: godot --headless --path . --script res://tools/ci/check_entity_definition_contracts.gd
