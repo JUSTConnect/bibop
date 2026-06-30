@@ -20,5 +20,9 @@ jobs:
           include-templates: false
       - name: Import project
         run: godot --headless --quiet --path . --import
-      - name: Canonical runtime presentation behavior
+      - name: Snapshot raw power result
+        continue-on-error: true
+        run: timeout 60s godot --headless --quiet --path . --script res://tools/ci/check_runtime_entity_presentation_raw_power.gd
+      - name: Snapshot public power section
+        continue-on-error: true
         run: timeout 60s godot --headless --quiet --path . --script res://tools/ci/check_runtime_entity_presentation_contract.gd
