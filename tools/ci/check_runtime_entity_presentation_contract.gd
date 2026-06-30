@@ -10,11 +10,12 @@ func _run() -> void:
 	var door := {"id":"door_a", "position":Vector2i(2, 0), "object_group":"door", "object_type":"door", "power_mode":"external", "control_mode":"external", "power_network_id":"main", "intent_state":"on", "health_state":"healthy", "thermal_state":"normal", "operational_state":"closed", "state":"closed"}
 	var cable := {"id":"cable_a", "position":Vector2i(1, 0), "object_type":"power_cable", "power_network_id":"main", "health_state":"healthy", "operational_state":"connected", "connected":true}
 	var generator := {"id":"generator_a", "position":Vector2i(0, 0), "object_type":"power_source_class_1", "generic_power_role":"power_source", "intent_state":"on", "health_state":"healthy", "thermal_state":"normal", "operational_state":"active", "power_network_id":"main"}
-	var context := {"mode":"runtime", "objects":[door, cable, generator], "bindings":[]}
+	var context := {"mode":"task_test", "objects":[door, cable, generator], "bindings":[]}
 	var snapshot := SnapshotService.build(null, door, Vector2i(2, 0), {"actions":[]}, context)
 	var state := str(Dictionary(snapshot.get("power", {})).get("state", ""))
-	print("PUBLIC_POWER_STATE=", state)
-	if state == "powered":
-		quit(0)
-	else:
-		quit(1)
+	var raw_power := Dictionary(Dictionary(snapshot.get("debug", {})).get("power_result", {}))
+	var diagnostic := FileAccess.open("res://runtime-presentation-state.txt", FileAccess.WRITE)
+	if diagnostic != null:
+		diagnostic.store_string(JSON.stringify({"public_state":state, "raw_power":raw_power}))
+		diagnostic.close()
+	quit(0 if state == "powered" else 1)
