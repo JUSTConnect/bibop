@@ -29,11 +29,14 @@ static func build(issues: Array, options: Dictionary = {}) -> Dictionary:
 	var draft_save_allowed: bool = serialization_ok and write_ok
 	var task_test_allowed: bool = loadable
 	var promotion_allowed: bool = blockers.is_empty()
-	var status: String = "ready"
+	var decision_status: String = "ready"
+	var legacy_status: String = "playable"
 	if not promotion_allowed:
-		status = "blocked"
+		decision_status = "blocked"
+		legacy_status = "blocked"
 	elif not warnings.is_empty():
-		status = "warning"
+		decision_status = "warning"
+		legacy_status = "warning"
 
 	var result: Dictionary = {
 		"draft_save_allowed":draft_save_allowed,
@@ -46,7 +49,8 @@ static func build(issues: Array, options: Dictionary = {}) -> Dictionary:
 		"serialization_ok":serialization_ok,
 		"write_ok":write_ok,
 		"loadable":loadable,
-		"status":status,
+		"decision_status":decision_status,
+		"status":legacy_status,
 		"summary":_summary(draft_save_allowed, task_test_allowed, promotion_allowed, blockers.size(), warnings.size(), expected_invalid.size()),
 		"blocking_count":blockers.size(),
 		"warning_count":warnings.size(),
