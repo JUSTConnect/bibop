@@ -1,0 +1,28 @@
+name: Runtime Entity Presentation Contract V2
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  runtime-entity-presentation-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Import project
+        run: godot --headless --quiet --path . --import
+      - name: Snapshot raw power result
+        continue-on-error: true
+        run: timeout 60s godot --headless --quiet --path . --script res://tools/ci/check_runtime_entity_presentation_raw_power.gd
+      - name: Snapshot public power section
+        continue-on-error: true
+        run: timeout 60s godot --headless --quiet --path . --script res://tools/ci/check_runtime_entity_presentation_contract.gd

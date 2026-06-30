@@ -56,15 +56,16 @@ static func can_heavy_claw_breach(
 	has_heavy_claw: bool
 ) -> Dictionary:
 	if not has_heavy_claw:
-		return {"ok": false, "message": "Heavy Claw is not installed.", "required_tool": BREACH_TOOL_HEAVY_CLAW}
+		return {"ok": false, "reason_code":"heavy_claw_required", "message": "Heavy Claw is not installed.", "required_tool": BREACH_TOOL_HEAVY_CLAW}
 	if not is_breachable_wall(wall_data):
-		return {"ok": false, "message": "Wall is not breachable.", "required_tool": BREACH_TOOL_NONE}
+		return {"ok": false, "reason_code":"not_breachable_wall", "message": "Wall is not breachable.", "required_tool": BREACH_TOOL_NONE}
 	if is_destroyed(wall_data):
-		return {"ok": false, "message": "Wall is already destroyed.", "required_tool": BREACH_TOOL_NONE}
+		return {"ok": false, "reason_code":"already_destroyed", "message": "Wall is already destroyed.", "required_tool": BREACH_TOOL_NONE}
 	var crack_side: String = get_crack_side(wall_data)
 	if not FacingSideUtilsRef.can_interact_from_side(crack_side, approach_direction):
 		return {
 			"ok": false,
+			"reason_code":"wrong_breach_side",
 			"message": "Heavy Claw can breach only from the cracked side.",
 			"required_tool": BREACH_TOOL_HEAVY_CLAW,
 			"crack_side": crack_side,
@@ -72,6 +73,7 @@ static func can_heavy_claw_breach(
 		}
 	return {
 		"ok": true,
+		"reason_code":"",
 		"message": "Heavy Claw breach available.",
 		"required_tool": BREACH_TOOL_HEAVY_CLAW,
 		"crack_side": crack_side,
@@ -184,6 +186,7 @@ static func build_action_payload(
 		"show_action": should_show_regular_action_for_breach(wall_data),
 		"required_tool": BREACH_TOOL_HEAVY_CLAW if is_breachable_wall(wall_data) and not is_destroyed(wall_data) else BREACH_TOOL_NONE,
 		"message": str(heavy_claw_check.get("message", "")),
+		"reason_code": str(heavy_claw_check.get("reason_code", "")),
 		"crack_side": get_crack_side(wall_data),
 		"approach_direction": approach_direction
 	}
