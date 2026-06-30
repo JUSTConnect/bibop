@@ -7,7 +7,18 @@ on:
 jobs:
   runtime-entity-presentation:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - name: Runtime entity presentation contract
         run: python3 tools/check_runtime_entity_presentation.py
+      - name: Set up Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Import project
+        run: godot --headless --path . --import
+      - name: Headless Godot runtime entity presentation behavior
+        run: timeout 60s godot --headless --path . --script res://tools/ci/check_runtime_entity_presentation_behavior.gd

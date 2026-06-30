@@ -491,7 +491,17 @@ static func _result(success: bool, message: String, effects: Array = [], reason:
 	var reason_code: String = reason
 	if reason_code.is_empty():
 		reason_code = "" if success else "action_failed"
-	return {"success": success, "reason_code": reason_code, "requirements": requirements.duplicate(true), "message": message, "effects": effects.duplicate(true), "reason": reason_code}
+	return {"success": success, "reason_code": reason_code, "requirements": _canonical_requirements(requirements, reason_code, success), "message": message, "effects": effects.duplicate(true), "reason": reason_code}
+
+static func _canonical_requirements(requirements: Array, reason_code: String, success: bool) -> Array:
+	var result: Array = []
+	for item in requirements:
+		if item is Dictionary:
+			result.append(Dictionary(item).duplicate(true))
+	if result.is_empty() and not success and not reason_code.is_empty():
+		result.append({"type":"gate", "code":reason_code, "satisfied":false})
+	result.sort_custom(func(a, b): return var_to_str(a) < var_to_str(b))
+	return result
 
 static func normalize_action_result(action_result: Dictionary, target_object: Dictionary, action_id: String = "") -> Dictionary:
 	if action_result.is_empty():

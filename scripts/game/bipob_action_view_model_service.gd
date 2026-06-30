@@ -9,6 +9,8 @@ const BreachableWallServiceRef = preload("res://scripts/game/wall/breachable_wal
 const BreachableWallRulesServiceRef = preload("res://scripts/game/wall/breachable_wall_rules_service.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 const BipobTargetingServiceRef = preload("res://scripts/game/bipob_targeting_service.gd")
+const PowerControlResolverRef = preload("res://scripts/world/power_control_resolver.gd")
+const AccessResolverRef = preload("res://scripts/world/access_resolver.gd")
 
 const DEBUG_BREACHABLE_WALL_RUNTIME_TRACE := false
 const DEBUG_WALL_MOUNTED_INTERACTION_TRACE := false
@@ -174,6 +176,7 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		descriptors.append(_canonical_action_descriptor(action_id, label, enabled, reason, Array(gate.get("requirements", [])), target_id, target_type, target_position, 100, requires_free_manipulator, module, gate))
 		if enabled:
 			available_action_ids.append(action_id)
+	descriptors.sort_custom(func(a, b): return _sort_action_descriptors(a, b))
 	var primary: Dictionary = {}
 	for descriptor in descriptors:
 		if bool(descriptor.get("enabled", false)):
@@ -183,7 +186,6 @@ static func build_runtime_action_view_model(controller: Variant, target_object: 
 		primary = descriptors[0]
 	var disabled_reason: String = str(primary.get("reason", "target_missing" if normalized_target.is_empty() else "no_available_action"))
 	var has_interaction_target: bool = not normalized_target.is_empty() and (not descriptors.is_empty() or not wall_mount_gate.is_empty())
-	descriptors.sort_custom(func(a, b): return _sort_action_descriptors(a, b))
 	var presentation_context: Dictionary = {"mode":"runtime"}
 	var view_model: Dictionary = {"target":normalized_target, "actions":descriptors, "raw_action_ids":action_ids, "unfiltered_action_ids":raw_action_ids, "available_action_ids":available_action_ids, "primary_action_id":str(primary.get("id", "")), "primary_action_label":str(primary.get("label", "Action")), "has_available_action":not available_action_ids.is_empty(), "has_interaction_target":has_interaction_target, "disabled_reason":disabled_reason}
 	view_model["presentation_snapshot"] = build_runtime_presentation_snapshot(controller, normalized_target, target_position, view_model, presentation_context)
@@ -253,10 +255,16 @@ static func build_runtime_presentation_snapshot(controller: Variant, target_obje
 	var identity: Dictionary = _build_presentation_identity(source, contract)
 	var status_eval: Dictionary = EntityStatusEvaluatorRef.evaluate(source, context.duplicate(true))
 	var status_rows: Array = _build_presentation_status_rows(status_eval, debug_enabled)
+	var world_context: Dictionary = _build_presentation_world_context(controller, source, context)
+	var power_control: Dictionary = _build_presentation_power_control(source, world_context)
+	var access: Dictionary = _build_presentation_access(source, world_context, context)
+	var bindings: Array = _build_presentation_bindings(source, Array(world_context.get("bindings", [])), debug_enabled)
 	var actions: Array = []
 	for action_variant in Array(action_view_model.get("actions", [])):
 		if action_variant is Dictionary:
-			actions.append(Dictionary(action_variant).duplicate(true))
+			var sanitized_action: Dictionary = _sanitize_presentation_action(Dictionary(action_variant), debug_enabled, power_control)
+			if not sanitized_action.is_empty():
+				actions.append(sanitized_action)
 	actions.sort_custom(func(a, b): return _sort_action_descriptors(a, b))
 	var requirements: Array = []
 	for action in actions:
@@ -265,9 +273,9 @@ static func build_runtime_presentation_snapshot(controller: Variant, target_obje
 				requirements.append(Dictionary(requirement).duplicate(true))
 	requirements = _sorted_requirements(requirements)
 	var notification: Dictionary = _build_presentation_notification(Dictionary(context.get("notification", {})), debug_enabled)
-	var snapshot: Dictionary = {"identity":identity, "status":status_rows, "requirements":requirements, "bindings":[], "actions":actions, "notification":notification, "signature":"", "debug":{}}
+	var snapshot: Dictionary = {"identity":identity, "status":status_rows, "power":Dictionary(power_control.get("power", {})), "control":Dictionary(power_control.get("control", {})), "access":access, "requirements":requirements, "bindings":bindings, "actions":actions, "notification":notification, "signature":"", "debug":{}}
 	if debug_enabled:
-		snapshot["debug"] = {"target_position":target_position, "status_reason_code":str(status_eval.get("reason_code", "")), "real_values":Dictionary(status_eval.get("real_values", {})).duplicate(true), "forced_values":Dictionary(status_eval.get("forced_values", {})).duplicate(true)}
+		snapshot["debug"] = {"target_position":target_position, "status_reason_code":str(status_eval.get("reason_code", "")), "real_values":Dictionary(status_eval.get("real_values", {})).duplicate(true), "forced_values":Dictionary(status_eval.get("forced_values", {})).duplicate(true), "raw_actions":Array(action_view_model.get("actions", [])).duplicate(true), "raw_bindings":Array(world_context.get("bindings", [])).duplicate(true)}
 	var unsigned: Dictionary = snapshot.duplicate(true)
 	unsigned.erase("signature")
 	snapshot["signature"] = str(hash(var_to_str(unsigned)))
@@ -300,10 +308,87 @@ static func _build_presentation_status_rows(status_eval: Dictionary, debug_enabl
 static func _build_presentation_notification(event: Dictionary, debug_enabled: bool) -> Dictionary:
 	if event.is_empty():
 		return {}
-	var result: Dictionary = {"result":str(event.get("result", "")), "message_key":str(event.get("message_key", "")), "fallback":str(event.get("fallback", event.get("message", ""))), "player_action":str(event.get("player_action", ""))}
+	var result: Dictionary = {"result":str(event.get("result", "")), "message_key":str(event.get("message_key", "")), "fallback":str(event.get("fallback", event.get("message", ""))), "player_action":bool(event.get("player_action", false))}
 	if debug_enabled:
 		result["event_id"] = str(event.get("event_id", ""))
 		result["action_id"] = str(event.get("action_id", ""))
+	return result
+
+static func _build_presentation_world_context(controller: Variant, source: Dictionary, context: Dictionary) -> Dictionary:
+	var objects: Array[Dictionary] = []
+	var bindings: Array[Dictionary] = []
+	if context.get("objects", []) is Array:
+		for object_variant in Array(context.get("objects", [])):
+			if object_variant is Dictionary:
+				objects.append(Dictionary(object_variant).duplicate(true))
+	if context.get("bindings", []) is Array:
+		for binding_variant in Array(context.get("bindings", [])):
+			if binding_variant is Dictionary:
+				bindings.append(Dictionary(binding_variant).duplicate(true))
+	if controller != null and controller.get("mission_manager") != null:
+		var manager: Variant = controller.get("mission_manager")
+		if objects.is_empty() and manager.get("world_state_store") != null and manager.get("world_state_store").has_method("get_all_objects"):
+			for object_variant in Array(manager.get("world_state_store").call("get_all_objects")):
+				if object_variant is Dictionary:
+					objects.append(Dictionary(object_variant).duplicate(true))
+		if bindings.is_empty() and manager.get("world_state_store") != null and manager.get("world_state_store").has_method("get_all_bindings"):
+			for binding_variant in Array(manager.get("world_state_store").call("get_all_bindings")):
+				if binding_variant is Dictionary:
+					bindings.append(Dictionary(binding_variant).duplicate(true))
+	if objects.is_empty() and not source.is_empty():
+		objects.append(source.duplicate(true))
+	var entities_by_id: Dictionary = {}
+	for object_data in objects:
+		var object_id: String = str(object_data.get("id", "")).strip_edges()
+		if not object_id.is_empty():
+			entities_by_id[object_id] = object_data.duplicate(true)
+	return {"objects":objects, "bindings":bindings, "entities_by_id":entities_by_id}
+
+
+static func _build_presentation_power_control(source: Dictionary, world_context: Dictionary) -> Dictionary:
+	var objects: Array[Dictionary] = Array(world_context.get("objects", []))
+	var bindings: Array[Dictionary] = Array(world_context.get("bindings", []))
+	var resolved: Dictionary = PowerControlResolverRef.resolve_world(objects, bindings, {"entity_id":str(source.get("id", ""))})
+	var power_result: Dictionary = Dictionary(Dictionary(resolved.get("power_results", {})).get(str(source.get("id", "")), {}))
+	var control_result: Dictionary = Dictionary(Dictionary(resolved.get("control_results", {})).get(str(source.get("id", "")), {}))
+	return {"power":{"mode":str(power_result.get("mode", "none")), "state":str(power_result.get("state", "none")), "powered":bool(power_result.get("is_powered", true)), "reason_code":str(power_result.get("reason_code", ""))}, "control":{"mode":str(control_result.get("mode", "none")), "available":bool(control_result.get("available", false)), "local":bool(control_result.get("local_control", false)), "external":bool(control_result.get("external_control", false)), "controller_id":str(control_result.get("controller_id", "")), "reason_code":str(control_result.get("reason_code", ""))}}
+
+
+static func _build_presentation_access(source: Dictionary, world_context: Dictionary, context: Dictionary) -> Dictionary:
+	var result: Dictionary = AccessResolverRef.resolve(source, context.duplicate(true), Array(world_context.get("bindings", [])), Dictionary(world_context.get("entities_by_id", {})))
+	var access_type: String = str(result.get("access_type", AccessResolverRef.normalize_access_type(source.get("access_type", source.get("lock_type", "none")))))
+	var keypad: Dictionary = {"show": access_type == AccessResolverRef.ACCESS_CODE, "entry":str(source.get("access_code_entry", "")), "max_digits":int(source.get("access_code_digits", 4)), "actions":["access_code_0","access_code_1","access_code_2","access_code_3","access_code_4","access_code_5","access_code_6","access_code_7","access_code_8","access_code_9","input_password"]}
+	return {"access_type":access_type, "granted":bool(result.get("success", false)), "reason_code":str(result.get("reason_code", "")), "keypad":keypad}
+
+
+static func _build_presentation_bindings(source: Dictionary, bindings: Array, debug_enabled: bool) -> Array:
+	var target_id: String = str(source.get("id", "")).strip_edges()
+	var rows: Array = []
+	for binding_variant in bindings:
+		if not binding_variant is Dictionary:
+			continue
+		var binding: Dictionary = Dictionary(binding_variant)
+		if str(binding.get("target_id", "")).strip_edges() != target_id and str(binding.get("source_id", "")).strip_edges() != target_id:
+			continue
+		var row: Dictionary = {"role":str(binding.get("role", "")), "source_id":str(binding.get("source_id", "")), "target_id":str(binding.get("target_id", ""))}
+		if debug_enabled:
+			row["binding_id"] = str(binding.get("id", ""))
+			row["parameters"] = Dictionary(binding.get("parameters", {})).duplicate(true)
+		rows.append(row)
+	rows.sort_custom(func(a, b): return var_to_str(a) < var_to_str(b))
+	return rows
+
+
+static func _sanitize_presentation_action(action: Dictionary, debug_enabled: bool, power_control: Dictionary) -> Dictionary:
+	var available: bool = bool(action.get("available", action.get("enabled", false)))
+	var control: Dictionary = Dictionary(power_control.get("control", {}))
+	if bool(control.get("external", false)) and not bool(control.get("local", false)) and str(action.get("action_code", action.get("id", ""))) not in ["hack", "scan"]:
+		return {}
+	var result: Dictionary = {"action_code":str(action.get("action_code", action.get("id", ""))), "label_key":str(action.get("label_key", "")), "available":available, "reason_code":str(action.get("reason_code", action.get("reason", ""))), "requirements":_sorted_requirements(Array(action.get("requirements", []))), "target_id":str(action.get("target_id", "")), "context":Dictionary(action.get("context", {})).duplicate(true), "id":str(action.get("id", action.get("action_code", ""))), "label":str(action.get("label", "")), "enabled":available, "reason":str(action.get("reason", action.get("reason_code", ""))), "priority":int(action.get("priority", 100))}
+	if debug_enabled:
+		result["module_id"] = str(action.get("module_id", ""))
+		result["module"] = Dictionary(action.get("module", {})).duplicate(true)
+		result["gate"] = Dictionary(action.get("gate", {})).duplicate(true)
 	return result
 
 static func _trace_wall_mounted_interaction(payload: Dictionary) -> void:
