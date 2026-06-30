@@ -14,4 +14,8 @@ func _run() -> void:
 	var snapshot := SnapshotService.build(null, door, Vector2i(2, 0), {"actions":[]}, context)
 	var debug_data := Dictionary(snapshot.get("debug", {}))
 	var result := Dictionary(debug_data.get("power_result", {}))
-	quit(0 if str(result.get("power_state", "")) == "powered" else 1)
+	if str(result.get("power_state", "")) == "powered":
+		print("runtime entity raw power: OK")
+		quit(0)
+		return
+	quit(1)
