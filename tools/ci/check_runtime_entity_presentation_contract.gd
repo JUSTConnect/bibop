@@ -13,4 +13,8 @@ func _run() -> void:
 	var context := {"mode":"runtime", "objects":[door, cable, generator], "bindings":[]}
 	var snapshot := SnapshotService.build(null, door, Vector2i(2, 0), {"actions":[]}, context)
 	var state := str(Dictionary(snapshot.get("power", {})).get("state", ""))
-	quit(0 if state == "powered" else 1)
+	print("PUBLIC_POWER_STATE=", state)
+	if state == "powered":
+		quit(0)
+	else:
+		quit(1)
