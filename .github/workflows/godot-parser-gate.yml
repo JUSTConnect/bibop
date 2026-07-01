@@ -55,6 +55,7 @@ jobs:
           python tools/check_binding_store.py
           python tools/check_power_cable_reel.py
           python tools/check_machine_legacy_link_migration.py
+          python tools/check_active_cooling_box_service.py
 
       - name: Readiness and runtime HUD static contracts
         run: |
