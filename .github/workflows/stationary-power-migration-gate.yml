@@ -15,6 +15,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   stationary-power-migration:
     runs-on: ubuntu-latest
@@ -26,10 +30,71 @@ jobs:
           use-dotnet: false
           include-templates: false
       - name: Import project
-        run: godot --headless --path . --import
+        run: godot --headless --quiet --path . --import
+
       - name: Canonical definitions and legacy adapter
-        run: godot --headless --path . --script res://tools/ci/check_stationary_power_definitions.gd
+        id: definitions
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          godot --headless --quiet --path . --script res://tools/ci/check_stationary_power_definitions.gd 2>&1 | tee /tmp/stationary-definitions.log
+          code=${PIPESTATUS[0]}
+          {
+            echo 'report<<EOF'
+            grep -E 'STATIONARY_POWER_|SCRIPT ERROR|ERROR:' /tmp/stationary-definitions.log | tail -80 || true
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+          exit "$code"
+
       - name: Physical topology and source resolution
-        run: godot --headless --path . --script res://tools/ci/check_stationary_power_topology.gd
+        id: topology
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          godot --headless --quiet --path . --script res://tools/ci/check_stationary_power_topology.gd 2>&1 | tee /tmp/stationary-topology.log
+          code=${PIPESTATUS[0]}
+          {
+            echo 'report<<EOF'
+            grep -E 'STATIONARY_POWER_|SCRIPT ERROR|ERROR:' /tmp/stationary-topology.log | tail -80 || true
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+          exit "$code"
+
       - name: Player actions and autonomous notifications
-        run: godot --headless --path . --script res://tools/ci/check_stationary_power_actions.gd
+        id: actions
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          godot --headless --quiet --path . --script res://tools/ci/check_stationary_power_actions.gd 2>&1 | tee /tmp/stationary-actions.log
+          code=${PIPESTATUS[0]}
+          {
+            echo 'report<<EOF'
+            grep -E 'STATIONARY_POWER_|SCRIPT ERROR|ERROR:' /tmp/stationary-actions.log | tail -80 || true
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+          exit "$code"
+
+      - name: Report focused failures
+        if: github.event_name == 'pull_request' && (steps.definitions.outcome == 'failure' || steps.topology.outcome == 'failure' || steps.actions.outcome == 'failure')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          DEFINITIONS_REPORT: ${{ steps.definitions.outputs.report }}
+          TOPOLOGY_REPORT: ${{ steps.topology.outputs.report }}
+          ACTIONS_REPORT: ${{ steps.actions.outputs.report }}
+        shell: bash
+        run: |
+          {
+            echo '### Stationary Power Migration diagnostics'
+            echo
+            echo '```text'
+            printf '%s\n' "$DEFINITIONS_REPORT"
+            printf '%s\n' "$TOPOLOGY_REPORT"
+            printf '%s\n' "$ACTIONS_REPORT"
+            echo '```'
+          } > /tmp/stationary-power-comment.md
+          gh pr comment "$PR_URL" --body-file /tmp/stationary-power-comment.md
+          exit 1
