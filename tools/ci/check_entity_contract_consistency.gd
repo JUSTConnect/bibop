@@ -174,8 +174,9 @@ func _run() -> void:
 	_assert(_report_diagnostics_have_shape(computed_report), "semantic error has incomplete diagnostic shape")
 	var socket_report: Dictionary = WorldObjectCatalog.validate_entity_definition_contract("power_socket")
 	_assert(bool(socket_report.get("valid", false)), "power socket contract invalid: %s" % str(socket_report.get("errors", [])))
-	_assert(_has_warning(socket_report, "entity_contract.legacy_semantic_exception", "connected_device_ids"), "power socket endpoint compatibility warning missing")
-	_assert(_report_diagnostics_have_shape(socket_report), "power socket warnings have incomplete diagnostic shape")
+	_assert(not _has_warning(socket_report, "entity_contract.legacy_semantic_exception"), "migrated power socket still reports a legacy semantic exception")
+	_assert(not WorldObjectCatalog.get_constructor_prefab_definition("power_socket").has("legacy_semantic_exceptions"), "migrated power socket definition still declares #1181 exceptions")
+	_assert(_report_diagnostics_have_shape(socket_report), "power socket diagnostics have incomplete diagnostic shape")
 
 	_assert(not Contract.resolve_validation_fixture("default").is_empty(), "default validation fixture did not resolve")
 	_assert(not Contract.resolve_validation_fixture("status_object_standard").is_empty(), "profile validation fixture did not resolve")
