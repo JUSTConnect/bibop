@@ -41,7 +41,6 @@ jobs:
               "scripts/world/entity_definition_contract.gd",
               "scripts/world/power_control_resolver.gd",
               "tools/ci/check_entity_contract_consistency.gd",
-              ".github/workflows/godot-parser-gate.yml",
           ]
 
           def api(method, endpoint, payload=None):
