@@ -64,8 +64,14 @@ jobs:
       - name: Map Constructor readiness contract
         run: godot --headless --path . --script res://tools/ci/check_map_constructor_readiness_contract.gd
 
+      - name: Map Constructor readiness facade
+        run: godot --headless --path . --script res://tools/ci/check_map_constructor_readiness_facade.gd
+
       - name: Map Constructor schema snapshot
         run: godot --headless --path . --script res://tools/ci/check_map_constructor_schema_snapshot.gd
+
+      - name: Map Constructor schema renderer integration
+        run: godot --headless --path . --script res://tools/ci/check_map_constructor_schema_renderer_integration.gd
 
       - name: Map Constructor diagnostic policy
         run: godot --headless --path . --script res://tools/ci/check_map_constructor_diagnostic_policy.gd
