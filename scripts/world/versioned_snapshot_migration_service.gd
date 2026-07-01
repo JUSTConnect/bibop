@@ -45,6 +45,9 @@ const DERIVED_RUNTIME_FIELDS: Array[String] = [
 const LEGACY_REEL_ALIAS_FIELDS: Array[String] = [
 	"end_1_state", "end_1_target_id", "end_2_state", "end_2_target_id", "cable_path_cells"
 ]
+const LEGACY_MACHINE_LOGICAL_FIELDS: Array[String] = [
+	"linked_object_ids"
+]
 
 static func preview_migration(source_document: Dictionary) -> Dictionary:
 	return migrate_document(source_document)
@@ -123,7 +126,9 @@ static func _step_v1_to_v2(source: Dictionary, issues: Array[Dictionary]) -> Dic
 		return {"success":false, "snapshot":snapshot}
 	var stripped_entities: Array[Dictionary] = []
 	for entity in canonical_entities:
-		stripped_entities.append(BindingStoreContractRef.strip_legacy_logical_links(entity))
+		var stripped_entity: Dictionary = BindingStoreContractRef.strip_legacy_logical_links(entity)
+		stripped_entity = _strip_machine_logical_links(stripped_entity)
+		stripped_entities.append(stripped_entity)
 	var currency_result: Dictionary = _migrate_currency(snapshot, issues)
 	if not bool(currency_result.get("success", false)):
 		return {"success":false, "snapshot":snapshot}
@@ -181,7 +186,14 @@ static func _canonicalize_entity(source: Dictionary) -> Dictionary:
 		entity.erase(field_name)
 	for field_name in DERIVED_RUNTIME_FIELDS:
 		entity.erase(field_name)
+	entity = _strip_machine_logical_links(entity)
 	return _attach_contract(entity)
+
+static func _strip_machine_logical_links(source: Dictionary) -> Dictionary:
+	var entity: Dictionary = source.duplicate(true)
+	for field_name in LEGACY_MACHINE_LOGICAL_FIELDS:
+		entity.erase(field_name)
+	return entity
 
 static func _attach_contract(source: Dictionary) -> Dictionary:
 	var entity: Dictionary = source.duplicate(true)
@@ -311,6 +323,7 @@ static func _validate_current_document(snapshot: Dictionary, issues: Array[Dicti
 static func _validate_legacy_fields(entity: Dictionary, index: int, issues: Array[Dictionary]) -> void:
 	var fields: Array[String] = []
 	fields.append_array(BindingStoreContractRef.LEGACY_LOGICAL_LINK_FIELDS)
+	fields.append_array(LEGACY_MACHINE_LOGICAL_FIELDS)
 	fields.append_array(LEGACY_POWER_FIELDS)
 	fields.append_array(LEGACY_REEL_ALIAS_FIELDS)
 	if PassiveRouteServiceRef.is_passive_route(entity):
