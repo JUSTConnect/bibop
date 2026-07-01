@@ -63,13 +63,20 @@ jobs:
       - name: Godot import smoke
         run: godot --headless --path . --import
 
-      - name: GDScript parser/load gate
-        run: |
-          godot --headless --path . --script res://tools/ci/parse_all_gd.gd
-          godot --headless --path . --script res://tools/ci/check_map_constructor_session_state_contract.gd
-          godot --headless --path . --script res://tools/ci/check_runtime_readiness_service.gd
-          godot --headless --path . --script res://tools/ci/check_event_driven_runtime_hud.gd
-          godot --headless --path . --script res://tools/ci/check_screen_router.gd
+      - name: Parse all GDScript
+        run: godot --headless --path . --script res://tools/ci/parse_all_gd.gd
+
+      - name: Map Constructor session state contract
+        run: godot --headless --path . --script res://tools/ci/check_map_constructor_session_state_contract.gd
+
+      - name: Runtime readiness behavior
+        run: godot --headless --path . --script res://tools/ci/check_runtime_readiness_service.gd
+
+      - name: Event-driven runtime HUD behavior
+        run: godot --headless --path . --script res://tools/ci/check_event_driven_runtime_hud.gd
+
+      - name: ScreenRouter behavior
+        run: godot --headless --path . --script res://tools/ci/check_screen_router.gd
 
       - name: Map Constructor issue contract
         run: godot --headless --path . --script res://tools/ci/check_map_constructor_issue_contract.gd
