@@ -40,6 +40,12 @@ static func apply_from_ui(ui: Object) -> void:
 		return
 	apply_structure(ui, content, entity_kind, entity_id, _get_selected_entity_data(ui, entity_kind, entity_id))
 
+static func request_explicit_refresh(ui: Object) -> void:
+	# Compatibility hook for property-update callers. Refresh remains event-driven;
+	# this service never polls or schedules its own updates.
+	if ui != null and is_instance_valid(ui) and ui.has_method("_refresh_map_constructor_inspector_structure"):
+		ui.call_deferred("_refresh_map_constructor_inspector_structure")
+
 static func _rebuild_block_separators(ui: Object, content: VBoxContainer) -> void:
 	_remove_existing_separators(content)
 	var block_indexes: Array[int] = []
