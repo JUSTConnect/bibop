@@ -20,8 +20,10 @@ static func apply_structure(ui: Object, content: VBoxContainer, entity_kind: Str
 		return
 	content.set_meta(META_CANONICAL_RENDER, false)
 	# A genuinely noncanonical legacy entity keeps the sections produced by the
-	# existing inspector. This layer only restores visual separators; it does not
-	# infer status, power, type, or readiness from raw fields.
+	# existing inspector. When a compatibility caller supplies an empty content
+	# container, add one minimal pair without inferring status or power from raw
+	# subtype fields.
+	_ensure_empty_legacy_fallback_sections(ui, content, entity_kind, entity_id, data)
 	_rebuild_block_separators(ui, content)
 
 static func apply_from_ui(ui: Object) -> void:
@@ -45,6 +47,22 @@ static func request_explicit_refresh(ui: Object) -> void:
 	# this service never polls or schedules its own updates.
 	if ui != null and is_instance_valid(ui) and ui.has_method("_refresh_map_constructor_inspector_structure"):
 		ui.call_deferred("_refresh_map_constructor_inspector_structure")
+
+static func _ensure_empty_legacy_fallback_sections(ui: Object, content: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+	if content.get_child_count() > 0:
+		return
+	var identity: VBoxContainer = ui.call("_create_inspector_section", "Legacy Identity")
+	identity.name = "SharedIdentitySection"
+	var identity_value := Label.new()
+	identity_value.text = str(data.get("display_name", entity_id))
+	identity.add_child(ui.call("_create_property_row", "Entity", identity_value))
+	content.add_child(identity)
+	var status: VBoxContainer = ui.call("_create_inspector_section", "Legacy Compatibility")
+	status.name = "SharedStatusSection"
+	var status_value := Label.new()
+	status_value.text = "Legacy fallback — canonical definition unavailable"
+	status.add_child(ui.call("_create_property_row", "Status", status_value))
+	content.add_child(status)
 
 static func _rebuild_block_separators(ui: Object, content: VBoxContainer) -> void:
 	_remove_existing_separators(content)
