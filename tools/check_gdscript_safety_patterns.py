@@ -51,6 +51,7 @@ def check_hard_patterns() -> list[Finding]:
         (re.compile(r"\bfind_nearest_(terminal|door|source|target)\b"), "legacy proximity target discovery; use explicit bindings/resolvers"),
         (re.compile(r"\binfer_.*(display|text|label|name).*\("), "legacy text/display inference; use schema data and stable result codes"),
         (re.compile(r"\b(status|result|state)_from_(text|label|message)\b"), "result/status classification from text is forbidden"),
+        (re.compile(r"\bgeneric_fallback\b|\bfallback_generic\b"), "generic fallback profile is forbidden; use complete entity contracts"),
     )
     for path in all_files:
         for pattern, message in hard_patterns:
