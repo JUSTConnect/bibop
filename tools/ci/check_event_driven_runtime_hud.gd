@@ -137,9 +137,9 @@ func _test_inspector_presenter() -> bool:
 	var content := VBoxContainer.new()
 	root.add_child(ui)
 	ui.add_child(content)
-	var data := {"display_name":"Door A", "description":"Test", "object_type":"door", "object_power_state":"powered", "object_total_state":"ready"}
-	InspectorStructureRef.apply_structure(ui, content, "world_object", "door_a", data)
-	InspectorStructureRef.apply_structure(ui, content, "world_object", "door_a", data)
+	var data := {"display_name":"Legacy A", "description":"Test", "object_type":"unknown_legacy_fixture"}
+	InspectorStructureRef.apply_structure(ui, content, "world_object", "legacy_a", data)
+	InspectorStructureRef.apply_structure(ui, content, "world_object", "legacy_a", data)
 	var identity_count: int = 0
 	var status_count: int = 0
 	for child in content.get_children():
@@ -147,8 +147,8 @@ func _test_inspector_presenter() -> bool:
 			identity_count += 1
 		elif str(child.name) == "SharedStatusSection":
 			status_count += 1
-	var ok := _expect(identity_count == 1, "inspector identity section must remain singular")
-	ok = _expect(status_count == 1, "inspector status section must remain singular") and ok
+	var ok := _expect(identity_count == 1, "legacy inspector identity section must remain singular")
+	ok = _expect(status_count == 1, "legacy inspector status section must remain singular") and ok
 	ui.queue_free()
 	return ok
 

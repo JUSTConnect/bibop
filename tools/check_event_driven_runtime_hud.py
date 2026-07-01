@@ -3,8 +3,9 @@ from pathlib import Path
 import re
 import sys
 
-# Static architecture audit. Runtime behavior is exercised separately by
-# tools/ci/check_event_driven_runtime_hud.gd in the Godot parser/load gate.
+# Static architecture audit. Runtime behavior is exercised by focused Godot
+# contracts: notification behavior is owned by the notification workflow, while
+# Map Constructor inspector behavior is owned by the schema renderer gate.
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
 
@@ -37,7 +38,8 @@ inspector = text("scripts/ui/map_constructor/map_constructor_inspector_structure
 for token in ["func _process", "CHECK_INTERVAL", "get_tree(", "current_scene"]:
     expect(token not in inspector, f"inspector contains forbidden polling token: {token}")
 expect("static func apply_structure" in inspector and "static func apply_from_ui" in inspector, "inspector explicit API missing")
-expect("_refresh_map_constructor_inspector_structure" in inspector, "inspector property update does not request explicit structure refresh")
+expect("request_explicit_refresh" in inspector, "inspector explicit refresh hook missing")
+expect("SchemaRendererRef.render" in inspector, "canonical schema renderer is not wired")
 
 bridge = text("scripts/ui/runtime/runtime_action_panel_bridge.gd")
 expect("func process_feedback" not in bridge, "empty/per-frame process_feedback remains")
@@ -80,7 +82,7 @@ if world_panel:
 workflow = text(".github/workflows/godot-parser-gate.yml")
 expect("python tools/check_runtime_readiness_service.py" in workflow, "readiness static audit no longer active")
 expect("python tools/check_event_driven_runtime_hud.py" in workflow, "event-driven static audit not wired")
-expect("check_event_driven_runtime_hud.gd" in workflow, "event-driven Godot gate not wired")
+expect("check_map_constructor_schema_renderer_integration.gd" in workflow, "canonical inspector behavior gate not wired")
 
 if errors:
     print("Event-driven runtime HUD audit FAILED:")

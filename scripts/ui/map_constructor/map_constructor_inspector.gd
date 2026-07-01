@@ -3,6 +3,7 @@ class_name MapConstructorInspector
 
 const MapConstructorPlatformControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_platform_controls.gd")
 const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")
+const MapConstructorSchemaInspectorRendererRef = preload("res://scripts/ui/map_constructor/map_constructor_schema_inspector_renderer.gd")
 const MapConstructorTerminalStoredDataControlsRef = preload("res://scripts/ui/map_constructor/map_constructor_terminal_stored_data_controls.gd")
 const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
 
@@ -680,6 +681,9 @@ static func _render_entity_tab(ui: Variant, parent: VBoxContainer, entity_info: 
 	ui.map_constructor_state.selected_map_constructor_entity_kind = entity_kind
 	ui.map_constructor_state.selected_map_constructor_entity_id = entity_id
 	ui.map_constructor_state.selected_map_constructor_entity_cell = cell
+	var schema_render_result: Dictionary = MapConstructorSchemaInspectorRendererRef.render(ui, parent, entity_kind, entity_id, data)
+	if bool(schema_render_result.get("handled", false)):
+		return
 	if not (entity_kind in ["world_object", "item"]):
 		_render_read_only_entity(ui, parent, entity_info, "Details")
 		return
