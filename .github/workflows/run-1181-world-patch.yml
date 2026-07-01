@@ -1,0 +1,27 @@
+name: Run 1181 World Patch
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/run-1181-world-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'feature/power-entities-1181'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/power-entities-1181
+          fetch-depth: 0
+      - run: python3 tools/apply_1181_world_patch.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/world/world_object_catalog.gd
+          git commit -m "feat(power): route stationary entities through canonical catalog"
+          git push origin HEAD:feature/power-entities-1181
