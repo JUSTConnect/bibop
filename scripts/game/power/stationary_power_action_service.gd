@@ -21,6 +21,31 @@ static func apply_light_player_action(light: Dictionary, turn_on: bool, action_i
 	var success: Dictionary = ActionResultRef.make(action_id, "light.intent_changed", ActionResultRef.RESULT_SUCCESS, actor_id, target_id, action_type, "action.light.intent_changed", "Light turned %s." % desired, {"intent_state":desired})
 	return _player_result(source, success)
 
+static func apply_cable_repair(cable: Dictionary, action_id: String, actor_id: String) -> Dictionary:
+	var source: Dictionary = cable.duplicate(true)
+	var target_id: String = str(source.get("id", "")).strip_edges()
+	if str(source.get("health_state", "healthy")).strip_edges().to_lower() == "healthy":
+		var unchanged: Dictionary = ActionResultRef.make(action_id, "power_cable.repair_no_change", ActionResultRef.RESULT_NO_CHANGE, actor_id, target_id, "power_cable.repair", "action.power_cable.repair_no_change", "The cable does not need repair.")
+		return _player_result(source, unchanged)
+	source["health_state"] = "healthy"
+	if str(source.get("operational_state", "")).strip_edges().to_lower() == "broken":
+		source["operational_state"] = "disconnected"
+	var repaired: Dictionary = ActionResultRef.make(action_id, "power_cable.repaired", ActionResultRef.RESULT_SUCCESS, actor_id, target_id, "power_cable.repair", "action.power_cable.repaired", "Cable repaired; reconnect is still required.", {"health_state":"healthy", "operational_state":source.get("operational_state", "disconnected")})
+	return _player_result(source, repaired)
+
+static func apply_cable_reconnect(cable: Dictionary, action_id: String, actor_id: String) -> Dictionary:
+	var source: Dictionary = cable.duplicate(true)
+	var target_id: String = str(source.get("id", "")).strip_edges()
+	if str(source.get("health_state", "healthy")).strip_edges().to_lower() != "healthy":
+		var blocked: Dictionary = ActionResultRef.make(action_id, "power_cable.reconnect_requires_repair", ActionResultRef.RESULT_BLOCKED, actor_id, target_id, "power_cable.reconnect", "action.power_cable.reconnect_requires_repair", "Repair the cable before reconnecting it.")
+		return _player_result(source, blocked)
+	if str(source.get("operational_state", "connected")).strip_edges().to_lower() == "connected":
+		var unchanged: Dictionary = ActionResultRef.make(action_id, "power_cable.reconnect_no_change", ActionResultRef.RESULT_NO_CHANGE, actor_id, target_id, "power_cable.reconnect", "action.power_cable.reconnect_no_change", "The cable is already connected.")
+		return _player_result(source, unchanged)
+	source["operational_state"] = "connected"
+	var reconnected: Dictionary = ActionResultRef.make(action_id, "power_cable.reconnected", ActionResultRef.RESULT_SUCCESS, actor_id, target_id, "power_cable.reconnect", "action.power_cable.reconnected", "Cable reconnected.", {"operational_state":"connected"})
+	return _player_result(source, reconnected)
+
 static func apply_autonomous_power_result(entity: Dictionary, power_result: Dictionary) -> Dictionary:
 	var updated: Dictionary = entity.duplicate(true)
 	for field_name in ["power_state", "is_powered", "resolved_source_id", "resolved_circuit_id", "physical_connection_source_id", "power_unavailable_reason"]:
