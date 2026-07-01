@@ -31,6 +31,9 @@ jobs:
       - name: Versioned migration behavior gate
         run: timeout 120s godot --headless --path . --script res://tools/ci/check_versioned_snapshot_migration.gd
 
+      - name: Active cooling box migration gate
+        run: timeout 120s godot --headless --path . --script res://tools/ci/check_active_cooling_box_versioned_migration.gd
+
       - name: MissionManager migration integration gate
         run: timeout 120s godot --headless --path . --script res://tools/ci/check_versioned_snapshot_migration_mission_manager.gd
 
