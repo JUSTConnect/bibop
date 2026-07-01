@@ -1,9 +1,9 @@
 name: Patch 1223 Canonical Inspector Entry
 
 on:
-  push:
+  pull_request:
     branches:
-      - feature/runtime-properties-final-1178
+      - main
     paths:
       - .github/workflows/patch-1223-canonical-entry.yml
 
@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   patch:
+    if: github.event.pull_request.number == 1223
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
