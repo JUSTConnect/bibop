@@ -6,6 +6,7 @@ const BindingStoreContractRef = preload("res://scripts/world/world_binding_store
 const DetailsCurrencyServiceRef = preload("res://scripts/game/inventory/details_currency_service.gd")
 const PowerCableReelServiceRef = preload("res://scripts/game/power_cable_reel_service.gd")
 const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
+const ActiveCoolingBoxServiceRef = preload("res://scripts/game/cooling/active_cooling_box_service.gd")
 const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")
 
 const CURRENT_FORMAT_VERSION: int = 2
@@ -58,7 +59,7 @@ static func migrate_document(source_document: Dictionary) -> Dictionary:
 		issues.append(_issue(CODE_UNSUPPORTED_NEWER_VERSION, SEVERITY_FATAL, "Snapshot format is newer than this runtime.", "format_version", {"actual":source_version, "supported_max":CURRENT_FORMAT_VERSION}))
 		return _result(false, CODE_UNSUPPORTED_NEWER_VERSION, source_version, source, steps, issues)
 	if source_version < MIN_SUPPORTED_FORMAT_VERSION:
-		issues.append(_issue(CODE_UNSUPPORTED_OLDER_VERSION, SEVERITY_FATAL, "Snapshot format is older than the supported migration range.", "format_version", {"actual":source_version, "supported_min":MIN_SUPPORTED_FORMAT_VERSION}))
+		issues.append(_issue(CODE_UNSUPPORTED_OLDER_VERSION, SEVERITY_FATAL, "Snapshot format is older than the supported migration range.", "format_version", {"actual":source_version, "supported_min":CURRENT_FORMAT_VERSION}))
 		return _result(false, CODE_UNSUPPORTED_OLDER_VERSION, source_version, source, steps, issues)
 	if source_version == CURRENT_FORMAT_VERSION:
 		_validate_current_document(source, issues)
@@ -168,6 +169,8 @@ static func _read_bindings(snapshot: Dictionary, issues: Array[Dictionary]) -> D
 
 static func _canonicalize_entity(source: Dictionary) -> Dictionary:
 	var entity: Dictionary = WorldObjectCatalogRef.normalize_world_object_contract(source)
+	if ActiveCoolingBoxServiceRef.is_active_cooling_box(entity):
+		entity = ActiveCoolingBoxServiceRef.normalize_box(entity)
 	var object_type: String = str(entity.get("object_type", entity.get("type", ""))).strip_edges().to_lower()
 	if object_type == "power_cable_reel":
 		entity = PowerCableReelServiceRef.migrate_legacy_reel(entity)
