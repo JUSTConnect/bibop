@@ -15,7 +15,7 @@ const COMPUTED_POWER_FIELDS: Array[String] = [
 
 const LEGACY_AUTHORING_FIELDS: Array[String] = [
 	"state", "status", "durability", "durability_current", "durability_max",
-	"damaged", "broken", "destroyed", "cut", "is_on", "switch_state", "fuse_present", "fuse_installed", "fuse_present", "fuse_installed",
+	"damaged", "broken", "destroyed", "cut", "is_on", "switch_state", "fuse_present", "fuse_installed", "fuse_present", "fuse_installed", "fuse_present", "fuse_installed",
 	"power_source_id", "main_power_net", "power_network_id", "connection_id",
 	"source_object_id", "sink_object_id", "socket_id", "endpoint_a_id", "endpoint_b_id",
 	"connected_device_ids", "linked_terminal_id", "control_terminal_id",
