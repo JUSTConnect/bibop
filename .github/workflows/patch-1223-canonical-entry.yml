@@ -1,0 +1,68 @@
+name: Patch 1223 Canonical Inspector Entry
+
+on:
+  push:
+    branches:
+      - feature/runtime-properties-final-1178
+    paths:
+      - .github/workflows/patch-1223-canonical-entry.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/runtime-properties-final-1178
+          fetch-depth: 0
+
+      - name: Apply early canonical renderer ownership
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/ui/map_constructor/map_constructor_inspector.gd")
+          text = path.read_text(encoding="utf-8")
+
+          preload_anchor = 'const MapConstructorInspectorVisibilityServiceRef = preload("res://scripts/ui/map_constructor/map_constructor_inspector_visibility_service.gd")'
+          preload_line = 'const MapConstructorSchemaInspectorRendererRef = preload("res://scripts/ui/map_constructor/map_constructor_schema_inspector_renderer.gd")'
+          if preload_line not in text:
+              if preload_anchor not in text:
+                  raise SystemExit("preload anchor missing")
+              text = text.replace(preload_anchor, preload_anchor + "\n" + preload_line, 1)
+
+          state_anchor = "\tui.map_constructor_state.selected_map_constructor_entity_cell = cell\n"
+          render_block = (
+              state_anchor
+              + "\tvar schema_render_result: Dictionary = MapConstructorSchemaInspectorRendererRef.render(ui, parent, entity_kind, entity_id, data)\n"
+              + "\tif bool(schema_render_result.get(\"handled\", false)):\n"
+              + "\t\treturn\n"
+          )
+          if "var schema_render_result: Dictionary = MapConstructorSchemaInspectorRendererRef.render" not in text:
+              if text.count(state_anchor) != 1:
+                  raise SystemExit(f"unexpected state anchor count: {text.count(state_anchor)}")
+              text = text.replace(state_anchor, render_block, 1)
+
+          function_start = text.index("static func _render_entity_tab(")
+          kind_gate = text.index('\tif not (entity_kind in ["world_object", "item"]):', function_start)
+          canonical_call = text.index("\tvar schema_render_result: Dictionary = MapConstructorSchemaInspectorRendererRef.render", function_start)
+          legacy_identity = text.index('\tvar identity: VBoxContainer = ui._create_inspector_section("1. Identity")', function_start)
+          if not (canonical_call < kind_gate < legacy_identity):
+              raise SystemExit("canonical renderer is not before legacy construction")
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Remove one-shot workflow and push patch
+        shell: bash
+        run: |
+          rm .github/workflows/patch-1223-canonical-entry.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/ui/map_constructor/map_constructor_inspector.gd .github/workflows/patch-1223-canonical-entry.yml
+          git commit -m "fix(map-constructor): render canonical inspector before legacy UI"
+          git push origin HEAD:feature/runtime-properties-final-1178
