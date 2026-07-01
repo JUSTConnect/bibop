@@ -15,8 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: ScreenRouter static gate
-        run: |
-          python3 tools/check_screen_router.py
+        run: python3 tools/check_screen_router.py
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -30,25 +29,39 @@ jobs:
           use-dotnet: false
           include-templates: false
 
-      - name: Static checks
+      - name: Diff and GDScript safety
         run: |
           git diff --check
           python tools/check_gdscript_safety_patterns.py
+
+      - name: Map Constructor proxy and rendering boundaries
+        run: |
           python tools/check_map_constructor_game_ui_proxy.py
           python tools/check_grid_manager_rendering_boundary.py
+
+      - name: Map Constructor sections and placement contracts
+        run: |
           python tools/check_map_constructor_sections.py
           python tools/check_constructor_placement_contract.py
+
+      - name: Catalog and entity definition static contracts
+        run: |
           python tools/check_map_constructor_prefab_catalog.py
           python tools/check_entity_definition_contracts.py
+
+      - name: World state, bindings and cable reel static contracts
+        run: |
           python tools/check_world_state_store.py
           python tools/check_binding_store.py
           python tools/check_power_cable_reel.py
+
+      - name: Readiness and runtime HUD static contracts
+        run: |
           python tools/check_runtime_readiness_service.py
           python tools/check_event_driven_runtime_hud.py
 
       - name: Godot import smoke
-        run: |
-          godot --headless --path . --import
+        run: godot --headless --path . --import
 
       - name: GDScript parser/load gate
         run: |
