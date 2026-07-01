@@ -1,0 +1,57 @@
+name: Apply 1181 Adapter Fix V3
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/apply-1181-adapter-fix-v3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'feature/power-entities-1181'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/power-entities-1181
+          fetch-depth: 0
+      - name: Apply adapter fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/world/stationary_power_entity_catalog.gd")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              '"damaged", "broken", "destroyed", "cut", "is_on", "switch_state",',
+              '"damaged", "broken", "destroyed", "cut", "is_on", "switch_state", "fuse_present", "fuse_installed",',
+              1,
+          )
+          start = text.index("static func adapt_legacy_read_only(")
+          end = text.index("\n\nstatic func _apply_legacy_axis_values(", start)
+          replacement = "\n".join([
+              "static func adapt_legacy_read_only(record: Dictionary) -> Dictionary:",
+              "\tvar source_before: Dictionary = record.duplicate(true)",
+              "\tvar token: String = str(record.get(\"map_constructor_prefab_id\", record.get(\"legacy_prefab_id\", record.get(\"archetype_id\", record.get(\"object_type\", \"\"))))).strip_edges().to_lower()",
+              "\tvar adapted_source: Dictionary = record.duplicate(true)",
+              "\t_apply_legacy_axis_values(adapted_source, canonical_id(token))",
+              "\tvar result: Dictionary = normalize_new_record(adapted_source, token)",
+              "\tresult[\"legacy_adapter\"] = true",
+              "\tresult[\"legacy_source_unchanged\"] = record == source_before",
+              "\treturn result",
+          ])
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text, encoding="utf-8")
+          PY
+      - name: Commit adapter fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/world/stationary_power_entity_catalog.gd
+          git commit -m "fix(power): preserve legacy health before canonical defaults"
+          git push origin HEAD:feature/power-entities-1181
