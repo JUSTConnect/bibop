@@ -34,7 +34,7 @@ const REQUIRED_ALIASES: Dictionary = {
 }
 
 const EXPECTED_CONFIGURABLE: Dictionary = {
-	"power_cable_reel":true, "power_source":false, "power_cable":false, "power_socket":true, "fuse_box":true, "power_switcher":true, "light":true, "light_switcher":true,
+	"power_cable_reel":true, "power_source":true, "power_cable":true, "power_socket":true, "fuse_box":true, "power_switcher":true, "light":true, "light_switcher":true,
 	"radiator":false, "external_water_pipe":true, "external_air_duct":true, "metal_cooling_block":false, "crate":true, "barrel":true, "wall":true, "floor":true, "platform":true, "station":true,
 	"digital_item":true, "access_item":true, "physical_item":true, "module_item":true, "turret":false, "enemy":true, "bipob":true, "terminal":true, "door":true, "firewall":true, "debris":false, "case":true
 }
@@ -44,7 +44,7 @@ const EXPECTED_SCHEMA_FIELDS: Dictionary = {
 	"terminal":["terminal_type", "power_type", "control_type", "status"],
 	"wall":["material", "is_breachable_wall"],
 	"module_item":["module_item_type", "state"],
-	"power_switcher":["mount", "switch_state"],
+	"power_switcher":["mount", "intent_state"],
 	"fuse_box":["mount", "has_fuse"],
 	"power_socket":["mount"]
 }
