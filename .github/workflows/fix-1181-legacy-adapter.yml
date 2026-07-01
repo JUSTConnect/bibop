@@ -1,4 +1,4 @@
-name: Fix 1181 Legacy Adapter
+name: Fix 1181 Legacy Adapter V2
 
 on:
   pull_request:
