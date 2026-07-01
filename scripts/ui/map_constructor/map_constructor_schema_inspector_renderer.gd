@@ -144,8 +144,9 @@ static func _canonical(value: Variant) -> Variant:
 			result[str(key)] = _canonical(Dictionary(value)[key])
 		return result
 	if value is Array:
+		var source_values: Array = value
 		var values: Array = []
-		for item in Array(value):
+		for item in source_values:
 			values.append(_canonical(item))
 		return values
 	if value is Vector2i:
