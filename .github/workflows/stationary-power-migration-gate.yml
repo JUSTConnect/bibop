@@ -1,0 +1,35 @@
+name: Stationary Power Migration Gate
+
+on:
+  pull_request:
+    paths:
+      - scripts/world/stationary_power_entity_catalog.gd
+      - scripts/world/world_object_catalog.gd
+      - scripts/world/entity_contract_fixtures.gd
+      - scripts/world/entity_definition_contract.gd
+      - scripts/world/entity_status_evaluator.gd
+      - scripts/world/power_control_resolver.gd
+      - scripts/game/power/stationary_power_action_service.gd
+      - tools/ci/check_stationary_power_*.gd
+      - .github/workflows/stationary-power-migration-gate.yml
+  push:
+    branches: [main]
+
+jobs:
+  stationary-power-migration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Import project
+        run: godot --headless --path . --import
+      - name: Canonical definitions and legacy adapter
+        run: godot --headless --path . --script res://tools/ci/check_stationary_power_definitions.gd
+      - name: Physical topology and source resolution
+        run: godot --headless --path . --script res://tools/ci/check_stationary_power_topology.gd
+      - name: Player actions and autonomous notifications
+        run: godot --headless --path . --script res://tools/ci/check_stationary_power_actions.gd
