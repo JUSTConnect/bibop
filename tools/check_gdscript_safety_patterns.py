@@ -48,6 +48,9 @@ def check_hard_patterns() -> list[Finding]:
     hard_patterns = (
         (re.compile(r"PackedString_safe_ui_array"), "generated PackedString_safe_ui_array token"),
         (re.compile(r"_safe_ui_array\([^\n]*\)\.append\s*\("), "append() called on a temporary _safe_ui_array() result"),
+        (re.compile(r"\bfind_nearest_(terminal|door|source|target)\b"), "legacy proximity target discovery; use explicit bindings/resolvers"),
+        (re.compile(r"\binfer_.*(display|text|label|name).*\("), "legacy text/display inference; use schema data and stable result codes"),
+        (re.compile(r"\b(status|result|state)_from_(text|label|message)\b"), "result/status classification from text is forbidden"),
     )
     for path in all_files:
         for pattern, message in hard_patterns:
