@@ -15,7 +15,7 @@ const COMPUTED_POWER_FIELDS: Array[String] = [
 
 const LEGACY_AUTHORING_FIELDS: Array[String] = [
 	"state", "status", "durability", "durability_current", "durability_max",
-	"damaged", "broken", "destroyed", "cut", "is_on", "switch_state",
+	"damaged", "broken", "destroyed", "cut", "is_on", "switch_state", "fuse_present", "fuse_installed",
 	"power_source_id", "main_power_net", "power_network_id", "connection_id",
 	"source_object_id", "sink_object_id", "socket_id", "endpoint_a_id", "endpoint_b_id",
 	"connected_device_ids", "linked_terminal_id", "control_terminal_id",
@@ -217,7 +217,9 @@ static func normalize_new_record(record: Dictionary, requested_id: String = "") 
 static func adapt_legacy_read_only(record: Dictionary) -> Dictionary:
 	var source_before: Dictionary = record.duplicate(true)
 	var token: String = str(record.get("map_constructor_prefab_id", record.get("legacy_prefab_id", record.get("archetype_id", record.get("object_type", ""))))).strip_edges().to_lower()
-	var result: Dictionary = normalize_new_record(record, token)
+	var adapted_source: Dictionary = record.duplicate(true)
+	_apply_legacy_axis_values(adapted_source, canonical_id(token))
+	var result: Dictionary = normalize_new_record(adapted_source, token)
 	result["legacy_adapter"] = true
 	result["legacy_source_unchanged"] = record == source_before
 	return result
