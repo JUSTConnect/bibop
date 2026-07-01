@@ -5,6 +5,7 @@ const WorldObjectDataRef = preload("res://scripts/world/world_object_data.gd")
 const EntityDefinitionContractRef = preload("res://scripts/world/entity_definition_contract.gd")
 const MovableActionServiceRef = preload("res://scripts/game/movable/movable_action_service.gd")
 const PassiveRouteServiceRef = preload("res://scripts/game/routing/passive_route_service.gd")
+const StationaryPowerEntityCatalogRef = preload("res://scripts/world/stationary_power_entity_catalog.gd")
 
 const DOOR_TYPE_MECHANICAL := "mechanical"
 const DOOR_TYPE_DIGITAL := "digital"
@@ -685,7 +686,6 @@ const ARCHETYPE_REGISTRY: Dictionary = {
 	},
 	"power_source": {
 		"entity_contract":{"scope":"entity", "entity_type":"object", "entity_subtype":"power_source", "status_profile":"object_standard", "property_profile":"fixed", "interaction_profile":"standard_object", "notification_profile":"standard_action", "power_profile":"configurable", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_object", "editor_presentation_profile":"standard_object", "validation_fixture":"default", "capabilities":{"state":true, "power":true, "health":true, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":false, "side":false, "routing":false, "test_override":true}},
-		"legacy_semantic_exceptions":[{"field":"control_mode", "reason":"Legacy power source control field pending stationary power migration.", "migration_issue":1181}],
 		"archetype_id":"power_source", "object_group":"power", "object_type":"power_source", "palette_label":"Power Source",
 		"placement_mode":"object", "placement_surfaces":["floor"], "default_placement_surface":"floor", "requires_floor_anchor_when_wall_mounted":false, "display_name_template":"Power Source", "configurable":false, "state":"on", "is_powered":true, "power_mode":"internal", "control_mode":"internal", "visual_family":"power_source", "visual_surface":"floor", "visual_state_policy":"powered_three_state", "power_visual_state_enabled":true, "blocks_movement":true, "property_schema":[]
 	},
@@ -779,6 +779,8 @@ static func is_entity_definition_palette_eligible(prefab_id: String) -> bool:
 
 static func canonical_prefab_id(prefab_id: String) -> String:
 	var normalized_type: String = prefab_id.strip_edges().to_lower()
+	if StationaryPowerEntityCatalogRef.is_alias(normalized_type):
+		return StationaryPowerEntityCatalogRef.canonical_id(normalized_type)
 	if PREFAB_ALIASES.has(normalized_type):
 		return str(PREFAB_ALIASES[normalized_type])
 	var preset_variant: Variant = LEGACY_ITEM_ALIAS_CONFIGS.get(normalized_type, LEGACY_DOOR_ALIAS_CONFIGS.get(normalized_type, LEGACY_WALL_ALIAS_CONFIGS.get(normalized_type, LEGACY_PLATFORM_ALIAS_CONFIGS.get(normalized_type, LEGACY_TERMINAL_ALIAS_CONFIGS.get(normalized_type, LEGACY_BIPOB_ALIAS_CONFIGS.get(normalized_type, {}))))))
@@ -791,6 +793,9 @@ static func canonical_object_type(object_type: String) -> String:
 	return canonical_prefab_id(object_type)
 
 static func _get_constructor_prefab_definition(canonical_id: String) -> Dictionary:
+	var stationary_definition: Dictionary = StationaryPowerEntityCatalogRef.definition(canonical_id)
+	if not stationary_definition.is_empty():
+		return stationary_definition
 	if ARCHETYPE_REGISTRY.has(canonical_id):
 		return Dictionary(ARCHETYPE_REGISTRY[canonical_id]).duplicate(true)
 	if OBJECT_LIBRARY.has(canonical_id):
@@ -906,7 +911,7 @@ static func get_constructor_placement_contract(prefab_id: String) -> Dictionary:
 
 static func is_legacy_prefab_alias(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
-	return PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_PLATFORM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_BIPOB_ALIAS_CONFIGS.has(normalized_value)
+	return StationaryPowerEntityCatalogRef.is_alias(normalized_value) or PREFAB_ALIASES.has(normalized_value) or LEGACY_DOOR_ALIAS_CONFIGS.has(normalized_value) or LEGACY_ITEM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_WALL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_PLATFORM_ALIAS_CONFIGS.has(normalized_value) or LEGACY_TERMINAL_ALIAS_CONFIGS.has(normalized_value) or LEGACY_BIPOB_ALIAS_CONFIGS.has(normalized_value)
 
 static func is_legacy_door_object_type(value: String) -> bool:
 	var normalized_value: String = value.strip_edges().to_lower()
@@ -983,6 +988,9 @@ static func normalize_crate_contract(object_data: Dictionary) -> Dictionary:
 
 static func get_prefab_alias_defaults(prefab_id: String) -> Dictionary:
 	var normalized_prefab_id: String = prefab_id.strip_edges().to_lower()
+	var stationary_defaults: Dictionary = StationaryPowerEntityCatalogRef.alias_defaults(normalized_prefab_id)
+	if not stationary_defaults.is_empty():
+		return stationary_defaults
 	var raw_defaults: Variant = PREFAB_ALIAS_DEFAULTS.get(normalized_prefab_id, {})
 	if raw_defaults is Dictionary and not raw_defaults.is_empty():
 		return raw_defaults.duplicate(true)
@@ -1058,7 +1066,6 @@ const OBJECT_LIBRARY := {
 	"energy_wall": {"group":"wall","name":"Energy Wall","material":"energy_flow","durability":1,"blocks_movement":true,"blocks_vision":false,"invulnerable_while_powered":true,"power_mode":"external_power","placeable_in_constructor":false},
 	"power_cable": {
 		"entity_contract":{"scope":"entity", "entity_type":"cable", "entity_subtype":"power_cable", "status_profile":"cable_standard", "property_profile":"fixed", "interaction_profile":"cable", "notification_profile":"none", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"standard", "runtime_presentation_profile":"standard_cable", "editor_presentation_profile":"standard_cable", "validation_fixture":"default", "capabilities":{"state":true, "power":false, "health":false, "energy":false, "overheat":false, "control":false, "access":false, "bindings":true, "mount":true, "side":false, "routing":true, "test_override":true}},
-		"legacy_semantic_exceptions":[{"field":"durability", "reason":"Legacy power cable field pending stationary power migration.", "migration_issue":1181}, {"field":"health_state", "reason":"Legacy power cable field pending stationary power migration.", "migration_issue":1181}, {"field":"power_mode", "reason":"Legacy power cable field pending stationary power migration.", "migration_issue":1181}, {"field":"is_powered", "reason":"Legacy power cable field pending stationary power migration.", "migration_issue":1181}, {"field":"power_state", "reason":"Legacy power cable field pending stationary power migration.", "migration_issue":1181}, {"field":"power_source_id", "reason":"Legacy power cable field pending stationary power migration.", "migration_issue":1181}, {"field":"physical_connection_source_id", "reason":"Legacy power cable field pending stationary power migration.", "migration_issue":1181}, {"field":"control_mode", "reason":"Legacy power cable field pending stationary power migration.", "migration_issue":1181}],
 		"group":"power","name":"Power Cable","placement_surfaces":["floor", "wall"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":true,"state":"ok","durability":5,"power_mode":"external_power","control_mode":"internal_control","generic_power_role":"cable_link","is_powered":false,"power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","power_source_id":"","physical_connection_source_id":"","is_connected":true,"connected":true,"disconnected":false,"connected_side":true,"cut":false,"damaged":false,"broken":false,"is_hidden":false,"hidden_installation":false,"route_surface":"floor","cable_install_mode":"floor","install_mode":"floor","cable_health_state":"normal","health_state":"normal","cable_path_cells":[],"cable_length":0},
 	"circuit_breaker": {"group":"power","name":"Circuit Breaker","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"switch_on","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
 	"circuit_switch": {"group":"power","name":"Circuit Switch","placeable_in_constructor":false,"state":"switch_off","durability":8,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false,"input_wire_id":"","output_1_wire_id":"","output_2_wire_id":"","output_3_wire_id":"","active_output_index":1},
@@ -1069,7 +1076,6 @@ const OBJECT_LIBRARY := {
 	"light_switch": {"group":"power","name":"Light Switch","placeable_in_constructor":false,"placement_mode":"wall_mounted","state":"switch_off","durability":6,"power_mode":"external_power","control_mode":"internal_control","requires_external_control":false,"control_terminal_id":"","linked_terminal_id":"","is_powered":false,"is_on":false,"can_be_switched":true,"power_network_id":"","power_source_id":"","physical_connection_source_id":"","damaged":false,"broken":false},
 	"power_socket": {
 		"entity_contract":{"scope":"entity", "entity_type":"object", "entity_subtype":"power_socket", "status_profile":"object_standard", "property_profile":"definition_schema", "interaction_profile":"standard_object", "notification_profile":"standard_action", "power_profile":"configurable", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_object", "editor_presentation_profile":"standard_object", "validation_fixture":"default", "capabilities":{"state":true, "power":true, "health":true, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":true, "side":true, "routing":false, "test_override":true}},
-		"legacy_semantic_exceptions":[{"field":"control_mode", "reason":"Legacy power socket field pending stationary power migration.", "migration_issue":1181}, {"field":"connected_device_ids", "reason":"Legacy power socket field pending stationary power migration.", "migration_issue":1181}],
 		"group":"power","placement_surfaces":["floor", "wall"],"default_placement_surface":"floor","requires_floor_anchor_when_wall_mounted":true,"object_group":"power","object_type":"power_socket","archetype_id":"power_socket","palette_label":"Power Socket","name":"Power Socket","display_name_template":"Power Socket","placement_mode":"object","configurable":true,"interactable":true,"blocks_movement":false,"blocks_vision":false,"state":"disconnected","status":"inactive","durability":8,"power_mode":"external_power","control_mode":"internal_control","generic_power_role":"socket_input","socket_role":"socket_input","visual_family":"power_socket","visual_state_policy":"power_socket_connection_state","power_visual_state_enabled":false,"has_connected_cable":false,"connected_endpoint_count":0,"socket_connected_endpoint_count":0,"is_powered":false,"power_state":"unpowered","power_required":false,"power_received":0,"power_network_id":"","connection_id":"","source_object_id":"","sink_object_id":"","socket_id":"","endpoint_a_id":"","endpoint_b_id":"","power_source_id":"","physical_connection_source_id":"","is_connected":false,"connected":false,"disconnected":true,"connected_side":false,"damaged":false,"broken":false,"can_connect_cable":true,"mount":"floor","install_mode":"floor","property_schema":[FACING_SIDE_SCHEMA,{"field":"mount", "type":"enum", "values":["floor", "wall"], "default":"floor", "labels":{"floor":"Floor", "wall":"Wall"}}]},
 	"power_cable_reel": {
 		"entity_contract":{"scope":"entity", "entity_type":"item", "entity_subtype":"power_cable_reel", "status_profile":"item_standard", "property_profile":"fixed", "interaction_profile":"item", "notification_profile":"standard_action", "power_profile":"none", "control_profile":"none", "access_profile":"none", "binding_profile":"none", "runtime_presentation_profile":"standard_item", "editor_presentation_profile":"excluded", "validation_fixture":"default", "capabilities":{"state":true, "power":false, "health":true, "energy":false, "overheat":false, "control":false, "access":false, "bindings":false, "mount":false, "side":false, "routing":true, "test_override":false}},
@@ -1648,6 +1654,10 @@ static func normalize_enemy_contract(object_data: Dictionary) -> Dictionary:
 	data["enemy_kind"] = enemy_type
 	return data
 
+static func adapt_legacy_stationary_power_record(object_data: Dictionary) -> Dictionary:
+	return StationaryPowerEntityCatalogRef.adapt_legacy_read_only(object_data)
+
+
 static func normalize_world_object_contract(object_data: Dictionary) -> Dictionary:
 	var data: Dictionary = canonicalize_legacy_object_data(object_data)
 	if data.is_empty():
@@ -1983,9 +1993,12 @@ static func normalize_door_state_fields(object_data: Dictionary) -> Dictionary:
 	return object_data
 
 static func get_archetype_definition(archetype_id: String) -> Dictionary:
-	var definition: Variant = ARCHETYPE_REGISTRY.get(_normalized_contract_token(archetype_id), {})
+	var canonical_id: String = canonical_prefab_id(_normalized_contract_token(archetype_id))
+	var stationary_definition: Dictionary = StationaryPowerEntityCatalogRef.definition(canonical_id)
+	if not stationary_definition.is_empty():
+		return stationary_definition
+	var definition: Variant = ARCHETYPE_REGISTRY.get(canonical_id, {})
 	return definition.duplicate(true) if definition is Dictionary else {}
-
 static func get_archetype_property_schema(archetype_id: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var definition: Dictionary = get_archetype_definition(archetype_id)
@@ -1998,6 +2011,9 @@ static func get_archetype_property_schema(archetype_id: String) -> Array[Diction
 
 static func get_archetype_id_for_object(object_data: Dictionary) -> String:
 	var explicit_id: String = _normalized_contract_token(object_data.get("archetype_id", ""))
+	var canonical_explicit_id: String = canonical_prefab_id(explicit_id)
+	if StationaryPowerEntityCatalogRef.is_family(canonical_explicit_id):
+		return canonical_explicit_id
 	if ARCHETYPE_REGISTRY.has(explicit_id):
 		return explicit_id
 	var object_type: String = _normalized_contract_token(object_data.get("object_type", ""))
@@ -2278,7 +2294,8 @@ static func create_archetype_object(archetype_id: String, id_override: String = 
 		data[str(key_variant)] = overrides[key_variant]
 	if archetype_id == "terminal" and overrides.has("status"):
 		data["state"] = overrides["status"]
-	return normalize_door_state_fields(normalize_world_object_contract(normalize_archetype_object(data)))
+	var normalized: Dictionary = normalize_door_state_fields(normalize_world_object_contract(normalize_archetype_object(data)))
+	return StationaryPowerEntityCatalogRef.normalize_new_record(normalized, archetype_id)
 
 static func _create_library_object(object_type: String, id_override: String = "") -> Dictionary:
 	var canonical_type: String = canonical_object_type(object_type)
@@ -2312,6 +2329,10 @@ static func _create_library_object(object_type: String, id_override: String = ""
 
 static func create_world_object(object_type: String, id_override: String = "") -> Dictionary:
 	var normalized_type: String = _normalized_contract_token(object_type)
+	var stationary_id: String = StationaryPowerEntityCatalogRef.canonical_id(normalized_type)
+	if StationaryPowerEntityCatalogRef.is_family(stationary_id):
+		var stationary_object: Dictionary = create_archetype_object(stationary_id, id_override, get_prefab_alias_defaults(normalized_type))
+		return mark_legacy_source(stationary_object, normalized_type) if StationaryPowerEntityCatalogRef.is_alias(normalized_type) else stationary_object
 	if is_legacy_prefab_alias(normalized_type):
 		var canonical_type: String = canonical_prefab_id(normalized_type)
 		if ARCHETYPE_REGISTRY.has(canonical_type):
