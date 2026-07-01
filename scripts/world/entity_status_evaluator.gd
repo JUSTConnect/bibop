@@ -9,9 +9,9 @@ const DEFAULT_OPERATIONAL_STATE := "operational"
 const STATUS_PROFILE_AXES: Dictionary = {
 	"object_standard":["intent", "health", "operational"],
 	"item_standard":["operational"],
-	"cable_standard":["operational"],
+	"cable_standard":["health", "operational"],
 	"cooling_passive":[],
-	"light_standard":["intent", "operational"],
+	"light_standard":["intent", "health", "thermal", "operational"],
 	"movable_standard":["health", "operational"],
 	"thermal_test":["intent", "health", "thermal", "operational"],
 	"object_thermal":["intent", "health", "thermal", "operational"]

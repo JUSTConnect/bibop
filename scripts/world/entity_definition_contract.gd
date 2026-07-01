@@ -32,24 +32,6 @@ const FIELD_SEMANTICS: Dictionary = {
 # Closed compatibility list for authoring-reachable OBJECT_LIBRARY fallbacks.
 # New definitions must declare their own exact legacy_semantic_exceptions.
 const LEGACY_LIBRARY_EXCEPTIONS: Dictionary = {
-	"power_cable":[
-		{"field":"power_required", "reason":"Legacy stationary cable field pending #1181.", "migration_issue":1181},
-		{"field":"power_received", "reason":"Legacy stationary cable field pending #1181.", "migration_issue":1181},
-		{"field":"power_network_id", "reason":"Legacy stationary cable field pending #1181.", "migration_issue":1181},
-		{"field":"damaged", "reason":"Legacy stationary cable health flag pending #1181.", "migration_issue":1181},
-		{"field":"broken", "reason":"Legacy stationary cable health flag pending #1181.", "migration_issue":1181}
-	],
-	"power_socket":[
-		{"field":"durability", "reason":"Legacy socket health field pending #1181.", "migration_issue":1181},
-		{"field":"power_state", "reason":"Legacy socket computed field pending #1181.", "migration_issue":1181},
-		{"field":"power_required", "reason":"Legacy socket power field pending #1181.", "migration_issue":1181},
-		{"field":"power_received", "reason":"Legacy socket power field pending #1181.", "migration_issue":1181},
-		{"field":"power_network_id", "reason":"Legacy socket power field pending #1181.", "migration_issue":1181},
-		{"field":"power_source_id", "reason":"Legacy socket source field pending #1181.", "migration_issue":1181},
-		{"field":"physical_connection_source_id", "reason":"Legacy socket computed source field pending #1181.", "migration_issue":1181},
-		{"field":"damaged", "reason":"Legacy socket health flag pending #1181.", "migration_issue":1181},
-		{"field":"broken", "reason":"Legacy socket health flag pending #1181.", "migration_issue":1181}
-	],
 	"turret":[
 		{"field":"durability", "reason":"Legacy turret health field pending #1192.", "migration_issue":1192},
 		{"field":"power_network_id", "reason":"Legacy turret power field pending #1192.", "migration_issue":1192}

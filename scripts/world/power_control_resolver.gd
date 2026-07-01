@@ -372,8 +372,12 @@ static func _route_is_blocked(object_data: Dictionary) -> bool:
 		if object_data.has("is_connected") and not bool(object_data.get("is_connected", true)):
 			return true
 	if object_type in ["fuse_box", "fuse_box_empty", "fuse_block"]:
-		return not (bool(object_data.get("fuse_installed", false)) or state in ["installed", "ok", "active"] or object_type == "fuse_box_installed")
-	if object_type in ["circuit_breaker", "power_breaker", "power_knife_switch", "power_switcher"]:
+		var has_fuse: bool = bool(object_data.get("has_fuse", object_data.get("fuse_present", object_data.get("fuse_installed", state in ["installed", "ok", "active"] or object_type == "fuse_box_installed"))))
+		return not has_fuse
+	if object_type in ["circuit_switch", "circuit_breaker", "power_breaker", "power_knife_switch", "power_switcher"]:
+		var intent: String = str(object_data.get("intent_state", "")).strip_edges().to_lower()
+		if intent in ["on", "off"]:
+			return intent == "off"
 		return state in ["off", "switch_off", "open"] or not bool(object_data.get("is_on", state in ["on", "switch_on", "active", "ok"]))
 	return false
 
