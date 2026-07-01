@@ -1,0 +1,60 @@
+name: Fix 1181 Legacy Adapter
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-1181-legacy-adapter.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.ref == 'feature/power-entities-1181'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/power-entities-1181
+          fetch-depth: 0
+      - name: Fix legacy adapter ordering and fuse fields
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/world/stationary_power_entity_catalog.gd")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              '"damaged", "broken", "destroyed", "cut", "is_on", "switch_state",',
+              '"damaged", "broken", "destroyed", "cut", "is_on", "switch_state", "fuse_present", "fuse_installed",',
+              1,
+          )
+          old = '''static func adapt_legacy_read_only(record: Dictionary) -> Dictionary:
+	var source_before: Dictionary = record.duplicate(true)
+	var token: String = str(record.get("map_constructor_prefab_id", record.get("legacy_prefab_id", record.get("archetype_id", record.get("object_type", ""))))).strip_edges().to_lower()
+	var result: Dictionary = normalize_new_record(record, token)
+	result["legacy_adapter"] = true
+	result["legacy_source_unchanged"] = record == source_before
+	return result'''
+          new = '''static func adapt_legacy_read_only(record: Dictionary) -> Dictionary:
+	var source_before: Dictionary = record.duplicate(true)
+	var token: String = str(record.get("map_constructor_prefab_id", record.get("legacy_prefab_id", record.get("archetype_id", record.get("object_type", ""))))).strip_edges().to_lower()
+	var adapted_source: Dictionary = record.duplicate(true)
+	_apply_legacy_axis_values(adapted_source, canonical_id(token))
+	var result: Dictionary = normalize_new_record(adapted_source, token)
+	result["legacy_adapter"] = true
+	result["legacy_source_unchanged"] = record == source_before
+	return result'''
+          if old not in text:
+              raise SystemExit("legacy adapter anchor missing")
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/world/stationary_power_entity_catalog.gd
+          git commit -m "fix(power): preserve legacy health before canonical defaults"
+          git push origin HEAD:feature/power-entities-1181
