@@ -11,13 +11,13 @@ on:
       - scripts/world/power_control_resolver.gd
       - scripts/game/power/stationary_power_action_service.gd
       - tools/ci/check_stationary_power_*.gd
+      - tools/ci/check_map_constructor_prefab_catalog.gd
       - .github/workflows/stationary-power-migration-gate.yml
   push:
     branches: [main]
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   stationary-power-migration:
@@ -38,33 +38,4 @@ jobs:
       - name: Player actions and autonomous notifications
         run: godot --headless --quiet --path . --script res://tools/ci/check_stationary_power_actions.gd
       - name: Map Constructor prefab compatibility
-        id: prefab
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          godot --headless --quiet --path . --script res://tools/ci/check_map_constructor_prefab_catalog.gd 2>&1 | tee /tmp/prefab-catalog.log
-          code=${PIPESTATUS[0]}
-          {
-            echo 'report<<EOF'
-            grep -E 'PREFAB|CATALOG|FAIL|ERROR|SCRIPT ERROR' /tmp/prefab-catalog.log | tail -120 || true
-            echo EOF
-          } >> "$GITHUB_OUTPUT"
-          exit "$code"
-      - name: Report prefab compatibility failure
-        if: github.event_name == 'pull_request' && steps.prefab.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          PREFAB_REPORT: ${{ steps.prefab.outputs.report }}
-        shell: bash
-        run: |
-          {
-            echo '### Map Constructor prefab compatibility diagnostics'
-            echo
-            echo '```text'
-            printf '%s\n' "$PREFAB_REPORT"
-            echo '```'
-          } > /tmp/prefab-comment.md
-          gh pr comment "$PR_URL" --body-file /tmp/prefab-comment.md
-          exit 1
+        run: godot --headless --quiet --path . --script res://tools/ci/check_map_constructor_prefab_catalog.gd
