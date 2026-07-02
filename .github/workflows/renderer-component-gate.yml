@@ -32,6 +32,8 @@ jobs:
         run: python tools/check_visual_asset_resource_runtime_boundary.py
       - name: Import project
         run: godot --headless --path . --import
+      - name: Check canonical visual descriptor behavior
+        run: godot --headless --path . --script res://tools/ci/check_canonical_visual_descriptor_behavior.gd
       - name: Check projection contract
         run: godot --headless --path . --script res://tools/ci/check_renderer_projection_contract.gd
       - name: Check RoomVisualRenderer smoke contract
