@@ -88,7 +88,9 @@ static func _enum_options(schema: Dictionary) -> Array[Dictionary]:
 static func _render_number(ui: Variant, box: VBoxContainer, label: String, entity_kind: String, entity_id: String, field_name: String, current_value: Variant, schema: Dictionary) -> void:
 	var spin: SpinBox = _spin_box(current_value, schema)
 	spin.value_changed.connect(func(value: float) -> void:
-		var next_value: Variant = int(value) if str(schema.get("type", "")) == "int" else value
+		var next_value: Variant = value
+		if str(schema.get("type", "")) == "int":
+			next_value = int(value)
 		ui._apply_map_constructor_property_updates(entity_kind, entity_id, {field_name:next_value})
 	)
 	box.add_child(ui._create_property_row(label, spin))
@@ -140,7 +142,9 @@ static func _spin_box(value: Variant, schema: Dictionary) -> SpinBox:
 	return spin
 
 static func _typed_number(value: float, descriptor: Dictionary) -> Variant:
-	return int(value) if str(descriptor.get("value_type", "int")) == "int" else value
+	if str(descriptor.get("value_type", "int")) == "int":
+		return int(value)
+	return value
 
 static func _read_only_display(row: Dictionary) -> Variant:
 	if row.has("value"):
