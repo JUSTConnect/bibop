@@ -1,7 +1,7 @@
 extends RefCounted
 class_name CanonicalVisualDescriptorService
 
-const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
+const VisualAssetCatalogScript = preload("res://scripts/visual/visual_asset_catalog.gd")
 const VisualStateAssetServiceRef = preload("res://scripts/visual/visual_state_asset_service.gd")
 
 const FIELD_VISUAL_FAMILY: String = "visual_family"
@@ -120,7 +120,7 @@ static func build_descriptor(object_data: Dictionary, fallback_render_contract: 
 	var visual_variant: String = VisualStateAssetServiceRef.resolve_visual_variant(object_data)
 	var visual_asset_id: String = VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
 	if visual_asset_id.is_empty():
-		visual_asset_id = VisualAssetCatalogRef.resolve_object_asset_id("object_generic")
+		visual_asset_id = VisualAssetCatalogScript.resolve_object_asset_id("object_generic")
 	var descriptor: Dictionary = {
 		FIELD_VISUAL_FAMILY: family,
 		FIELD_VISUAL_SURFACE: surface,
