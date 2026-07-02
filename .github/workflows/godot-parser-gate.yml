@@ -33,6 +33,7 @@ jobs:
         run: |
           git diff --check
           python tools/check_gdscript_safety_patterns.py
+          python tools/check_gdscript_builtin_callbacks.py
 
       - name: Map Constructor proxy and rendering boundaries
         run: |
