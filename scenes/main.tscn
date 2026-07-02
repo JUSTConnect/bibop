@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/ui/game_ui.gd" id="1_gameui"]
 
-[node name="GameUI" type="CanvasLayer" unique_id=13954534]
+[node name="UI" type="CanvasLayer" unique_id=13954534]
 script = ExtResource("1_gameui")
 
 [node name="MissionLabel" type="Label" parent="."]
@@ -55,6 +55,9 @@ text = "Status"
 
 [node name="ModuleLabel" type="Label" parent="BoxScreen/PanelContainer/VBoxContainer"]
 text = "Modules"
+
+[node name="InstalledModulesLabel" type="Label" parent="BoxScreen/PanelContainer/VBoxContainer"]
+text = "Installed modules"
 
 [node name="ButtonRow" type="HBoxContainer" parent="BoxScreen/PanelContainer/VBoxContainer"]
 
