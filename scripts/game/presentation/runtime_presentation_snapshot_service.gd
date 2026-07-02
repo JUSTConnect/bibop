@@ -39,7 +39,7 @@ static func build(controller: Variant, target_object: Dictionary, target_positio
 		"requirements":RequirementCatalogRef.deduplicate(requirements),
 		"bindings":_bindings(source, _dictionary_array(world_context.get("bindings", [])), Dictionary(world_context.get("entities_by_id", {})), control, access, debug_enabled),
 		"actions":actions,
-		"notification":_notification(Dictionary(context.get("notification", {})), debug_enabled),
+		"notification":_notification_row(Dictionary(context.get("notification", {})), debug_enabled),
 		"signature":"",
 		"debug":{}
 	}
@@ -158,7 +158,7 @@ static func _bindings(source: Dictionary, bindings: Array[Dictionary], entities:
 	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return "%s|%s" % [a.get("role", ""), a.get("source_name", "")] < "%s|%s" % [b.get("role", ""), b.get("source_name", "")])
 	return rows
 
-static func _notification(event: Dictionary, debug_enabled: bool) -> Dictionary:
+static func _notification_row(event: Dictionary, debug_enabled: bool) -> Dictionary:
 	if event.is_empty(): return {}
 	var row: Dictionary = {"result":str(event.get("result", "")), "message_key":str(event.get("message_key", "")), "fallback":str(event.get("fallback", event.get("message", ""))), "player_action":bool(event.get("player_action", false))}
 	if debug_enabled:
