@@ -1,3 +1,68 @@
-[gd_scene format=3 uid="uid://diphyupq6cob4"]
+[gd_scene load_steps=2 format=3 uid="uid://diphyupq6cob4"]
 
-[node name="Main" type="Node2D" unique_id=13954534]
+[ext_resource type="Script" path="res://scripts/ui/game_ui.gd" id="1_gameui"]
+
+[node name="GameUI" type="CanvasLayer" unique_id=13954534]
+script = ExtResource("1_gameui")
+
+[node name="MissionLabel" type="Label" parent="."]
+visible = false
+text = "Mission"
+
+[node name="StatusLabel" type="Label" parent="."]
+visible = false
+text = "Status"
+
+[node name="HintLabel" type="Label" parent="."]
+visible = false
+text = "Hint"
+
+[node name="CommandPanel" type="PanelContainer" parent="."]
+visible = false
+
+[node name="CommandList" type="VBoxContainer" parent="CommandPanel"]
+
+[node name="MoveForwardButton" type="Button" parent="CommandPanel/CommandList"]
+text = "Forward"
+
+[node name="MoveBackwardButton" type="Button" parent="CommandPanel/CommandList"]
+text = "Backward"
+
+[node name="TurnLeftButton" type="Button" parent="CommandPanel/CommandList"]
+text = "Turn Left"
+
+[node name="TurnRightButton" type="Button" parent="CommandPanel/CommandList"]
+text = "Turn Right"
+
+[node name="InteractButton" type="Button" parent="CommandPanel/CommandList"]
+text = "Interact"
+
+[node name="EndTurnButton" type="Button" parent="CommandPanel/CommandList"]
+text = "End Turn"
+
+[node name="BoxScreen" type="Control" parent="."]
+visible = false
+
+[node name="PanelContainer" type="PanelContainer" parent="BoxScreen"]
+
+[node name="VBoxContainer" type="VBoxContainer" parent="BoxScreen/PanelContainer"]
+
+[node name="TitleLabel" type="Label" parent="BoxScreen/PanelContainer/VBoxContainer"]
+text = "BIPOB"
+
+[node name="StatusLabel" type="Label" parent="BoxScreen/PanelContainer/VBoxContainer"]
+text = "Status"
+
+[node name="ModuleLabel" type="Label" parent="BoxScreen/PanelContainer/VBoxContainer"]
+text = "Modules"
+
+[node name="ButtonRow" type="HBoxContainer" parent="BoxScreen/PanelContainer/VBoxContainer"]
+
+[node name="ChargeButton" type="Button" parent="BoxScreen/PanelContainer/VBoxContainer/ButtonRow"]
+text = "Charge"
+
+[node name="InstallModuleButton" type="Button" parent="BoxScreen/PanelContainer/VBoxContainer/ButtonRow"]
+text = "Install"
+
+[node name="StartMissionButton" type="Button" parent="BoxScreen/PanelContainer/VBoxContainer/ButtonRow"]
+text = "Start"
