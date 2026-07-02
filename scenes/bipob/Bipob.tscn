@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://2xanckmu62op"]
 
-[ext_resource type="Script" path="res://scripts/bipob/bipob_controller.gd" id="1_bipob"]
+[ext_resource type="Script" path="res://scripts/bipob/bipob_runtime_controller.gd" id="1_bipob"]
 
 [node name="Bipob" type="Node2D" unique_id=1766177282]
 script = ExtResource("1_bipob")
