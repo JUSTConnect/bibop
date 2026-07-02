@@ -30,7 +30,6 @@ static func build(ui) -> Control:
 	top_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_child(top_row)
 	top_row.add_child(ui._create_menu_button("TSK", Callable(ui, "_on_center_tasks_pressed"), Vector2(170, 36)))
-	top_row.add_child(ui._create_menu_button("Constructor", Callable(ui, "_on_center_constructor_pressed"), Vector2(170, 36)))
 	var top_spacer := Control.new()
 	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(top_spacer)
