@@ -3,6 +3,7 @@ class_name ObjectRenderer
 
 const VisualAssetCatalogRef = preload("res://scripts/visual/visual_asset_catalog.gd")
 const VisualStateAssetServiceRef = preload("res://scripts/visual/visual_state_asset_service.gd")
+const CanonicalVisualDescriptorServiceRef = preload("res://scripts/visual/canonical_visual_descriptor_service.gd")
 const IsoDrawEntryContractRef = preload("res://scripts/visual/renderer/iso_draw_entry_contract.gd")
 const WallMountedPlacementRulesServiceRef = preload("res://scripts/game/wall/wall_mounted_placement_rules_service.gd")
 
@@ -95,7 +96,24 @@ static func get_wall_mounted_cardinal_side(object_data: Dictionary) -> String:
 	if direction == Vector2i(-1, 0): return "west"
 	return wall_side if wall_side in WALL_SIDE_ORDER else "west"
 
+static func has_explicit_visual_descriptor_fields(object_data: Dictionary) -> bool:
+	for key in ["visual_family", "visual_asset_family", "visual_state_policy", "visual_asset_id", "visual_texture_asset_id", "texture_asset_id", "asset_id"]:
+		if object_data.has(key) and not str(object_data.get(key, "")).strip_edges().is_empty():
+			return true
+	return false
+
+static func get_canonical_visual_asset_key(object_data: Dictionary) -> String:
+	if not has_explicit_visual_descriptor_fields(object_data) and not VisualStateAssetServiceRef.object_uses_visual_states(object_data):
+		return ""
+	var descriptor: Dictionary = CanonicalVisualDescriptorServiceRef.build_descriptor(object_data)
+	if not CanonicalVisualDescriptorServiceRef.is_valid_descriptor(descriptor):
+		return ""
+	return str(descriptor.get(CanonicalVisualDescriptorServiceRef.FIELD_VISUAL_ASSET_ID, "")).strip_edges()
+
 static func get_asset_key_for_object_data(object_data: Dictionary, fallback_profile_key: String) -> String:
+	var descriptor_asset_key: String = get_canonical_visual_asset_key(object_data)
+	if not descriptor_asset_key.is_empty():
+		return descriptor_asset_key
 	var fallback_asset_key: String = get_asset_key_for_profile(fallback_profile_key)
 	var type_value: String = str(object_data.get("object_type", object_data.get("item_type", object_data.get("type", "")))).to_lower().strip_edges()
 	var prefab_value: String = str(object_data.get("map_constructor_prefab_id", object_data.get("catalog_id", ""))).to_lower().strip_edges()
@@ -103,11 +121,6 @@ static func get_asset_key_for_object_data(object_data: Dictionary, fallback_prof
 	var name_value: String = str(object_data.get("name", "")).to_lower().strip_edges()
 	var id_value: String = str(object_data.get("id", object_data.get("object_id", ""))).to_lower().strip_edges()
 	var blob: String = "%s %s %s %s %s %s" % [fallback_profile_key.to_lower(), type_value, prefab_value, group_value, name_value, id_value]
-	var explicit_visual_asset_id: String = str(object_data.get("visual_asset_id", object_data.get("visual_texture_asset_id", object_data.get("texture_asset_id", object_data.get("asset_id", ""))))).strip_edges()
-	if not explicit_visual_asset_id.is_empty():
-		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
-	if VisualStateAssetServiceRef.object_uses_visual_states(object_data):
-		return VisualStateAssetServiceRef.resolve_visual_asset_id(object_data)
 	if type_value == "platform" or blob.contains(" platform"):
 		return ""
 	if type_value == "power_switcher" or blob.contains("power_switcher"):

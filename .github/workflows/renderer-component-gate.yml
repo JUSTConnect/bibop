@@ -22,6 +22,8 @@ jobs:
         run: python tools/check_room_visual_renderer_component_boundary.py
       - name: Check canonical visual descriptor service
         run: python tools/check_canonical_visual_descriptor_contract.py
+      - name: Check ObjectRenderer canonical descriptor path
+        run: python tools/check_object_renderer_visual_descriptor_path.py
       - name: Check CableCanvasRenderer boundary
         run: python tools/check_cable_canvas_renderer_boundary.py
       - name: Check IsoAssetAlignmentPolicy boundary
