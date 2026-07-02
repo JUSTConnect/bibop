@@ -1,0 +1,21 @@
+name: Power Cable External Targets Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  power-cable-external-targets-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Import project
+        run: godot --headless --path . --import
+      - name: Check power cable external targets
+        run: godot --headless --path . --script res://tools/ci/check_power_cable_reel_external_targets.gd
