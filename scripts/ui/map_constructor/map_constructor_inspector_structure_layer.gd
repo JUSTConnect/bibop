@@ -48,7 +48,7 @@ static func request_explicit_refresh(ui: Object) -> void:
 	if ui != null and is_instance_valid(ui) and ui.has_method("_refresh_map_constructor_inspector_structure"):
 		ui.call_deferred("_refresh_map_constructor_inspector_structure")
 
-static func _ensure_empty_legacy_fallback_sections(ui: Object, content: VBoxContainer, entity_kind: String, entity_id: String, data: Dictionary) -> void:
+static func _ensure_empty_legacy_fallback_sections(ui: Object, content: VBoxContainer, _entity_kind: String, entity_id: String, data: Dictionary) -> void:
 	if content.get_child_count() > 0:
 		return
 	var identity: VBoxContainer = ui.call("_create_inspector_section", "Legacy Identity")
