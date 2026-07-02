@@ -34,6 +34,8 @@ jobs:
         run: godot --headless --path . --import
       - name: Check canonical visual descriptor behavior
         run: godot --headless --path . --script res://tools/ci/check_canonical_visual_descriptor_behavior.gd
+      - name: Check visual facing side behavior
+        run: godot --headless --path . --script res://tools/ci/check_visual_facing_side_behavior.gd
       - name: Check projection contract
         run: godot --headless --path . --script res://tools/ci/check_renderer_projection_contract.gd
       - name: Check RoomVisualRenderer smoke contract
