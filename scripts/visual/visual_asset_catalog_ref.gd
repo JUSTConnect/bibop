@@ -1,9 +1,8 @@
 extends RefCounted
-class_name VisualAssetCatalogRef
+class_name VisualAssetCatalogProxy
 
-# Compatibility proxy for code paths that reference VisualAssetCatalogRef as a global class.
-# Long term, large files should preload VisualAssetCatalog directly, but this proxy keeps
-# current renderer/runtime references compiling without touching large files.
+# Compatibility proxy for code paths that need an explicit catalog wrapper.
+# Keep this global class name distinct from local VisualAssetCatalogRef preload aliases.
 
 static func get_asset_path(asset_id: String) -> String:
 	return VisualAssetCatalog.get_asset_path(asset_id)
